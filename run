@@ -1,0 +1,32 @@
+#!/usr/bin/ruby
+
+require 'execrunner'
+
+# -- DEPENDENCIES --
+JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
+
+# -- RUN --
+env!( 
+	# Program
+	'java',
+	# Runtime Options
+	o('cp', 
+		"dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/postgresql.jar:#{JAVANLP}"),
+	o('Xrunhprof:cpu=samples'),
+	o('Xmx500M'),
+	o('server'),
+	o('ea'),
+	'time.Entry',
+
+	run(
+		# -- BOOTSTRAPING --
+		#(exec options)
+#		o('logDebug'),
+		o('ignoreClasspath', "\"[#{ENV['JAVANLP_HOME']}/.*,etc/scala-library.jar,etc/postgres.jar]\""),
+		#(logging)
+		o('execDir', 'out'),
+		o('execOutput', '"psql://research@localhost:time<what?why42?"'),
+		#(data)
+		o('execData', '"psql://research@localhost:data<what?why42?"'),
+	nil),
+nil)

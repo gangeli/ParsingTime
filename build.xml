@@ -1,0 +1,77 @@
+<project name="time" default="dist" basedir=".">
+	<!-- PROPERTIES -->
+	<description>
+		Build file for ${ant.project.name}
+	</description>
+
+	<property name="src" location="src"/>
+	<property name="lib" location="etc"/>
+	<property name="build" location="bin"/>
+	<property name="dist" location="dist"/>
+
+	<path id="classpath.build">
+		<pathelement location="${lib}/postgresql.jar"/>
+		<pathelement location="${lib}/scala-compiler.jar"/>
+		<pathelement location="${lib}/scala-library.jar"/>
+		<pathelement location="${lib}/lib.jar"/>
+	</path>
+		
+	<taskdef resource="scala/tools/ant/antlib.xml">
+		<classpath>
+			<pathelement location="${lib}/scala-compiler.jar"/>
+			<pathelement location="${scala-library.jar}"/>
+		</classpath>
+	</taskdef>
+
+	<!-- INIT -->
+	<target name="init">
+		<tstamp/>
+		<mkdir dir="${build}"/>
+	</target>
+
+	<target name="init-scala">
+		<property name="scala-library.jar" 
+			value="${lib}/scala-library.jar"/>
+		<path id="scala.classpath">
+			<pathelement location="${scala-library.jar}"/>
+			<pathelement location="${build}"/>
+		</path>
+	</target>
+
+	<!-- BUILD -->
+	<target name="build" depends="init,init-scala"
+			description="Compile all files">
+		<javac srcdir="${src}" destdir="${build}"
+				debug="true" debuglevel="lines, vars, and source"
+				includeantruntime="false">
+			<classpath refid="classpath.build"/>
+		</javac>
+		<scalac srcdir="${src}" destdir="${build}" 
+				classpathref="classpath.build">
+			<include name="**/*.scala"/>
+		</scalac>
+	</target>
+
+	<target name="dist" depends="build"
+			description="Package all files">
+		<mkdir dir="${dist}"/>
+		<!--Package Everything-->
+		<jar jarfile="${dist}/${ant.project.name}.jar">
+			<fileset dir="${build}"/>
+			<fileset dir="${src}"/>
+			<!--
+			<zipfileset src="${lib}/postgresql.jar"/>
+			<zipfileset src="${lib}/scala-library.jar"/>
+			<zipfileset src="${lib}/lib.jar"/>
+			-->
+		</jar>
+	</target>
+
+	<!-- CLEAN -->
+	<target name="clean"
+			description="clean up">
+		<delete dir="${build}"/>
+		<delete dir="${dist}"/>
+	</target>
+
+</project>
