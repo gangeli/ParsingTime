@@ -1,0 +1,166 @@
+\documentclass{article}
+\usepackage{amssymb,amsmath,amsthm} 
+\usepackage[margin=1.25in]{geometry}
+\input{std-macros}
+\begin{document}
+
+\title{Time}
+\author{}
+\date{\today}
+\maketitle
+
+\def\second#1{\ensuremath{#1_{second}}}
+\def\minute#1{\ensuremath{#1_{minute}}}
+\def\hour#1{\ensuremath{#1_{hour}}}
+\def\day#1{\ensuremath{#1_{day}}}
+\def\week#1{\ensuremath{#1_{week}}}
+\def\month#1{\ensuremath{#1_{month}}}
+\def\year#1{\ensuremath{#1_{year}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PRIMITIVES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Section{primitives}{Primitives}
+\Subsection{timeformat}{Time Format}
+
+A time expression is modeled as an ordered sequence of ranges:
+\begin{equation*}
+	\left< (x_{0_0}, x_{0_1}), (x_{1_0}, x_{1_1})\dots \right>
+\end{equation*}
+where $x_i$ denotes the start of the range (inclusive) and $y_i$ denotes
+	the end of the range (exclusive).
+
+The variables in this sequence can either be grounded to a pair of dates
+	(effectively, {\em a miliseconds since 1970} sort of representation);
+however, the representation can also allow for free variables.
+Of course, a hybrid between bounded (grounded) and unbounded (free, abstract)
+	variables is also possible.
+This is represented as below:
+\begin{equation*}
+	\lambda_{x,y,\dots}
+		. \left< (x, y), \dots \right>
+\end{equation*}
+
+Two broad classes of legal operations can be done on such a sequence:
+\begin{enumerate}
+	\item {\em Piecewise operations} take two sequences of the same length
+		and performs the operation on the elements of each sequence piecewise.
+	\item {\em One-to-many operations} take two sequences, one of which is
+		a singleton, and applies the operation to each element of the non-singleton
+		using the singleton as the second argument for each.
+\end{enumerate}
+Note that {\em one-to-one} operations are a special case of the second.
+Also note that operating on sequences which are not of the same size is
+	undefined in the general case.
+
+Notation-wise, the norm ($|r|$) of a sequence is defined as the difference
+	between the second and the first element, in a {\em miliseconds since
+	1970} sort of way.
+If the sequence is not a singleton, the norm of a sequence is only defined
+	if each element has the same norm.
+
+\Subsection{primitivetimes}{Primitive Times}
+A number of terms would be mapped directly to a range.
+As a first pass, I think most of these could be hard-coded;
+as a second pass, I think the number of such expressions is small enough
+	that the alignment between the word and the expression could be learned
+	(i.e. to make it portable for different languages).
+
+These, along with examples, are enumerated below:
+
+\begin{center}
+\begin{tabular}{l l l}
+	{\bf General Form} & {\bf Example} & {\bf Example's Parse} \\
+	\hline
+
+	\multicolumn{3}{l}{{\bf dates (grounded)}} \\
+		$\left< (x, y) \right>$
+		& {\em March 6 2011} & $\left< (03/06/2011, 03/07/2011) \right>$ \\
+		& {\em March 2011} & $\left< (03/01/2011, 04/01/2011) \right>$ \\
+		& {\em 2011} & $\left< (01/01/2011, 01/01/2012) \right>$ \\
+	
+	\multicolumn{3}{l}{{\bf repeated dates (grounded)}} \\
+		$\left< (x, x+n) : x \in \sX \right>$
+		& {\em Friday} & $\left< (x,x+\week{1}) : x \in \{ \T{Fridays} \} \right>$\\
+		& {\em March 5th} & $\left< (x,x+\day{1}) : x \in \{ 03/05/* \} \right>$ \\
+		& {\em March} & $\left< (x,x+\month{1}) : x \in \{ 03/1/* \} \right>$ \\
+	
+	\multicolumn{3}{l}{{\bf dates (abstract)}} \\
+		$\left< (t, t+n) \right>$
+		& {\em today} & $\lambda_t.\left< (t,t+\day{1}) \right>$\\
+	
+	\multicolumn{3}{l}{{\bf ranges (abstract)}} \\
+		$\left< (x, x+n) \right>$
+		& {\em Week} & $\lambda_x.\left< (x,x+\week{1}) \right>$\\
+		& {\em Hours} & $\lambda_x.\left< (x,x+\hour{1}) \right>$\\
+		& {\em Year} & $\lambda_x.\left< (x,x+\year{1}) \right>$\\
+\end{tabular}
+\end{center}
+
+
+\Subsection{primitiveoperations}{Primitive Operations}
+Operations on primitive times fall into the three general categories
+	of shifting the range, expanding the range in some direction,
+	and merging ranges (for different meanings of 'merge').
+These would be functions mapped to words (or, better, groups of words)
+	and would combine with each other in a CCG-esque way.
+
+These operations, in more detail, are enumerated below:
+
+\begin{center}
+\begin{tabular}{l l l}
+	{\bf General Form} & {\bf Example} & {\bf Example's Parse} \\
+	\hline
+
+	\multicolumn{3}{l}{{\bf shifts}} \\
+	$\lambda_{x,r}.\left< (x_0-|r|, x_0) \right>$
+		& {\em Day before March 7th 2011} 
+			& $\left< (03/06/2011,03/07/2011) \right>$\\
+		& {\em Day before today} 
+			& $\lambda_{t}.\left< (t-\day{1},t) \right>$\\
+		& {\em Last week} 
+			& $\lambda_t.\left< (t-\week{1},t) \right>$ \\
+		& {\em yesterday} 
+			& $\lambda_t.\left< (t-\day{1},t) \right>$ \\
+	$\lambda_{x,r}.\left< (x_1, x_1+|r|) \right>$
+		& {\em Day after March 7th 2011} 
+			& $\left< (03/08/2011,03/09/2011) \right>$\\
+		& {\em Day after today} 
+			& $\lambda_{x}.\left< (t+\day{1},t+\day{1}+\day{1}) \right>$\\
+	
+	\multicolumn{3}{l}{{\bf floor/ceil}} \\
+	$\lambda_{x,r}.\left< (x_0, x_0+|r|) \right>$
+		& {\em First day of March} 
+			& $\left< (x,x+\day{1}) : x \in \{ 03/1/* \} \right>$ \\
+		& {\em First month of the year} 
+			& $\left< (x,x+\month{1}) : x \in \{ 01/1/* \} \right>$ \\
+	$\lambda_{x,r}.\left< (x_1-|r|, x_1) \right>$
+		& {\em Last day of March} 
+			& $\left< (x+\month{1}-\day{1},x+\month{1}) 
+				: x \in \{ 03/1/* \} \right>$ \\
+		& {\em Last week of March} 
+			& $\left< (x+\month{1}-\week{1},x+\month{1}) 
+				: x \in \{ 03/1/* \} \right>$ \\
+	
+	\multicolumn{3}{l}{{\bf intersect}} \\
+	\multicolumn{3}{l}{
+			$\lambda_{x,y}.\left< (x_0, x_0+min(|x|,|y|)) : x \in X \cap Y \right>$}\\
+		& {\em April of 2007} 
+			& $\left< (04/01/2007,05/01/2007) \right>$ \\
+		& {\em April last year} 
+			& $\lambda_t.\left< x 
+			  : x \in \{ (04/01/*,05/01/*) \cap (t-\year{1},t) \} \right>$ \\
+		& {\em Friday last week} 
+			& $\lambda_t.\left< x 
+			  : x \in \{ \T{Fridays} \cap (t-\week{1},t) \} \right>$ \\
+	
+	\multicolumn{3}{l}{{\bf cons}} \\
+	$\lambda_{x,y}.\left< (x_0, y_1) \right>$
+		& {\em since yesterday} 
+			& $\lambda_t.\left< (t+\day{1},t) \right>$ \\
+		& {\em until tomorrow} 
+			& $\lambda_t.\left< (t,t+\day{1}) \right>$ \\
+\end{tabular}
+\end{center}
+
+\end{document}
