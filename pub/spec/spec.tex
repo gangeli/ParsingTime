@@ -128,7 +128,7 @@ These operations, in more detail, are enumerated below:
 		& {\em Day after today} 
 			& $\lambda_{x}.\left< (t+\day{1},t+\day{1}+\day{1}) \right>$\\
 	
-	\multicolumn{3}{l}{{\bf floor/ceil}} \\
+%	\multicolumn{3}{l}{{\bf floor/ceil}} \\
 	$\lambda_{x,r}.\left< (x_0, x_0+|r|) \right>$
 		& {\em First day of March} 
 			& $\left< (x,x+\day{1}) : x \in \{ 03/1/* \} \right>$ \\
@@ -156,11 +156,22 @@ These operations, in more detail, are enumerated below:
 	
 	\multicolumn{3}{l}{{\bf cons}} \\
 	$\lambda_{x,y}.\left< (x_0, y_1) \right>$
+		& {\em 5/3/2010 to 5/10/2010} 
+			& $\lambda_{t}.\left< (05/03/2010,05/10/2010) \right>$ \\
 		& {\em since yesterday} 
-			& $\lambda_t.\left< (t+\day{1},t) \right>$ \\
+			& $\lambda_{t,u}.\left< (t+\day{1},u) \right>$ \\
 		& {\em until tomorrow} 
-			& $\lambda_t.\left< (t,t+\day{1}) \right>$ \\
+			& $\lambda_{t,u}.\left< (u,t+\day{1}) \right>$ \\
+		& {\em before tomorrow} 
+			& $\lambda_{t,u}.\left< (u,t+\day{1}) \right>$ \\
+		& {\em yesterday until tomorrow} 
+			& $\lambda_{t}.\left< (t-\day{1},t+\day{1}) \right>$ \\
 \end{tabular}
 \end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% RULES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Section{rules}{Combination Rules}
 
 \end{document}
