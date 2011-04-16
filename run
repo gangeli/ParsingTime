@@ -11,7 +11,7 @@ env!(
 	'java',
 	# Runtime Options
 	o('cp', 
-		"dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/postgresql.jar:#{JAVANLP}"),
+		"dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar"),
 	o('Xrunhprof:cpu=samples'),
 	o('Xmx500M'),
 	o('server'),
@@ -19,10 +19,13 @@ env!(
 	'time.Entry',
 
 	run(
+		# -- DATA --
+		o('timebank', 'aux/relations-timebank-allclosed-nonones.info.xml'),
+
 		# -- BOOTSTRAPING --
 		#(exec options)
 #		o('logDebug'),
-		o('ignoreClasspath', "\"[#{ENV['JAVANLP_HOME']}/.*,etc/scala-library.jar,etc/postgres.jar]\""),
+		o('ignoreClasspath', "\"[#{ENV['JAVANLP_HOME']}/.*,etc/scala-library.jar,etc/postgres.jar,etc/jdom.jar]\""),
 		#(logging)
 		o('execDir', 'out'),
 		o('execOutput', '"psql://research@localhost:time<what?why42?"'),

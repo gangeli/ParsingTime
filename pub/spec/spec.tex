@@ -1,6 +1,6 @@
 \documentclass{article}
 \usepackage{amssymb,amsmath,amsthm} 
-\usepackage[margin=1.25in]{geometry}
+\usepackage[margin=1.0in]{geometry}
 \input{std-macros}
 \begin{document}
 
@@ -15,7 +15,9 @@
 \def\day#1{\ensuremath{#1_{day}}}
 \def\week#1{\ensuremath{#1_{week}}}
 \def\month#1{\ensuremath{#1_{month}}}
+\def\quarter#1{\ensuremath{#1_{quarter}}}
 \def\year#1{\ensuremath{#1_{year}}}
+\def\sp{\hspace{5mm}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PRIMITIVES
@@ -66,11 +68,13 @@ as a second pass, I think the number of such expressions is small enough
 	that the alignment between the word and the expression could be learned
 	(i.e. to make it portable for different languages).
 
-These, along with examples, are enumerated below:
+These, along with examples, are enumerated in \reftab{primitives}.
 
+\begin{table}
 \begin{center}
 \begin{tabular}{l l l}
 	{\bf General Form} & {\bf Example} & {\bf Example's Parse} \\
+	\hline
 	\hline
 
 	\multicolumn{3}{l}{{\bf dates (grounded)}} \\
@@ -94,8 +98,18 @@ These, along with examples, are enumerated below:
 		& {\em Week} & $\lambda_x.\left< (x,x+\week{1}) \right>$\\
 		& {\em Hours} & $\lambda_x.\left< (x,x+\hour{1}) \right>$\\
 		& {\em Year} & $\lambda_x.\left< (x,x+\year{1}) \right>$\\
+	
+	\multicolumn{3}{l}{{\bf numbers}} \\
+		& {\em 24} & $24$ \\
+		& {\em seven} & $7$ \\
+	\hline
 \end{tabular}
 \end{center}
+\caption{
+\label{tab:primitives}
+Grounded and ungrounded primitive time expressions
+}
+\end{table}
 
 
 \Subsection{primitiveoperations}{Primitive Operations}
@@ -105,11 +119,13 @@ Operations on primitive times fall into the three general categories
 These would be functions mapped to words (or, better, groups of words)
 	and would combine with each other in a CCG-esque way.
 
-These operations, in more detail, are enumerated below:
+These operations, in more detail, are enumerated in table \reftab{ops}.
 
+\begin{table}
 \begin{center}
 \begin{tabular}{l l l}
 	{\bf General Form} & {\bf Example} & {\bf Example's Parse} \\
+	\hline
 	\hline
 
 	\multicolumn{3}{l}{{\bf shifts}} \\
@@ -144,7 +160,7 @@ These operations, in more detail, are enumerated below:
 	
 	\multicolumn{3}{l}{{\bf intersect}} \\
 	\multicolumn{3}{l}{
-			$\lambda_{x,y}.\left< (x_0, x_0+min(|x|,|y|)) : x \in X \cap Y \right>$}\\
+			$\lambda_{x,y}.\left< (z_0, z_0+min(|x|,|y|)) : z \in X \cap Y \right>$}\\
 		& {\em April of 2007} 
 			& $\left< (04/01/2007,05/01/2007) \right>$ \\
 		& {\em April last year} 
@@ -158,6 +174,8 @@ These operations, in more detail, are enumerated below:
 	$\lambda_{x,y}.\left< (x_0, y_1) \right>$
 		& {\em 5/3/2010 to 5/10/2010} 
 			& $\lambda_{t}.\left< (05/03/2010,05/10/2010) \right>$ \\
+		& {\em since May 3 2010} 
+			& $\lambda_{u}.\left< (05/03/2010,u) \right>$ \\
 		& {\em since yesterday} 
 			& $\lambda_{t,u}.\left< (t+\day{1},u) \right>$ \\
 		& {\em until tomorrow} 
@@ -166,12 +184,165 @@ These operations, in more detail, are enumerated below:
 			& $\lambda_{t,u}.\left< (u,t+\day{1}) \right>$ \\
 		& {\em yesterday until tomorrow} 
 			& $\lambda_{t}.\left< (t-\day{1},t+\day{1}) \right>$ \\
+	
+	\multicolumn{3}{l}{{\bf numeric literals}} \\
+	$\lambda_{r,n}.\left< (r_0, r_0+|r|*n) \right>$
+		& {\em 24 hours} 
+			& $\lambda_x.\left< (x,x+\hour{24}) \right>$\\
+		& {\em eight days} 
+			& $\lambda_x.\left< (x,x+\day{8}) \right>$\\
+	$\lambda_{x,n}.\left< (x_0+|x|*n, x_1+|x|*n) \right>$
+		& {\em third day} 
+			& $\lambda_t.\left< (t+\day{3},t+\day{1}+\day{3}) \right>$\\
+		\hline
 \end{tabular}
 \end{center}
+\caption{
+\label{tab:ops}
+Operations on time primitives
+}
+\end{table}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % RULES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Section{rules}{Combination Rules}
+\Subsection{rulesgeneral}{Description}
+Each operation is a binary relation, and each takes as arguments either
+	a grouned or ungrounded time expression, and returns either a grounded
+	or ungrounded time expression.
+In this fashion, they should be able to be combined indefinitely.
+
+The exception to this rule is in the case of {\bf cons} when using unbounded
+	ranges (e.g. {\em until tomorrow}).
+In this case, a free variable appears, which will eventually be mapped to
+	either positive or negative infinity.
+In practice, I think such expressions could be treated like normal, as it
+	seems strange to combine things with 'since' anyways.
+
+The ability to use arbitrary ordering when applying the rules I haven't
+	worked through entirely yet.
+However; most of the rules seem to either be order independent
+	(e.g. intersect), or else take qualitatively different types of arguments
+	(e.g. a grounded/ungrounded date, and a range).
+
+\Subsection{rulesexamples}{Examples}
+Parses of some real-world time expressions are enumerated in
+	table \reftab{examples}.
+
+\begin{table}
+\begin{center}
+\begin{tabular}{l l l}
+	{\bf Expression} & {\bf Time} & {\bf Component} \\
+	\hline
+	\hline
+	{\em third-quarter}
+		& $\left< (x+\quarter{3},x+\quarter{4}) : x \in \{ Q*/* \} \right>$ 
+			& {\em third-quarter} \\
+		& \sp$3$ 
+			& \sp{\em third} \\
+		& \sp$\left< (x,x+\quarter{1}) : x \in \{ Q*/* \} \right>$ 
+			& \sp{\em quarter} \\
+	\hline
+	{\em this year}
+		& $\left< \lambda_t(t,t+\year{1}) \right>$ 
+			& {\em this year} \\
+		& \sp- 
+			& \sp{\em this} \\
+		& \sp$\lambda_t\left< (t,t+\year{1})\right>$ 
+			& \sp{\em year} \\
+	\hline
+	{\em a year ago}
+		& $\left< \lambda_x(x_0-\year{1},x_0) \right>$ 
+			& {\em a year ago} \\
+		& \sp- 
+			& \sp{\em a} \\
+		& \sp$\lambda_t\left< (t,t+\year{1})\right>$ 
+			& \sp{\em year} \\
+		& \sp$\lambda_{x,r}\left< (x_0-|r|,x_0)\right>$ 
+			& \sp{\em ago} \\
+	\hline
+	{\em \#recently}
+		& $\left< \lambda_{x,r}(x_0-|r|,x_0) \right>$ 
+			& {\em recently} \\
+	\hline
+	{\em the year ending June 30, 1990}
+		& $\left< (06/31/1989,06/31/1990) \right>$ 
+			& {\em the year ending June 30, 1990} \\
+		& \sp $\lambda_x.\left< (x, x+\year{1}) \right>$
+			& \sp{\em the year} \\
+		& \sp\sp-
+			& \sp\sp{\em the} \\
+		& \sp\sp$\lambda_x.\left< (x, x+\year{1}) \right>$
+			& \sp\sp{\em year} \\
+		& \sp$\lambda_{x,y}.\left< (x_0,y_1) \right>$ 
+			& \sp{\em ending} \\
+		& \sp$\left< (06/30/1990,06/31/1990)\right>$ 
+			& \sp{\em June 30, 1990} \\
+	\hline
+	{\em the nine months}
+		& $\lambda_x.\left<(x,x+\month{9}) \right>$ 
+			& {\em the nine months} \\
+		& \sp-
+			& \sp{\em the} \\
+		& \sp9
+			& \sp{\em nine} \\
+		& \sp$\lambda_x.\left<(x,x+\month{1}) \right>$ 
+			& \sp{\em months} \\
+	\hline
+	{\em the latest quarter}
+		& $\left< (x-\quarter{1},x) : x \in \{ Q*/* \} \right>$ 
+			& {\em the latest quarter} \\
+		& \sp-
+			& \sp{\em the} \\
+		& \sp$\lambda_{x,r}.\left< (x_0-|r|,x_0) \right>$
+			& \sp{\em latest} \\
+		& \sp$\left< (x,x+\quarter{1}) : x \in \{ Q*/* \} \right>$ 
+			& \sp{\em quarter} \\
+	\hline
+	{\em\#the first nine months}
+		& $\lambda_x.\left< (x,x+\month{9}) \right>$
+			& {\em the first nine months} \\
+		& \sp- 
+			& \sp{\em the} \\
+		& \sp $\lambda_{x,r}.\left< (x_0, x_0+|r|) \right>$
+			& \sp{\em first} \\
+		& \sp $\lambda_x.\left< (x,x+\month{9}) \right>$
+			& \sp{\em nine months} \\
+		& \sp\sp 9
+			& \sp\sp{\em nine} \\
+		& \sp\sp $\lambda_x.\left< (x,x+\month{1}) \right> $
+			& \sp\sp{\em months} \\
+	\hline
+\end{tabular}
+\end{center}
+\caption{
+\label{tab:examples}
+Example parses
+}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LEARNING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Section{learning}{Learning}
+\Subsection{data}{Training Data}
+The format described above should be compatible with TimeML.
+An sequence of intervals $\left< (a_i,b_i) \right>$ could be expressed
+	in the timeML format using the {\tt beginPoint}, {\tt endPoint},
+	and {\tt freq} attributes of the {\tt TIMEX3} tag.
+
+Training data would be obtained either from the TimeBank corpus, or from
+	GUTime output on some large unlabelled corpus trained in a semi-supervised
+	way.
+In fact, both could probably be used.
+
+
+\Subsection{training}{Training}
+A resonably first approximation would be simple parsing, though.
+The upside is that it's probably efficient; 
+	the downside is that every expression is bound to one and only one word,
+	making distinctions like {\em last week} versus {\em the last week} hard
+	to capture.
 
 \end{document}
