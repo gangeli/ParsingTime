@@ -1,11 +1,11 @@
 package time
 
 import Conversions._
-import Offset._
+import Lex._
 import edu.stanford.nlp.ie.temporal.timebank.Timex
 import org.joda.time._
 
-
+//TODO hash codes
 
 //------------------------------------------------------------------------------
 // UTILS
@@ -50,7 +50,6 @@ case class SingletonSequence(range:Range) extends Sequence {
 
 // --- RANGE ---
 case class Range(begin:Time, end:Time){
-	override def toString:String = "(" + begin + ", " + end + ")"
 	def >>(diff:Offset) = new Range(begin+diff, end+diff)
 	def <<(diff:Offset) = new Range(begin-diff, end-diff)
 	def <|(diff:Offset) = new Range(begin-diff, end)
@@ -63,6 +62,21 @@ case class Range(begin:Time, end:Time){
 				{if(!end.isGrounded) end(ground) else end}
 			)
 	}
+	def ~(o:Any):Boolean = {
+		if(o.isInstanceOf[Range]){
+			val other:Range = o.asInstanceOf[Range]
+			return (this.begin ~ other.begin) && (this.end ~ other.end)
+		}
+		return false
+	}
+	override def toString:String = "(" + begin + ", " + end + ")"
+	override def equals(o:Any):Boolean = {
+		if(o.isInstanceOf[Range]){
+			val other:Range = o.asInstanceOf[Range]
+			return this.begin == other.begin && this.end == other.end
+		}
+		return false
+	}
 }
 
 // --- OFFSET ---
@@ -70,7 +84,7 @@ case class Offset(p:ReadablePeriod) {
 	def +(diff:Offset):Offset = p.toPeriod.plus(diff)
 	def -(diff:Offset):Offset = p.toPeriod.minus(diff)
 	def apply(n:Int) = this.*(n)
-	def *(n:Int) = {
+	def *(n:Int):Offset = {
 		if(p.isInstanceOf[Seconds]){
 			p.asInstanceOf[Seconds].multipliedBy(n)
 		} else if(p.isInstanceOf[Minutes]){
@@ -89,6 +103,7 @@ case class Offset(p:ReadablePeriod) {
 			throw new IllegalStateException("Cannot multiply offset")
 		}
 	}
+	def seconds = p.toPeriod.toStandardDuration.getStandardSeconds
 	override def toString:String = {
 		val rtn:String = p.toString
 		rtn.substring(1,rtn.length)
@@ -179,6 +194,22 @@ case class Time(base:DateTime, offset:Offset) {
 		}
 		return false
 	}
+	def ~(o:Any):Boolean = {
+		if(o.isInstanceOf[Time] || o.isInstanceOf[DateTime]){
+			val other:Time = o.asInstanceOf[Time]
+			if(this.isGrounded && other.isGrounded) {
+				return this.ground.getMillis == other.ground.getMillis
+			} else if(!this.isGrounded && !other.isGrounded) {
+				val thisOffset:Offset 
+					= if(this.offset==null) Period.ZERO else this.offset
+				val otherOffset:Offset 
+					= if(other.offset==null) Period.ZERO else other.offset
+				return (thisOffset-otherOffset).seconds == 0
+			}
+		}
+		return false
+	}
+
 	override def toString:String = {
 		{if(base == null) "x" else base.toString() } +
 		{if(offset == null) "" else "+{" + offset + "}" }
@@ -189,9 +220,7 @@ case class Time(base:DateTime, offset:Offset) {
 // TIME OBJECTS
 //------------------------------------------------------------------------------
 
-object Offset {
-	def apply(millis:Long):Offset = new Period(millis)
-
+object Lex {
 	val NOW:Time = new Time(null,null)
 	val ZERO:Period = Seconds.ZERO.toPeriod
 
@@ -202,6 +231,10 @@ object Offset {
 	val WEEK:Offset = Weeks.ONE
 	val MONTH:Offset = Months.ONE
 	val YEAR:Offset = Years.ONE
+}
+
+object Offset {
+	def apply(millis:Long):Offset = new Period(millis)
 }
 
 object Time {

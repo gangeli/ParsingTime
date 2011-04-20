@@ -1,0 +1,25 @@
+#!/usr/bin/ruby
+
+require 'execrunner'
+
+# -- DEPENDENCIES --
+JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
+
+# -- RUN --
+env!( 
+	# Program
+	'java',
+	# Runtime Options
+	o('cp', 
+		"dist/test.jar:dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar:etc/scalatest.jar"),
+	o('Xmx500M'),
+	o('server'),
+	o('ea'),
+	'org.scalatest.tools.Runner',
+#	'time.Test',
+
+	run(
+		o('p', 'dist/test.jar'),
+		o('o'),
+	nil),
+nil)
