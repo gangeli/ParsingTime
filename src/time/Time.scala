@@ -11,51 +11,32 @@ import org.joda.time._
 // UTILS
 //------------------------------------------------------------------------------
 object Conversions {
-	implicit def period2offset(p:ReadablePeriod):Offset = new Offset(p)
-	implicit def offset2period(o:Offset):ReadablePeriod = o.p
+	implicit def period2Duration(p:ReadablePeriod):Duration = new Duration(p)
+	implicit def Duration2period(o:Duration):ReadablePeriod = o.toPeriod
 	implicit def instant2long(i:Instant):Long = i.getMillis
 	implicit def long2instant(l:Long):Instant = new Instant(l)
+	implicit def range2duration(r:Range):Duration = (r.end - r.begin)
+}
+
+class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
+	def this() = this("",null)
+	def this(s:String) = this(s,null)
+	def this(e:Throwable) = this(null,e)
 }
 
 //------------------------------------------------------------------------------
 // TIME CLASSES
 //------------------------------------------------------------------------------
 
-// --- EXPRESSION ---
-
-
-// --- SEQUENCE ---
-trait Sequence {
-	def base:Range
-	def offset(n:Int):Range
-	def isSingleton:Boolean
-}
-case class ConstantOffsetSequence(baseRange:Range, incr:Offset) 
-		extends Sequence {
-	override def base:Range = baseRange
-	override def offset(n:Int):Range = baseRange >> incr*n
-	override def isSingleton:Boolean = false
-}
-case class FixedSequence(ranges:Array[Range], b:Int) extends Sequence {
-	override def base:Range = ranges(b)
-	override def offset(n:Int):Range = ranges(b+n)
-	override def isSingleton:Boolean = ranges.length == 1
-}
-case class SingletonSequence(range:Range) extends Sequence {
-	override def base:Range = range
-	override def offset(n:Int):Range = 
-		throw new IllegalArgumentException("Cannot offset singleton sequence")
-	override def isSingleton:Boolean = true
-}
-
 // --- RANGE ---
 case class Range(begin:Time, end:Time){
-	def >>(diff:Offset) = new Range(begin+diff, end+diff)
-	def <<(diff:Offset) = new Range(begin-diff, end-diff)
-	def <|(diff:Offset) = new Range(begin-diff, end)
-	def |>(diff:Offset) = new Range(begin, end+diff)
-	def |<(diff:Offset) = new Range(begin, end-diff)
-	def >|(diff:Offset) = new Range(begin+diff, end)
+	def isGrounded:Boolean = begin.isGrounded && end.isGrounded
+	def >>(diff:Duration) = new Range(begin+diff, end+diff)
+	def <<(diff:Duration) = new Range(begin-diff, end-diff)
+	def <|(diff:Duration) = new Range(begin-diff, begin)
+	def |>(diff:Duration) = new Range(end, end+diff)
+	def |<(diff:Duration) = new Range(begin, begin+diff)
+	def >|(diff:Duration) = new Range(end-diff, end)
 	def apply(ground:Time) = {
 		new Range(
 				{if(!begin.isGrounded) begin(ground) else begin},
@@ -79,41 +60,80 @@ case class Range(begin:Time, end:Time){
 	}
 }
 
-// --- OFFSET ---
-case class Offset(p:ReadablePeriod) {
-	def +(diff:Offset):Offset = p.toPeriod.plus(diff)
-	def -(diff:Offset):Offset = p.toPeriod.minus(diff)
+// --- Duration ---
+class Duration(val p:ReadablePeriod,private val groundFn:Range=>Range){
+	def this(p:ReadablePeriod) = this(p,(r:Range)=>r)
+	def ground(r:Range):Range = {
+		if(!r.isGrounded)
+			{ throw new TimeException("Cannot ground to abstract time") }
+		groundFn( r )
+	}
+	def ground(time:Time):Range = ground( Range(time, time+p) )
+	def toPeriod:ReadablePeriod = p
+	def +(diff:Duration):Duration 
+		= new Duration(p.toPeriod.plus(diff),groundFn)
+	def -(diff:Duration):Duration 
+		= new Duration(p.toPeriod.minus(diff),groundFn)
 	def apply(n:Int) = this.*(n)
-	def *(n:Int):Offset = {
+	def *(n:Int):Duration = {
 		if(p.isInstanceOf[Seconds]){
-			p.asInstanceOf[Seconds].multipliedBy(n)
+			new Duration(p.asInstanceOf[Seconds].multipliedBy(n),groundFn)
 		} else if(p.isInstanceOf[Minutes]){
-			p.asInstanceOf[Minutes].multipliedBy(n)
+			new Duration(p.asInstanceOf[Minutes].multipliedBy(n),groundFn)
 		} else if(p.isInstanceOf[Hours]){
-			p.asInstanceOf[Hours].multipliedBy(n)
+			new Duration(p.asInstanceOf[Hours].multipliedBy(n),groundFn)
 		} else if(p.isInstanceOf[Days]){
-			p.asInstanceOf[Days].multipliedBy(n)
+			new Duration(p.asInstanceOf[Days].multipliedBy(n),groundFn)
 		} else if(p.isInstanceOf[Weeks]){
-			p.asInstanceOf[Weeks].multipliedBy(n)
+			new Duration(p.asInstanceOf[Weeks].multipliedBy(n),groundFn)
 		} else if(p.isInstanceOf[Months]){
-			p.asInstanceOf[Months].multipliedBy(n)
+			new Duration(p.asInstanceOf[Months].multipliedBy(n),groundFn)
 		} else if(p.isInstanceOf[Years]){
-			p.asInstanceOf[Years].multipliedBy(n)
+			new Duration(p.asInstanceOf[Years].multipliedBy(n),groundFn)
 		} else {
-			throw new IllegalStateException("Cannot multiply offset")
+			throw new IllegalStateException("Cannot multiply Duration")
 		}
 	}
-	def seconds = p.toPeriod.toStandardDuration.getStandardSeconds
+	def seconds:Long = p.toPeriod.toStandardDuration.getStandardSeconds
+	override def equals(o:Any):Boolean = {
+		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
+				new Duration(o.asInstanceOf[ReadablePeriod])
+			} else if(o.isInstanceOf[Duration]){
+				o.asInstanceOf[Duration]
+			} else{
+				null
+			}
+		if(other == null){ 
+			return false;
+		} else{
+			return this.p == other.p && this.groundFn == other.groundFn
+		}
+	}
+	def ~(o:Any):Boolean = {
+		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
+				new Duration(o.asInstanceOf[ReadablePeriod])
+			} else if(o.isInstanceOf[Duration]){
+				o.asInstanceOf[Duration]
+			} else{
+				null
+			}
+		if(other == null){ 
+			return false;
+		} else{
+			return this.p == other.p
+		}
+	}
 	override def toString:String = {
 		val rtn:String = p.toString
 		rtn.substring(1,rtn.length)
 	}
 }
 
+
 // --- TIME ---
-case class Time(base:DateTime, offset:Offset) {
+case class Time(base:DateTime, offset:Duration) {
 	def this(base:DateTime) = this(base, null)
-	def this(offset:Offset) = this(null, offset)
+	def this(offset:Duration) = this(null, offset)
 
 	def isGrounded:Boolean = this.base != null
 	def ground:Instant = {
@@ -133,7 +153,7 @@ case class Time(base:DateTime, offset:Offset) {
 		}
 		this.+(other.offset)
 	}
-	def +(diff:Offset):Time = {
+	def +(diff:Duration):Time = {
 		if(base != null){
 			new Time(base.plus(diff),offset)
 		}else if(offset != null){
@@ -142,7 +162,7 @@ case class Time(base:DateTime, offset:Offset) {
 			new Time(base, diff)
 		}
 	}
-	def -(other:Time):Offset = {
+	def -(other:Time):Duration = {
 		if(!this.isGrounded){
 			throw new IllegalStateException("Subtracting from ungrounded time")
 		}
@@ -151,7 +171,7 @@ case class Time(base:DateTime, offset:Offset) {
 		}
 		new Period(this.ground-other.ground)
 	}
-	def -(diff:Offset):Time = {
+	def -(diff:Duration):Time = {
 		if(base != null){
 			new Time(base.minus(diff),offset)
 		}else if(offset != null){
@@ -165,7 +185,7 @@ case class Time(base:DateTime, offset:Offset) {
 			throw new IllegalStateException("Time is already grounded!")
 		}
 		val newBase:DateTime = ground.base
-		val newOffset:Offset = {
+		val newOffset:Duration = {
 				if(offset == null && ground.offset == null){
 					null
 				} else if(offset == null){
@@ -200,9 +220,9 @@ case class Time(base:DateTime, offset:Offset) {
 			if(this.isGrounded && other.isGrounded) {
 				return this.ground.getMillis == other.ground.getMillis
 			} else if(!this.isGrounded && !other.isGrounded) {
-				val thisOffset:Offset 
+				val thisOffset:Duration 
 					= if(this.offset==null) Period.ZERO else this.offset
-				val otherOffset:Offset 
+				val otherOffset:Duration 
 					= if(other.offset==null) Period.ZERO else other.offset
 				return (thisOffset-otherOffset).seconds == 0
 			}
@@ -221,20 +241,66 @@ case class Time(base:DateTime, offset:Offset) {
 //------------------------------------------------------------------------------
 
 object Lex {
+	object LexUtil {
+		def dow:(Range,Int)=>Range = (r:Range,i:Int) => {
+			val begin:Time = 
+				Time(r.begin.base.withDayOfWeek( ((i-1) % 7) + 1 ), null)
+			Range(begin, begin+Days.ONE)
+		}
+		def dom:(Range,Int)=>Range = (r:Range,i:Int) => {
+			val begin:Time = 
+				Time(r.begin.base.withDayOfMonth( ((i-1) % 31) + 1 ), null)
+			Range(begin, begin+Days.ONE)
+		}
+		def doy:(Range,Int)=>Range = (r:Range,i:Int) => {
+			val begin:Time = 
+				Time(r.begin.base.withDayOfYear( ((i-1) % 7) + 366 ), null)
+			Range(begin, begin+Days.ONE)
+		}
+		def woy:(Range,Int)=>Range = (r:Range,i:Int) => {
+			val begin:Time = 
+				Time(r.begin.base.withWeekOfWeekyear( ((i-1) % 53) + 1 ), null)
+			Range(begin, begin+Weeks.ONE)
+		}
+		def moy:(Range,Int)=>Range = (r:Range,i:Int) => {
+			val begin:Time = 
+				Time(r.begin.base.withMonthOfYear( ((i-1) % 7) + 12 ), null)
+			Range(begin, begin+Months.ONE)
+		}
+	}
+	//--Durations
+	val SEC:Duration = Seconds.ONE
+	val MIN:Duration = Minutes.ONE
+	val HOUR:Duration = Hours.ONE
+	val DAY:Duration = Days.ONE
+	val WEEK:Duration = Weeks.ONE
+	val MONTH:Duration = Months.ONE
+	val YEAR:Duration = Years.ONE
+	//--Misc
 	val NOW:Time = new Time(null,null)
 	val ZERO:Period = Seconds.ZERO.toPeriod
-
-	val SEC:Offset = Seconds.ONE
-	val MIN:Offset = Minutes.ONE
-	val HOUR:Offset = Hours.ONE
-	val DAY:Offset = Days.ONE
-	val WEEK:Offset = Weeks.ONE
-	val MONTH:Offset = Months.ONE
-	val YEAR:Offset = Years.ONE
+	val NOTIME:Range = Range(NOW,NOW+DAY)
+	val NODUR:Duration = DAY
+	//--Day of Week
+	val MON:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,1))
+	val TUE:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,2))
+	val WED:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,3))
+	val THU:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,4))
+	val FRI:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,5))
+	val SAT:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,6))
+	val SUN:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,7))
+	//--OTHER DURATIONS
+	def DOM(i:Int) = new Duration(Months.ONE, LexUtil.dom(_,i))
+	
+	//--Shifts
+	val catLeft:(Range,Duration)=>Range = _ <| _
+	val catRight:(Range,Duration)=>Range = _ |> _
+	val shrinkBegin:(Range,Duration)=>Range = _ |< _
+	val shrinkEnd:(Range,Duration)=>Range = _ >| _
 }
 
-object Offset {
-	def apply(millis:Long):Offset = new Period(millis)
+object Duration {
+	def apply(millis:Long):Duration = new Period(millis)
 }
 
 object Time {
@@ -284,8 +350,9 @@ object Time {
 //		println((NOW+DAY*5-WEEK+MILLIS(200))(NOW))
 //		println((NOW+DAY*5-WEEK+MILLIS(200))(NOW))
 //		println(Time(2011,04,19) - Time(2011,04,18,19))
-		println(Time(2011,04,19) == Time(2011,04,19))
-		println(Time(2011,04,19) == NOW)
-		println((Range(Time(2011,04,19), NOW+DAY)>> DAY >| HOUR*5)(Time(2011,04,19)) )
+//		println(Time(2011,04,19) == Time(2011,04,19))
+//		println(Time(2011,04,19) == NOW)
+//		println((Range(Time(2011,04,19), NOW+DAY)>> DAY >| HOUR*5)(Time(2011,04,19)) )
+		println(MON)
 	}
 }
