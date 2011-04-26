@@ -93,7 +93,9 @@ class Entry {
 				val id:Int = index(idStr)
 				G.idStringMap.put(id,idStr)
 				val text = tokenize(t.text)
-				new Datum(id, text, Time(t.value, t))
+				//TODO
+				new Datum(id, text, null)
+//				new Datum(id, text, Time(t.value, t))
 			} else {
 				null
 			}

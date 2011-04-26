@@ -72,6 +72,15 @@ class BehaviorSpec extends Spec with ShouldMatchers{
 			((NOW+DAY) - NOW) ~ DAY
 			((NOW+DAY*2) - (NOW+DAY)) ~ DAY
 		}
+		it("should be chainable"){
+			val march = (t:Time) => 
+				new Time(t.base.withMonthOfYear(3).withDayOfMonth(1).withMillisOfDay(0))
+			val fri = (t:Time) => 
+				new Time(t.base.withDayOfWeek(5).withMillisOfDay(0))
+			val time = new Time(null, DAY, List(fri,march))
+			println( time(Time(2011,04,30)) )
+			assert( time(Time(2011,04,30)) ~ Time(2011,03,5) )
+		}
 	}
 	
 	describe("A Range") {
@@ -300,6 +309,32 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 	}
 	
 	describe("Other Examples") {
+		it("works for Friday last week"){
+			val friday = FRI
+			val implicitNow = NOW
+			val implicitToday = Range(NOW, NOW+DAY)
+			val last = catLeft
+			val week = WEEK
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,4,22),Time(2011,4,23))
+			assert( (friday(implicitNow) ^ last(implicitToday,week))(ground)
+				~ target)
+		}
+		it("works for Friday last month"){
+			val friday = FRI
+			val implicitNow = NOW
+			val implicitToday = Range(NOW, NOW+DAY)
+			val last = catLeft
+			val month = MONTH
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,3,25),Time(2011,4,26))
+			println( friday(implicitNow) )
+			println( last(implicitToday,month) )
+			println( (friday(implicitNow) ^ last(implicitToday,month)) )
+			println( (friday(implicitNow) ^ last(implicitToday,month))(ground) )
+			assert( (friday(implicitNow) ^ last(implicitToday,month))(ground)
+				~ target)
+		}
 		it("works for The day before last Friday"){
 			val day = DAY
 			val before = catLeft
