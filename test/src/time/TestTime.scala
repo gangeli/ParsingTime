@@ -37,7 +37,6 @@ class BehaviorSpec extends Spec with ShouldMatchers{
 			evaluating { Time(2012,12,31,0,0,60) 
 				} should produce [IllegalFieldValueException]
 		}
-		//...
 		it("should have equality hold"){
 			assert(Time(2012) == Time(2012))
 			assert(Time(2010) != Time(2012))
@@ -68,6 +67,10 @@ class BehaviorSpec extends Spec with ShouldMatchers{
 			assert((Time(2010,12,1)+HOUR*24) ~ (Time(2010,12,1)+DAY))
 			assert((NOW) ~ (NOW-WEEK+WEEK))
 			assert((NOW+HOUR*24) ~ (NOW+DAY))
+		}
+		it("should be subtractable"){
+			((NOW+DAY) - NOW) ~ DAY
+			((NOW+DAY*2) - (NOW+DAY)) ~ DAY
 		}
 	}
 	
@@ -115,6 +118,17 @@ class BehaviorSpec extends Spec with ShouldMatchers{
 			assert((Range(Time(2011,1,1),Time(2012,2,1)) >| DAY) == 
 				Range(Time(2012,1,31),Time(2012,2,1)))
 		}
+		it("should be intersectable (grounded)"){
+			assert( (Range(Time(2011),Time(2012)) ^ Range(Time(2011,10),Time(2012,2)))
+				== Range(Time(2011,10),Time(2012)) )
+		}
+		it("should be intersectable (ungrounded)"){
+			val ground = Time(2011,4,25)
+			assert( (DOM(5)(NOW) ^ MOY(3)(NOW))(ground) 
+				~ Range(Time(2011,3,5),Time(2011,3,6)) )
+			assert( (MOY(3)(NOW) ^ DOM(5)(NOW))(ground) 
+				~ Range(Time(2011,3,5),Time(2011,3,6)) )
+		}
 	}
 	
 	describe("A Grounded Duration") {
@@ -122,21 +136,30 @@ class BehaviorSpec extends Spec with ShouldMatchers{
 			assert(FRI ~ WEEK)
 			assert(DOM(12) ~ MONTH)
 		}
-		it("should be groundable in a range"){
-			assert(FRI.ground(Range(Time(2011,4,25),Time(2011,5,2)))
-				== Range(Time(2011,4,29), Time(2011,4,30)) )
-		}
 		it("should be groundable in a grounded time"){
-			assert(FRI.ground(Time(2011,4,25))
+			assert(FRI(Time(2011,4,25))
 				== Range(Time(2011,4,29), Time(2011,4,30)) )
 		}
-		it("shouldn't be groundable in an abstract time"){
-			evaluating{FRI.ground(NOW)} should produce [TimeException]
-			evaluating{FRI.ground(Range(NOW,NOW+DAY))} should produce [TimeException]
+		it("should be groundable in an abstract time"){
+			//(should be groundable)
+			val thisFriday:Range = FRI(NOW)
+			//(not equal to day)
+			val aDay:Range = Range(NOW, NOW+DAY)
+			assert(thisFriday != aDay)
+			//(not same as day)
+			assert(!(thisFriday ~ aDay))
+			//(same as another friday)
+			val thisFridayAgain:Range = FRI(NOW)
+			assert(thisFriday ~ thisFridayAgain)
 		}
-		it("should respect arithematic"){
-			assert((FRI+DAY).ground(Time(2011,4,25))
+		it("should respect arithemetic"){
+			assert((FRI(NOW)>>DAY)(Time(2011,4,25))
 				== Range(Time(2011,4,30), Time(2011,5,1)) )
+		}
+		it("should be intersectable"){
+			val march = MOY(3)
+			val fifth = DOM(5)
+
 		}
 	}
 }
@@ -147,8 +170,8 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 		it("works for March 2011"){ Range(Time(2011,03,1),Time(2011,04,1)) }
 		it("works for 2011"){ Range(Time(2011,01,1),Time(2012,01,1)) }
 		it("works for Friday"){ FRI }
-		it("works for March 5th")(pending)
-		it("works for March")(pending)
+		it("works for March 5th"){ MOY(3)(NOW) ^ DOM(5)(NOW) }
+		it("works for March"){ MOY(3) }
 		it("works for Today"){ NOW }
 		it("works for Week"){ WEEK }
 		it("works for Hour"){ HOUR }
@@ -200,14 +223,104 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 	}
 	
 	describe("Shrink to Begin") {
-		it("works for First day of March")(pending)
+		it("works for First day of March"){
+			val first = shrinkBegin
+			val day = DAY
+			val march = MOY(3)
+			val implicitNow = NOW
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,3,1),Time(2011,3,2))
+			assert( first(march(implicitNow), day)(ground) ~ target )
+		}
+		it("works for First month of the year"){
+			val first = shrinkBegin
+			val month = MONTH
+			val year = AYEAR
+			val implicitNow = NOW
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,1,1),Time(2011,2,1))
+			assert( first( year(implicitNow), month)(ground) ~ target )
+		}
 	}
+	describe("Shrink to End"){
+		it("works for Last day of March"){
+			val last = shrinkEnd
+			val day = DAY
+			val march = MOY(3)
+			val implicitNow = NOW
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,3,31),Time(2011,4,1))
+			assert( last(march(implicitNow), day)(ground) ~ target )
+		}
+		it("works for Last week of March"){
+			val last = shrinkEnd
+			val week = WEEK
+			val march = MOY(3)
+			val implicitNow = NOW
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,3,25),Time(2011,4,1))
+			assert( last(march(implicitNow), week)(ground) ~ target )
+		}
+	}
+	describe("Intersect"){ 
+		it("works for April of 2007"){
+			val april = MOY(4)
+			val y2007 = Range(Time(2007),Time(2008))
+			val implicitNow = NOW
+			val implicitIntersect = intersect
+			val target = Range(Time(2007,4),Time(2007,5))
+			assert( implicitIntersect(april(implicitNow), y2007) ~ target )
+		}
+		it("works for April last year"){
+			val april = MOY(4)
+			val year = YEAR
+			val last = catLeft
+			val implicitToday = Range(NOW,NOW+DAY)
+			val implicitNow = NOW
+			val implicitIntersect = intersect
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2010,4),Time(2010,5))
+			println("april>> " + april(implicitNow))
+			println("last year>> " + last(implicitToday,year))
+			println("april ^ last year>> " + (april(implicitNow) ^ last(implicitToday,year)))
+			println("last year ^ april>> " + (last(implicitToday,year) ^ april(implicitNow)) )
+			println( (april(implicitNow) ^ last(implicitToday,year))(ground) )
+			assert( 
+				implicitIntersect(
+					april(implicitNow), 
+					last(implicitToday, year) )(ground)
+				~ target )
+		}
+	}
+	describe("Cons"){ it("works")(pending) }
+	describe("Numbers"){ it("works")(pending) }
 
 	describe("Complex Examples") {
 		it("implement me")(pending)
 	}
+	
+	describe("Other Examples") {
+		it("works for The day before last Friday"){
+			val day = DAY
+			val before = catLeft
+			val last = catLeft
+			val friday = FRI
+			val implicitNow = MON(NOW)
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,4,21),Time(2011,4,22))
+			assert( before(last(implicitNow,friday),day)(ground) ~ target )
+		}
+		it("works for This week"){
+			val week = WEEK
+			val ths = shrinkBegin
+			val implicitNow = MON(NOW)
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,4,25),Time(2011,5,2))
+			assert( ths(implicitNow,week)(ground) ~ target )
+		}
+		it("works for Friday this week")(pending) //intersect
+	}
 }
-
 
 
 

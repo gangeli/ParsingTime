@@ -29,52 +29,122 @@ class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
 //------------------------------------------------------------------------------
 
 // --- RANGE ---
-case class Range(begin:Time, end:Time){
+case class Range(begin:Time, end:Time, groundFn:Time=>Time){
+	def this(begin:Time, end:Time) = this(begin, end, null)
+	def preGround(fn:Time=>Time):Range = new Range(begin, end, fn)
 	def isGrounded:Boolean = begin.isGrounded && end.isGrounded
-	def >>(diff:Duration) = new Range(begin+diff, end+diff)
-	def <<(diff:Duration) = new Range(begin-diff, end-diff)
-	def <|(diff:Duration) = new Range(begin-diff, begin)
-	def |>(diff:Duration) = new Range(end, end+diff)
-	def |<(diff:Duration) = new Range(begin, begin+diff)
-	def >|(diff:Duration) = new Range(end-diff, end)
-	def apply(ground:Time) = {
+	private def createFn(diff:Duration):Time=>Time = {
+		if(groundFn == null && !diff.isGroundable){
+			null
+		} else if(groundFn == null){
+			diff(_).begin
+		} else if(diff == null){ 
+			groundFn
+		} else {
+			(t:Time) => diff(groundFn(t)).begin
+		}
+	}
+
+	def >>(diff:Duration) = new Range(begin+diff, end+diff, createFn(diff))
+	def <<(diff:Duration) = new Range(begin-diff, end-diff, createFn(diff))
+	def <|(diff:Duration) = new Range(begin-diff, begin, createFn(diff))
+	def |>(diff:Duration) = new Range(end, end+diff, createFn(diff))
+	def |<(diff:Duration) = new Range(begin, begin+diff, createFn(diff))
+	def >|(diff:Duration) = new Range(end-diff, end, createFn(diff))
+	def ^(r:Range):Range = {
+		if( (!isGrounded && r.isGrounded) || (isGrounded && !r.isGrounded) ){
+			//--Case: grounded and abstract
+			val grounded = if(isGrounded) this else r
+			val abstr = if(isGrounded) r else this
+			abstr(grounded.begin)
+		} else if(isGrounded){
+			//--Case: grounded and grounded
+			val begin 
+				=if(this.begin.base.compareTo(r.begin.base) > 0) this.begin else r.begin
+			val end 
+				=if(this.end.base.compareTo(r.end.base) < 0) this.end else r.end
+			Range(begin,end)
+		} else {
+			//--Case: abstract and abstract
+			if(this.norm < r.norm){
+				val ground = if(this.groundFn == null && r.groundFn == null){
+						null
+					} else if(this.groundFn == null){
+						r.groundFn
+					} else if(r.groundFn == null){
+						this.groundFn
+					} else {
+						(t:Time) => this.groundFn(r.groundFn(t))
+					}
+				Range(this.begin+r.begin, this.end+r.begin, ground)
+			} else {
+				val ground = if(this.groundFn == null && r.groundFn == null){
+						null
+					} else if(this.groundFn == null){
+						r.groundFn
+					} else if(r.groundFn == null){
+						this.groundFn
+					} else {
+						(t:Time) => r.groundFn(this.groundFn(t))
+					}
+				Range(r.begin+this.begin, r.end+this.begin, ground)
+			}
+		}
+	}
+	def apply(grnd:Time):Range = {
+		val ground:Time = if(groundFn == null) grnd else groundFn(grnd)
 		new Range(
 				{if(!begin.isGrounded) begin(ground) else begin},
 				{if(!end.isGrounded) end(ground) else end}
 			)
 	}
+
+	def norm:Duration = end-begin
 	def ~(o:Any):Boolean = {
 		if(o.isInstanceOf[Range]){
 			val other:Range = o.asInstanceOf[Range]
-			return (this.begin ~ other.begin) && (this.end ~ other.end)
+			if(this.groundFn == null && other.groundFn != null ||
+					this.groundFn != null && other.groundFn == null){
+				return false
+			}
+			return (this.begin ~ other.begin) && (this.end ~ other.end) &&
+				(	(this.groundFn == null && other.groundFn == null) || 
+					(groundFn(Time(1970,1,1)) ~ other.groundFn(Time(1970,1,1))) )
 		}
 		return false
 	}
-	override def toString:String = "(" + begin + ", " + end + ")"
+	override def toString:String 
+		= "(" + begin + ", " + end + {if(groundFn != null) " | <cond>" else "" }+")"
 	override def equals(o:Any):Boolean = {
 		if(o.isInstanceOf[Range]){
 			val other:Range = o.asInstanceOf[Range]
-			return this.begin == other.begin && this.end == other.end
+			return this.begin == other.begin && this.end == other.end &&
+				this.groundFn == other.groundFn
 		}
 		return false
 	}
 }
 
 // --- Duration ---
-class Duration(val p:ReadablePeriod,private val groundFn:Range=>Range){
-	def this(p:ReadablePeriod) = this(p,(r:Range)=>r)
-	def ground(r:Range):Range = {
-		if(!r.isGrounded)
-			{ throw new TimeException("Cannot ground to abstract time") }
-		groundFn( r )
+class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
+	def this(p:ReadablePeriod) = this(p,null)
+	def isGroundable = groundFn != null
+	def apply(t:Time):Range = {
+		if(groundFn == null){ 
+			Range(t, t+p)
+		} else {
+			if(t.isGrounded){
+				groundFn(t)
+			} else {
+				groundFn(t).preGround( (tm:Time) => groundFn(tm).begin )
+			}
+		}
 	}
-	def ground(time:Time):Range = ground( Range(time, time+p) )
 	def toPeriod:ReadablePeriod = p
 	def +(diff:Duration):Duration 
 		= new Duration(p.toPeriod.plus(diff),groundFn)
 	def -(diff:Duration):Duration 
 		= new Duration(p.toPeriod.minus(diff),groundFn)
-	def apply(n:Int) = this.*(n)
 	def *(n:Int):Duration = {
 		if(p.isInstanceOf[Seconds]){
 			new Duration(p.asInstanceOf[Seconds].multipliedBy(n),groundFn)
@@ -94,7 +164,13 @@ class Duration(val p:ReadablePeriod,private val groundFn:Range=>Range){
 			throw new IllegalStateException("Cannot multiply Duration")
 		}
 	}
-	def seconds:Long = p.toPeriod.toStandardDuration.getStandardSeconds
+	def seconds:Long = {
+		var period = p.toPeriod
+		val monthContrib:Long = period.getMonths*30*24*60*60
+		val yearContrib:Long = period.getYears*365*24*60*60
+		period = period.withMonths(0).withYears(0)
+		period.toStandardDuration.getStandardSeconds+monthContrib+yearContrib
+	}
 	override def equals(o:Any):Boolean = {
 		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
 				new Duration(o.asInstanceOf[ReadablePeriod])
@@ -109,6 +185,8 @@ class Duration(val p:ReadablePeriod,private val groundFn:Range=>Range){
 			return this.p == other.p && this.groundFn == other.groundFn
 		}
 	}
+	def <(other:Duration) = this.seconds < other.seconds
+	def >(other:Duration) = this.seconds > other.seconds
 	def ~(o:Any):Boolean = {
 		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
 				new Duration(o.asInstanceOf[ReadablePeriod])
@@ -134,7 +212,7 @@ class Duration(val p:ReadablePeriod,private val groundFn:Range=>Range){
 case class Time(base:DateTime, offset:Duration) {
 	def this(base:DateTime) = this(base, null)
 	def this(offset:Duration) = this(null, offset)
-
+	
 	def isGrounded:Boolean = this.base != null
 	def ground:Instant = {
 		if(base == null){
@@ -163,13 +241,18 @@ case class Time(base:DateTime, offset:Duration) {
 		}
 	}
 	def -(other:Time):Duration = {
-		if(!this.isGrounded){
-			throw new IllegalStateException("Subtracting from ungrounded time")
+		if( (!this.isGrounded && other.isGrounded) ||
+				(this.isGrounded && !other.isGrounded) ){
+			throw new IllegalStateException(
+				"Cannot subtract grounded and ungrounded times");
 		}
-		if(!other.isGrounded){
-			throw new IllegalStateException("Subtracting an ungrounded time")
+		if(this.isGrounded){
+			new Period(this.ground-other.ground)
+		} else {
+			val thisSec = if(this.offset == null) 0 else this.offset.seconds
+			val thatSec = if(other.offset == null) 0 else other.offset.seconds
+			Seconds.seconds((thisSec - thatSec).asInstanceOf[Int])
 		}
-		new Period(this.ground-other.ground)
 	}
 	def -(diff:Duration):Time = {
 		if(base != null){
@@ -181,9 +264,11 @@ case class Time(base:DateTime, offset:Duration) {
 		}
 	}
 	def apply(ground:Time):Time = {
-		if(base != null){
-			throw new IllegalStateException("Time is already grounded!")
-		}
+		//--Argument check
+		if(base != null){ throw new TimeException("Time is already grounded!") }
+		if(ground.base == null){ throw new TimeException("Argument not grounded!") }
+		if(ground.offset != null){ throw new TimeException("Argument has offset!") }
+		//--New Base/Offset
 		val newBase:DateTime = ground.base
 		val newOffset:Duration = {
 				if(offset == null && ground.offset == null){
@@ -196,6 +281,7 @@ case class Time(base:DateTime, offset:Duration) {
 					ground.offset
 				}
 			}
+		//--Create Time
 		if(newOffset != null && newBase != null){
 			new Time(newBase.plus(newOffset))
 		} else {
@@ -242,31 +328,60 @@ case class Time(base:DateTime, offset:Duration) {
 
 object Lex {
 	object LexUtil {
-		def dow:(Range,Int)=>Range = (r:Range,i:Int) => {
-			val begin:Time = 
-				Time(r.begin.base.withDayOfWeek( ((i-1) % 7) + 1 ), null)
+		def dow:(Time,Int)=>Range = (t:Time,i:Int) => {
+			val begin:Time = if(t.isGrounded){
+					Time(t.base.withDayOfWeek(i).withMillisOfDay(0), null)
+				} else {
+					new Time(null,null)
+				}
 			Range(begin, begin+Days.ONE)
 		}
-		def dom:(Range,Int)=>Range = (r:Range,i:Int) => {
-			val begin:Time = 
-				Time(r.begin.base.withDayOfMonth( ((i-1) % 31) + 1 ), null)
+		def dom:(Time,Int)=>Range = (t:Time,i:Int) => {
+			val begin:Time = if(t.isGrounded){
+					Time(t.base.withDayOfMonth(i).withMillisOfDay(0), null)
+				} else {
+					new Time(null,null)
+				}
 			Range(begin, begin+Days.ONE)
 		}
-		def doy:(Range,Int)=>Range = (r:Range,i:Int) => {
-			val begin:Time = 
-				Time(r.begin.base.withDayOfYear( ((i-1) % 7) + 366 ), null)
-			Range(begin, begin+Days.ONE)
-		}
-		def woy:(Range,Int)=>Range = (r:Range,i:Int) => {
-			val begin:Time = 
-				Time(r.begin.base.withWeekOfWeekyear( ((i-1) % 53) + 1 ), null)
+		def woy:(Time,Int)=>Range = (t:Time,i:Int) => {
+			val begin:Time = if(t.isGrounded){
+					Time(t.base.withWeekOfWeekyear(i)
+						.withDayOfWeek(1).withMillisOfDay(0), null)
+				} else {
+					new Time(null,null)
+				}
 			Range(begin, begin+Weeks.ONE)
 		}
-		def moy:(Range,Int)=>Range = (r:Range,i:Int) => {
-			val begin:Time = 
-				Time(r.begin.base.withMonthOfYear( ((i-1) % 7) + 12 ), null)
+		def moy:(Time,Int)=>Range = (t:Time,i:Int) => {
+			val begin:Time = if(t.isGrounded){
+					Time(t.base.withMonthOfYear(i)
+						.withDayOfMonth(1).withMillisOfDay(0), null)
+				} else {
+					new Time(null,null)
+				}
 			Range(begin, begin+Months.ONE)
 		}
+//		def dom:(Range,Int)=>Range = (r:Range,i:Int) => {
+//			val begin:Time = 
+//				Time(r.begin.base.withDayOfMonth( ((i-1) % 31) + 1 ), null)
+//			Range(begin, begin+Days.ONE)
+//		}
+//		def doy:(Range,Int)=>Range = (r:Range,i:Int) => {
+//			val begin:Time = 
+//				Time(r.begin.base.withDayOfYear( ((i-1) % 7) + 366 ), null)
+//			Range(begin, begin+Days.ONE)
+//		}
+//		def woy:(Range,Int)=>Range = (r:Range,i:Int) => {
+//			val begin:Time = 
+//				Time(r.begin.base.withWeekOfWeekyear( ((i-1) % 53) + 1 ), null)
+//			Range(begin, begin+Weeks.ONE)
+//		}
+//		def moy:(Range,Int)=>Range = (r:Range,i:Int) => {
+//			val begin:Time = 
+//				Time(r.begin.base.withMonthOfYear( ((i-1) % 7) + 12 ), null)
+//			Range(begin, begin+Months.ONE)
+//		}
 	}
 	//--Durations
 	val SEC:Duration = Seconds.ONE
@@ -291,12 +406,26 @@ object Lex {
 	val SUN:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,7))
 	//--OTHER DURATIONS
 	def DOM(i:Int) = new Duration(Months.ONE, LexUtil.dom(_,i))
+	def MOY(i:Int) = new Duration(Years.ONE, LexUtil.moy(_,i))
+	val AYEAR = new Duration(Years.ONE, (t:Time) => {
+			val begin:Time = if(t.isGrounded){
+					Time(t.base.withDayOfYear(1).withMillisOfDay(0), null)
+				} else {
+					new Time(null,null)
+				}
+			Range(begin, begin+Years.ONE)
+		})
 	
 	//--Shifts
 	val catLeft:(Range,Duration)=>Range = _ <| _
 	val catRight:(Range,Duration)=>Range = _ |> _
 	val shrinkBegin:(Range,Duration)=>Range = _ |< _
 	val shrinkEnd:(Range,Duration)=>Range = _ >| _
+	val intersect:(Range,Range)=>Range = _ ^ _
+}
+
+object Range {
+	def apply(begin:Time, end:Time):Range = apply(begin, end, null)
 }
 
 object Duration {

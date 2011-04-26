@@ -9,7 +9,7 @@ TMP=tmp
 JAVANLP=${JAVANLP_HOME}/projects/core/classes:${JAVANLP_HOME}/projects/research/classes
 CP=${LIB}/lib.jar:${LIB}/scala-library.jar:${LIB}/scala-compiler.jar:${LIB}/postgresql.jar:${JAVANLP}:${LIB}/jdom.jar:${LIB}/joda-time.jar
 
-default: dist
+default: ${DIST}/time.jar ${DIST}/test.jar
 
 ${DIST}/time.jar: $(wildcard src/time/*.java)	$(wildcard src/time/*.scala)
 	mkdir -p ${BUILD}
@@ -27,8 +27,6 @@ ${DIST}/test.jar: $(wildcard test/src/time/*.java) $(wildcard test/src/time/*.sc
 	jar cf ${DIST}/test.jar -C $(TEST_BUILD) .
 	jar uf ${DIST}/test.jar -C $(TEST_SRC) .
 	
-
-dist: ${DIST}/time.jar ${DIST}/test.jar
 
 clean:
 #	rm -rf ${TMP}
