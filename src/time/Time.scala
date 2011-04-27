@@ -5,8 +5,6 @@ import Lex._
 import edu.stanford.nlp.ie.temporal.timebank.Timex
 import org.joda.time._
 
-//TODO hash codes
-
 //------------------------------------------------------------------------------
 // UTILS
 //------------------------------------------------------------------------------
@@ -99,8 +97,6 @@ case class Range(begin:Time, end:Time){
 		}
 		return false
 	}
-	override def toString:String 
-		= "(" + begin + " , " + end+")"
 	override def equals(o:Any):Boolean = {
 		if(o.isInstanceOf[Range]){
 			val other:Range = o.asInstanceOf[Range]
@@ -108,6 +104,9 @@ case class Range(begin:Time, end:Time){
 		}
 		return false
 	}
+	override def toString:String 
+		= "(" + begin + " , " + end+")"
+	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
 
 // --- Duration ---
@@ -167,20 +166,6 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
 	}
 	def <(other:Duration) = this.seconds < other.seconds
 	def >(other:Duration) = this.seconds > other.seconds
-	override def equals(o:Any):Boolean = {
-		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
-				new Duration(o.asInstanceOf[ReadablePeriod])
-			} else if(o.isInstanceOf[Duration]){
-				o.asInstanceOf[Duration]
-			} else{
-				null
-			}
-		if(other == null){ 
-			return false;
-		} else{
-			return this.p == other.p && this.groundFn == other.groundFn
-		}
-	}
 	def ~(o:Any):Boolean = {
 		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
 				new Duration(o.asInstanceOf[ReadablePeriod])
@@ -195,10 +180,25 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
 			return this.p.seconds == other.p.seconds
 		}
 	}
+	override def equals(o:Any):Boolean = {
+		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
+				new Duration(o.asInstanceOf[ReadablePeriod])
+			} else if(o.isInstanceOf[Duration]){
+				o.asInstanceOf[Duration]
+			} else{
+				null
+			}
+		if(other == null){ 
+			return false;
+		} else{
+			return this.p == other.p && this.groundFn == other.groundFn
+		}
+	}
 	override def toString:String = {
 		val rtn:String = p.toString
 		rtn.substring(1,rtn.length)
 	}
+	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
 
 
@@ -317,17 +317,6 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		new Time(ground.base, null, null)
 	}
 
-	override def equals(o:Any):Boolean = {
-		if(o.isInstanceOf[Time] || o.isInstanceOf[DateTime]){
-			val other:Time = o.asInstanceOf[Time]
-			if(this.isGrounded && other.isGrounded) {
-				return this.ground.getMillis == other.ground.getMillis
-			} else if(!this.isGrounded && !other.isGrounded) {
-				return this.offset == other.offset && this.modifiers == other.modifiers
-			}
-		}
-		return false
-	}
 	def ~(o:Any):Boolean = {
 		if(o.isInstanceOf[Time] || o.isInstanceOf[DateTime]){
 			val other:Time = o.asInstanceOf[Time]
@@ -346,12 +335,23 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		}
 		return false
 	}
-
+	override def equals(o:Any):Boolean = {
+		if(o.isInstanceOf[Time] || o.isInstanceOf[DateTime]){
+			val other:Time = o.asInstanceOf[Time]
+			if(this.isGrounded && other.isGrounded) {
+				return this.ground.getMillis == other.ground.getMillis
+			} else if(!this.isGrounded && !other.isGrounded) {
+				return this.offset == other.offset && this.modifiers == other.modifiers
+			}
+		}
+		return false
+	}
 	override def toString:String = {
 		{if(base == null) "x" else base.toString() } +
 		{if(offset == null) "" else "+{" + offset + "}" } +
 		{if(modifiers == null) "" else "|"+modifiers.length+"mod"}
 	}
+	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
 
 //------------------------------------------------------------------------------
