@@ -78,7 +78,6 @@ class BehaviorSpec extends Spec with ShouldMatchers{
 			val fri = (t:Time) => 
 				new Time(t.base.withDayOfWeek(5).withMillisOfDay(0))
 			val time = new Time(null, DAY, List(fri,march))
-			println( time(Time(2011,04,30)) )
 			assert( time(Time(2011,04,30)) ~ Time(2011,03,5) )
 		}
 	}
@@ -289,11 +288,6 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 			val implicitIntersect = intersect
 			val ground = Time(2011,4,25)
 			val target = Range(Time(2010,4),Time(2010,5))
-			println("april>> " + april(implicitNow))
-			println("last year>> " + last(implicitToday,year))
-			println("april ^ last year>> " + (april(implicitNow) ^ last(implicitToday,year)))
-			println("last year ^ april>> " + (last(implicitToday,year) ^ april(implicitNow)) )
-			println( (april(implicitNow) ^ last(implicitToday,year))(ground) )
 			assert( 
 				implicitIntersect(
 					april(implicitNow), 
@@ -301,8 +295,57 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 				~ target )
 		}
 	}
-	describe("Cons"){ it("works")(pending) }
-	describe("Numbers"){ it("works")(pending) }
+	describe("Cons"){ 
+		it("works for May 3 2010 to May 10 2010"){
+			val may32010 = Range(Time(2010,5,3),Time(2010,5,4))
+			val may102010 = Range(Time(2010,5,10),Time(2010,5,11))
+			val to = cons
+			val target = Range(Time(2010,5,3),Time(2010,5,11))
+			assert( to(may32010,may102010) ~ target)
+		}
+		it("works for Since May 3 2010"){
+			val may32010 = Range(Time(2010,5,3),Time(2010,5,4))
+			val since = cons
+			val target = (r:Range) => Range(Time(2010,5,3), r.end)
+			assert( Time.probablyEqualRange(target,since(may32010,_:Range)) )
+		}
+		it("works for Since yesterday"){
+			val yesterday = catLeft(NOTIME,NODUR)
+			val since = cons
+			val target = (r:Range) => Range(NOW-DAY, r.end)
+			assert( Time.probablyEqualRange(target,since(yesterday,_:Range)) )
+		}
+		it("works for Until tomorrow"){
+			val tomorrow = catRight(NOTIME,NODUR)
+			val until = cons
+			val target = (r:Range) => Range(r.begin,NOW+DAY*2)
+			assert( Time.probablyEqualRange(target,until(_:Range,tomorrow)) )
+		}
+		it("works for Before tomorrow"){
+			val tomorrow = catRight(NOTIME,NODUR)
+			val before = cons
+			val target = (r:Range) => Range(r.begin,NOW+DAY*2)
+			assert( Time.probablyEqualRange(target,before(_:Range,tomorrow)) )
+		}
+		it("works for yesterday until tomorrow"){
+			val yesterday = catLeft(NOTIME,NODUR)
+			val tomorrow = catRight(NOTIME,NODUR)
+			val until = cons
+			val target = Range(NOW-DAY,NOW+DAY*2)
+			assert( until(yesterday,tomorrow) ~ target )
+		}
+	}
+	describe("Numbers"){ 
+		it("works for 24 hours"){
+			val hours = HOUR
+			assert( (hours*24) ~ DAY )
+		}
+		it("works for third day"){
+			val third = 3
+			val day = DAY
+			assert( (day*third) ~ (DAY*3) )
+		}
+	}
 
 	describe("Complex Examples") {
 		it("implement me")(pending)
@@ -326,12 +369,8 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 			val implicitToday = Range(NOW, NOW+DAY)
 			val last = catLeft
 			val month = MONTH
-			val ground = Time(2011,4,25)
-			val target = Range(Time(2011,3,25),Time(2011,4,26))
-			println( friday(implicitNow) )
-			println( last(implicitToday,month) )
-			println( (friday(implicitNow) ^ last(implicitToday,month)) )
-			println( (friday(implicitNow) ^ last(implicitToday,month))(ground) )
+			val ground = Time(2011,4,8)
+			val target = Range(Time(2011,3,11),Time(2011,3,12))
 			assert( (friday(implicitNow) ^ last(implicitToday,month))(ground)
 				~ target)
 		}
@@ -353,7 +392,17 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 			val target = Range(Time(2011,4,25),Time(2011,5,2))
 			assert( ths(implicitNow,week)(ground) ~ target )
 		}
-		it("works for Friday this week")(pending) //intersect
+		it("works for Friday this week"){
+			val friday = FRI
+			val week = WEEK
+			val ths = shrinkBegin
+			val implicitNow = MON(NOW)
+			val implicitIntersect = intersect
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,4,29),Time(2011,4,30))
+			assert( implicitIntersect(ths(implicitNow,week),friday(NOW))(ground) 
+				~ target )
+		}
 	}
 }
 
