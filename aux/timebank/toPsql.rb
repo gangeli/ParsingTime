@@ -190,6 +190,7 @@ query(db,"CREATE TABLE #{TIMEX} (
 		value VARCHAR(127),
 		temporalFunction BOOLEAN,
 		functionInDocument VARCHAR(31),
+		mod VARCHAR(15),
 		gloss VARCHAR(63)
 		);")
 #--TLink
@@ -212,8 +213,8 @@ TAG_STMT = db.prepare("INSERT INTO #{TAG}
   VALUES(?, ?, ?, ?, ?)")
 TIMEX_STMT = db.prepare("INSERT INTO #{TIMEX} 
 	(tid, sid, scopeBegin, scopeEnd, type, value, temporalFunction, 
-			functionInDocument, gloss)
-  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			functionInDocument, mod, gloss)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 TLINK_STMT = db.prepare("INSERT INTO #{TLINK} 
 	(lid, fid, source, target, type)
   VALUES(?, ?, ?, ?, ?)")
@@ -250,19 +251,23 @@ class Doc
 	end
 	def to_db
 		#(save self)
+		puts "    self"
 		ensureStatement(DOC_STMT,
 			@@fid,
 			name,
 			'')
 		#(save sentences)
+		puts "    sentences (#{@sentences.length})"
 		@sentences.each{ |s|
 			s.to_db(self)
 		}
 		#(save links)
+		puts "    links (#{@links.length})"
 		@links.each{ |l|
 			l.to_db(self)
 		}
 		#(finish)
+		puts "    done"
 		@@fid += 1
 	end
 end
@@ -316,7 +321,7 @@ end
 class Timex
 	@@tid = 1
 	def self.tid; @@tid; end
-	attr_accessor :tid, :type, :value, :text, :sent, :dbId
+	attr_accessor :tid, :type, :value, :sent, :dbId
 	def initialize(reader,sent)
 		for i in 0...reader.attribute_count do
 			reader.move_to_attribute(i)
@@ -325,8 +330,16 @@ class Timex
 			@value = parse(reader.value) if reader.name == "value"
 			@temporalFn = reader.value if reader.name == "temporalFunction"
 			@fnInDoc = reader.value if reader.name == "functionInDocument"
+			@mod = reader.value if reader.name == "mod"
 		end
 		@sent = sent
+	end
+	def text
+		@text ? @text.chomp : nil
+	end
+	def addText(target)
+		@text = "" if not @text
+		@text = @text + " " + target
 	end
 	def to_s
 		"#{tid}: #{value[0]} (#{type}) -- #{text} <<#{sent}>>"
@@ -353,7 +366,8 @@ class Timex
 			value,
 			@temporalFn,
 			@fnInDoc,
-			text)
+			@mod ? @mod : "NONE",
+			text.chomp)
 		#(finish)
 		@dbId = @@tid
 		@@tid += 1
@@ -426,11 +440,13 @@ for file in `find #{DIR} -name "*.tml.xml"` do
 			if reader.name == "TIMEX3" then
 				currDoc.time( Timex.new(reader,currSent) )
 			elsif reader.name == "TLINK" then
-				currDoc.link( TLink.new(reader) )
-				puts "    #{currDoc.lastLink}"\
-					if currDoc.lastLink and currDoc.lastLink.time_time?
+				link = TLink.new(reader)
+				if link.time_time? then
+					currDoc.link( TLink.new(reader) )
+					puts "    #{link}"
+				end
 			elsif reader.name == "s" then
-				currSent.setText(sent)
+				currSent.setText(sent.chomp)
 				currDoc.sentence(currSent)
 				currSent = Sent.new(currDoc,currSent.index+1)
 				sent = ""
@@ -438,16 +454,20 @@ for file in `find #{DIR} -name "*.tml.xml"` do
 		when XML::Reader::TYPE_TEXT, XML::Reader::TYPE_CDATA
 			#(case: element)
 			path = stack.join('/') if not path
-			currDoc.lastTimex.text = reader.value if stack[-1] == "TIMEX3"
+			currDoc.lastTimex.addText(reader.value) if path.include? "TIMEX3"
 			sent += " " + reader.value
 		when XML::Reader::TYPE_END_ELEMENT
 			#(case: closing tag)
 			stack.pop
 			path = nil
-			puts "    #{currDoc.lastTimex}" if reader.name == "TIMEX3"
+			if reader.name == "TIMEX3" then
+				puts "    #{currDoc.lastTimex}"
+				raise "No text for timex #{currDoc.lastTimex}"\
+					if not currDoc.lastTimex.text or currDoc.lastTimex.text.chomp == ""
+			end
 		end
 	end
-	currSent.setText(sent)
+	currSent.setText(sent.chomp)
 	currDoc.sentence(currSent) if currSent
 	puts "  }"
 	docs << currDoc
@@ -462,7 +482,7 @@ db['AutoCommit'] = false
 puts "  ensuring source"
 query(db,"INSERT INTO #{SOURCE} (did,name,notes) VALUES ('#{SOURCE_ID}','timebank','Timebank basic timex annotations')")
 docs.each do |doc|
-	puts "  writing #{doc} {"
+	puts "  writing #{doc.name} {"
 	doc.to_db
 	puts "  }"
 end

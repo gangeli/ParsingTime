@@ -55,11 +55,12 @@ class Entry {
 			val siter = doc.sentences.iterator
 			while(siter.hasNext){
 				val sent:TimebankSentence = siter.next
+				println(sent)
 				sent.refreshLinks
 				val titer = sent.timexes.iterator
 				while(titer.hasNext){
 					val timex = titer.next
-					println(timex + " -> " + timex.gold)
+					println("  " + timex + " -> " + timex.gold)
 				}
 			}
 		}

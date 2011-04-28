@@ -38,6 +38,8 @@ class TimebankSentence extends DatabaseObject{
 //	private var tags:Array[TimebankTag] = null
 	@Child(localField="sid", childField="sid")
 	var timexes:Array[Timex] = null
+
+	override def toString:String = gloss
 }
 
 @Table(name="timebank_tag")
@@ -72,6 +74,8 @@ class Timex extends DatabaseObject{
 	private var temporalFunction:Boolean = false
 	@Key(name="functionInDocument")
 	private var functionInDocument:String = null
+	@Key(name="mod")
+	private var mod:String = null
 	@Key(name="gloss")
 	private var gloss:String = null
 
@@ -85,8 +89,11 @@ class Timex extends DatabaseObject{
 				case "INSTANT" => {
 					//(case: instant time)
 					assert(timeVal.length == 2, "Instant has one element")
-					val time:Time = new Time(new DateTime(timeVal(1).trim),null,null)
-					Range(time,time)
+					if(timeVal(1).trim == "NOW"){
+						new Time(null,null,null)
+					} else {
+						new Time(new DateTime(timeVal(1).trim),null,null)
+					}
 				}
 				case "RANGE" => {
 					//(case: range)
@@ -120,7 +127,8 @@ class Timex extends DatabaseObject{
 						Integer.parseInt(timeVal(1)),
 						Integer.parseInt(timeVal(2)),
 						Integer.parseInt(timeVal(3)),
-						Integer.parseInt(timeVal(4))
+						Integer.parseInt(timeVal(4)),
+						0,0,0,0
 						)
 				}
 				case "UNK" => {
@@ -134,7 +142,7 @@ class Timex extends DatabaseObject{
 	}
 
 	override def toString:String = {
-		"" + tid + ": " + gloss
+		"" + tid + "["+scopeBegin+"-"+scopeEnd+"]: " + gloss
 	}
 	override def equals(other:Any):Boolean = {
 		return other.isInstanceOf[Timex] && other.asInstanceOf[Timex].tid == tid
