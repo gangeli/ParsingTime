@@ -3,7 +3,7 @@ package time
 import org.goobs.database._
 
 @Table(name="timebank_doc")
-class TimebankDocument extends DatabaseObject{
+class TimebankDocument extends org.goobs.testing.Datum{
 	@PrimaryKey(name="fid")
 	private var fid:Int = 0
 	@Key(name="filename")
@@ -11,7 +11,10 @@ class TimebankDocument extends DatabaseObject{
 	@Key(name="notes")
 	private var notes:String = null
 	@Child(localField="fid", childField="fid")
-	private var sentences:Array[TimebankSentence] = null
+	var sentences:Array[TimebankSentence] = null
+	@Child(localField="fid", childField="fid")
+	var links:Array[TLink] = null
+	override def getID = fid
 }
 
 @Table(name="timebank_sent")
@@ -24,6 +27,10 @@ class TimebankSentence extends DatabaseObject{
 	private var length:Int = 0
 	@Key(name="gloss")
 	private var gloss:String = null
+//	@Child(localField="sid", childField="sid")
+//	private var tags:Array[TimebankTag] = null
+	@Child(localField="sid", childField="sid")
+	var timexes:Array[Timex] = null
 }
 
 @Table(name="timebank_tag")
@@ -41,7 +48,7 @@ class TimebankTag extends DatabaseObject{
 }
 
 @Table(name="timebank_timex")
-class TimebankTimex extends DatabaseObject{
+class Timex extends DatabaseObject{
 	@PrimaryKey(name="tid")
 	private var tid:Int = 0
 	@Key(name="sid")
@@ -60,10 +67,18 @@ class TimebankTimex extends DatabaseObject{
 	private var functionInDocument:String = null
 	@Key(name="gloss")
 	private var gloss:String = null
+
+	override def toString:String = {
+		"" + tid + ": " + gloss
+	}
+	override def equals(other:Any):Boolean = {
+		return other.isInstanceOf[Timex] && other.asInstanceOf[Timex].tid == tid
+	}
+	override def hashCode:Int = tid
 }
 
 @Table(name="timebank_tlink")
-class TimebankTLink extends DatabaseObject{
+class TLink extends DatabaseObject{
 	@PrimaryKey(name="lid")
 	private var lid:Int = 0
 	@Key(name="fid")

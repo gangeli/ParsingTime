@@ -2,7 +2,6 @@ package time
 
 import Conversions._
 import Lex._
-import edu.stanford.nlp.ie.temporal.timebank.Timex
 import org.joda.time._
 
 //------------------------------------------------------------------------------
