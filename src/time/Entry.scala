@@ -43,6 +43,7 @@ object U {
 			sb.substring(0, sb.length - str.length)
 		}
 	}
+	def w2str(w:Int):String = G.wordIndexer.get(w)
 }
 
 class Entry {
@@ -53,8 +54,50 @@ class Entry {
 		log("loading info file...")
 		val info = new TimebankInfoFile(corpus)
 		val files = info.getFiles
-		//--Time Expressions
-		startTrack("Timexes")
+		// -- FUNCTIONS --
+		//(file iter)
+		def eachFile[E](
+				getter:String=>java.util.List[E],fn:(String,E)=>Unit) = {
+			val iter = files.iterator
+			while(iter.hasNext){
+				val file:String = iter.next
+				val titer = getter(file).iterator
+				while(titer.hasNext){ fn(file, titer.next) }
+			}
+		}
+		def accumFile[E](getter:String=>java.util.List[E]) = {
+			var lst:List[(String,E)] = List[(String,E)]()
+			eachFile(getter, (file:String,e:E) => lst = (file,e) :: lst)
+			lst
+		}
+		//(ground timex)
+		def ground(
+				timexes:List[(String,Timex)],
+				tlinks:List[(String,TLink)]
+				):List[(String,Timex,List[TLink])] = {
+			//(collect times)
+			val hashTimes = new HashMap[(String,String),(Timex,List[TLink])]
+			timexes.foreach( (pair:(String,Timex)) => {
+				val (file,timex) = pair
+				println("TIME: " + file + ": " + timex.tid)
+				assert(!hashTimes.contains((file,timex.tid)), "duplicate timex")
+				hashTimes.put((file,timex.tid),(timex,List[TLink]()))
+			})
+			//(link tlinks)
+			tlinks.foreach( (pair:(String,TLink)) => {
+				val (file,tlink) = pair
+				println(tlink)
+				val (startTime,startLst) = hashTimes((file,tlink.event1))
+				hashTimes.put((file,tlink.event1), (startTime,tlink :: startLst))
+				val (endTime,endLst) = hashTimes((file,tlink.event2))
+				hashTimes.put((file,tlink.event2), (endTime,tlink :: endLst))
+			})
+			//(flatten)
+			hashTimes.toList.map( (struct:((String,String),(Timex,List[TLink]))) => {
+				val ((file,tid),(timex,links)) = struct
+				(file,timex,links)
+			})
+		}
 		//(id => index)
 		val elemSet = new HashSet[String]
 		def index(idStr:String):Int = {
@@ -75,37 +118,43 @@ class Entry {
 			}
 			lst.reverse.toArray
 		}
+		// -- INIT --
+		//--Time Expressions
+		startTrack("Reading Info File")
 		//(get timexes)
-		var timexes = List[(String,Timex)]()
-		val iter = files.iterator
-		while(iter.hasNext){
-			val file:String = iter.next
-			val titer = info.getTimexes(file).iterator
-			while(titer.hasNext){
-				timexes = (file, titer.next) :: timexes
-			}
-		}
-		//(create time data)
-		times = timexes.map( (pair:(String,Timex)) => {
-			val (file,t) = pair
-			val idStr:String = file + t.tid
-			if(!t.text.trim.equals("")){ //filter text-less timexes
-				val id:Int = index(idStr)
-				G.idStringMap.put(id,idStr)
-				val text = tokenize(t.text)
-				//TODO
-				new Datum(id, text, null)
-//				new Datum(id, text, Time(t.value, t))
-			} else {
-				null
-			}
-		}).filter( (d:Datum) => d != null ).toArray
-		//(sort)
-		quickSort(times)
-		times.foreach( (d:Datum) => {
-			log(d);
+		log("Timexes")
+		val timexes:List[(String,Timex)] 
+			= accumFile((file:String) => { info.getTimexes(file) })
+		//(get tlinks)
+		log("TLinks")
+		var tlinks:List[(String,TLink)] 
+			= accumFile((file:String) => {info.getTlinksOfType(file,TLink.TIME_TIME)})
+		//(ground links)
+		log("Grounding links")
+		val groundedLinks:List[(String,Timex,List[TLink])]
+			= ground(timexes,tlinks)
+		groundedLinks.foreach( (struct) => {
+			val (file,timex,links) = struct
+			println(timex.value + "  " + timex.text + " :: " + links)
 		})
 		endTrack
+		
+//		//(create time data)
+//		times = timexes.map( (pair:(String,Timex)) => {
+//			val (file,t) = pair
+//			val idStr:String = file + t.tid
+//			val id:Int = index(idStr)
+//			G.idStringMap.put(id,idStr)
+//			val text = tokenize(t.text)
+//			val value = t.value
+//			println(value + "  <-  " + U.join(text.map(U.w2str(_)), " "))
+//			new Datum(id, text, null)
+//		}).filter( (d:Datum) => d != null ).toArray
+//		//(sort)
+//		quickSort(times)
+//		times.foreach( (d:Datum) => {
+//			log(d);
+//		})
 		//(return)
 		endTrack
 		this
@@ -120,11 +169,10 @@ class Entry {
 
 object Entry {
 	def main(args:Array[String]):Unit = {
-		Time.test
-//		Execution.exec(new Runnable(){
-//			override def run:Unit = {
-//				(new Entry).init(O.timebank).train.test
-//			}
-//		}, args)
+		Execution.exec(new Runnable(){
+			override def run:Unit = {
+				(new Entry).init(O.timebank).train.test
+			}
+		}, args)
 	}
 }

@@ -360,7 +360,8 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 
 object Lex {
 	object LexUtil {
-		def dow:(Time,Int)=>Range = (t:Time,i:Int) => {
+		def dow:(Time,Int)=>Range = (t:Time,iArg:Int) => {
+			val i:Int = if(iArg < 0) t.base.getDayOfWeek else iArg
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withDayOfWeek(i).withMillisOfDay(0), null)
 				} else {
@@ -368,7 +369,8 @@ object Lex {
 				}
 			Range(begin, begin+Days.ONE)
 		}
-		def dom:(Time,Int)=>Range = (t:Time,i:Int) => {
+		def dom:(Time,Int)=>Range = (t:Time,iArg:Int) => {
+			val i:Int = if(iArg < 0) t.base.getDayOfMonth else iArg
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withDayOfMonth(i).withMillisOfDay(0), null)
 				} else {
@@ -376,7 +378,8 @@ object Lex {
 				}
 			Range(begin, begin+Days.ONE)
 		}
-		def woy:(Time,Int)=>Range = (t:Time,i:Int) => {
+		def woy:(Time,Int)=>Range = (t:Time,iArg:Int) => {
+			val i:Int = if(iArg < 0) t.base.getWeekOfWeekyear else iArg
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withWeekOfWeekyear(i)
 						.withDayOfWeek(1).withMillisOfDay(0), null)
@@ -385,7 +388,8 @@ object Lex {
 				}
 			Range(begin, begin+Weeks.ONE)
 		}
-		def moy:(Time,Int)=>Range = (t:Time,i:Int) => {
+		def moy:(Time,Int)=>Range = (t:Time,iArg:Int) => {
+			val i:Int = if(iArg < 0) t.base.getMonthOfYear else iArg
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withMonthOfYear(i)
 						.withDayOfMonth(1).withMillisOfDay(0), null)
@@ -394,26 +398,16 @@ object Lex {
 				}
 			Range(begin, begin+Months.ONE)
 		}
-//		def dom:(Range,Int)=>Range = (r:Range,i:Int) => {
-//			val begin:Time = 
-//				Time(r.begin.base.withDayOfMonth( ((i-1) % 31) + 1 ), null)
-//			Range(begin, begin+Days.ONE)
-//		}
-//		def doy:(Range,Int)=>Range = (r:Range,i:Int) => {
-//			val begin:Time = 
-//				Time(r.begin.base.withDayOfYear( ((i-1) % 7) + 366 ), null)
-//			Range(begin, begin+Days.ONE)
-//		}
-//		def woy:(Range,Int)=>Range = (r:Range,i:Int) => {
-//			val begin:Time = 
-//				Time(r.begin.base.withWeekOfWeekyear( ((i-1) % 53) + 1 ), null)
-//			Range(begin, begin+Weeks.ONE)
-//		}
-//		def moy:(Range,Int)=>Range = (r:Range,i:Int) => {
-//			val begin:Time = 
-//				Time(r.begin.base.withMonthOfYear( ((i-1) % 7) + 12 ), null)
-//			Range(begin, begin+Months.ONE)
-//		}
+		def qoy:(Time,Int)=>Range = (t:Time,iArg:Int) => {
+			val i:Int = if(iArg < 0) ((t.base.getMonthOfYear-1)%3)+1 else iArg
+			val begin:Time = if(t.isGrounded){
+					Time(t.base.withMonthOfYear(3*(i-1)+1)
+						.withDayOfMonth(1).withMillisOfDay(0), null)
+				} else {
+					new Time(null,null)
+				}
+			Range(begin, begin+Months.THREE)
+		}
 	}
 	//--Durations
 	val SEC:Duration = Seconds.ONE
@@ -422,6 +416,7 @@ object Lex {
 	val DAY:Duration = Days.ONE
 	val WEEK:Duration = Weeks.ONE
 	val MONTH:Duration = Months.ONE
+	val QUARTER:Duration = Months.THREE
 	val YEAR:Duration = Years.ONE
 	//--Misc
 	val ZERO:Period = Seconds.ZERO.toPeriod
@@ -438,7 +433,9 @@ object Lex {
 	val SUN:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,7))
 	//--OTHER DURATIONS
 	def DOM(i:Int) = new Duration(Months.ONE, LexUtil.dom(_,i))
+	def WOY(i:Int) = new Duration(Months.ONE, LexUtil.woy(_,i))
 	def MOY(i:Int) = new Duration(Years.ONE, LexUtil.moy(_,i))
+	def QOY(i:Int) = new Duration(Months.THREE, LexUtil.qoy(_,i))
 	val AYEAR = new Duration(Years.ONE, (t:Time) => {
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withDayOfYear(1).withMillisOfDay(0), null)
@@ -449,6 +446,8 @@ object Lex {
 		})
 	
 	//--Shifts
+	val shiftLeft:(Range,Duration)=>Range = _ << _
+	val shiftRight:(Range,Duration)=>Range = _ >> _
 	val catLeft:(Range,Duration)=>Range = _ <| _
 	val catRight:(Range,Duration)=>Range = _ |> _
 	val shrinkBegin:(Range,Duration)=>Range = _ |< _
@@ -512,6 +511,33 @@ object Time {
 			}
 		}
 		return true
+	}
+
+	var interpreter:scala.tools.nsc.Interpreter = null
+	def interactive = {
+		import scala.tools.nsc.{Interpreter,Settings}
+		//--Create Interpreter
+		println("Loading interpreter...")
+		if(interpreter == null){
+			//(objects)
+			val settings = new Settings
+			settings.usejavacp.value = true
+			interpreter = new Interpreter(settings)
+			//(initialize)
+			interpreter.interpret("import time._")
+			interpreter.interpret("import time.Lex._")
+			interpreter.interpret("import time.Conversions._")
+		}
+		//--Loop
+		var cond = true
+		while(cond){
+			val str = Console.readLine("scala> ")
+			if(str.trim.equalsIgnoreCase("exit")){
+				cond = false
+			} else {
+				interpreter.interpret(str)
+			}
+		}
 	}
 
 	def test = {

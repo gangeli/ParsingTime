@@ -348,7 +348,47 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 	}
 
 	describe("Complex Examples") {
-		it("implement me")(pending)
+		it("works for Third quarter"){
+			val third = 3
+			val quarter = QOY(third)
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,7,1),Time(2011,10,1))
+			assert( quarter(ground) ~ target )
+		}
+		it("works for This year"){
+			val year = AYEAR
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,1,1),Time(2012,1,1))
+			assert( year(ground) ~ target )
+		}
+		it("works for A year ago"){
+			val year = YEAR
+			val ago = shiftLeft
+			val implicitToday = Range(NOW,NOW+DAY)
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2010,4,25),Time(2010,4,26))
+			assert( ago(implicitToday,year)(ground) ~ target )
+		}
+		it("works for The year ending June 30 1990"){
+			val year = YEAR
+			val ending = shrinkEnd
+			val june = MOY(6)(NOW)
+			val d30 = DOM(30)(NOW)
+			val y1990 = Range(Time(1990),Time(1991))
+			val target = Range(Time(1989,7,1), Time(1990,7,1))
+			assert( ending( (june ^ d30) ^ y1990, year ) ~ target )
+		}
+		it("works for The 9 months"){
+			val nine = 9
+			val months = MONTH
+			assert( (months*nine) ~ (MONTH*9) )
+		}
+		it("works for The latest quarter"){
+			val quarter = QOY(-1)
+			val ground = Time(2011,4,25)
+			val target = Range(Time(2011,1,1),Time(2011,4,1))
+			assert( quarter(ground) ~ target)
+		}
 	}
 	
 	describe("Other Examples") {
