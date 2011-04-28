@@ -6,13 +6,14 @@ import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
 //(java)
 import java.io.StringReader
+//(jodatime)
+import org.joda.time.DateTimeZone
 //(lib)
 import org.goobs.slib.JMaps._
 import org.goobs.testing._
 import org.goobs.exec.Log._
 import org.goobs.exec.Execution
 import org.goobs.utils.Indexer;
-//(misc)
 
 object G {
 	val wordIndexer = new Indexer[String]
@@ -34,11 +35,17 @@ object U {
 	def w2str(w:Int):String = G.wordIndexer.get(w)
 }
 
+case class UNK()
+
 class Entry {
 	private var dataset:Dataset[TimebankDocument] = null
 
 	def init(corpus:String):Entry = {
 		start_track("Initializing")
+		//--Initialize JodaTime
+		log("JodaTime settings")
+		DateTimeZone.setDefault(DateTimeZone.UTC);
+		//--Load Data
 		log("loading dataset")
 		dataset = Execution.getDataset(classOf[TimebankDocument])
 		log("iterating over timexes")
@@ -52,7 +59,7 @@ class Entry {
 				val titer = sent.timexes.iterator
 				while(titer.hasNext){
 					val timex = titer.next
-					println(timex)
+					println(timex + " -> " + timex.gold)
 				}
 			}
 		}

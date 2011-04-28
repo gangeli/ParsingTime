@@ -1,6 +1,13 @@
 package time
 
+import org.joda.time.DateTime
+import org.joda.time.Period
+import org.joda.time.DateTimeZone
+
 import org.goobs.database._
+import org.goobs.exec.Log._
+
+import Conversions._
 
 @Table(name="timebank_doc")
 class TimebankDocument extends org.goobs.testing.Datum{
@@ -60,13 +67,71 @@ class Timex extends DatabaseObject{
 	@Key(name="type")
 	private var timeType:String = null
 	@Key(name="value")
-	private var value:Array[String] = null
+	private var timeVal:Array[String] = null
 	@Key(name="temporalFunction")
 	private var temporalFunction:Boolean = false
 	@Key(name="functionInDocument")
 	private var functionInDocument:String = null
 	@Key(name="gloss")
 	private var gloss:String = null
+
+	private var timeCache:Any = null
+
+	def gold:Any = {
+		if(timeCache == null){
+			assert(timeVal.length > 0, "No time value for timex " + tid + "!")
+			val inType:String = timeVal(0).trim
+			timeCache = inType match {
+				case "INSTANT" => {
+					//(case: instant time)
+					assert(timeVal.length == 2, "Instant has one element")
+					val time:Time = new Time(new DateTime(timeVal(1).trim),null,null)
+					Range(time,time)
+				}
+				case "RANGE" => {
+					//(case: range)
+					assert(timeVal.length == 3, "Range has two elements")
+					val begin:String = timeVal(1).trim
+					val end:String = timeVal(2).trim
+					if(begin == "x" || end == "x"){
+						//(case: unbounded range)
+						if(begin == "x") assert(end == "NOW", "assumption")
+						if(end == "x") assert(begin == "NOW", "assumption")
+						if(begin == "x"){
+							(r:Range) => Range(r.begin,Time(null,null,null))
+						} else if(end == "x"){
+							(r:Range) => Range(Time(null,null,null), r.end)
+						} else {
+							throw fail("Should not reach here")
+						}
+					} else {
+						//(case: normal range)
+						Range(
+							{if(begin == "NOW") new Time(null,null,null) 
+								else new Time(new DateTime(begin),null,null)},
+							{if(end == "NOW") new Time(null,null,null) 
+								else new Time(new DateTime(end),null,null)} )
+					}
+				}
+				case "PERIOD" => {
+					assert(timeVal.length == 5, "Period has 4 elements")
+					//(case: duration)
+					new Period(
+						Integer.parseInt(timeVal(1)),
+						Integer.parseInt(timeVal(2)),
+						Integer.parseInt(timeVal(3)),
+						Integer.parseInt(timeVal(4))
+						)
+				}
+				case "UNK" => {
+					new UNK
+				}
+				case _ => throw new IllegalStateException("Unknown time: " + 
+					inType + " for timex: " + this)
+			}
+		}
+		timeCache
+	}
 
 	override def toString:String = {
 		"" + tid + ": " + gloss

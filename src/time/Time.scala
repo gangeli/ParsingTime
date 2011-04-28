@@ -463,7 +463,6 @@ object Duration {
 }
 
 object Time {
-	DateTimeZone.setDefault(DateTimeZone.UTC);
 	def apply(base:DateTime, offset:Duration) = new Time(base, offset, null)
 
 	def apply(year:Int, month:Int, day:Int, hour:Int, min:Int, sec:Int):Time = {

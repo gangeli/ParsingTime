@@ -1,0 +1,201 @@
+<?xml version="1.0" ?>
+<TimeML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="TimeML1.1.xsd" >
+<DOCNO> WSJ891031-0082 </DOCNO>
+<DD> = 891031 </DD>
+<AN> 891031-0082. </AN>
+<HL> It Surely Won't Be the Last Case
+@  To Be Fought on Shaky Ground
+@  ----
+@  By Milo Geyelin
+@  Staff Reporter of The Wall Street Journal </HL>
+<DD><TIMEX3 tid="t92" type="DATE" temporalFunction="true" functionInDocument="CREATION_TIME" value="1989-10-31" > 10/31/89 </TIMEX3></DD>
+<SO> WALL STREET JOURNAL (J) </SO>
+<TEXT>
+   <s>Nothing was <SIGNAL sid="s189" >going</SIGNAL> <SIGNAL sid="s2" >to</SIGNAL> <EVENT eid="e3" class="ASPECTUAL" >hold</EVENT> up the long-delayed <EVENT eid="e93" class="OCCURRENCE" >settlement</EVENT> of <ENAMEX TYPE="LOCATION">Britton vs. 
+Thomasini</ENAMEX>.</s> 
+<s>Not even an <EVENT eid="e94" class="OCCURRENCE" >earthquake</EVENT>.</s> 
+
+   <s>On the<TIMEX3 tid="t96" type="DATE" temporalFunction="true" functionInDocument="NONE" value="1989-10-17TAF" >afternoon of Oct. 17</TIMEX3>, after hours of<EVENT eid="e101" class="OCCURRENCE" >haggling</EVENT> with <CARDINAL>five</CARDINAL> insurance-claims adjusters over<EVENT eid="e102" class="ASPECTUAL" >settling</EVENT> a toxic-waste <EVENT eid="e103" class="OCCURRENCE" >suit</EVENT>, <CARDINAL>four</CARDINAL> lawyers <EVENT eid="e105" class="OCCURRENCE" >had</EVENT> an <EVENT eid="e104" class="OCCURRENCE">agreement</EVENT> in hand.</s> 
+<s>But as <ENAMEX TYPE="PERSON">Judge Thomas M. Jenkins</ENAMEX><EVENT eid="e106" class="OCCURRENCE" >donned</EVENT> his robes so he <SIGNAL sid="s107" >could</SIGNAL> <EVENT eid="e108" class="OCCURRENCE" >give</EVENT> final <EVENT eid="e109" class="OCCURRENCE" >approval</EVENT>, the major <EVENT eid="e110" class="OCCURRENCE" >earthquak</EVENT>e<EVENT eid="e111" class="OCCURRENCE" >struck</EVENT>, its epicenter not far from his courtroom in <ENAMEX TYPE="LOCATION">Redwood City</ENAMEX>, <ENAMEX TYPE="LOCATION">Calif.</ENAMEX></s>
+
+<s>The walls<EVENT eid="e112" class="OCCURRENCE" >shook</EVENT>; the building<EVENT eid="e113" class="OCCURRENCE" >rocked</EVENT>.</s> 
+<s>For a while, it <EVENT eid="e115" class="PERCEPTION" >looked</EVENT> like the <EVENT eid="e116" class="OCCURRENCE" >deal</EVENT> -- not to mention the courtroom itself -- was on the verge of <EVENT eid="e117" class="OCCURRENCE" >collapse</EVENT>e.</s> 
+
+   <s>"The judge <EVENT eid="e118" class="OCCURRENCE" >came</EVENT> out <EVENT eid="e119" class="REPORTING" >and said</EVENT>, `<ENAMEX TYPE="LOCATION">Quick</ENAMEX>, let's <EVENT eid="e124" class="OCCURRENCE" >put</EVENT> this on the record,'" <EVENT eid="e120" class="REPORTING" >says</EVENT> <ENAMEX TYPE="PERSON">Sandy Bettencourt</ENAMEX>, the judge's court reporter.</s> 
+<s>"I <EVENT eid="e121" class="REPORTING" >said</EVENT>, `<TIMEX3 tid="t122" type="DATE" temporalFunction="true" functionInDocument="NONE" value="1989-10-17TAF" anchorTimeID="t96" >NOW</TIMEX3>?' I was <EVENT eid="e123" class="OCCURRENCE" >shaking</EVENT> the whole time."</s> 
+
+   <s>A <CARDINAL>10</CARDINAL>-gallon water cooler had <EVENT eid="e125" class="OCCURRENCE" >toppled</EVENT> onto the floor, <EVENT eid="e126" class="OCCURRENCE" >soaking</EVENT> the red carpeting.</s> 
+<s>Lights <EVENT eid="e127" class="OCCURRENCE" >flickered</EVENT> on and off; plaster <EVENT eid="e128" class="OCCURRENCE" >dropped</EVENT> from the ceiling, the walls still <EVENT eid="e129" class="OCCURRENCE" >shook</EVENT> and an evacuation alarm <EVENT eid="e130" class="OCCURRENCE" >blared</EVENT> outside.</s> 
+<s>The <CARDINAL>four</CARDINAL> lawyers <EVENT eid="e131" class="OCCURRENCE" >climbed</EVENT> out from under a table.</s> 
+
+   <s>"Let's <EVENT eid="e132" class="OCCURRENCE" >close</EVENT> the door," <EVENT eid="e133" class="REPORTING" >said</EVENT> the judge as he <EVENT eid="e134" class="OCCURRENCE" >climbed</EVENT> to his bench.</s> 
+
+   <s>At stake was an <NUMEX TYPE="MONEY">$80,000</NUMEX> settlement <EVENT eid="e136" class="OCCURRENCE" >involving</EVENT> who <SIGNAL sid="s137" >should</SIGNAL> <EVENT eid="e138" class="OCCURRENCE" >pay</EVENT> what share of <EVENT eid="e144" class="OCCURRENCE" >cleanup</EVENT> costs at the site of a former gas station, where underground fuel tanks had <EVENT eid="e139" class="OCCURRENCE" >leaked</EVENT> and <EVENT eid="e140" class="OCCURRENCE" >contaminated</EVENT> the soil.</s> 
+<s>And the lawyers were just as eager as the judge <SIGNAL sid="s143" >to</SIGNAL> <EVENT eid="e142" class="ASPECTUAL" >wrap</EVENT> it up.</s> 
+<s>"We were never <SIGNAL sid="s148" >going</SIGNAL> <SIGNAL sid="s147" >to</SIGNAL> <EVENT eid="e146" class="OCCURRENCE" >get</EVENT> these insurance companies <SIGNAL sid="s192" >to</SIGNAL> <EVENT eid="e149" class="OCCURRENCE" >agree</EVENT> again , " <EVENT eid="e150" class="REPORTING" >says</EVENT> <ENAMEX TYPE="PERSON">John V. Trump</ENAMEX>, a <ENAMEX TYPE="LOCATION">San Francisco</ENAMEX> defense lawyer in the<EVENT eid="e151" class="OCCURRENCE" >case</EVENT>.</s> 
+
+   <s>Indeed, the insurance adjusters had already <EVENT eid="e153" class="OCCURRENCE" >bolted</EVENT> out of the courtroom.</s> 
+<s>The lawyers<EVENT eid="e157" class="OCCURRENCE" >went</EVENT> <SIGNAL sid="s156" >to</SIGNAL> <EVENT eid="e154" class="OCCURRENCE" >work</EVENT> anyway , duly <EVENT eid="e159" class="REPORTING" >noting</EVENT> that the <EVENT eid="e160" class="OCCURRENCE" >proceeding</EVENT> was <EVENT eid="e161" class="OCCURRENCE" >taking place</EVENT> during a major <EVENT eid="e162" class="OCCURRENCE" >earthquake</EVENT>.</s> 
+<s><CARDINAL>Ten</CARDINAL> minutes later, it was<EVENT eid="e164" class="ASPECTUAL" >done</EVENT>.</s> 
+<s>For the record, <ENAMEX TYPE="PERSON">Jeffrey Kaufman</ENAMEX>, an attorney for Fireman's <ENAMEX TYPE="ORGANIZATION">Fund</ENAMEX>, said he was " <EVENT eid="e166" class="OCCURRENCE" >rattled</EVENT> -- both literally and figuratively."</s> 
+
+   <s>"My <EVENT eid="e169" class="STATE" >belief</EVENT> is always, if you've <EVENT eid="e168" class="OCCURRENCE" >got</EVENT> a <EVENT eid="e170" class="OCCURRENCE" >settlement</EVENT>, you <EVENT eid="e171" class="REPORTING" >read</EVENT> it into the <EVENT eid="e172" class="OCCURRENCE" >record</EVENT>."</s> <s>says <ENAMEX TYPE="PERSON">Judge Jenkins</ENAMEX>, now <EVENT eid="e176" class="STATE" >known</EVENT> in his courthouse as "Shake 'Em Down <ENAMEX TYPE="PERSON">Jenkins</ENAMEX>."</s> 
+
+   <s>The insurance adjusters <EVENT eid="e177" class="STATE" >think</EVENT> differently.</s> 
+<s>"I did <SIGNAL sid="s179" >n't</SIGNAL> <EVENT eid="e178" class="STATE">know</EVENT> if it was <EVENT eid="e183" class="OCCURRENCE" >World War III</EVENT> or what," <EVENT eid="e181" class="REPORTING" >says</EVENT> <ENAMEX TYPE="PERSON">Melanie Carvain of <ENAMEX TYPE="LOCATION">Morristown</ENAMEX></ENAMEX>, <ENAMEX TYPE="LOCATION">N.J.</ENAMEX> "<ENAMEX TYPE="LOCATION">Reading</ENAMEX> the <EVENT eid="e185" class="OCCURRENCE" >settlement</EVENT> <SIGNAL sid="s188" >into</SIGNAL> the <EVENT eid="e187" class="OCCURRENCE" >record</EVENT> was the last thing on my mind."</s> 
+</TEXT>
+
+<MAKEINSTANCE aspect="NONE" eiid="ei379" tense="NONE" eventID="e3" />
+<MAKEINSTANCE aspect="NONE" eiid="ei380" tense="NONE" eventID="e93" />
+<MAKEINSTANCE aspect="NONE" eiid="ei381" tense="NONE" eventID="e94" />
+<MAKEINSTANCE aspect="NONE" eiid="ei382" tense="NONE" eventID="e101" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei383" tense="PRESENT" eventID="e102" />
+<MAKEINSTANCE aspect="NONE" eiid="ei384" tense="NONE" eventID="e103" />
+<MAKEINSTANCE aspect="NONE" eiid="ei385" tense="PAST" eventID="e105" />
+<MAKEINSTANCE aspect="NONE" eiid="ei386" tense="NONE" eventID="e104" />
+<MAKEINSTANCE aspect="NONE" eiid="ei387" tense="PAST" eventID="e106" />
+<MAKEINSTANCE aspect="NONE" eiid="ei388" tense="NONE" eventID="e108" />
+<MAKEINSTANCE aspect="NONE" eiid="ei389" tense="NONE" eventID="e109" />
+<MAKEINSTANCE aspect="NONE" eiid="ei390" tense="NONE" eventID="e110" />
+<MAKEINSTANCE aspect="NONE" eiid="ei391" tense="PAST" eventID="e111" />
+<MAKEINSTANCE aspect="NONE" eiid="ei392" tense="PAST" eventID="e112" />
+<MAKEINSTANCE aspect="NONE" eiid="ei393" tense="PAST" eventID="e113" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei394" tense="PAST" eventID="e115" />
+<MAKEINSTANCE aspect="NONE" eiid="ei395" tense="NONE" eventID="e116" />
+<MAKEINSTANCE aspect="NONE" eiid="ei396" tense="NONE" eventID="e117" />
+<MAKEINSTANCE aspect="NONE" eiid="ei397" tense="PAST" eventID="e118" />
+<MAKEINSTANCE aspect="NONE" eiid="ei398" tense="PAST" eventID="e119" />
+<MAKEINSTANCE aspect="NONE" eiid="ei399" tense="PRESENT" eventID="e124" />
+<MAKEINSTANCE aspect="NONE" eiid="ei400" tense="PRESENT" eventID="e120" />
+<MAKEINSTANCE aspect="NONE" eiid="ei401" tense="PAST" eventID="e121" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei402" tense="PAST" eventID="e123" />
+<MAKEINSTANCE aspect="NONE" eiid="ei403" tense="PAST" eventID="e125" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei404" tense="PAST" eventID="e126" />
+<MAKEINSTANCE aspect="NONE" eiid="ei405" tense="PAST" eventID="e127" />
+<MAKEINSTANCE aspect="NONE" eiid="ei406" tense="PAST" eventID="e128" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei407" tense="PAST" eventID="e129" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei408" tense="PAST" eventID="e130" />
+<MAKEINSTANCE aspect="NONE" eiid="ei409" tense="PAST" eventID="e131" />
+<MAKEINSTANCE aspect="NONE" eiid="ei410" tense="PRESENT" eventID="e132" />
+<MAKEINSTANCE aspect="NONE" eiid="ei411" tense="PAST" eventID="e133" />
+<MAKEINSTANCE aspect="NONE" eiid="ei412" tense="PAST" eventID="e134" />
+<MAKEINSTANCE aspect="NONE" eiid="ei413" tense="NONE" eventID="e136" />
+<MAKEINSTANCE aspect="NONE" eiid="ei414" tense="NONE" eventID="e138" />
+<MAKEINSTANCE aspect="NONE" eiid="ei415" tense="NONE" eventID="e144" />
+<MAKEINSTANCE aspect="NONE" eiid="ei416" tense="PAST" eventID="e139" />
+<MAKEINSTANCE aspect="NONE" eiid="ei417" tense="PAST" eventID="e140" />
+<MAKEINSTANCE aspect="NONE" eiid="ei418" tense="NONE" eventID="e142" />
+<MAKEINSTANCE aspect="NONE" eiid="ei419" tense="PAST" eventID="e146" />
+<MAKEINSTANCE aspect="NONE" eiid="ei420" tense="PRESENT" eventID="e149" />
+<MAKEINSTANCE aspect="NONE" eiid="ei421" tense="PRESENT" eventID="e150" />
+<MAKEINSTANCE aspect="NONE" eiid="ei422" tense="NONE" eventID="e151" />
+<MAKEINSTANCE aspect="PERFECTIVE" eiid="ei423" tense="PAST" eventID="e153" />
+<MAKEINSTANCE aspect="NONE" eiid="ei424" tense="PAST" eventID="e157" />
+<MAKEINSTANCE aspect="NONE" eiid="ei425" tense="NONE" eventID="e154" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei426" tense="PAST" eventID="e159" />
+<MAKEINSTANCE aspect="NONE" eiid="ei427" tense="NONE" eventID="e160" />
+<MAKEINSTANCE aspect="PROGRESSIVE" eiid="ei428" tense="PAST" eventID="e161" />
+<MAKEINSTANCE aspect="NONE" eiid="ei429" tense="NONE" eventID="e162" />
+<MAKEINSTANCE aspect="NONE" eiid="ei430" tense="NONE" eventID="e164" />
+<MAKEINSTANCE aspect="NONE" eiid="ei431" tense="PAST" eventID="e166" />
+<MAKEINSTANCE aspect="NONE" eiid="ei432" tense="NONE" eventID="e169" />
+<MAKEINSTANCE aspect="PERFECTIVE" eiid="ei433" tense="PAST" eventID="e168" />
+<MAKEINSTANCE aspect="NONE" eiid="ei434" tense="NONE" eventID="e170" />
+<MAKEINSTANCE aspect="NONE" eiid="ei435" tense="NONE" eventID="e171" />
+<MAKEINSTANCE aspect="NONE" eiid="ei436" tense="NONE" eventID="e172" />
+<MAKEINSTANCE aspect="NONE" eiid="ei437" tense="PRESENT" eventID="e176" />
+<MAKEINSTANCE aspect="NONE" eiid="ei438" tense="PRESENT" eventID="e177" />
+<MAKEINSTANCE aspect="NONE" eiid="ei439" tense="PAST" eventID="e178" />
+<MAKEINSTANCE aspect="NONE" eiid="ei440" tense="NONE" eventID="e183" />
+<MAKEINSTANCE aspect="NONE" eiid="ei441" tense="PRESENT" eventID="e181" />
+<MAKEINSTANCE aspect="NONE" eiid="ei442" tense="NONE" eventID="e185" />
+<MAKEINSTANCE aspect="NONE" eiid="ei443" tense="NONE" eventID="e187" />
+<TLINK relatedToEventInstance="ei438" eventInstanceID="ei381" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei437" timeID="t96" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei437" timeID="t92" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei383" eventInstanceID="ei380" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei386" eventInstanceID="ei380" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei420" eventInstanceID="ei380" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei422" eventInstanceID="ei384" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei427" eventInstanceID="ei384" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei434" eventInstanceID="ei380" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei442" eventInstanceID="ei380" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei390" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei429" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei392" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei393" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei396" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei405" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei406" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei407" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei381" eventInstanceID="ei408" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei407" eventInstanceID="ei392" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei380" eventInstanceID="ei381" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei435" eventInstanceID="ei433" relType="IBEFORE" />
+<TLINK relatedToTime="t96" eventInstanceID="ei382" relType="IS_INCLUDED" />
+<TLINK relatedToTime="t96" eventInstanceID="ei383" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei386" timeID="t96" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei384" timeID="t96" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei383" eventInstanceID="ei382" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei386" eventInstanceID="ei385" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei388" eventInstanceID="ei387" relType="IBEFORE" />
+<TLINK relatedToEventInstance="ei389" eventInstanceID="ei388" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei387" timeID="t96" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei389" timeID="t96" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei390" eventInstanceID="ei387" relType="IBEFORE" />
+<TLINK relatedToEventInstance="ei390" eventInstanceID="ei391" relType="BEGINS" />
+<TLINK relatedToEventInstance="ei392" eventInstanceID="ei393" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei392" eventInstanceID="ei391" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei394" eventInstanceID="ei395" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei394" eventInstanceID="ei396" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei394" eventInstanceID="ei393" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei398" eventInstanceID="ei397" relType="IBEFORE" />
+<TLINK relatedToEventInstance="ei400" eventInstanceID="ei399" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei401" eventInstanceID="ei399" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei402" eventInstanceID="ei381" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei403" eventInstanceID="ei391" relType="IBEFORE" />
+<TLINK relatedToEventInstance="ei403" eventInstanceID="ei404" relType="IAFTER" />
+<TLINK relatedToEventInstance="ei403" eventInstanceID="ei405" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei403" eventInstanceID="ei406" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei403" eventInstanceID="ei408" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei403" eventInstanceID="ei409" relType="AFTER" />
+<TLINK relatedToEventInstance="ei403" eventInstanceID="ei381" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei411" eventInstanceID="ei409" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei411" eventInstanceID="ei412" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei413" eventInstanceID="ei380" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei417" eventInstanceID="ei416" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei417" timeID="t96" relType="AFTER" />
+<TLINK relatedToEventInstance="ei414" eventInstanceID="ei384" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei384" eventInstanceID="ei380" relType="ENDS" />
+<TLINK relatedToEventInstance="ei443" eventInstanceID="ei436" relType="IDENTITY" />
+<TLINK relatedToEventInstance="ei439" eventInstanceID="ei381" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei417" eventInstanceID="ei414" relType="AFTER" />
+<TLINK relatedToEventInstance="ei417" eventInstanceID="ei415" relType="IS_INCLUDED" />
+<TLINK relatedToEventInstance="ei421" timeID="t92" relType="AFTER" />
+<TLINK relatedToEventInstance="ei421" timeID="t96" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei423" eventInstanceID="ei410" relType="IAFTER" />
+<TLINK relatedToEventInstance="ei424" eventInstanceID="ei423" relType="BEFORE" />
+<TLINK relatedToEventInstance="ei424" eventInstanceID="ei426" relType="IAFTER" />
+<TLINK relatedToEventInstance="ei427" eventInstanceID="ei428" relType="SIMULTANEOUS" />
+<TLINK relatedToEventInstance="ei427" eventInstanceID="ei381" relType="INCLUDES" />
+<TLINK relatedToEventInstance="ei429" eventInstanceID="ei430" relType="ENDS" />
+<TLINK relatedToEventInstance="ei431" eventInstanceID="ei381" relType="INCLUDES" />
+<SLINK subordinatedEventInstance="ei441" eventInstanceID="ei442" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei441" eventInstanceID="ei439" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei435" eventInstanceID="ei443" relType="FACTIVE" />
+<SLINK subordinatedEventInstance="ei398" eventInstanceID="ei399" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei400" eventInstanceID="ei397" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei439" eventInstanceID="ei440" relType="NEG_EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei400" eventInstanceID="ei398" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei411" eventInstanceID="ei410" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei414" eventInstanceID="ei415" relType="FACTIVE" />
+<SLINK subordinatedEventInstance="ei421" eventInstanceID="ei419" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei419" eventInstanceID="ei420" relType="FACTIVE" />
+<SLINK subordinatedEventInstance="ei424" eventInstanceID="ei425" relType="FACTIVE" />
+<SLINK subordinatedEventInstance="ei426" eventInstanceID="ei427" relType="EVIDENTIAL" />
+<SLINK subordinatedEventInstance="ei433" eventInstanceID="ei434" relType="FACTIVE" />
+<ALINK relatedToEventInstance="ei380" eventInstanceID="ei379" relType="TERMINATES" />
+<ALINK relatedToEventInstance="ei384" eventInstanceID="ei383" relType="CULMINATES" />
+<ALINK relatedToEventInstance="ei380" eventInstanceID="ei418" relType="CULMINATES" />
+<ALINK relatedToEventInstance="ei384" eventInstanceID="ei418" relType="CULMINATES" />
+</TimeML>
