@@ -163,6 +163,7 @@ puts "create database {"
 query(db,"CREATE TABLE #{DOCUMENT} (
 		fid SERIAL PRIMARY KEY,
 		filename VARCHAR(127),
+		pub_time VARCHAR(31),
 		notes VARCHAR(1023)
 		);")
 #--Sentence
@@ -184,12 +185,11 @@ query(db,"CREATE TABLE #{TAG} (
 query(db,"CREATE TABLE #{TIMEX} (
 		tid SERIAL PRIMARY KEY,
 		sid INTEGER,
-		scopeBegin INTEGER,
-		scopeEnd INTEGER,
+		scope_begin INTEGER,
+		scope_end INTEGER,
 		type VARCHAR(31),
 		value VARCHAR(127),
-		temporalFunction BOOLEAN,
-		functionInDocument VARCHAR(31),
+		temporal_function BOOLEAN,
 		mod VARCHAR(15),
 		gloss VARCHAR(63)
 		);")
@@ -203,8 +203,8 @@ query(db,"CREATE TABLE #{TLINK} (
 		);")
 puts "  create statements"
 DOC_STMT = db.prepare("INSERT INTO #{DOCUMENT}
-	(fid,filename,notes)
-  VALUES(?, ?, ?)")
+	(fid,filename,pub_time,notes)
+  VALUES(?, ?, ?, ?)")
 SENT_STMT = db.prepare("INSERT INTO #{SENTENCE} 
 	(sid,fid,length,gloss)
   VALUES(?, ?, ?, ?)")
@@ -212,9 +212,8 @@ TAG_STMT = db.prepare("INSERT INTO #{TAG}
 	(wid, sid, did, key, value)
   VALUES(?, ?, ?, ?, ?)")
 TIMEX_STMT = db.prepare("INSERT INTO #{TIMEX} 
-	(tid, sid, scopeBegin, scopeEnd, type, value, temporalFunction, 
-			functionInDocument, mod, gloss)
-  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	(tid, sid, scope_begin, scope_end, type, value, temporal_function, mod, gloss)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
 TLINK_STMT = db.prepare("INSERT INTO #{TLINK} 
 	(lid, fid, source, target, type)
   VALUES(?, ?, ?, ?, ?)")
@@ -235,6 +234,7 @@ class Doc
 		@links = []
 		@sentences = []
 	end
+	def pubTime(timex); @pubTime = timex; end
 	def time(timex)
 		@timexes << timex
 	end
@@ -252,9 +252,13 @@ class Doc
 	def to_db
 		#(save self)
 		puts "    self"
+		raise "No pub_time: #{@name}" if not @pubTime
+		raise "Bad pub_time: #{@name}"\
+			if @pubTime.value.length != 2 or @pubTime.value[0] != :INSTANT
 		ensureStatement(DOC_STMT,
 			@@fid,
 			name,
+			@pubTime.value[1],
 			'')
 		#(save sentences)
 		puts "    sentences (#{@sentences.length})"
@@ -275,10 +279,9 @@ end
 class Sent
 	@@sid = 1
 	def self.sid; @@sid; end
-	attr_accessor :doc, :index, :text, :tokens
-	def initialize(doc, index)
+	attr_accessor :doc, :text, :tokens
+	def initialize(doc)
 		@doc = doc
-		@index = index
 	end
 	def setText(text)
 		@text = text
@@ -287,7 +290,7 @@ class Sent
 		`rm tmp`
 	end
 	def to_s
-		"#{@doc}.#{@index}"
+		"#{@doc}.sent"
 	end
 	def to_db(doc)
 		#(save self)
@@ -329,7 +332,11 @@ class Timex
 			@type = reader.value if reader.name == "type"
 			@value = parse(reader.value) if reader.name == "value"
 			@temporalFn = reader.value if reader.name == "temporalFunction"
-			@fnInDoc = reader.value if reader.name == "functionInDocument"
+			if reader.name == "functionInDocument"\
+					and (reader.value == "CREATION_TIME" or\
+							reader.value == "PUBLICATION_TIME") then
+				sent.doc.pubTime(self)
+			end
 			@mod = reader.value if reader.name == "mod"
 		end
 		@sent = sent
@@ -365,7 +372,6 @@ class Timex
 			@type,
 			value,
 			@temporalFn,
-			@fnInDoc,
 			@mod ? @mod : "NONE",
 			text.chomp)
 		#(finish)
@@ -422,7 +428,7 @@ for file in `find #{DIR} -name "*.tml.xml"` do
 	puts "  #{file} {"
 	#(vars)
 	currDoc = Doc.new(file)
-	currSent = Sent.new(currDoc,0)
+	currSent = nil
 	reader = XML::Reader.file(file)
 	stack = []
 	path = nil
@@ -438,17 +444,20 @@ for file in `find #{DIR} -name "*.tml.xml"` do
 			else
 			end
 			if reader.name == "TIMEX3" then
-				currDoc.time( Timex.new(reader,currSent) )
+				if currSent then
+					currDoc.time( Timex.new(reader,currSent) ) if currSent
+				else
+					currDoc.time( Timex.new(reader,Sent.new(currDoc)) ) #use null sentence
+				end
 			elsif reader.name == "TLINK" then
 				link = TLink.new(reader)
 				if link.time_time? then
-					currDoc.link( TLink.new(reader) )
+					currDoc.link( link )
 					puts "    #{link}"
 				end
 			elsif reader.name == "s" then
-				currSent.setText(sent.chomp)
-				currDoc.sentence(currSent)
-				currSent = Sent.new(currDoc,currSent.index+1)
+				# note: first sentence is dropped here
+				currSent = Sent.new(currDoc)
 				sent = ""
 			end
 		when XML::Reader::TYPE_TEXT, XML::Reader::TYPE_CDATA
@@ -464,11 +473,13 @@ for file in `find #{DIR} -name "*.tml.xml"` do
 				puts "    #{currDoc.lastTimex}"
 				raise "No text for timex #{currDoc.lastTimex}"\
 					if not currDoc.lastTimex.text or currDoc.lastTimex.text.chomp == ""
+			elsif reader.name == "s" then
+				currSent.setText(sent.chomp)
+				currDoc.sentence(currSent)
+				currSent = nil
 			end
 		end
 	end
-	currSent.setText(sent.chomp)
-	currDoc.sentence(currSent) if currSent
 	puts "  }"
 	docs << currDoc
 end

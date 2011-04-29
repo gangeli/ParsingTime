@@ -1,5 +1,7 @@
 package time
 
+import scala.util.Sorting.quickSort
+
 import org.joda.time.DateTime
 import org.joda.time.Period
 import org.joda.time.DateTimeZone
@@ -15,17 +17,22 @@ class TimebankDocument extends org.goobs.testing.Datum{
 	private var fid:Int = 0
 	@Key(name="filename")
 	private var filename:String = null
+	@Key(name="pub_time")
+	private var pubTime:String = null
 	@Key(name="notes")
 	private var notes:String = null
 	@Child(localField="fid", childField="fid")
 	var sentences:Array[TimebankSentence] = null
-	@Child(localField="fid", childField="fid")
-	var links:Array[TLink] = null
+	
+	def init:Unit = { refreshLinks; quickSort(sentences); }
+	def grounding:Time = new Time(new DateTime(pubTime.trim),null,null)
+
 	override def getID = fid
+	override def toString:String = filename
 }
 
 @Table(name="timebank_sent")
-class TimebankSentence extends DatabaseObject{
+class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 	@PrimaryKey(name="sid")
 	private var sid:Int = 0
 	@Key(name="fid")
@@ -34,53 +41,72 @@ class TimebankSentence extends DatabaseObject{
 	private var length:Int = 0
 	@Key(name="gloss")
 	private var gloss:String = null
-//	@Child(localField="sid", childField="sid")
-//	private var tags:Array[TimebankTag] = null
+	@Child(localField="sid", childField="sid")
+	private var tags:Array[TimebankTag] = null
 	@Child(localField="sid", childField="sid")
 	var timexes:Array[Timex] = null
+	var words:Array[Int] = null
+	
+	def init:Unit = { 
+		refreshLinks; 
+		quickSort(timexes);
+		words = new Array[Int](length)
+		for( i <- 0 until tags.length ){
+			if(tags(i).key == "form"){
+				words(tags(i).wid-1) = U.str2w(tags(i).value)
+			}
+		}
+	}
 
+	override def compare(t:TimebankSentence):Int = this.sid - t.sid
 	override def toString:String = gloss
 }
 
 @Table(name="timebank_tag")
 class TimebankTag extends DatabaseObject{
 	@Key(name="wid")
-	private var wid:Int = 0
+	var wid:Int = 0
 	@Key(name="sid")
 	private var sid:Int = 0
 	@Key(name="did")
-	private var did:Int = 0
+	var did:Int = 0
 	@Key(name="key")
-	private var key:String = null
+	var key:String = null
 	@Key(name="value")
-	private var value:String = null
+	var value:String = null
 }
 
 @Table(name="timebank_timex")
-class Timex extends DatabaseObject{
+class Timex extends DatabaseObject with Ordered[Timex]{
 	@PrimaryKey(name="tid")
 	private var tid:Int = 0
 	@Key(name="sid")
 	private var sid:Int = 0
-	@Key(name="scopeBegin")
+	@Key(name="scope_begin")
 	private var scopeBegin:Int = 0
-	@Key(name="scopeEnd")
+	@Key(name="scope_end")
 	private var scopeEnd:Int = 0
 	@Key(name="type")
 	private var timeType:String = null
 	@Key(name="value")
 	private var timeVal:Array[String] = null
-	@Key(name="temporalFunction")
+	@Key(name="temporal_function")
 	private var temporalFunction:Boolean = false
-	@Key(name="functionInDocument")
-	private var functionInDocument:String = null
 	@Key(name="mod")
 	private var mod:String = null
 	@Key(name="gloss")
 	private var gloss:String = null
 
 	private var timeCache:Any = null
+	private var grounding:Time = null
+	private var wordArray:Array[Int] = null
 
+	def setWords(s:TimebankSentence):Timex = {
+		wordArray = s.words.slice(scopeBegin,scopeEnd)
+		this
+	}
+	def words:Array[Int] = wordArray
+	def ground(t:Time):Timex = { grounding = t; this }
 	def gold:Any = {
 		if(timeCache == null){
 			assert(timeVal.length > 0, "No time value for timex " + tid + "!")
@@ -141,6 +167,7 @@ class Timex extends DatabaseObject{
 		timeCache
 	}
 
+	override def compare(t:Timex):Int = this.tid - t.tid
 	override def toString:String = {
 		"" + tid + "["+scopeBegin+"-"+scopeEnd+"]: " + gloss
 	}
@@ -151,7 +178,7 @@ class Timex extends DatabaseObject{
 }
 
 @Table(name="timebank_tlink")
-class TLink extends DatabaseObject{
+class TLink extends DatabaseObject with Ordered[TLink]{
 	@PrimaryKey(name="lid")
 	private var lid:Int = 0
 	@Key(name="fid")
@@ -162,6 +189,18 @@ class TLink extends DatabaseObject{
 	private var targetTimexId:Int = 0
 	@Key(name="type")
 	private var linkType:String = null
+
+	override def compare(t:TLink):Int = this.lid - t.lid
+	override def toString:String =""+sourceTimexId+"-"+linkType+"->"+targetTimexId
+	override def equals(o:Any):Boolean = {
+		if(o.isInstanceOf[TLink]){
+			val other:TLink = o.asInstanceOf[TLink]
+			other.lid == this.lid
+		}else{
+			false
+		}
+	}
+	override def hashCode:Int = lid
 }
 
 

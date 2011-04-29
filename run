@@ -19,9 +19,15 @@ env!(
 	'time.Entry',
 
 	run(
+		# -- LEARNING --
+		o('parser', 'ItsAlwaysFriday'),
+		o('iters', 10),
+
 		# -- DATA --
-		o('timebank', 'aux/relations-timebank-allclosed-nonones.info.xml'),
-		o('tokenizationOpts', 'ptb3Escaping'),
+		o('train', '1-101'),
+		o('dev', '101-151'),
+		o('test', '151-187'),
+		o('devTest', true),
 
 		# -- BOOTSTRAPING --
 		#(exec options)
