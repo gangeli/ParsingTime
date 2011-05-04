@@ -98,7 +98,7 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var gloss:String = null
 
 	private var timeCache:Any = null
-	private var grounding:Time = null
+	var grounding:Time = null
 	private var wordArray:Array[Int] = null
 
 	def setWords(s:TimebankSentence):Timex = {
@@ -149,13 +149,13 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 				case "PERIOD" => {
 					assert(timeVal.length == 5, "Period has 4 elements")
 					//(case: duration)
-					new Period(
+					new Duration(new Period(
 						Integer.parseInt(timeVal(1)),
 						Integer.parseInt(timeVal(2)),
 						Integer.parseInt(timeVal(3)),
 						Integer.parseInt(timeVal(4)),
 						0,0,0,0
-						)
+						))
 				}
 				case "UNK" => {
 					new UNK

@@ -460,9 +460,12 @@ object Range {
 
 object Duration {
 	def apply(millis:Long):Duration = new Period(millis)
+	val INFINITE:Duration = Duration(java.lang.Integer.MAX_VALUE)
 }
 
 object Time {
+	val DAWN_OF = new Time(new DateTime(java.lang.Integer.MIN_VALUE), null, null)
+
 	def apply(base:DateTime, offset:Duration) = new Time(base, offset, null)
 
 	def apply(year:Int, month:Int, day:Int, hour:Int, min:Int, sec:Int):Time = {

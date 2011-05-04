@@ -57,11 +57,25 @@ object U {
 case class UNK()
 
 class Score {
-	//TODO actually implement me
-	def enterGuessGoldPos(guess:Range,gold:Array[Parse]):Int = 0
-	def accuracy:Double = 1.0
-	def avePos:Double = 0.0
-	def aveScore(overconstrainingPenalty:Double, vaguenessPenalty:Double) = 1.0
+	private var exactRight:Int = 0
+	private var total:Int = 0
+	private var differences:List[Double] = List[Double]()
+	def enter(exact:Boolean,diff:(Double,Double)) = {
+		if(exact){ exactRight += 1 }
+		total += 1
+		differences = diff._1 :: differences
+		differences = diff._2 :: differences
+	}
+	def accuracy:Double 
+		= exactRight.asInstanceOf[Double]/total.asInstanceOf[Double]
+	def avePos:Double = -1
+	def aveScore(overconstrainingPenalty:Double=1, vaguenessPenalty:Double=1) = {
+		//TODO
+		1.0
+	}
+	override def toString:String = {
+		"accuracy: "+accuracy+"; average pos: "+avePos+"; score: "+aveScore()
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -76,11 +90,45 @@ trait DataStore {
 class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 	override def foreach( 
 			fn:Array[Int]=>(Array[Parse],(Int,Double)=>Any) ):Score = {
+		val score:Score = new Score
 		timexes.foreach( (t:Timex) => {
 			val (parses,feedback) = fn(t.words)
-			//TODO feedback
+			val gold = t.gold
+			if(!gold.isInstanceOf[UNK]){
+				//--Score Parses
+				val scored:Array[(Int,Boolean,(Double,Double))] 
+					= parses.zipWithIndex.map( (pair) => {
+						val (parse,i) = pair
+						//(score candidates)
+						val diff:(Duration,Duration) 
+							= if(gold.isInstanceOf[Range]){
+								parse.rangeDiff(gold.asInstanceOf[Range], t.grounding)
+							} else if(gold.isInstanceOf[Time]){
+								parse.timeDiff(gold.asInstanceOf[Time], t.grounding)
+							} else if(gold.isInstanceOf[Range=>Range]){
+								parse.fnDiff(gold.asInstanceOf[Range=>Range], t.grounding)
+							} else if(gold.isInstanceOf[Duration]){
+								parse.durationDiff(gold.asInstanceOf[Duration], t.grounding)
+							} else {
+								throw fail("Cannot score timex " + t + " gold: " + gold)
+							}
+						//(accumulate output)
+						val sumDiff:Double = 
+								(  (diff._1.seconds+diff._2.seconds) 
+									/ (60*60*24)  ).asInstanceOf[Double]
+						val exactMatch:Boolean = sumDiff < 1.0
+						def days(d:Duration) = (d.seconds / (60*60*24)).asInstanceOf[Double]
+						(i,exactMatch,(days(diff._1),days(diff._2)))
+					})
+				//--Record Score
+				score.enter(scored(0)._2,scored(0)._3)
+
+				//TODO feedback
+			} else {
+			}
 		})
-		new Score
+		//--Return
+		score
 	}
 }
 
