@@ -6,7 +6,7 @@ import time._
 import time.Lex._
 import org.joda.time._
 
-class BehaviorSpec extends Spec with ShouldMatchers{
+class RepresentationSpec extends Spec with ShouldMatchers{
 	describe("A Time") {
 		it("should be creatable"){ 
 			new Time(null,null) 
@@ -442,6 +442,40 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 			val target = Range(Time(2011,4,29),Time(2011,4,30))
 			assert( implicitIntersect(ths(implicitNow,week),friday(NOW))(ground) 
 				~ target )
+		}
+	}
+}
+
+
+class EvaluationMethodSpec extends Spec with ShouldMatchers{
+	describe("The Scoring Procedure") {
+		it("evaluates to 1 for exact matches"){
+			expect(1.0){
+				Score.score( (0.0,0.0) )
+			}
+		}
+		it("evaluates to 0 for exact mismatches"){
+			expect(0.0){
+				Score.score( 
+					(java.lang.Double.POSITIVE_INFINITY,
+					 java.lang.Double.POSITIVE_INFINITY ) )
+			}
+		}
+		it("evaluates to the right value on default c"){
+			Score.score((-5.0, 10.0)) should be (0.1287878 plusOrMinus(0.0001))
+			Score.score((5.0, 10.0)) should be (0.1287878 plusOrMinus(0.0001))
+			Score.score((10.0, -5.0)) should be (0.1287878 plusOrMinus(0.0001))
+			Score.score((-10.0, -5.0)) should be (0.1287878 plusOrMinus(0.0001))
+		}
+		it("evaluates to the right value for different c's"){
+			Score.score((-5.0, 10.0), 2.0, 0.5) should 
+				be (0.226190 plusOrMinus(0.0001))
+			Score.score((5.0, 10.0), 2.0, 0.5) should 
+				be (0.1287878787 plusOrMinus(0.0001))
+			Score.score((-5.0, -10.0), 2.0, 0.5) should 
+				be (0.166666666 plusOrMinus(0.0001))
+			Score.score((5.0, -10.0), 2.0, 0.5) should 
+				be (0.069264 plusOrMinus(0.0001))
 		}
 	}
 }

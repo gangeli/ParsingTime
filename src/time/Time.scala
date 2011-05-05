@@ -465,6 +465,7 @@ object Duration {
 
 object Time {
 	val DAWN_OF = new Time(new DateTime(java.lang.Integer.MIN_VALUE), null, null)
+	val END_OF = new Time(new DateTime(java.lang.Integer.MAX_VALUE), null, null)
 
 	def apply(base:DateTime, offset:Duration) = new Time(base, offset, null)
 

@@ -11,7 +11,10 @@ import org.goobs.exec.Log._
 //------------------------------------------------------------------------------
 object ParseConversions {
 	implicit def range2parse(r:Range):Parse = Parse(r,null,null)
+	implicit def duration2parse(d:Duration):Parse = Parse(null,d,null)
+	implicit def fn2parse(fn:Range=>Range):Parse = Parse(null,null,fn)
 }
+
 case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	private def diff(a:Time, b:Time, ground:Time) = {
 		val shouldGround = a.isGrounded || b.isGrounded
@@ -19,9 +22,14 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 		val grndB = if(shouldGround && !b.isGrounded){ b(ground) } else { b }
 		grndB-grndA
 	}
+	def unkDiff(gold:UNK):(Duration,Duration) = {
+		(Duration.INFINITE, Duration.INFINITE)
+	}
 	def rangeDiff(gold:Range, guess:Range, ground:Time):(Duration,Duration) = {
-		( diff(gold.begin, range.begin, ground),
-			diff(gold.end, range.end, ground) )
+		assert(gold != null, "gold is null")
+		assert(guess != null, "guess is null")
+		( diff(gold.begin, guess.begin, ground),
+			diff(gold.end, guess.end, ground) )
 	}
 	def rangeDiff(gold:Range, ground:Time):(Duration,Duration) = {
 		if(range != null){
@@ -94,8 +102,13 @@ class ItsAlwaysFriday extends Parser{
 		(1 to iters).map( (i:Int) => {
 			start_track("Iteration " + i)
 			val score = data.foreach( (sent:Array[Int]) => {
-				val parse = FRI(NOW)
-				(Array[Parse](FRI(NOW)), (place:Int,score:Double) => {})
+				val parse:Array[Parse] = Array[Parse](
+					FRI(NOW),                              // I think it's friday
+					(r:Range) => Range(r.begin,NOW),       // or 'the past'
+					WEEK,                                  // or a week
+					Range(Time(2011,4,26),Time(2011,4,27)) //or April 26
+					)
+				(parse, (index:Int,score:Double) => {})
 			})
 			log("Score: " + score)
 			end_track

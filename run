@@ -22,6 +22,11 @@ env!(
 		# -- LEARNING --
 		o('parser', 'ItsAlwaysFriday'),
 		o('iters', 1),
+		# -- EVALUATION --
+		o('exactMatchThreshold', 60*60*24), # a day
+		o('scoreGranularity', 60*60*24), # a day
+		o('c_overconstraining', 1.0),
+		o('c_vagueness', 1.0),
 
 		# -- DATA --
 #		o('train', '1-101'),

@@ -15,6 +15,7 @@ import org.goobs.exec.Log._
 import org.goobs.exec.Execution
 import org.goobs.utils.Indexer;
 import org.goobs.utils.MetaClass;
+import org.goobs.testing.ResultLogger;
 
 /**
 	Globally accessible values
@@ -56,25 +57,67 @@ object U {
 //------------------------------------------------------------------------------
 case class UNK()
 
+object Score {
+	def duration2double(d:Duration)
+		= d.seconds.asInstanceOf[Double] / O.scoreGranularity.asInstanceOf[Double]
+	def score(
+			diff:(Double,Double), 
+			c_over:Double = O.c_overconstraining,
+			c_vague:Double = O.c_vagueness ):Double = {
+		val (start,end) = diff
+		val cStart:Double = if(start < 0){ c_over } else { c_vague }
+		val cEnd:Double = if(end < 0){ c_vague } else { c_over }
+		val scoreStart:Double = (cStart / (cStart + start.abs))
+		val scoreEnd:Double = (cEnd / (cEnd + end.abs))
+		assert(scoreStart >= 0 && scoreStart <= 1.0, "Start score must be in range")
+		assert(scoreEnd >= 0 && scoreEnd <= 1.0, "End score must be in range")
+		(scoreStart+scoreEnd)/2.0
+	}
+	def score(diff:(Duration,Duration)):Double = {
+		score( (duration2double(diff._1),duration2double(diff._2)) )
+	}
+}
+
 class Score {
 	private var exactRight:Int = 0
 	private var total:Int = 0
-	private var differences:List[Double] = List[Double]()
-	def enter(exact:Boolean,diff:(Double,Double)) = {
+	private var sumPos = 0
+	private var totalWithPos = 0
+	private var goldMinusGuess = List[(Double,Double)]()
+	def enter(exact:Boolean,diff:(Duration,Duration), position:Int) = {
+		//(score exact)
 		if(exact){ exactRight += 1 }
 		total += 1
-		differences = diff._1 :: differences
-		differences = diff._2 :: differences
+		//(store differences)
+		goldMinusGuess
+			= (Score.duration2double(diff._1), Score.duration2double(diff._2)) ::
+				goldMinusGuess
+		//(score position)
+		if(position >= 0){
+			sumPos += position
+			totalWithPos += 1
+		}
 	}
 	def accuracy:Double 
 		= exactRight.asInstanceOf[Double]/total.asInstanceOf[Double]
-	def avePos:Double = -1
-	def aveScore(overconstrainingPenalty:Double=1, vaguenessPenalty:Double=1) = {
-		//TODO
-		1.0
+	def avePos:Double 
+		= sumPos.asInstanceOf[Double] / totalWithPos.asInstanceOf[Double]
+	def percentParsable:Double
+		= (totalWithPos.asInstanceOf[Double] / total.asInstanceOf[Double])
+	def aveScore(
+			overconstrainingPenalty:Double = O.c_overconstraining, 
+			vaguenessPenalty:Double = O.c_vagueness) = {
+		val sum = goldMinusGuess.foldLeft(0.0)( 
+			(soFar:Double,diff:(Double,Double)) => {
+				val score = Score.score(diff,overconstrainingPenalty,vaguenessPenalty)
+				assert(score == 0.0 || soFar+score > soFar, "Double overflow")
+				soFar + score
+			})
+		sum / goldMinusGuess.length.asInstanceOf[Double]
 	}
 	override def toString:String = {
-		"accuracy: "+accuracy+"; average pos: "+avePos+"; score: "+aveScore()
+		"accuracy: "+accuracy+"; average pos: "+avePos+
+			" (of " + (percentParsable*100) + "%); score: "+aveScore()
 	}
 }
 
@@ -94,38 +137,56 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		timexes.foreach( (t:Timex) => {
 			val (parses,feedback) = fn(t.words)
 			val gold = t.gold
-			if(!gold.isInstanceOf[UNK]){
-				//--Score Parses
-				val scored:Array[(Int,Boolean,(Double,Double))] 
-					= parses.zipWithIndex.map( (pair) => {
-						val (parse,i) = pair
-						//(score candidates)
-						val diff:(Duration,Duration) 
-							= if(gold.isInstanceOf[Range]){
-								parse.rangeDiff(gold.asInstanceOf[Range], t.grounding)
-							} else if(gold.isInstanceOf[Time]){
-								parse.timeDiff(gold.asInstanceOf[Time], t.grounding)
-							} else if(gold.isInstanceOf[Range=>Range]){
-								parse.fnDiff(gold.asInstanceOf[Range=>Range], t.grounding)
-							} else if(gold.isInstanceOf[Duration]){
-								parse.durationDiff(gold.asInstanceOf[Duration], t.grounding)
-							} else {
-								throw fail("Cannot score timex " + t + " gold: " + gold)
-							}
-						//(accumulate output)
-						val sumDiff:Double = 
-								(  (diff._1.seconds+diff._2.seconds) 
-									/ (60*60*24)  ).asInstanceOf[Double]
-						val exactMatch:Boolean = sumDiff < 1.0
-						def days(d:Duration) = (d.seconds / (60*60*24)).asInstanceOf[Double]
-						(i,exactMatch,(days(diff._1),days(diff._2)))
-					})
-				//--Record Score
-				score.enter(scored(0)._2,scored(0)._3)
-
-				//TODO feedback
-			} else {
-			}
+			//--Score Parses
+			val scored:Array[(Int,Boolean,(Duration,Duration))] 
+				= parses.zipWithIndex.map( (pair) => {
+					val (parse,i) = pair
+					//(score candidates)
+					val diff:(Duration,Duration) 
+						= if(gold.isInstanceOf[Range]){
+							parse.rangeDiff(gold.asInstanceOf[Range], t.grounding)
+						} else if(gold.isInstanceOf[Time]){
+							parse.timeDiff(gold.asInstanceOf[Time], t.grounding)
+						} else if(gold.isInstanceOf[Range=>Range]){
+							parse.fnDiff(gold.asInstanceOf[Range=>Range], t.grounding)
+						} else if(gold.isInstanceOf[Duration]){
+							parse.durationDiff(gold.asInstanceOf[Duration], t.grounding)
+						} else if(gold.isInstanceOf[UNK]) {
+							parse.unkDiff(gold.asInstanceOf[UNK])
+						} else {
+							throw fail("Cannot score timex " + t + " gold: " + gold)
+						}
+					//(accumulate output)
+					val exactMatch:Boolean 
+						= (diff._1.seconds.abs+diff._2.seconds.abs) <= O.exactMatchThreshold
+					(i,exactMatch,diff)
+				})
+			//--Get Best Index
+			val top = scored(0)
+			println(t + " :: " + top._2 + " " + top._3)
+			//(sort)
+			quickSort(scored)( Ordering.fromLessThan(
+					( a:(Int,Boolean,(Duration,Duration)),
+					  b:(Int,Boolean,(Duration,Duration))   ) => {
+				val (aIndex,aExact,aDiff) = a
+				val (bIndex,bExact,bDiff) = b
+				val aSumSec:Long = aDiff._1.seconds.abs + aDiff._2.seconds.abs
+				val bSumSec:Long = bDiff._1.seconds.abs + bDiff._2.seconds.abs
+				if(aSumSec != bSumSec){
+					aSumSec < bSumSec //order by difference
+				} else {
+					aIndex < bIndex //tiebreak by index
+				}
+			}))
+			//--Record Score
+//			println("Example")
+//			println("  best parse: " + parses(scored(0)._1) + " (" + scored(0)._1 + ")")
+//			println("  gold: " + gold)
+//			println("  analysis: " + scored(0)._1 + ", " + scored(0)._2 + ", " + scored(0)._3)
+			score.enter(top._2,top._3, if(scored(0)._2) scored(0)._1 else -1)
+			//--Feedback
+			val (errStart,errEnd) = scored(0)._3
+			feedback(scored(0)._1, (errStart.seconds+errEnd.seconds))
 		})
 		//--Return
 		score
@@ -204,12 +265,44 @@ class Entry {
 
 
 //------
-// TRAIN
+// TRAIN/TEST
 //------
 	def run:Entry = {
+		//--Run
 		start_track("Running")
-		val (trainScores:Array[Score],score:Score)
+		val (trainScores:Array[Score],testScore:Score)
 			= parser.run(this.timexData,O.iters)
+		end_track
+		//--Process
+		start_track("Results")
+		val logger = Execution.getLogger();
+		//(train)
+		start_track("train")
+		logger.setGlobalResult("train.accuracy",
+			trainScores(trainScores.length-1).accuracy)
+		logger.setGlobalResult("train.averank",
+			trainScores(trainScores.length-1).avePos)
+		logger.setGlobalResult("train.inbeam",
+			trainScores(trainScores.length-1).percentParsable)
+		logger.setGlobalResult("train.score",
+			trainScores(trainScores.length-1).aveScore())
+		logG("train.accuracy: " + trainScores(trainScores.length-1).accuracy)
+		logG("train.averank: " +	trainScores(trainScores.length-1).avePos)
+		logG("train.inbeam: " + trainScores(trainScores.length-1).percentParsable)
+		logG("train.score: " + trainScores(trainScores.length-1).aveScore())
+		end_track
+		//(test)
+		start_track("test")
+		logger.setGlobalResult("test.accuracy", testScore.accuracy)
+		logger.setGlobalResult("test.averank", testScore.avePos)
+		logger.setGlobalResult("test.inbeam", testScore.percentParsable)
+		logger.setGlobalResult("test.score", testScore.aveScore())
+		logG("test.accuracy: "+ testScore.accuracy)
+		logG("test.averank: "+ testScore.avePos)
+		logG("test.inbeam: "+ testScore.percentParsable)
+		logG("test.score: "+ testScore.aveScore())
+		end_track
+		
 		end_track
 		this
 	}
