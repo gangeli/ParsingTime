@@ -20,8 +20,8 @@ env!(
 
 	run(
 		# -- LEARNING --
-		o('parser', 'ItsAlwaysFriday'),
-		o('iters', 1),
+		selo(0, 'parser', 'PrimitivesOnly', 'ItsAlwaysFriday'),
+		o('iters', 10),
 		# -- EVALUATION --
 		o('exactMatchThreshold', 60*60*24), # a day
 		o('scoreGranularity', 60*60*24), # a day

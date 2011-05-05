@@ -6,6 +6,7 @@ import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
 //(java)
 import java.io.StringReader
+import java.text.DecimalFormat
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(lib)
@@ -23,6 +24,8 @@ import org.goobs.testing.ResultLogger;
 object G {
 	val wordIndexer = new Indexer[String]
 	val idStringMap = new HashMap[Int,String]
+	val df = new DecimalFormat("0.000")
+	val pf = new DecimalFormat("0.0")
 }
 
 /**
@@ -50,6 +53,16 @@ object U {
 	}
 	def w2str(w:Int):String = G.wordIndexer.get(w)
 	def str2w(str:String):Int = G.wordIndexer.addAndGetIndex(str)
+	def sent2str(sent:Array[Int]) = join(sent.map(G.wordIndexer.get(_)), " ")
+	def sumDiff(diff:(Duration,Duration)):Int = {
+		val secA:Long = diff._1.seconds.abs
+		val secB:Long = diff._2.seconds.abs
+		if((secA+secB) > Integer.MAX_VALUE.longValue){
+			java.lang.Integer.MAX_VALUE
+		} else {
+			(secA+secB).intValue
+		}
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -71,7 +84,11 @@ object Score {
 		val scoreEnd:Double = (cEnd / (cEnd + end.abs))
 		assert(scoreStart >= 0 && scoreStart <= 1.0, "Start score must be in range")
 		assert(scoreEnd >= 0 && scoreEnd <= 1.0, "End score must be in range")
-		(scoreStart+scoreEnd)/2.0
+		if(scoreStart < 1e-10 && scoreEnd < 1e-10) {
+			0.0 //score of zero
+		} else {
+			(scoreStart+scoreEnd)/2.0
+		}
 	}
 	def score(diff:(Duration,Duration)):Double = {
 		score( (duration2double(diff._1),duration2double(diff._2)) )
@@ -116,8 +133,9 @@ class Score {
 		sum / goldMinusGuess.length.asInstanceOf[Double]
 	}
 	override def toString:String = {
-		"accuracy: "+accuracy+"; average pos: "+avePos+
-			" (of " + (percentParsable*100) + "%); score: "+aveScore()
+		"accuracy: "+G.df.format(accuracy)+"; average pos: "+G.df.format(avePos)+
+			" (of " + G.pf.format((percentParsable*100)) + "%); score: "+
+			G.df.format(aveScore())
 	}
 }
 
@@ -127,12 +145,12 @@ class Score {
 case class Data(train:DataStore,dev:DataStore,test:DataStore)
 
 trait DataStore {
-	def foreach( fn:Array[Int]=>(Array[Parse],(Int,Double)=>Any) ):Score
+	def eachExample(fn:Array[Int]=>(Array[Parse],(Int,Boolean,Double)=>Any)):Score
 }
 
 class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
-	override def foreach( 
-			fn:Array[Int]=>(Array[Parse],(Int,Double)=>Any) ):Score = {
+	override def eachExample( 
+			fn:Array[Int]=>(Array[Parse],(Int,Boolean,Double)=>Any) ):Score = {
 		val score:Score = new Score
 		timexes.foreach( (t:Timex) => {
 			val (parses,feedback) = fn(t.words)
@@ -157,36 +175,30 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 							throw fail("Cannot score timex " + t + " gold: " + gold)
 						}
 					//(accumulate output)
-					val exactMatch:Boolean 
-						= (diff._1.seconds.abs+diff._2.seconds.abs) <= O.exactMatchThreshold
+					val exactMatch:Boolean = U.sumDiff(diff) <= O.exactMatchThreshold
 					(i,exactMatch,diff)
 				})
 			//--Get Best Index
-			val top = scored(0)
-			println(t + " :: " + top._2 + " " + top._3)
+			val (topIndex,topExact,topRange) = scored(0)
 			//(sort)
 			quickSort(scored)( Ordering.fromLessThan(
 					( a:(Int,Boolean,(Duration,Duration)),
 					  b:(Int,Boolean,(Duration,Duration))   ) => {
 				val (aIndex,aExact,aDiff) = a
 				val (bIndex,bExact,bDiff) = b
-				val aSumSec:Long = aDiff._1.seconds.abs + aDiff._2.seconds.abs
-				val bSumSec:Long = bDiff._1.seconds.abs + bDiff._2.seconds.abs
+				val aSumSec:Int = U.sumDiff(aDiff)
+				val bSumSec:Int = U.sumDiff(bDiff)
 				if(aSumSec != bSumSec){
 					aSumSec < bSumSec //order by difference
 				} else {
 					aIndex < bIndex //tiebreak by index
 				}
 			}))
+			val (bestIndex,bestExact,bestRange) = scored(0)
 			//--Record Score
-//			println("Example")
-//			println("  best parse: " + parses(scored(0)._1) + " (" + scored(0)._1 + ")")
-//			println("  gold: " + gold)
-//			println("  analysis: " + scored(0)._1 + ", " + scored(0)._2 + ", " + scored(0)._3)
-			score.enter(top._2,top._3, if(scored(0)._2) scored(0)._1 else -1)
+			score.enter(topExact,topRange, if(bestExact) bestIndex else -1)
 			//--Feedback
-			val (errStart,errEnd) = scored(0)._3
-			feedback(scored(0)._1, (errStart.seconds+errEnd.seconds))
+			feedback(bestIndex,bestExact,Score.score(bestRange))
 		})
 		//--Return
 		score
@@ -229,7 +241,7 @@ class Entry {
 					sent.init
 					val titer = sent.timexes.iterator
 					while(titer.hasNext){
-						fn(titer.next.ground(doc.grounding))
+						fn(titer.next.ground(doc.grounding).setWords(sent))
 					}
 				}
 			})
@@ -292,15 +304,16 @@ class Entry {
 		logG("train.score: " + trainScores(trainScores.length-1).aveScore())
 		end_track
 		//(test)
-		start_track("test")
-		logger.setGlobalResult("test.accuracy", testScore.accuracy)
-		logger.setGlobalResult("test.averank", testScore.avePos)
-		logger.setGlobalResult("test.inbeam", testScore.percentParsable)
-		logger.setGlobalResult("test.score", testScore.aveScore())
-		logG("test.accuracy: "+ testScore.accuracy)
-		logG("test.averank: "+ testScore.avePos)
-		logG("test.inbeam: "+ testScore.percentParsable)
-		logG("test.score: "+ testScore.aveScore())
+		val s = if(O.devTest) "dev" else "test"
+		start_track(s)
+		logger.setGlobalResult(s+".accuracy", testScore.accuracy)
+		logger.setGlobalResult(s+".averank", testScore.avePos)
+		logger.setGlobalResult(s+".inbeam", testScore.percentParsable)
+		logger.setGlobalResult(s+".score", testScore.aveScore())
+		logG(s+".accuracy: "+ testScore.accuracy)
+		logG(s+".averank: "+ testScore.avePos)
+		logG(s+".inbeam: "+ testScore.percentParsable)
+		logG(s+".score: "+ testScore.aveScore())
 		end_track
 		
 		end_track

@@ -169,7 +169,8 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 
 	override def compare(t:Timex):Int = this.tid - t.tid
 	override def toString:String = {
-		"" + tid + "["+scopeBegin+"-"+scopeEnd+"]: " + gloss
+		"" + tid + "["+scopeBegin+"-"+scopeEnd+"]: " +
+			gloss.replaceAll("""\n+"""," ")
 	}
 	override def equals(other:Any):Boolean = {
 		return other.isInstanceOf[Timex] && other.asInstanceOf[Timex].tid == tid

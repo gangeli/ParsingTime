@@ -113,7 +113,8 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
 	def this(p:ReadablePeriod) = this(p,null)
 	def isGroundable = groundFn != null
 	def grounding:Time=>Time 
-		= if(groundFn == null) null else (tm:Time) => groundFn(tm).begin
+		= if(isGroundable) (tm:Time) => groundFn(tm).begin else null
+	def flatten:Duration = new Duration(p,null)
 	def apply(t:Time):Range = {
 		if(groundFn == null){ 
 			Range(t, t+p)
@@ -159,7 +160,7 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
 	def seconds:Long = {
 		var period = p.toPeriod
 		val monthContrib:Long = period.getMonths*30*24*60*60
-		val yearContrib:Long = period.getYears*365*24*60*60
+		val yearContrib:Long = period.getYears.longValue*365*24*60*60
 		period = period.withMonths(0).withYears(0)
 		period.toStandardDuration.getStandardSeconds+monthContrib+yearContrib
 	}
@@ -273,7 +274,14 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		}
 		if(this.isGrounded){
 			//(case: subtracting grounded times)
-			new Period(this.ground-other.ground)
+			val millis:Long = this.ground.getMillis - other.ground.getMillis
+			if(millis > Integer.MAX_VALUE){
+				Duration.INFINITE
+			} else if(millis < Integer.MIN_VALUE) {
+				Duration.NEG_INFINITE
+			} else {
+				new Period(millis)
+			}
 		} else {
 			//(case: approximating subtraction)
 			val thisSec = if(this.offset == null) 0 else this.offset.seconds
@@ -460,12 +468,13 @@ object Range {
 
 object Duration {
 	def apply(millis:Long):Duration = new Period(millis)
-	val INFINITE:Duration = Duration(java.lang.Integer.MAX_VALUE)
+	val INFINITE:Duration = Period.years(Integer.MAX_VALUE)
+	val NEG_INFINITE:Duration = Period.years(Integer.MIN_VALUE)
 }
 
 object Time {
-	val DAWN_OF = new Time(new DateTime(java.lang.Integer.MIN_VALUE), null, null)
-	val END_OF = new Time(new DateTime(java.lang.Integer.MAX_VALUE), null, null)
+	val DAWN_OF = new Time(new DateTime(java.lang.Long.MIN_VALUE), null, null)
+	val END_OF = new Time(new DateTime(java.lang.Long.MAX_VALUE), null, null)
 
 	def apply(base:DateTime, offset:Duration) = new Time(base, offset, null)
 
@@ -529,6 +538,7 @@ object Time {
 			interpreter.interpret("import time._")
 			interpreter.interpret("import time.Lex._")
 			interpreter.interpret("import time.Conversions._")
+			interpreter.interpret("val ground = Time(2011,4,26)")
 		}
 		//--Loop
 		var cond = true

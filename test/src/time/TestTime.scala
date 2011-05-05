@@ -138,6 +138,21 @@ class RepresentationSpec extends Spec with ShouldMatchers{
 				~ Range(Time(2011,3,5),Time(2011,3,6)) )
 		}
 	}
+
+	describe("A duration"){
+		it("should have seconds"){
+			assert(SEC.seconds === 1.0)
+			assert(MIN.seconds === 60.0)
+			assert(HOUR.seconds === 60.0*60.0)
+			assert(DAY.seconds === 60.0*60.0*24)
+			assert(WEEK.seconds === 60.0*60.0*24*7)
+			assert(MONTH.seconds === 60.0*60.0*24*30)
+			assert((MONTH*3).seconds === 60.0*60.0*24*30*3)
+			assert(YEAR.seconds === 60.0*60.0*24*365)
+			assert((YEAR*1000).seconds === 60.0*60.0*24*365*1000)
+			assert(Duration.INFINITE > YEAR*1000)
+		}
+	}
 	
 	describe("A Grounded Duration") {
 		it("should be a duration"){
@@ -478,6 +493,124 @@ class EvaluationMethodSpec extends Spec with ShouldMatchers{
 				be (0.069264 plusOrMinus(0.0001))
 		}
 	}
+
+	describe("Range Difference Procedure") {
+		import ParseConversions._
+		val ground = Time(2011,4,26)
+		//--Parse is Range
+		it("works for grounded range / grounded range"){
+			val guess = Range(Time(2011,04,26),Time(2011,04,26))
+			val parse:Parse = Range(Time(2011,04,26),Time(2011,04,26))
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (0.0)
+			val guessBad = Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.rangeDiff(guessBad,ground)) should be (60.0*60.0*24.0)
+		}
+		it("works for ungrounded range / ungrounded range"){
+			val parse:Parse = Range(NOW,NOW+DAY)
+			val guess = Range(NOW,NOW+DAY)
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (0.0)
+			val guessBad = Range(NOW-DAY,NOW)
+			U.sumDiff(parse.rangeDiff(guessBad,ground)) should be (60.0*60.0*24.0*2)
+		}
+		it("works for grounded range / ungrounded range"){
+			val parse:Parse = Range(NOW,NOW+DAY)
+			val guess = Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (0.0)
+			val guessBad = Range(Time(2011,04,25),Time(2011,04,26))
+			U.sumDiff(parse.rangeDiff(guessBad,ground)) should be (60.0*60.0*24.0*2)
+		}
+		it("works for ungrounded range / grounded range"){
+			val parse:Parse = Range(Time(2011,04,26),Time(2011,04,27))
+			val guess = Range(NOW,NOW+DAY)
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (0.0)
+			val guessBad = Range(NOW-DAY,NOW)
+			U.sumDiff(parse.rangeDiff(guessBad,ground)) should be (60.0*60.0*24.0*2)
+		}
+		it("works for grounded range / duration"){
+			val parse:Parse = Range(Time(2011,04,26),Time(2011,04,27))
+			val guess = DAY
+			U.sumDiff(parse.durationDiff(guess,ground)
+				) should be (java.lang.Integer.MAX_VALUE)
+		}
+		it("works for ungrounded range / duration"){
+			val parse:Parse = Range(NOW,NOW+DAY)
+			val guess = DAY
+			U.sumDiff(parse.durationDiff(guess,ground)
+				) should be (java.lang.Integer.MAX_VALUE)
+		}
+		it("works for grounded range / function"){
+			val parse:Parse = Range(Time(2011,04,26),Time(2011,04,27))
+			var guess = (r:Range) => Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (0.0)
+			guess = (r:Range) => Range(NOW,Time(2011,04,27))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (0.0)
+			guess = (r:Range) => Range(r.begin,Time(2011,04,27))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (Integer.MAX_VALUE)
+			guess = (r:Range) => Range(Time(2011,04,26),r.end)
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (Integer.MAX_VALUE)
+		}
+		//--Parse is Duration
+		it("works for duration / duration"){
+			val parse:Parse = WEEK
+			var guess = WEEK
+			U.sumDiff(parse.durationDiff(guess,ground)) should be (0.0)
+			guess = DAY
+			U.sumDiff(parse.durationDiff(guess,ground)) should be (60.0*60*24*6)
+		}
+		it("works for grounded duration / duration"){
+			val parse:Parse = FRI
+			var guess = WEEK
+			U.sumDiff(parse.durationDiff(guess,ground)) should be (0.0)
+			guess = DAY
+			U.sumDiff(parse.durationDiff(guess,ground)) should be (60.0*60*24*6)
+		}
+		it("works for duration / range"){
+			val parse:Parse = WEEK
+			var guess = Range(Time(2011,4,26),Time(2011,4,27))
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (Integer.MAX_VALUE)
+			guess = Range(NOW,Time(2011,4,27))
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (Integer.MAX_VALUE)
+			guess = Range(NOW,NOW+DAY)
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (Integer.MAX_VALUE)
+		}
+		//--Parse is Function
+		it("works for function / function"){
+			//(normal)
+			var parse:Parse = (r:Range) => Range(Time(2011,04,26),Time(2011,04,27))
+			var guess = (r:Range) => Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (0)
+			guess = (r:Range) => Range(Time(2011,04,26),Time(2011,04,28))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (60.0*60*24)
+			//(needs grounding)
+			parse = (r:Range) => Range(NOW,Time(2011,04,27))
+			guess = (r:Range) => Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (0)
+			guess = (r:Range) => Range(NOW,Time(2011,04,27))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (0)
+			guess = (r:Range) => Range(NOW,Time(2011,04,28))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (60.0*60*24)
+			//(functional)
+			parse = (r:Range) => Range(r.begin,Time(2011,04,27))
+			guess = (r:Range) => Range(r.begin,Time(2011,04,27))
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (0)
+			guess = (r:Range) => Range(NOW,r.end)
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (Integer.MAX_VALUE)
+			guess = (r:Range) => r
+			U.sumDiff(parse.fnDiff(guess,ground)) should be (Integer.MAX_VALUE)
+		}
+		it("works for function / range"){
+			var parse:Parse = (r:Range) => Range(Time(2011,04,26),Time(2011,04,27))
+			var guess = Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (0.0)
+			parse = (r:Range) => Range(NOW,Time(2011,04,27))
+			guess = Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (0.0)
+			parse = (r:Range) => Range(r.begin,Time(2011,04,27))
+			guess = Range(Time(2011,04,26),Time(2011,04,27))
+			U.sumDiff(parse.rangeDiff(guess,ground)) should be (Integer.MAX_VALUE)
+		}
+	}
+
 }
 
 
