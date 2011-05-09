@@ -46,14 +46,21 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 	@Child(localField="sid", childField="sid")
 	var timexes:Array[Timex] = null
 	var words:Array[Int] = null
+	var pos:Array[Int] = null
 	
 	def init:Unit = { 
 		refreshLinks; 
 		quickSort(timexes);
 		words = new Array[Int](length)
+		pos = new Array[Int](length)
 		for( i <- 0 until tags.length ){
-			if(tags(i).key == "form"){
-				words(tags(i).wid-1) = U.str2w(tags(i).value)
+			tags(i).key match {
+				case "form" =>
+					words(tags(i).wid-1) = U.str2w(tags(i).value)
+				case "pos" =>
+					pos(tags(i).wid-1) = U.pos2int(tags(i).value)
+				case _ => 
+					//do nothing
 			}
 		}
 	}
@@ -100,12 +107,15 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var timeCache:Any = null
 	var grounding:Time = null
 	private var wordArray:Array[Int] = null
+	private var posArray:Array[Int] = null
 
 	def setWords(s:TimebankSentence):Timex = {
 		wordArray = s.words.slice(scopeBegin,scopeEnd)
+		posArray = s.pos.slice(scopeBegin,scopeEnd)
 		this
 	}
 	def words:Array[Int] = wordArray
+	def pos:Array[Int] = posArray
 	def ground(t:Time):Timex = { grounding = t; this }
 	def gold:Any = {
 		if(timeCache == null){

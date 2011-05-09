@@ -23,6 +23,7 @@ import org.goobs.testing.ResultLogger;
 */
 object G {
 	val wordIndexer = new Indexer[String]
+	val posIndexer = new Indexer[String]
 	val idStringMap = new HashMap[Int,String]
 	val df = new DecimalFormat("0.000")
 	val pf = new DecimalFormat("0.0")
@@ -51,9 +52,13 @@ object U {
 		})
 		lst.reverse
 	}
+
 	def w2str(w:Int):String = G.wordIndexer.get(w)
 	def str2w(str:String):Int = G.wordIndexer.addAndGetIndex(str)
+	def pos2str(pos:Int):String = G.posIndexer.get(pos)
+	def pos2int(str:String):Int = G.posIndexer.addAndGetIndex(str)
 	def sent2str(sent:Array[Int]) = join(sent.map(G.wordIndexer.get(_)), " ")
+
 	def sumDiff(diff:(Duration,Duration)):Int = {
 		val secA:Long = diff._1.seconds.abs
 		val secB:Long = diff._2.seconds.abs
@@ -145,15 +150,15 @@ class Score {
 case class Data(train:DataStore,dev:DataStore,test:DataStore)
 
 trait DataStore {
-	def eachExample(fn:Array[Int]=>(Array[Parse],(Int,Boolean,Double)=>Any)):Score
+	def eachExample(fn:Sentence=>(Array[Parse],(Int,Boolean,Double)=>Any)):Score
 }
 
 class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 	override def eachExample( 
-			fn:Array[Int]=>(Array[Parse],(Int,Boolean,Double)=>Any) ):Score = {
+			fn:Sentence=>(Array[Parse],(Int,Boolean,Double)=>Any) ):Score = {
 		val score:Score = new Score
 		timexes.foreach( (t:Timex) => {
-			val (parses,feedback) = fn(t.words)
+			val (parses,feedback) = fn(Sentence(t.words,t.pos))
 			val gold = t.gold
 			//--Score Parses
 			val scored:Array[(Int,Boolean,(Duration,Duration))] 

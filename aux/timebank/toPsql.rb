@@ -228,7 +228,8 @@ puts "}"
 # CLASSES
 #-------------------------------------------------------------------------------
 ENV['JAVA_HOME'] = ENV['JDK_HOME']
-Rjb::load(classpath = "#{ENV["JAVANLP_HOME"]}/projects/core/classes", ['-Xmx200m'])
+Rjb::load(classpath = "#{ENV["JAVANLP_HOME"]}/projects/core/classes", ['-Xmx500m'])
+Runtime = Rjb::import('java.lang.Runtime')
 MaxentTagger = Rjb::import('edu.stanford.nlp.tagger.maxent.MaxentTagger')
 Word = Rjb::import('edu.stanford.nlp.ling.Word')
 ArrayList = Rjb::import('java.util.ArrayList')
@@ -312,6 +313,7 @@ class Sent
 	  while(iter.hasNext) do
 	    @tags << iter.next.tag 
 	  end 	
+		#(cleanup)
 		raise "Incorrect tags #{@tags.length} #{@tokens.length}"\
 			if @tags.length != @tokens.length
 	end
@@ -390,8 +392,9 @@ class Timex
 	end
 	def to_db(doc,sent)
 		#(inefficient index match)
+		text = @text.strip.gsub(/\-/,' - ').gsub(/\//,' / ').gsub(/\s+/,' ')
 		File.open("tmp", 'w') {|f| f.write(text) }
-		tokens = `tokenize tmp`.gsub(/\-/,' - ').gsub(/\//,' / ').split(/(\s+)/)
+		tokens = `tokenize tmp`.split(/\s+/)
 		startI = nil
 		for i in 0..sent.tokens.length do
 			startI = i if sent.tokens[i,tokens.length] == tokens
@@ -460,6 +463,7 @@ docs = []
 puts "Reading XML {"
 #(read)
 for file in `find #{DIR} -name "*.tml.xml"` do
+	Runtime.getRuntime.gc
 	file = file.chomp
 	puts "  #{file} {"
 	#(vars)
@@ -568,10 +572,9 @@ index(db,TAG,"wid")
 index(db,TAG,"did")
 index(db,TAG,"key")
 index(db,TIMEX,"type")
-index(db,TIMEX,"scopeBegin")
-index(db,TIMEX,"scopeEnd")
-index(db,TIMEX,"temporalFunction")
-index(db,TIMEX,"functionInDocument")
+index(db,TIMEX,"scope_begin")
+index(db,TIMEX,"scope_end")
+index(db,TIMEX,"temporal_function")
 index(db,TLINK,"type")
 fk(db,SENTENCE,DOCUMENT,"fid")
 fk(db,TAG,SENTENCE,"sid")

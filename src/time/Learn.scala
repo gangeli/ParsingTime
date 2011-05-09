@@ -20,6 +20,11 @@ object ParseConversions {
 	implicit def fn2parse(fn:Range=>Range):Parse = Parse(null,null,fn)
 }
 
+case class Sentence(words:Array[Int],pos:Array[Int]) {
+	def apply(i:Int) = words(i)
+	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
+}
+
 case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	private def diff(a:Time, b:Time, ground:Time) = {
 		val shouldGround = !a.isGrounded || !b.isGrounded
@@ -104,11 +109,11 @@ trait Parser {
 }
 
 trait StandardParser extends Parser {
-	def parse(iter:Int, sent:Array[Int]):(Array[Parse],(Int,Boolean,Double)=>Any)
+	def parse(iter:Int, sent:Sentence):(Array[Parse],(Int,Boolean,Double)=>Any)
 	override def cycle(data:DataStore,iters:Int):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			start_track("Iteration " + i)
-			val score = data.eachExample( (sent:Array[Int]) => {
+			val score = data.eachExample( (sent:Sentence) => {
 				parse(i, sent)
 			})
 			log("Score: " + score)
@@ -119,7 +124,7 @@ trait StandardParser extends Parser {
 }
 
 class ItsAlwaysFriday extends StandardParser{
-	override def parse(i:Int, sent:Array[Int]
+	override def parse(i:Int, sent:Sentence
 			):(Array[Parse],(Int,Boolean,Double)=>Any)={
 		val parse:Array[Parse] = Array[Parse](
 			FRI(NOW),                              // I think it's friday
@@ -144,13 +149,13 @@ class PrimitivesOnly extends StandardParser{
 	val weights:Counter[(Feature,Int)] = new ClassicCounter[(Feature,Int)]
 
 
-	override def parse(i:Int, sent:Array[Int]
+	override def parse(i:Int, sent:Sentence
 			):(Array[Parse],(Int,Boolean,Double)=>Any)={
 		assert(sent != null, "Sentence cannot be null")
 		//--Features
-		def features(sent:Array[Int],out:Int):Counter[(Feature,Int)] = {
+		def features(sent:Sentence,out:Int):Counter[(Feature,Int)] = {
 			val counts = new ClassicCounter[(Feature,Int)]
-			sent.foreach( (w:Int) => counts.incrementCount((Feature(w),out), 1.0) )
+			sent.foreach((w:Int,t:Int)=>counts.incrementCount((Feature(w),out), 1.0))
 			counts
 		}
 		def globalIndex(i:Int,p:Array[Parse]):Int = {
