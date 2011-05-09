@@ -6,6 +6,9 @@ require 'time'
 require 'dbi'
 require 'xml'
 
+require 'rubygems'
+require 'rjb'
+
 #--Arguments
 DIR=ARGV[0]
 SCHEMA_DATA=ARGV[1]
@@ -224,6 +227,13 @@ puts "}"
 #-------------------------------------------------------------------------------
 # CLASSES
 #-------------------------------------------------------------------------------
+ENV['JAVA_HOME'] = ENV['JDK_HOME']
+Rjb::load(classpath = "#{ENV["JAVANLP_HOME"]}/projects/core/classes", ['-Xmx200m'])
+MaxentTagger = Rjb::import('edu.stanford.nlp.tagger.maxent.MaxentTagger')
+Word = Rjb::import('edu.stanford.nlp.ling.Word')
+ArrayList = Rjb::import('java.util.ArrayList')
+TAGGER = MaxentTagger.new('/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger')
+
 class Doc
 	@@fid = 1
 	def self.fid; @@fid; end
@@ -284,10 +294,26 @@ class Sent
 		@doc = doc
 	end
 	def setText(text)
+		#--Tokenize
 		@text = text
+		text = text.strip.gsub(/\-/,' - ').gsub(/\//,' / ').gsub(/\s+/,' ')
 		File.open("tmp", 'w') {|f| f.write(text) }
 		@tokens = `tokenize tmp`.split(/\s+/)
-		`rm tmp`
+		#--Tag
+		@tags = []
+	  #(input) 
+	  sent = ArrayList.new
+		@tokens.each do |w|
+			sent.add(Word.new(w))
+		end
+	  #(tag) 
+	  tagged = TAGGER.tagSentence(sent)
+	  iter = tagged.iterator 
+	  while(iter.hasNext) do
+	    @tags << iter.next.tag 
+	  end 	
+		raise "Incorrect tags #{@tags.length} #{@tokens.length}"\
+			if @tags.length != @tokens.length
 	end
 	def to_s
 		"#{@doc}.sent"
@@ -307,7 +333,18 @@ class Sent
 				@@sid,
 				SOURCE_ID,
 				'form',
-				token)
+				token.strip)
+			wid += 1
+		end
+		#(save tags)
+		wid = 1
+		@tags.each do |tag|
+			ensureStatement(TAG_STMT,
+				wid,
+				@@sid,
+				SOURCE_ID,
+				'pos',
+				tag.strip)
 			wid += 1
 		end
 		#(save timexes)
@@ -354,8 +391,7 @@ class Timex
 	def to_db(doc,sent)
 		#(inefficient index match)
 		File.open("tmp", 'w') {|f| f.write(text) }
-		tokens = `tokenize tmp`.split(/\s+/)
-		`rm tmp`
+		tokens = `tokenize tmp`.gsub(/\-/,' - ').gsub(/\//,' / ').split(/(\s+)/)
 		startI = nil
 		for i in 0..sent.tokens.length do
 			startI = i if sent.tokens[i,tokens.length] == tokens
