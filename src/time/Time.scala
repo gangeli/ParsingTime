@@ -7,12 +7,38 @@ import org.joda.time._
 //------------------------------------------------------------------------------
 // UTILS
 //------------------------------------------------------------------------------
+trait PartialParse {def accepts(s:Symbol):Boolean; def typeTag:Symbol}
 object Conversions {
 	implicit def period2Duration(p:ReadablePeriod):Duration = new Duration(p)
 	implicit def Duration2period(o:Duration):ReadablePeriod = o.toPeriod
 	implicit def instant2long(i:Instant):Long = i.getMillis
 	implicit def long2instant(l:Long):Instant = new Instant(l)
 	implicit def range2duration(r:Range):Duration = (r.end - r.begin)
+
+	implicit def rangePairFxn2PP(fn:(Range,Range)=>Range):PartialParse
+		= new PartialParse { 
+				def apply(r:Range) = fn(r,_:Range)
+				override def accepts(s:Symbol):Boolean = s == 'Range
+				override def typeTag:Symbol = 'FunctionRangeRange
+			}
+	implicit def rangeDurationFxn2PP(fn:(Range,Duration)=>Range):PartialParse
+		= new PartialParse { 
+				def apply(r:Range) = fn(r,_:Duration)
+				override def accepts(s:Symbol):Boolean = s == 'Range
+				override def typeTag:Symbol = 'FunctionRangeDuration
+			}
+	implicit def rangeFxn2PP(fn:Range=>Range):PartialParse
+		= new PartialParse{ 
+				def apply(r:Range) = fn(r)
+				override def accepts(s:Symbol):Boolean = s == 'Range
+				override def typeTag:Symbol = 'FunctionRange
+			}
+	implicit def durationFxn2PP(fn:Duration=>Range):PartialParse
+		= new PartialParse{
+				def apply(d:Duration) = fn(d)
+				override def accepts(s:Symbol):Boolean = s == 'Duration
+				override def typeTag:Symbol = 'FunctionDuration
+			}
 }
 
 class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
@@ -25,8 +51,9 @@ class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
 // TIME CLASSES
 //------------------------------------------------------------------------------
 
+
 // --- RANGE ---
-case class Range(begin:Time, end:Time){
+case class Range(begin:Time, end:Time) extends PartialParse{
 	def isGrounded:Boolean = begin.isGrounded && end.isGrounded
 
 	def ::(ground:Time=>Time) = new Range(ground :: begin, ground :: end)
@@ -69,6 +96,10 @@ case class Range(begin:Time, end:Time){
 				{if(end.isGrounded) end else end(ground)}
 			)
 	}
+	def accepts(s:Symbol):Boolean = {
+		if((!begin.isGrounded || !end.isGrounded) && s == 'Time) true else false
+	}
+	def typeTag:Symbol = 'Range
 
 	def norm:Duration = {
 		if(begin.offset == null){
@@ -109,7 +140,8 @@ case class Range(begin:Time, end:Time){
 }
 
 // --- Duration ---
-class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
+class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range) 
+		extends PartialParse{
 	def this(p:ReadablePeriod) = this(p,null)
 	def isGroundable = groundFn != null
 	def grounding:Time=>Time 
@@ -133,6 +165,8 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
 			}
 		}
 	}
+	def accepts(s:Symbol):Boolean = s == 'Time
+	def typeTag:Symbol = 'Duration
 	def toPeriod:ReadablePeriod = p
 	def +(diff:Duration):Duration 
 		= new Duration(p.toPeriod.plus(diff),groundFn)
@@ -203,7 +237,8 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range){
 
 
 // --- TIME ---
-case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
+case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) 
+		extends PartialParse{
 	def this(base:DateTime,offset:Duration) = this(base, offset, null)
 	def this(base:DateTime) = this(base, null, null)
 	def this(offset:Duration) = this(null, offset, null)
@@ -323,6 +358,10 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		//--Return
 		new Time(ground.base, null, null)
 	}
+	def accepts(s:Symbol):Boolean = {
+		!isGrounded && s == 'Time
+	}
+	def typeTag:Symbol = 'Time
 
 	def ~(o:Any):Boolean = {
 		if(o.isInstanceOf[Time] || o.isInstanceOf[DateTime]){
@@ -439,10 +478,12 @@ object Lex {
 	val SAT:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,6))
 	val SUN:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,7))
 	//--OTHER DURATIONS
+	def DOW(i:Int) = new Duration(Weeks.ONE, LexUtil.dow(_,i))
 	def DOM(i:Int) = new Duration(Months.ONE, LexUtil.dom(_,i))
-	def WOY(i:Int) = new Duration(Months.ONE, LexUtil.woy(_,i))
+	def WOY(i:Int) = new Duration(Years.ONE, LexUtil.woy(_,i))
 	def MOY(i:Int) = new Duration(Years.ONE, LexUtil.moy(_,i))
-	def QOY(i:Int) = new Duration(Months.THREE, LexUtil.qoy(_,i))
+	def QOY(i:Int) = new Duration(Years.ONE, LexUtil.qoy(_,i))
+	def YEAR(i:Int) = new Range(Time(i),Time(i+1))
 	val AYEAR = new Duration(Years.ONE, (t:Time) => {
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withDayOfYear(1).withMillisOfDay(0), null)

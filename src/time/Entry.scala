@@ -139,7 +139,7 @@ class Score {
 	}
 	override def toString:String = {
 		"accuracy: "+G.df.format(accuracy)+"; average pos: "+G.df.format(avePos)+
-			" (of " + G.pf.format((percentParsable*100)) + "%); score: "+
+			" (in " + G.pf.format((percentParsable*100)) + "%); score: "+
 			G.df.format(aveScore())
 	}
 }
@@ -160,6 +160,7 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		timexes.foreach( (t:Timex) => {
 			val (parses,feedback) = fn(Sentence(t.words,t.pos))
 			val gold = t.gold
+			if(parses == null || parses.length == 0){throw fail("No parses returned")}
 			//--Score Parses
 			val scored:Array[(Int,Boolean,(Duration,Duration))] 
 				= parses.zipWithIndex.map( (pair) => {

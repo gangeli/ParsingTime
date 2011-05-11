@@ -458,6 +458,15 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 			assert( implicitIntersect(ths(implicitNow,week),friday(NOW))(ground) 
 				~ target )
 		}
+		it("works for February 1947"){
+			val feb = MOY(2)
+			val febNow = feb(NOW)
+			val y1947 = YEAR(1947)
+			val febInter = intersect(febNow,_:Range)
+			val guess = febInter(y1947)
+			val target = Range(Time(1947,2,1), Time(1947,3,1))
+			assert( guess ~ target )
+		}
 	}
 }
 

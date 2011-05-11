@@ -13,6 +13,9 @@ import edu.stanford.nlp.stats.Counters;
 //------------------------------------------------------------------------------
 // PARSER
 //------------------------------------------------------------------------------
+//-----
+// Utilities
+//-----
 object ParseConversions {
 	implicit def time2parse(t:Time):Parse = Parse(Range(t,t),null,null)
 	implicit def range2parse(r:Range):Parse = Parse(r,null,null)
@@ -20,11 +23,18 @@ object ParseConversions {
 	implicit def fn2parse(fn:Range=>Range):Parse = Parse(null,null,fn)
 }
 
+//-----
+// Sentence
+//-----
 case class Sentence(words:Array[Int],pos:Array[Int]) {
 	def apply(i:Int) = words(i)
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
+	def length:Int = words.length
 }
 
+//-----
+// Parse
+//-----
 case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	private def diff(a:Time, b:Time, ground:Time) = {
 		val shouldGround = !a.isGrounded || !b.isGrounded
@@ -94,6 +104,9 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	}
 }
 
+//-----
+// Parse Traits
+//-----
 trait Parser {
 	def cycle(data:DataStore,iters:Int):Array[Score]
 	def cycle(data:DataStore):Score = cycle(data,1)(0)
@@ -122,6 +135,10 @@ trait StandardParser extends Parser {
 		}).toArray
 	}
 }
+
+//------------------------------------------------------------------------------
+// TOY PARSERS
+//------------------------------------------------------------------------------
 
 class ItsAlwaysFriday extends StandardParser{
 	override def parse(i:Int, sent:Sentence
@@ -186,10 +203,104 @@ class PrimitivesOnly extends StandardParser{
 	}
 }
 
-
-object Search {
+//------------------------------------------------------------------------------
+// CKY PARSER
+//------------------------------------------------------------------------------
+class CKY extends StandardParser{
+	override def parse(i:Int, sent:Sentence
+			):(Array[Parse],(Int,Boolean,Double)=>Any)={
+		//--Parse
+		val parses:Array[Parse] = new Array[Parse](0)
+		//--Update
+		val update = (index:Int,exact:Boolean,score:Double) => {
+			//TODO update
+		}
+		(parses, update)
+	}
 }
 
+//------------------------------------------------------------------------------
+// SEARCH PARSER
+//------------------------------------------------------------------------------
+class SearchParser extends StandardParser {
+	// -- Values --
+	private val TYPE_RAISES = Array[(Symbol,(_ <: PartialParse)=>PartialParse)](
+		//(ground a duration to NOW)
+		('Duration, (d:Duration) => { d(NOW) }:PartialParse),
+		//(ground fn(range,duration) to fn(NOW,duration))
+		('FunctionRangeDuration, 
+			(fn:(Range,Duration)=>Range) => { fn(NOW_RANGE,_:Duration) }:PartialParse)
+	)
+	private val LEX = Array[PartialParse](
+		//(functions)
+		shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd,intersect,cons,
+		//(ranges)
+		SEC,MIN,HOUR,DAY,WEEK,MONTH,YEAR,
+		//(dow)
+		MON,TUE,WED,THU,FRI,SAT,SUN
+		)
+	private val NOW_RANGE = Range(NOW,NOW)
+
+	// -- Behavior --
+	def scoreTransition(s:State,mod:Any):(Double,Double=>Unit) = {
+		(s.score+1, (finalScore:Double) => {})
+	}
+
+	// -- Search State --
+	case class State(
+			begin:Int,end:Int,
+			parse:PartialParse,
+			leftOf:PartialParse,rightOf:PartialParse,
+			score:Double,
+			updates:List[Double=>Unit],
+			sent:Sentence)
+				extends Ordered[State] {
+
+		def neighbors:List[State] = {
+			var lst = List[State]()
+			def extend(p:PartialParse) = {
+			}
+			//--CASE: Unary
+			TYPE_RAISES.foreach( pair => {
+				type A = X forSome {type X <: PartialParse}
+				val (input,fn):(Symbol,A=>PartialParse) = pair
+				if(parse.typeTag == input){
+					val (newScore,update) = scoreTransition(this,pair)
+					State(begin,end,fn(parse),leftOf,rightOf,
+						newScore,update :: updates,sent)
+				}
+			})
+			lst
+		}
+		def isCompleteParse:Boolean = begin == 0 && end == sent.length
+		def canExtend:Boolean = {
+			isCompleteParse && TYPE_RAISES.exists ( pair => {
+				val (input,fn) = pair
+				parse.typeTag == input
+			})
+		}
+		override def compare(that:State) = {
+			if(this.score < that.score){ -1 }
+			else if(this.score > that.score){ 1 }
+			else{ 0 }
+		}
+		override def toString:String 
+			= ""+parse+"["+begin+","+end+"):"+G.df.format(score)
+	}
+
+
+	// -- Parse --
+	override def parse(i:Int, sent:Sentence
+			):(Array[Parse],(Int,Boolean,Double)=>Any)={
+		//--Parse
+		val parses:Array[Parse] = new Array[Parse](0)
+		//--Update
+		val update = (index:Int,exact:Boolean,score:Double) => {
+			//TODO update
+		}
+		(parses, update)
+	}
+}
 
 
 

@@ -20,7 +20,7 @@ env!(
 
 	run(
 		# -- LEARNING --
-		selo(0, 'parser', 'PrimitivesOnly', 'ItsAlwaysFriday'),
+		selo(0, 'parser', 'SearchParser', 'CKY', 'PrimitivesOnly', 'ItsAlwaysFriday'),
 		o('iters', 10),
 		# -- EVALUATION --
 		o('exactMatchThreshold', 60*60*24), # a day
@@ -32,7 +32,7 @@ env!(
 #		o('train', '1-101'),
 #		o('dev', '101-151'),
 #		o('test', '151-187'),
-		o('train', '1-11'),
+		o('train', '2-3'),
 		o('dev', '101-111'),
 		o('test', '151-152'),
 		o('devTest', true),
