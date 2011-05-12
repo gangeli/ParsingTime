@@ -73,6 +73,8 @@ class EuclideanManhattan(x:Int,y:Int,c:Double) extends Manhattan(x,y,c) {
 class SearchSpec extends Spec with ShouldMatchers{
 	val BREAK = (s:SearchState,c:Int) => false
 	val IGNORE = (s:SearchState,c:Int) => true
+
+
 	describe("DFS") {
 		it("should be creatable"){ 
 			val dfs:Search[SearchState] = Search(DFS)
@@ -91,6 +93,8 @@ class SearchSpec extends Spec with ShouldMatchers{
 			count should be (10000)
 		}
 	}
+
+
 	describe("BFS") {
 		it("should be creatable"){ 
 			val bfs:Search[SearchState] = Search(BFS)
@@ -113,6 +117,8 @@ class SearchSpec extends Spec with ShouldMatchers{
 			count should be > (1000)
 		}
 	}
+
+
 	describe("Uniform Cost Search") {
 		it("should be creatable"){ 
 			val ucs:Search[SearchState] = Search(UNIFORM_COST)
@@ -140,6 +146,8 @@ class SearchSpec extends Spec with ShouldMatchers{
 			(scala.math.abs(count - bfsCount) < (0.05*count)) should be (true)
 		}
 	}
+
+
 	describe("AStar (uncached)") {
 		it("should be creatable"){ 
 			val astar:Search[SearchState] = Search(A_STAR)
@@ -172,6 +180,8 @@ class SearchSpec extends Spec with ShouldMatchers{
 			count should be (100000)
 		}
 	}
+
+
 	describe("AStar (cached)"){
 		it("should be creatable"){ 
 			val astar:Search[SearchState] = Search(cache(A_STAR))
@@ -214,6 +224,48 @@ class SearchSpec extends Spec with ShouldMatchers{
 			val ucs:Search[EuclideanManhattan] = Search(cache(UNIFORM_COST))
 			val ucsCount = ucs.search(new EuclideanManhattan(100,100),BREAK)
 			count should be < (ucsCount)
+		}
+	}
+	
+	
+	describe("Beam"){
+		it("should be creatable"){ 
+			val beamDFS:Search[SearchState] = Search(memcap(DFS,10000,0.5))
+			val beamBFS:Search[SearchState] = Search(memcap(BFS,10000,0.5))
+			val beamUCS:Search[SearchState] = Search(memcap(UNIFORM_COST,10000,0.5))
+			val beamASTAR:Search[SearchState] = Search(memcap(A_STAR,10000,0.5))
+		}
+		it("actually caps (Fake Tree)"){
+			val beamDFS:Search[SearchState] = Search(memcap(DFS,2,0.5))
+			val results:Array[SearchState] = beamDFS.search(FakeTree.node0)
+			results.length should be (1)
+			results(0) should be (FakeTree.node6)
+		}
+		it("works for Fake Tree"){
+			val beamDFS:Search[SearchState] = Search(memcap(DFS,4,0.5))
+			val results:Array[SearchState] = beamDFS.search(FakeTree.node0)
+			results.length should be (3)
+			results(0) should be (FakeTree.node6)
+			results(1) should be (FakeTree.node4)
+			results(2) should be (FakeTree.node2)
+		}
+		it("works for Manhattan"){
+			val astar:Search[Manhattan] = Search(memcap(A_STAR,200,0.5))
+			//(correctness)
+			val out:Manhattan = astar.best(new Manhattan(5,5))
+			out should be (new Manhattan(0,0))
+			//(time)
+			var count = astar.search(new Manhattan(5,5),BREAK)
+			count should be < (100)
+			//(mid time)
+			count = astar.search(new Manhattan(10,10),BREAK)
+			count should be < (2000)
+		}
+		it("works for Imprecise Manhattan"){
+			val astar:Search[EuclideanManhattan] = Search(memcap(A_STAR,10000,0.5))
+			//(long time)
+			val best:Manhattan = astar.best(new EuclideanManhattan(100,100))
+			best should be (new Manhattan(0,0))
 		}
 	}
 }

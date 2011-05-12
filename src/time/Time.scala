@@ -20,24 +20,28 @@ object Conversions {
 				def apply(r:Range) = fn(r,_:Range)
 				override def accepts(s:Symbol):Boolean = s == 'Range
 				override def typeTag:Symbol = 'FunctionRangeRange
+				override def toString:String = "<<rangeRangeFunction>>"
 			}
 	implicit def rangeDurationFxn2PP(fn:(Range,Duration)=>Range):PartialParse
 		= new PartialParse { 
 				def apply(r:Range) = fn(r,_:Duration)
 				override def accepts(s:Symbol):Boolean = s == 'Range
 				override def typeTag:Symbol = 'FunctionRangeDuration
+				override def toString:String = "<<rangeDurationFunction>>"
 			}
 	implicit def rangeFxn2PP(fn:Range=>Range):PartialParse
 		= new PartialParse{ 
 				def apply(r:Range) = fn(r)
 				override def accepts(s:Symbol):Boolean = s == 'Range
 				override def typeTag:Symbol = 'FunctionRange
+				override def toString:String = "<<rangeFunction>>"
 			}
 	implicit def durationFxn2PP(fn:Duration=>Range):PartialParse
 		= new PartialParse{
 				def apply(d:Duration) = fn(d)
 				override def accepts(s:Symbol):Boolean = s == 'Duration
 				override def typeTag:Symbol = 'FunctionDuration
+				override def toString:String = "<<durationFunction>>"
 			}
 }
 

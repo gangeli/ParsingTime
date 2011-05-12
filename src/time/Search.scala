@@ -10,11 +10,14 @@ class SearchException(s:String,e:Throwable) extends RuntimeException(s,e) {
 }
 
 trait SearchState{
+	//(minimal override)
 	def children:List[SearchState]
-	def isEndState:Boolean
-	def hasChildren:Boolean
+	//(suggested overrides)
+	def isEndState:Boolean = !hasChildren
+	def hasChildren:Boolean = children.length > 0
 	def cost:Double = 0.0
 	def heuristic:Double = 0.0
+	//(debug overrides)
 	def assertEnqueueable:Boolean = true
 	def assertDequeueable:Boolean = true
 }
@@ -140,8 +143,40 @@ object Search {
 		}
 	}
 
+	def memcap[S <: SearchState](
+			store:Store[S], trigger:Int=200000, factor:Double=0.5):Store[S] = {
+		//--Argument Check
+		if(trigger <= 0){throw new IllegalArgumentException("Invalid trigger val")}
+		if(factor >= 1.0 || factor <= 0.0){
+			throw new IllegalArgumentException("Invalid reduction factor")
+		}
+		//--Returned Store
+		new {
+			var size:Int = 0
+			def enqueue(s:S*):Unit = { 
+				//(enqueue)
+				store.enqueue(s:_*)
+				size += s.length
+				//(check for memory overflow)
+				if(size >= trigger){
+					//(get first elements)
+					var lst = List[S]()
+					for(i <- 1 to (trigger*factor).asInstanceOf[Int]){
+						lst = store.dequeue :: lst
+					}
+					//(reset store)
+					clear()
+					enqueue(lst.reverse:_*)
+				}
+			}
+			def dequeue():S = {size-=1; store.dequeue}
+			def clear():Unit = {store.clear; size=0}
+			def isEmpty:Boolean = {assert(!store.isEmpty||size==0,""); store.isEmpty}
+		}
+	}
+
 	def DFS[S <: SearchState]:Store[S] = new scala.collection.mutable.Stack[S]{
-			def enqueue(s:S*):Unit = pushAll(s)
+			def enqueue(s:S*):Unit = pushAll(s.reverse)
 			def dequeue():S = pop()
 		}
 	def BFS[S <: SearchState]:Store[S] = new scala.collection.mutable.Queue[S]

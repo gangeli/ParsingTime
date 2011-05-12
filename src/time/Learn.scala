@@ -223,7 +223,9 @@ class CKY extends StandardParser{
 // SEARCH PARSER
 //------------------------------------------------------------------------------
 class SearchParser extends StandardParser {
-	// -- Values --
+//-----
+// VALUES
+//-----
 	private val TYPE_RAISES = Array[(Symbol,(_ <: PartialParse)=>PartialParse)](
 		//(ground a duration to NOW)
 		('Duration, (d:Duration) => { d(NOW) }:PartialParse),
@@ -241,66 +243,126 @@ class SearchParser extends StandardParser {
 		)
 	private val NOW_RANGE = Range(NOW,NOW)
 
-	// -- Behavior --
+//-----
+// BEHAVIOR
+//-----
 	def scoreTransition(s:State,mod:Any):(Double,Double=>Unit) = {
-		(s.score+1, (finalScore:Double) => {})
+		(s.cost+1, (finalScore:Double) => {})
 	}
 
-	// -- Search State --
+//-----
+// SEARCH STATE
+//-----
 	case class State(
 			begin:Int,end:Int,
 			parse:PartialParse,
 			leftOf:PartialParse,rightOf:PartialParse,
-			score:Double,
+			override val cost:Double,
 			updates:List[Double=>Unit],
 			sent:Sentence)
-				extends Ordered[State] {
+				extends SearchState {
 
-		def neighbors:List[State] = {
-			var lst = List[State]()
-			def extend(p:PartialParse) = {
+		def realParse:Parse = {
+			parse match {
+				case t:Time => { Range(t,t) }
+				case r:Range => { r }
+				case d:Duration => { d }
+				case fn:(Range=>Range) => { fn }
+				case _:Any => {throw new SearchException("Invalid parse type")}
 			}
+		}
+
+		override def children:List[State] = {
+			var lst = List[State]()
 			//--CASE: Unary
-			TYPE_RAISES.foreach( pair => {
-				type A = X forSome {type X <: PartialParse}
-				val (input,fn):(Symbol,A=>PartialParse) = pair
-				if(parse.typeTag == input){
-					val (newScore,update) = scoreTransition(this,pair)
-					State(begin,end,fn(parse),leftOf,rightOf,
-						newScore,update :: updates,sent)
+			if(begin >= 0 && end >= 0){
+//				TYPE_RAISES.foreach( pair => {
+//					type A = X forSome {type X <: PartialParse}
+//					val (input,fn):(Symbol,A=>PartialParse) = pair
+//					if(parse.typeTag == input){
+//						val (newCost,update) = scoreTransition(this,pair)
+//						State(begin,end,fn(parse),leftOf,rightOf,
+//							newCost,update :: updates,sent)
+//					}
+//				})
+			}
+			//--CASE: Binary
+			if(begin >= 0 && end >= 0){
+			}
+			//--CASE: Tokenize
+			if(begin >= 0 && end >= 0){
+				//--Case: Add Token
+			} else {
+				//--Case: First Token
+				for(index <- 0 to sent.length-1){
+					LEX.foreach( (p:PartialParse) => {
+						val update = (d:Double) => {}:Unit //TODO
+						val newCost:Double = cost + 1.0 //TODO
+						lst = State(index,index+1,p,leftOf,rightOf,
+							newCost,update :: updates,sent) :: lst
+					})
 				}
-			})
+			}
 			lst
 		}
-		def isCompleteParse:Boolean = begin == 0 && end == sent.length
-		def canExtend:Boolean = {
-			isCompleteParse && TYPE_RAISES.exists ( pair => {
-				val (input,fn) = pair
-				parse.typeTag == input
-			})
+//		override def isEndState:Boolean = begin == 0 && end == sent.length
+		override def isEndState:Boolean 
+			= parse != null && {parse match {
+				case t:Time => { true }
+				case r:Range => { true }
+				case d:Duration => { true }
+				case fn:(Range=>Range) => { true }
+				case _:Any => {false}
+			}}
+	
+		override def assertDequeueable:Boolean = {
+			true
 		}
-		override def compare(that:State) = {
-			if(this.score < that.score){ -1 }
-			else if(this.score > that.score){ 1 }
-			else{ 0 }
+		override def assertEnqueueable:Boolean = {
+			true
 		}
+		
 		override def toString:String 
-			= ""+parse+"["+begin+","+end+"):"+G.df.format(score)
+			= ""+parse+"["+begin+","+end+"):"+G.df.format(cost)
+	}
+	object State {
+		def start(sent:Sentence):State =
+			State(-1,-1,null,null,null,0.0,List[Double=>Unit](),sent)
 	}
 
 
+//-----
+// PARSE
+//-----
 	// -- Parse --
 	override def parse(i:Int, sent:Sentence
 			):(Array[Parse],(Int,Boolean,Double)=>Any)={
+		import Search._
 		//--Parse
-		val parses:Array[Parse] = new Array[Parse](0)
+		var parseLst:List[Parse] = List[Parse]()
+		val search:Search[State] = Search(memcap(UNIFORM_COST,200000,0.5))
+		search.search(
+			State.start(sent),
+			(parse:State,iter:Int) => {
+				parseLst = parse.realParse :: parseLst
+				true
+			},
+			O.maxSearchTime)
+		val parses:Array[Parse] = parseLst.reverse.toArray
 		//--Update
 		val update = (index:Int,exact:Boolean,score:Double) => {
 			//TODO update
 		}
-		(parses, update)
+		//--Debug
+		log("Parsed " + U.sent2str(sent.words) + " as " + 
+			U.join(parses.slice(0,5), " or "))
+		(parses.reverse.toArray, update)
 	}
 }
+
+
+
+
 
 
 

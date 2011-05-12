@@ -18,6 +18,8 @@ public class O {
 	public static int iters = 40;
 	@Option(name="parser", gloss="Parser class to use", required=true)
 	public static String parser = null;
+	@Option(name="maxSearchTime", gloss="Max Iterations")
+	public static int maxSearchTime = 1000000;
 	//--TESTING
 	@Option(name="exactmatchThreshold", 	
 		gloss="Max difference to consider exact match")

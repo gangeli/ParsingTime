@@ -166,20 +166,16 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 				= parses.zipWithIndex.map( (pair) => {
 					val (parse,i) = pair
 					//(score candidates)
-					val diff:(Duration,Duration) 
-						= if(gold.isInstanceOf[Range]){
-							parse.rangeDiff(gold.asInstanceOf[Range], t.grounding)
-						} else if(gold.isInstanceOf[Time]){
-							parse.timeDiff(gold.asInstanceOf[Time], t.grounding)
-						} else if(gold.isInstanceOf[Range=>Range]){
-							parse.fnDiff(gold.asInstanceOf[Range=>Range], t.grounding)
-						} else if(gold.isInstanceOf[Duration]){
-							parse.durationDiff(gold.asInstanceOf[Duration], t.grounding)
-						} else if(gold.isInstanceOf[UNK]) {
-							parse.unkDiff(gold.asInstanceOf[UNK])
-						} else {
+					val diff:(Duration,Duration) = gold match{
+						case r:Range => {parse.rangeDiff(r, t.grounding)}
+						case tm:Time => {parse.timeDiff(tm, t.grounding)}
+						case fn:(Range=>Range) => {parse.fnDiff(fn, t.grounding)}
+						case d:Duration => {parse.durationDiff(d, t.grounding)}
+						case unk:UNK => {parse.unkDiff(unk)}
+						case _:Any => {
 							throw fail("Cannot score timex " + t + " gold: " + gold)
 						}
+					}
 					//(accumulate output)
 					val exactMatch:Boolean = U.sumDiff(diff) <= O.exactMatchThreshold
 					(i,exactMatch,diff)
