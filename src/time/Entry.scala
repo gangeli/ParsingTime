@@ -68,6 +68,14 @@ object U {
 			(secA+secB).intValue
 		}
 	}
+
+	def safeLn(d:Double) = {
+		if(d == 0.0){ 
+			java.lang.Double.NEGATIVE_INFINITY 
+		} else { 
+			scala.math.log(d) 
+		}
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -160,7 +168,6 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		timexes.foreach( (t:Timex) => {
 			val (parses,feedback) = fn(Sentence(t.words,t.pos))
 			val gold = t.gold
-			if(parses == null || parses.length == 0){throw fail("No parses returned")}
 			//--Score Parses
 			val scored:Array[(Int,Boolean,(Duration,Duration))] 
 				= parses.zipWithIndex.map( (pair) => {
@@ -181,26 +188,31 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 					(i,exactMatch,diff)
 				})
 			//--Get Best Index
-			val (topIndex,topExact,topRange) = scored(0)
-			//(sort)
-			quickSort(scored)( Ordering.fromLessThan(
-					( a:(Int,Boolean,(Duration,Duration)),
-					  b:(Int,Boolean,(Duration,Duration))   ) => {
-				val (aIndex,aExact,aDiff) = a
-				val (bIndex,bExact,bDiff) = b
-				val aSumSec:Int = U.sumDiff(aDiff)
-				val bSumSec:Int = U.sumDiff(bDiff)
-				if(aSumSec != bSumSec){
-					aSumSec < bSumSec //order by difference
-				} else {
-					aIndex < bIndex //tiebreak by index
-				}
-			}))
-			val (bestIndex,bestExact,bestRange) = scored(0)
-			//--Record Score
-			score.enter(topExact,topRange, if(bestExact) bestIndex else -1)
-			//--Feedback
-			feedback(bestIndex,bestExact,Score.score(bestRange))
+			if(scored.length > 0){
+				val (topIndex,topExact,topRange) = scored(0)
+				//(sort)
+				quickSort(scored)( Ordering.fromLessThan(
+						( a:(Int,Boolean,(Duration,Duration)),
+						  b:(Int,Boolean,(Duration,Duration))   ) => {
+					val (aIndex,aExact,aDiff) = a
+					val (bIndex,bExact,bDiff) = b
+					val aSumSec:Int = U.sumDiff(aDiff)
+					val bSumSec:Int = U.sumDiff(bDiff)
+					if(aSumSec != bSumSec){
+						aSumSec < bSumSec //order by difference
+					} else {
+						aIndex < bIndex //tiebreak by index
+					}
+				}))
+				val (bestIndex,bestExact,bestRange) = scored(0)
+				//--Record Score
+				score.enter(topExact,topRange, if(bestExact) bestIndex else -1)
+				//--Feedback
+				feedback(bestIndex,bestExact,Score.score(bestRange))
+			} else {
+				//--Record Miss
+				score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
+			}
 		})
 		//--Return
 		score

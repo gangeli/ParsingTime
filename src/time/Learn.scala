@@ -68,7 +68,7 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	}
 	def fnDiff(gold:Range=>Range, ground:Time):(Duration,Duration) = {
 		val grounding = Range(Time.DAWN_OF, Time.END_OF)
-		val groundedGold = gold(grounding)
+		val groundedGold:Range = gold(grounding)
 		if(range != null){
 			rangeDiff(groundedGold, range, ground)
 		} else if(fn != null){
@@ -108,26 +108,30 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 // Parse Traits
 //-----
 trait Parser {
-	def cycle(data:DataStore,iters:Int):Array[Score]
-	def cycle(data:DataStore):Score = cycle(data,1)(0)
+	def report:Unit = {}
+	def cycle(data:DataStore,iters:Int,feedback:Boolean=true):Array[Score]
 	def run(data:Data,iters:Int):(Array[Score],Score) = {
 		start_track("Training")
 		val train = cycle(data.train,iters)
 		end_track
 		start_track("Testing")
-		val test = cycle(if(O.devTest) data.dev else data.test)
+		val test = cycle(if(O.devTest) data.dev else data.test, 1, false)(0)
+		end_track
+		start_track("Parser State")
+		report
 		end_track
 		(train,test)
 	}
 }
 
 trait StandardParser extends Parser {
-	def parse(iter:Int, sent:Sentence):(Array[Parse],(Int,Boolean,Double)=>Any)
-	override def cycle(data:DataStore,iters:Int):Array[Score] = {
+	def parse(iter:Int, sent:Sentence, feedback:Boolean
+		):(Array[Parse],(Int,Boolean,Double)=>Any)
+	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			start_track("Iteration " + i)
 			val score = data.eachExample( (sent:Sentence) => {
-				parse(i, sent)
+				parse(i, sent, feedback)
 			})
 			log("Score: " + score)
 			end_track
@@ -141,7 +145,7 @@ trait StandardParser extends Parser {
 //------------------------------------------------------------------------------
 
 class ItsAlwaysFriday extends StandardParser{
-	override def parse(i:Int, sent:Sentence
+	override def parse(i:Int, sent:Sentence, feedback:Boolean
 			):(Array[Parse],(Int,Boolean,Double)=>Any)={
 		val parse:Array[Parse] = Array[Parse](
 			FRI(NOW),                              // I think it's friday
@@ -166,7 +170,7 @@ class PrimitivesOnly extends StandardParser{
 	val weights:Counter[(Feature,Int)] = new ClassicCounter[(Feature,Int)]
 
 
-	override def parse(i:Int, sent:Sentence
+	override def parse(i:Int, sent:Sentence, feedback:Boolean
 			):(Array[Parse],(Int,Boolean,Double)=>Any)={
 		assert(sent != null, "Sentence cannot be null")
 		//--Features
@@ -204,51 +208,76 @@ class PrimitivesOnly extends StandardParser{
 }
 
 //------------------------------------------------------------------------------
-// CKY PARSER
-//------------------------------------------------------------------------------
-class CKY extends StandardParser{
-	override def parse(i:Int, sent:Sentence
-			):(Array[Parse],(Int,Boolean,Double)=>Any)={
-		//--Parse
-		val parses:Array[Parse] = new Array[Parse](0)
-		//--Update
-		val update = (index:Int,exact:Boolean,score:Double) => {
-			//TODO update
-		}
-		(parses, update)
-	}
-}
-
-//------------------------------------------------------------------------------
 // SEARCH PARSER
 //------------------------------------------------------------------------------
-class SearchParser extends StandardParser {
+object SearchParser {
+//-----
+// FEATURES
+//-----
+	trait Feature
+	case class UnigramLexFeature(w:Int,lex:Int) extends Feature{
+		override def toString:String 
+			= ""+{if(lex<0) "NIL" else LEX(lex)}+"->"+U.w2str(w)
+	}
+	case class IndicatorRaiseFeature(raise:Int) extends Feature{
+		override def toString:String = "raise"+raise
+	}
 //-----
 // VALUES
 //-----
 	private val TYPE_RAISES = Array[(Symbol,(_ <: PartialParse)=>PartialParse)](
-		//(ground a duration to NOW)
-		('Duration, (d:Duration) => { d(NOW) }:PartialParse),
 		//(ground fn(range,duration) to fn(NOW,duration))
-		('FunctionRangeDuration, 
-			(fn:(Range,Duration)=>Range) => { fn(NOW_RANGE,_:Duration) }:PartialParse)
+//		('FunctionRangeDuration, 
+//			(fn:(Range,Duration)=>Range) => { fn(Range(NOW,NOW),_:Duration) }:PartialParse),
+		//(ground a duration to NOW)
+		('Duration, (d:Duration) => { d(NOW) }:PartialParse)
 	)
 	private val LEX = Array[PartialParse](
 		//(functions)
 		shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd,intersect,cons,
 		//(ranges)
-		SEC,MIN,HOUR,DAY,WEEK,MONTH,YEAR,
+		SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR,
 		//(dow)
-		MON,TUE,WED,THU,FRI,SAT,SUN
+		MON,TUE,WED,THU,FRI,SAT,SUN,
+		//(now)
+		Range(NOW,NOW)
 		)
-	private val NOW_RANGE = Range(NOW,NOW)
+	private val NIL = -1 //LEX index of the NIL term
+	private val LEX_INDEX = LEX.zipWithIndex
+	private val TYPE_RAISES_INDEX = TYPE_RAISES.zipWithIndex
+}
 
+
+class SearchParser extends StandardParser {
+	import SearchParser._
+	import scala.math.{min,max,log => ln,exp}
 //-----
 // BEHAVIOR
 //-----
-	def scoreTransition(s:State,mod:Any):(Double,Double=>Unit) = {
-		(s.cost+1, (finalScore:Double) => {})
+	private val weights:Counter[Feature] = new ClassicCounter[Feature]
+
+	def raiseFeatures(state:State,raiseIndex:Int):Counter[Feature] = {
+		val feats:Counter[Feature] = new ClassicCounter
+		feats.incrementCount(IndicatorRaiseFeature(raiseIndex), 1.0)
+		feats
 	}
+	def lexFeatures(s:Sentence,i:Int,lexIndex:Int):Counter[Feature] = {
+		val feats:Counter[Feature] = new ClassicCounter
+		feats.incrementCount(UnigramLexFeature(s.words(i),lexIndex), 1.0)
+		feats
+	}
+
+	def feedback(feats:Counter[Feature],good:Boolean,score:Double) = {
+		if(good){ 
+			weights.addAll(feats)
+		} else {
+			weights.addAll(Counters.multiplyInPlace(feats,-1.0))
+		}
+	}
+	def prob(feats:Counter[Feature]):Double = {
+		1.0 / (1.0 + exp(-Counters.dotProduct(feats,weights)))
+	}
+
 
 //-----
 // SEARCH STATE
@@ -257,8 +286,8 @@ class SearchParser extends StandardParser {
 			begin:Int,end:Int,
 			parse:PartialParse,
 			leftOf:PartialParse,rightOf:PartialParse,
-			override val cost:Double,
-			updates:List[Double=>Unit],
+			c:Double,
+			updates:List[(Boolean,Double)=>Unit],
 			sent:Sentence)
 				extends SearchState {
 
@@ -272,50 +301,99 @@ class SearchParser extends StandardParser {
 			}
 		}
 
+		override def cost:Double = -c
+
 		override def children:List[State] = {
 			var lst = List[State]()
 			//--CASE: Unary
 			if(begin >= 0 && end >= 0){
-//				TYPE_RAISES.foreach( pair => {
-//					type A = X forSome {type X <: PartialParse}
-//					val (input,fn):(Symbol,A=>PartialParse) = pair
-//					if(parse.typeTag == input){
-//						val (newCost,update) = scoreTransition(this,pair)
-//						State(begin,end,fn(parse),leftOf,rightOf,
-//							newCost,update :: updates,sent)
-//					}
-//				})
+				TYPE_RAISES_INDEX.foreach( tuple => {
+					type A = X forSome {type X <: PartialParse}
+					val ((input,fn),raiseI):((Symbol,A=>PartialParse),Int) = tuple
+					if(parse.typeTag == input){
+						val newCost:Double = c+U.safeLn(prob(raiseFeatures(this,raiseI)))
+						val update = (good:Boolean,d:Double) 
+							=> feedback(raiseFeatures(this,raiseI),good,d)
+						lst = this.copy(
+							parse=fn(parse), c=newCost, updates=update :: updates) :: lst
+					}
+				})
 			}
+
 			//--CASE: Binary
-			if(begin >= 0 && end >= 0){
-			}
+//			if(begin >= 0 && end >= 0){
+//				if(leftOf != null){
+//					if(leftOf.accepts(parse.typeTag)){
+//						val update = (good:Boolean,d:Double) 
+//							=> feedback(applyFeatures(leftOf,parse.typeTag,),good,d)
+//						val newCost:Double =c+U.safeLn(prob(lexFeatures(sent,begin-1,lexI)))
+//						lst = this.copy(leftOf=p, c=newCost, updates=update::updates) :: lst
+//						
+//					}
+//				}
+//			}
+
 			//--CASE: Tokenize
 			if(begin >= 0 && end >= 0){
 				//--Case: Add Token
+				LEX_INDEX.foreach( (pair:(PartialParse,Int)) => {
+					val (p,lexI) = pair
+					//(add to left)
+					if(begin > 0 && leftOf == null){
+						val update = (good:Boolean,d:Double) 
+							=> feedback(lexFeatures(sent,begin-1,lexI),good,d)
+						val newCost:Double =c+U.safeLn(prob(lexFeatures(sent,begin-1,lexI)))
+						lst = this.copy(leftOf=p, c=newCost, updates=update::updates) :: lst
+					}
+					//(add to right)
+					if(end < (sent.length-1) && rightOf == null){
+						val update = (good:Boolean,d:Double) 
+							=> feedback(lexFeatures(sent,end+1,lexI),good,d)
+						val newCost:Double = c+U.safeLn(prob(lexFeatures(sent,end+1,lexI)))
+						lst = this.copy(rightOf=p, c=newCost, updates=update::updates) ::lst
+					}
+				})
 			} else {
 				//--Case: First Token
 				for(index <- 0 to sent.length-1){
-					LEX.foreach( (p:PartialParse) => {
-						val update = (d:Double) => {}:Unit //TODO
-						val newCost:Double = cost + 1.0 //TODO
+					LEX_INDEX.foreach( (pair:(PartialParse,Int)) => {
+						val (p,lexI) = pair
+						val update = (good:Boolean,d:Double) 
+							=> feedback(lexFeatures(sent,index,lexI),good,d)
+						val newCost:Double = c+U.safeLn(prob(lexFeatures(sent,index,lexI)))
 						lst = State(index,index+1,p,leftOf,rightOf,
 							newCost,update :: updates,sent) :: lst
 					})
 				}
 			}
+			//--Case: nil Expand
+			if(leftOf == null && begin > 0){
+				val newCost:Double = c + U.safeLn(prob(lexFeatures(sent,begin-1,NIL)))
+				val update = (good:Boolean,d:Double) 
+					=> feedback(lexFeatures(sent,begin-1,NIL),good,d)
+				lst = this.copy(begin=begin-1,c=newCost, updates=update::updates) :: lst
+			}
+			if(rightOf == null && end < sent.length-1){
+				val newCost:Double = c + U.safeLn(prob(lexFeatures(sent,end+1,NIL)))
+				val update = (good:Boolean,d:Double) 
+					=> feedback(lexFeatures(sent,end+1,NIL),good,d)
+				lst = this.copy(end=end+1, c=newCost, updates=update::updates) :: lst
+			}
+			//--Return
 			lst
 		}
-//		override def isEndState:Boolean = begin == 0 && end == sent.length
 		override def isEndState:Boolean 
-			= parse != null && {parse match {
-				case t:Time => { true }
-				case r:Range => { true }
-				case d:Duration => { true }
-				case fn:(Range=>Range) => { true }
-				case _:Any => {false}
-			}}
+			= begin == 0 && end == sent.length && 
+				parse != null && {parse match {
+					case t:Time => { true }
+					case r:Range => { true }
+					case d:Duration => { true }
+					case fn:(Range=>Range) => { fn.typeTag == 'FunctionRange }
+					case _:Any => {false}
+				}}
 	
 		override def assertDequeueable:Boolean = {
+//			println("Dequeued " + U.sent2str(sent.words) + " ==> " + this)
 			true
 		}
 		override def assertEnqueueable:Boolean = {
@@ -327,36 +405,51 @@ class SearchParser extends StandardParser {
 	}
 	object State {
 		def start(sent:Sentence):State =
-			State(-1,-1,null,null,null,0.0,List[Double=>Unit](),sent)
+			State(-1,-1,null,null,null,0.0,List[(Boolean,Double)=>Unit](),sent)
 	}
 
 
 //-----
 // PARSE
 //-----
+	override def report:Unit = {
+		val weightQueue = Counters.toPriorityQueue(weights)
+		start_track("top weights")
+		for(i <- 1 to min(10,weightQueue.size)){
+			val priority = weightQueue.getPriority
+			logG("" + weightQueue.removeFirst + " -> " + priority)
+		}
+		end_track
+	}
+
 	// -- Parse --
-	override def parse(i:Int, sent:Sentence
+	override def parse(i:Int, sent:Sentence, feedback:Boolean
 			):(Array[Parse],(Int,Boolean,Double)=>Any)={
 		import Search._
 		//--Parse
-		var parseLst:List[Parse] = List[Parse]()
+		var parseLst:List[State] = List[State]()
 		val search:Search[State] = Search(memcap(UNIFORM_COST,200000,0.5))
 		search.search(
 			State.start(sent),
 			(parse:State,iter:Int) => {
-				parseLst = parse.realParse :: parseLst
+				parseLst = parse :: parseLst
 				true
 			},
 			O.maxSearchTime)
-		val parses:Array[Parse] = parseLst.reverse.toArray
-		//--Update
+		val parses:Array[State] = parseLst.reverse.toArray
+		//--Update (perceptron)
 		val update = (index:Int,exact:Boolean,score:Double) => {
-			//TODO update
+			if(exact && index != 0){ //something is right, and 
+				val gold = parses(index)
+				val guess = parses(0)
+				gold.updates.foreach( _(true,score) )
+				guess.updates.foreach( _(false,score) )
+			}
 		}
 		//--Debug
-		log("Parsed " + U.sent2str(sent.words) + " as " + 
-			U.join(parses.slice(0,5), " or "))
-		(parses.reverse.toArray, update)
+		log("Parsed \"" + U.sent2str(sent.words) + "\" as " + 
+			U.join(parses.slice(0,5).map( _.realParse ), " or "))
+		(parses.map( _.realParse ), if(feedback){ update } else { (i,e,s)=>{} } )
 	}
 }
 
