@@ -11,7 +11,7 @@ env!(
 	'java',
 	# Runtime Options
 	o('cp', 
-		"dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
+		"dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
 	o('Xrunhprof:cpu=samples'),
 	o('Xmx500M'),
 	o('server'),

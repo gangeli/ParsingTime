@@ -569,31 +569,30 @@ object Time {
 		return true
 	}
 
-	var interpreter:scala.tools.nsc.Interpreter = null
+	var reader:scala.tools.nsc.interpreter.JLineReader = null
+	var interpreter:scala.tools.nsc.interpreter.IMain = null
 	def interactive = {
-		import scala.tools.nsc.{Interpreter,Settings}
+		import scala.tools.nsc.interpreter.{IMain,JLineReader,JLineCompletion}
+		import scala.tools.nsc.Settings
 		//--Create Interpreter
 		println("Loading interpreter...")
-		if(interpreter == null){
+		if(reader == null){
 			//(objects)
 			val settings = new Settings
 			settings.usejavacp.value = true
-			interpreter = new Interpreter(settings)
+			interpreter = new IMain(settings)
 			//(initialize)
 			interpreter.interpret("import time._")
 			interpreter.interpret("import time.Lex._")
 			interpreter.interpret("import time.Conversions._")
 			interpreter.interpret("val ground = Time(2011,4,26)")
+			reader = new JLineReader(new JLineCompletion(interpreter))
 		}
 		//--Loop
 		var cond = true
 		while(cond){
-			val str = Console.readLine("scala> ")
-			if(str.trim.equalsIgnoreCase("exit")){
-				cond = false
-			} else {
-				interpreter.interpret(str)
-			}
+			val str = reader.readLine("scala> ")
+			interpreter.interpret(str)
 		}
 	}
 

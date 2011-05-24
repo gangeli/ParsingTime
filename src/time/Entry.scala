@@ -337,6 +337,7 @@ class Entry {
 
 object Entry {
 	def main(args:Array[String]):Unit = {
+//		Time.interactive
 		Execution.exec(new Runnable(){
 			override def run:Unit = {
 				(new Entry).init.run
