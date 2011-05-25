@@ -7,42 +7,12 @@ import org.joda.time._
 //------------------------------------------------------------------------------
 // UTILS
 //------------------------------------------------------------------------------
-trait PartialParse {def accepts(s:Symbol):Boolean; def typeTag:Symbol}
 object Conversions {
 	implicit def period2Duration(p:ReadablePeriod):Duration = new Duration(p)
 	implicit def Duration2period(o:Duration):ReadablePeriod = o.toPeriod
 	implicit def instant2long(i:Instant):Long = i.getMillis
 	implicit def long2instant(l:Long):Instant = new Instant(l)
 	implicit def range2duration(r:Range):Duration = (r.end - r.begin)
-
-	implicit def rangePairFxn2PP(fn:(Range,Range)=>Range):PartialParse
-		= new PartialParse with Function1[Range,Range=>Range]{ 
-				override def apply(r:Range) = fn(r,_:Range)
-				override def accepts(s:Symbol):Boolean = s == 'Range
-				override def typeTag:Symbol = 'FunctionRangeRange
-				override def toString:String = "<<rangeRangeFunction>>"
-			}
-	implicit def rangeDurationFxn2PP(fn:(Range,Duration)=>Range):PartialParse
-		= new PartialParse with Function1[Range,Duration=>Range]{ 
-				override def apply(r:Range) = fn(r,_:Duration)
-				override def accepts(s:Symbol):Boolean = s == 'Range
-				override def typeTag:Symbol = 'FunctionRangeDuration
-				override def toString:String = "<<rangeDurationFunction>>"
-			}
-	implicit def rangeFxn2PP(fn:Range=>Range):PartialParse
-		= new PartialParse with Function1[Range,Range]{ 
-				override def apply(r:Range) = fn(r)
-				override def accepts(s:Symbol):Boolean = s == 'Range
-				override def typeTag:Symbol = 'FunctionRange
-				override def toString:String = "<<rangeFunction>>"
-			}
-	implicit def durationFxn2PP(fn:Duration=>Range):PartialParse
-		= new PartialParse with Function1[Duration,Range]{
-				override def apply(d:Duration) = fn(d)
-				override def accepts(s:Symbol):Boolean = s == 'Duration
-				override def typeTag:Symbol = 'FunctionDuration
-				override def toString:String = "<<durationFunction>>"
-			}
 }
 
 class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
@@ -57,7 +27,7 @@ class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
 
 
 // --- RANGE ---
-case class Range(begin:Time, end:Time) extends PartialParse{
+case class Range(begin:Time, end:Time) {
 	def isGrounded:Boolean = begin.isGrounded && end.isGrounded
 
 	def ::(ground:Time=>Time) = new Range(ground :: begin, ground :: end)
@@ -144,8 +114,7 @@ case class Range(begin:Time, end:Time) extends PartialParse{
 }
 
 // --- Duration ---
-class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range) 
-		extends PartialParse{
+class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range) {
 	def this(p:ReadablePeriod) = this(p,null)
 	def isGroundable = groundFn != null
 	def grounding:Time=>Time 
@@ -241,8 +210,7 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range)
 
 
 // --- TIME ---
-case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) 
-		extends PartialParse{
+case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 	def this(base:DateTime,offset:Duration) = this(base, offset, null)
 	def this(base:DateTime) = this(base, null, null)
 	def this(offset:Duration) = this(null, offset, null)

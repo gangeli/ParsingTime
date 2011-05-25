@@ -105,7 +105,19 @@ def grammar
 	nil).border(0.5).cjustify('cc').rjustify('c').cmargin(u(0.5)).rmargin(u(0.5))
 end
 printObj(
-	:obj => grammar.signature(48), 
+	:obj => grammar.signature(49), 
 	:outPrefix => 'grammar')
 #-------------------------------------------------------------------------------
+def test
+	Parse.new("(S (NP (DT the) (NN dog)) (VP (VB is) (NP (JJ red))))").
+		constituency
+end
+printObj(
+	:obj => test.signature(1), 
+	:outPrefix => 'test')
+#-------------------------------------------------------------------------------
 finishFigureSet
+
+
+
+

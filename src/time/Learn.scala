@@ -210,41 +210,142 @@ class PrimitivesOnly extends StandardParser{
 //------------------------------------------------------------------------------
 // SEARCH PARSER
 //------------------------------------------------------------------------------
+case class Tree[A](head:A,children:Array[Tree[A]]) {
+	private def prettyPrintAppend(printer:A=>String,b:StringBuilder):Unit = {
+		b.append("(").append(printer(head))
+		children.foreach( (tree:Tree[A]) => {
+			b.append(" ")
+			tree.prettyPrintAppend(printer,b)
+		})
+		b.append(")")
+	}
+	def prettyPrint(printer:A=>String = _.toString):String = {
+		val b = new StringBuilder
+		prettyPrintAppend(printer,b)
+		b.toString
+	}
+}
+object Head extends Enumeration {
+	type V = Value
+	val Time, Range, Duration, F_RR, F_RD, F_R, F_D, Word = Value
+}
+trait Rule {
+	def apply(arg:Any):Any
+	def apply(arg1:Any, arg2:Any):Any
+	def arity:Int
+	def outType:Head.Value
+	def accepts(a:Head.Value):Boolean
+	def accepts(a:Head.Value,b:Head.Value):Boolean
+	def signature:String = {
+		val children:String = if(arity == 1){
+				val a:Array[Head.Value] = Head.values.filter( v => accepts(v) ).toArray
+				a(0).toString
+			} else {
+				val a:Array[(Head.Value,Head.Value)] = 
+					Head.values.zip(Head.values).filter( 
+						pair => accepts(pair._1,pair._2) ).toArray
+				"" + a(0)._1 + "," + a(0)._2
+			}
+		outType.toString + "->" + children
+	}
+}
+case class UnaryRule(
+		out:Head.Value,
+		in:Head.Value,
+		fn:Any=>Any ) extends Rule {
+	override def apply(arg:Any):Any = fn(arg)
+	override def apply(arg1:Any,arg2:Any) 
+		= throw fail("binary apply to unary rule")
+	def arity:Int = 1
+	def outType:Head.Value = out
+	def accepts(a:Head.Value):Boolean = a == in
+	def accepts(a:Head.Value,b:Head.Value):Boolean = false
+	override def toString:String =
+		""+out+{if(in==Head.Word) "["+this(0)+"]" else ""}+"->"+in
+}
+case class BinaryRule(
+		out:Head.Value,
+		in1:Head.Value,
+		in2:Head.Value,
+		fn:(Any,Any)=>Any) extends Rule {
+	override def apply(arg:Any)
+		= throw fail("unary apply to binary rule")
+	override def apply(arg1:Any,arg2:Any):Any = fn(arg1,arg2)
+	def arity:Int = 2
+	def outType:Head.Value = out
+	def accepts(a:Head.Value):Boolean = false
+	def accepts(a:Head.Value,b:Head.Value):Boolean = (a == in1) && (b == in2)
+	override def toString:String =
+		""+out+"->"+in1+","+in2
+}
+
 object SearchParser {
 //-----
 // FEATURES
 //-----
 	trait Feature
-	case class UnigramLexFeature(w:Int,lex:Int) extends Feature{
+	case class UnigramLexFeature(w:Int,lex:Int) extends Feature {
 		override def toString:String 
-			= ""+{if(lex<0) "NIL" else LEX(lex)}+"->"+U.w2str(w)
+			= ""+{if(lex<0) "NIL_INTRO" else RULES(lex).toString}+"["+U.w2str(w)+"]"
 	}
-	case class IndicatorRaiseFeature(raise:Int) extends Feature{
-		override def toString:String = "raise"+raise
+	case class IndicatorRuleFeature(rule:Int) extends Feature {
+		override def toString:String = RULES(rule).signature
 	}
 //-----
 // VALUES
 //-----
-	private val TYPE_RAISES = Array[(Symbol,(_ <: PartialParse)=>PartialParse)](
-		//(ground fn(range,duration) to fn(NOW,duration))
-//		('FunctionRangeDuration, 
-//			(fn:(Range,Duration)=>Range) => { fn(Range(NOW,NOW),_:Duration) }:PartialParse),
-		//(ground a duration to NOW)
-		('Duration, (d:Duration) => { d(NOW) }:PartialParse)
-	)
-	private val LEX = Array[PartialParse](
-		//(functions)
-		shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd,intersect,cons,
+
+	private val RULES:Array[Rule] = {
+		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
+		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
+			= fn.asInstanceOf[(Any,Any)=>Any]
+		var rtn = List[Rule]()
+
+		//--Lex Terms
+		//(times)
+		val times = List[Time](NOW)
+		rtn = rtn ::: times.map( (t:Time) => 
+			UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)))
 		//(ranges)
-		SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR,
-		//(dow)
-		MON,TUE,WED,THU,FRI,SAT,SUN,
-		//(now)
-		Range(NOW,NOW)
-		)
+		val ranges = List[Range]()
+		rtn = rtn ::: ranges.map( (r:Range) => 
+			UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)))
+		//(durations)
+		val durations = List[Duration](
+			SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR,
+			MON,TUE,WED,THU,FRI,SAT,SUN)
+		rtn = rtn ::: durations.map( (d:Duration) => 
+			UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)))
+
+		//--Type Raises
+		//(range introduction)
+		rtn = UnaryRule(Head.Range, Head.Time, hack( 
+				(t:Time) => Range(t,t)
+			)) :: rtn
+		//(now augmentation)
+		rtn = UnaryRule(Head.F_D, Head.F_RD, hack( 
+				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
+			)) :: rtn
+		//(implicit intersect)
+//		rtn = UnaryRule(Head.F_R, Head.Range, hack(  TODO
+//				(r:Range) => intersect(r,_:Range)
+//			)) :: rtn
+		//(sequence grounding)
+		rtn = UnaryRule(Head.Range, Head.Duration, hack( 
+				(d:Duration) => d(NOW)
+			)) :: rtn
+
+		//--Binary Rules TODO
+//		shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd,intersect,cons,
+
+
+		//--Return
+		rtn.toArray
+	}
+
+
 	private val NIL = -1 //LEX index of the NIL term
-	private val LEX_INDEX = LEX.zipWithIndex
-	private val TYPE_RAISES_INDEX = TYPE_RAISES.zipWithIndex
+	private val RULES_INDEX = RULES.zipWithIndex
 }
 
 
@@ -256,9 +357,9 @@ class SearchParser extends StandardParser {
 //-----
 	private val weights:Counter[Feature] = new ClassicCounter[Feature]
 
-	def raiseFeatures(state:State,raiseIndex:Int):Counter[Feature] = {
+	def ruleFeatures(state:State,ruleIndex:Int):Counter[Feature] = {
 		val feats:Counter[Feature] = new ClassicCounter
-		feats.incrementCount(IndicatorRaiseFeature(raiseIndex), 1.0)
+		feats.incrementCount(IndicatorRuleFeature(ruleIndex), 1.0)
 		feats
 	}
 	def lexFeatures(s:Sentence,i:Int,lexIndex:Int):Counter[Feature] = {
@@ -267,7 +368,7 @@ class SearchParser extends StandardParser {
 		feats
 	}
 
-	def feedback(feats:Counter[Feature],good:Boolean,score:Double) = {
+	def feedback(feats:Counter[Feature],good:Boolean,score:Double):Unit = {
 		if(good){ 
 			weights.addAll(feats)
 		} else {
@@ -284,125 +385,145 @@ class SearchParser extends StandardParser {
 //-----
 	case class State(
 			begin:Int,end:Int,
-			parse:PartialParse,
-			leftOf:PartialParse,rightOf:PartialParse,
+			parse:(Head.Value,Any),
+			leftOf:(Head.Value,Any),rightOf:(Head.Value,Any),
 			c:Double,
 			updates:List[(Boolean,Double)=>Unit],
-			sent:Sentence)
-				extends SearchState {
-
+			sent:Sentence
+				) extends SearchState{
+		
 		def realParse:Parse = {
-			parse match {
-				case t:Time => { Range(t,t) }
-				case r:Range => { r }
-				case d:Duration => { d }
-				case fn:(Range=>Range) => { fn }
-				case _:Any => {throw new SearchException("Invalid parse type")}
+			parse._1 match{
+				case Head.Time => {
+					val t:Time = parse._2.asInstanceOf[Time]
+					Parse(Range(t,t),null,null)
+				}
+				case Head.Range => Parse(parse._2.asInstanceOf[Range],null,null)
+				case Head.Duration => Parse(null,parse._2.asInstanceOf[Duration],null)
+				case Head.F_R => Parse(null,null,parse._2.asInstanceOf[Range=>Range])
+				case _ => throw fail("Invalid end state: " + parse._1)
 			}
 		}
 
-		override def cost:Double = -c
+		override def isEndState = {
+			if(begin <= 0 && end >= sent.length){
+				parse._1 match{
+					case Head.Time => true
+					case Head.Range => true
+					case Head.Duration => true
+					case Head.F_R => true
+					case _ => false
+				}
+			} else {
+				false
+			}
+		}
 
 		override def children:List[State] = {
-			var lst = List[State]()
-			//--CASE: Unary
-			if(begin >= 0 && end >= 0){
-				TYPE_RAISES_INDEX.foreach( tuple => {
-					type A = X forSome {type X <: PartialParse}
-					val ((input,fn),raiseI):((Symbol,A=>PartialParse),Int) = tuple
-					if(parse.typeTag == input){
-						val newCost:Double = c+U.safeLn(prob(raiseFeatures(this,raiseI)))
-						val update = (good:Boolean,d:Double) 
-							=> feedback(raiseFeatures(this,raiseI),good,d)
-						lst = this.copy(
-							parse=fn(parse), c=newCost, updates=update :: updates) :: lst
+			var children = List[State]()
+			val started = parse != null
+			//--Start
+			if(!started){
+				for( index <- 0 until RULES.length ){ //for each rule...
+					val rule:Rule = RULES(index)
+					if(rule.arity == 1 && rule.accepts(Head.Word)){ //..that's lexical
+						for(wordI <- 0 until sent.length){
+							val feats = lexFeatures(sent,wordI,index)
+							val up = feedback(feats,_:Boolean,_:Double)
+							children = State(
+								wordI, wordI+1,
+								(rule.outType, rule(sent(wordI))),
+								null,null,
+								U.safeLn(prob(feats)),
+								List[(Boolean,Double)=>Unit](up),
+								sent) :: children
+						}
 					}
-				})
-			}
-
-			//--CASE: Binary
-//			if(begin >= 0 && end >= 0){
-//				if(leftOf != null){
-//					if(leftOf.accepts(parse.typeTag)){
-//						val update = (good:Boolean,d:Double) 
-//							=> feedback(applyFeatures(leftOf,parse.typeTag,),good,d)
-//						val newCost:Double =c+U.safeLn(prob(lexFeatures(sent,begin-1,lexI)))
-//						lst = this.copy(leftOf=p, c=newCost, updates=update::updates) :: lst
-//						
-//					}
-//				}
-//			}
-
-			//--CASE: Tokenize
-			if(begin >= 0 && end >= 0){
-				//--Case: Add Token
-				LEX_INDEX.foreach( (pair:(PartialParse,Int)) => {
-					val (p,lexI) = pair
-					//(add to left)
-					if(begin > 0 && leftOf == null){
-						val update = (good:Boolean,d:Double) 
-							=> feedback(lexFeatures(sent,begin-1,lexI),good,d)
-						val newCost:Double =c+U.safeLn(prob(lexFeatures(sent,begin-1,lexI)))
-						lst = this.copy(leftOf=p, c=newCost, updates=update::updates) :: lst
-					}
-					//(add to right)
-					if(end < (sent.length-1) && rightOf == null){
-						val update = (good:Boolean,d:Double) 
-							=> feedback(lexFeatures(sent,end+1,lexI),good,d)
-						val newCost:Double = c+U.safeLn(prob(lexFeatures(sent,end+1,lexI)))
-						lst = this.copy(rightOf=p, c=newCost, updates=update::updates) ::lst
-					}
-				})
-			} else {
-				//--Case: First Token
-				for(index <- 0 to sent.length-1){
-					LEX_INDEX.foreach( (pair:(PartialParse,Int)) => {
-						val (p,lexI) = pair
-						val update = (good:Boolean,d:Double) 
-							=> feedback(lexFeatures(sent,index,lexI),good,d)
-						val newCost:Double = c+U.safeLn(prob(lexFeatures(sent,index,lexI)))
-						lst = State(index,index+1,p,leftOf,rightOf,
-							newCost,update :: updates,sent) :: lst
-					})
 				}
 			}
-			//--Case: nil Expand
-			if(leftOf == null && begin > 0){
-				val newCost:Double = c + U.safeLn(prob(lexFeatures(sent,begin-1,NIL)))
-				val update = (good:Boolean,d:Double) 
-					=> feedback(lexFeatures(sent,begin-1,NIL),good,d)
-				lst = this.copy(begin=begin-1,c=newCost, updates=update::updates) :: lst
+			//--Tag
+			//(tag left)
+			if(started && begin > 0 && leftOf == null){
+				for( index <- 0 until RULES.length ){
+					val rule:Rule = RULES(index)
+					if(rule.arity == 1 && rule.accepts(Head.Word)){
+						//(add rule)
+						val feats = lexFeatures(sent,begin-1,index)
+						val up = feedback(feats,_:Boolean,_:Double)
+						children = this.copy(
+							leftOf=(rule.outType, rule(sent(begin-1))), 
+							c=c+U.safeLn(prob(feats)),
+							updates=up::updates
+							) :: children
+					}
+				}
 			}
-			if(rightOf == null && end < sent.length-1){
-				val newCost:Double = c + U.safeLn(prob(lexFeatures(sent,end+1,NIL)))
-				val update = (good:Boolean,d:Double) 
-					=> feedback(lexFeatures(sent,end+1,NIL),good,d)
-				lst = this.copy(end=end+1, c=newCost, updates=update::updates) :: lst
+			//(tag right)
+			if(started && end < sent.length-1 && rightOf == null){
+				for( index <- 0 until RULES.length ){
+					val rule:Rule = RULES(index)
+					if(rule.arity == 1 && rule.accepts(Head.Word)){
+						//(add rule)
+						val feats = lexFeatures(sent,end+1,index)
+						val up = feedback(feats,_:Boolean,_:Double)
+						children = this.copy(
+							rightOf=(rule.outType, rule(sent(end+1))), 
+							c=c+U.safeLn(prob(feats)),
+							updates=up::updates
+							) :: children
+					}
+				}
+			}
+			//--Rules
+			if(started){
+				for( index <- 0 until RULES.length ){
+					val rule:Rule = RULES(index)
+					if( rule.arity == 1 && rule.accepts(parse._1) ){
+						val feats = ruleFeatures(this,index)
+						val up = feedback(feats,_:Boolean,_:Double)
+						children = this.copy(
+								parse=(rule.outType,rule(parse._2)),
+								c=c+U.safeLn(prob(feats)),
+								updates=up::updates
+								) :: children
+					}else if(rule.arity == 2){
+						throw fail("Implement Me") //TODO
+					} else if(rule.arity > 2 || rule.arity < 1){
+						throw fail("Arity > 2 rule")
+					}
+				}
+			}
+			//--Nil Introduction
+			if(started && leftOf == null && begin > 0){
+				val feats = lexFeatures(sent,begin-1,NIL)
+				val up = feedback(feats,_:Boolean,_:Double)
+				this.copy(
+					begin=begin-1,
+					c=c+U.safeLn(prob(feats)),
+					updates=up::updates
+					) :: children
+			}
+			if(started && rightOf == null && end < sent.length-1){
+				val feats = lexFeatures(sent,end+1,NIL)
+				val up = feedback(feats,_:Boolean,_:Double)
+				this.copy(
+					end=end+1,
+					c=c+U.safeLn(prob(feats)),
+					updates=up::updates
+					) :: children
 			}
 			//--Return
-			lst
+			children
 		}
-		override def isEndState:Boolean 
-			= begin == 0 && end == sent.length && 
-				parse != null && {parse match {
-					case t:Time => { true }
-					case r:Range => { true }
-					case d:Duration => { true }
-					case fn:(Range=>Range) => { fn.typeTag == 'FunctionRange }
-					case _:Any => {false}
-				}}
-	
-		override def assertDequeueable:Boolean = {
-//			println("Dequeued " + U.sent2str(sent.words) + " ==> " + this)
-			true
-		}
+		override def cost:Double = -c
+		override def assertDequeueable:Boolean = true
 		override def assertEnqueueable:Boolean = {
 			true
 		}
-		
 		override def toString:String 
-			= ""+parse+"["+begin+","+end+"):"+G.df.format(cost)
+			= ""+G.df.format(cost)+" ["+begin+"-"+end+")("+parse._1+")"+parse._2
 	}
+	
 	object State {
 		def start(sent:Sentence):State =
 			State(-1,-1,null,null,null,0.0,List[(Boolean,Double)=>Unit](),sent)
@@ -447,7 +568,7 @@ class SearchParser extends StandardParser {
 			}
 		}
 		//--Debug
-		log("Parsed \"" + U.sent2str(sent.words) + "\" as " + 
+		log("Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
 			U.join(parses.slice(0,5).map( _.realParse ), " or "))
 		(parses.map( _.realParse ), if(feedback){ update } else { (i,e,s)=>{} } )
 	}

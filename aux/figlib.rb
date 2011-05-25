@@ -135,6 +135,7 @@ class Parse
 		tree
 		overlay(tree, *edges.map{ |pair| synedge(*pair) })
 	end
+
 	#-----
 	# OVERHEAD
 	#-----
