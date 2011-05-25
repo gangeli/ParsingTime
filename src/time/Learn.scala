@@ -1,5 +1,7 @@
 package time
 
+import scala.collection.JavaConversions._
+
 import Lex._
 import Conversions._
 import ParseConversions._
@@ -286,7 +288,8 @@ object SearchParser {
 	trait Feature
 	case class UnigramLexFeature(w:Int,lex:Int) extends Feature {
 		override def toString:String 
-			= ""+{if(lex<0) "NIL_INTRO" else RULES(lex).toString}+"["+U.w2str(w)+"]"
+			= ""+{if(lex<0) "NIL_INTRO" else RULES(lex).toString}+"["+U.w2str(w)+"]"+
+				":("+lex+","+w+")"
 	}
 	case class IndicatorRuleFeature(rule:Int) extends Feature {
 		override def toString:String = RULES(rule).signature
@@ -370,9 +373,15 @@ class SearchParser extends StandardParser {
 
 	def feedback(feats:Counter[Feature],good:Boolean,score:Double):Unit = {
 		if(good){ 
+			println(feats)
 			weights.addAll(feats)
 		} else {
-			weights.addAll(Counters.multiplyInPlace(feats,-1.0))
+			val negCounts:Counter[Feature] = new ClassicCounter[Feature]
+			feats.keySet.foreach( (f:Feature) => {
+				negCounts.incrementCount(f,-1.0*feats.getCount(f))
+			})
+			weights.addAll(negCounts)
+			print("NEG>>"); println(negCounts)
 		}
 	}
 	def prob(feats:Counter[Feature]):Double = {
@@ -560,9 +569,10 @@ class SearchParser extends StandardParser {
 		val parses:Array[State] = parseLst.reverse.toArray
 		//--Update (perceptron)
 		val update = (index:Int,exact:Boolean,score:Double) => {
-			if(exact && index != 0){ //something is right, and 
+			if(exact && index != 0){ //something is right, and not gotten yet
 				val gold = parses(index)
 				val guess = parses(0)
+//				println("Missed: " + gold + "\n  (guess: " + guess +")")
 				gold.updates.foreach( _(true,score) )
 				guess.updates.foreach( _(false,score) )
 			}
