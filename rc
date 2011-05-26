@@ -1,0 +1,10 @@
+#!/bin/bash
+
+#-----
+# View a file from the last run
+#-----
+function v {
+	file=$1
+	last=`ls out | sort -nr | head -n 1`
+	vim out/$last/$file
+}

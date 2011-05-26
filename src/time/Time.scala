@@ -262,7 +262,13 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		val added = if(isGrounded){
 			//(case: adding to grounded time)
 			assert(offset == null, "Offset should be null")
-			new Time(base.plus(diff),offset,modifiers)
+			if(base.getMillis > Long.MaxValue-diff.seconds*1000){
+				//((overflow))
+				new Time(new DateTime(Long.MaxValue),offset,modifiers)
+			} else {
+				//((normal))
+				new Time(base.plus(diff),offset,modifiers)
+			}
 		}else if(offset != null){
 			//(case: adding to existing offset)
 			new Time(base, offset+diff, modifiers)
@@ -300,7 +306,13 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		val subtracted = if(isGrounded){
 			//(case: subtracting grounded times)
 			assert(offset == null, "Offset should be null for grounded time")
-			new Time(base.minus(diff),offset,modifiers)
+			if(base.getMillis < Long.MinValue+diff.seconds*1000){
+				//((underflow))
+				new Time(new DateTime(Long.MinValue),offset,modifiers)
+			} else {
+				//((normal))
+				new Time(base.minus(diff),offset,modifiers)
+			}
 		}else if(offset != null){
 			//(case: existing offset)
 			new Time(base, offset-diff, modifiers)

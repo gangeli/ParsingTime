@@ -11,7 +11,7 @@ env!(
 	'java',
 	# Runtime Options
 	o('cp', 
-		"dist/test.jar:dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar:etc/scalatest.jar"),
+		"dist/test.jar:dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar:etc/scalatest.jar"),
 	o('Xmx500M'),
 	o('server'),
 	o('ea'),

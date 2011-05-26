@@ -23,6 +23,7 @@ env!(
 		selo(0, 'parser', 'SearchParser', 'CKY', 'PrimitivesOnly', 'ItsAlwaysFriday'),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
+		o('beam', 10000),
 		# -- EVALUATION --
 		o('exactMatchThreshold', 60*60*24), # a day
 		o('scoreGranularity', 60*60*24), # a day

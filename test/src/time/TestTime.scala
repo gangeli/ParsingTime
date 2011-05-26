@@ -37,6 +37,12 @@ class RepresentationSpec extends Spec with ShouldMatchers{
 			evaluating { Time(2012,12,31,0,0,60) 
 				} should produce [IllegalFieldValueException]
 		}
+		it("should handle limit cases"){
+			Time.DAWN_OF - DAY  should be (Time.DAWN_OF)
+			Time.END_OF + DAY  should be (Time.END_OF)
+			Time.DAWN_OF - SEC  should be (Time.DAWN_OF)
+			Time.END_OF + SEC  should be (Time.END_OF)
+		}
 		it("should have equality hold"){
 			assert(Time(2012) == Time(2012))
 			assert(Time(2010) != Time(2012))

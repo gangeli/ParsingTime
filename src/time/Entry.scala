@@ -109,11 +109,20 @@ object Score {
 }
 
 class Score {
+	case class Result(sent:Sentence,guess:Parse,gold:Any,exact:Boolean) {
+		override def toString:String = {
+			"" + {if(exact) "HIT  " else if(guess != null) "MISS " else "FAIL "} +
+			sent + " as " + 
+			{if(guess != null) guess else "<fail>"} + 
+			" <gold " + gold + ">"
+		}
+	}
 	private var exactRight:Int = 0
 	private var total:Int = 0
 	private var sumPos = 0
 	private var totalWithPos = 0
 	private var goldMinusGuess = List[(Double,Double)]()
+	private var resultList:List[Result] = List[Result]()
 	def enter(exact:Boolean,diff:(Duration,Duration), position:Int) = {
 		//(score exact)
 		if(exact){ exactRight += 1 }
@@ -127,6 +136,9 @@ class Score {
 			sumPos += position
 			totalWithPos += 1
 		}
+	}
+	def store(sent:Sentence,guess:Parse,gold:Any,exact:Boolean) = {
+		resultList = Result(sent,guess,gold,exact) :: resultList
 	}
 	def accuracy:Double 
 		= exactRight.asInstanceOf[Double]/total.asInstanceOf[Double]
@@ -145,6 +157,7 @@ class Score {
 			})
 		sum / goldMinusGuess.length.asInstanceOf[Double]
 	}
+	def results:Array[Result] = resultList.reverse.toArray
 	override def toString:String = {
 		"accuracy: "+G.df.format(accuracy)+"; average pos: "+G.df.format(avePos)+
 			" (in " + G.pf.format((percentParsable*100)) + "%); score: "+
@@ -167,6 +180,8 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		val score:Score = new Score
 		timexes.foreach( (t:Timex) => {
 			val (parses,feedback) = fn(Sentence(t.words,t.pos))
+			val placeOneParse = 
+				if(parses != null && parses.length > 0) parses(0) else null
 			val gold = t.gold
 			//--Score Parses
 			val scored:Array[(Int,Boolean,(Duration,Duration))] 
@@ -207,11 +222,13 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 				val (bestIndex,bestExact,bestRange) = scored(0)
 				//--Record Score
 				score.enter(topExact,topRange, if(bestExact) bestIndex else -1)
+				score.store(Sentence(t.words,t.pos),placeOneParse,gold,topExact)
 				//--Feedback
 				feedback(bestIndex,bestExact,Score.score(bestRange))
 			} else {
 				//--Record Miss
 				score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
+				score.store(Sentence(t.words,t.pos),placeOneParse,gold,false)
 			}
 		})
 		//--Return
@@ -329,8 +346,22 @@ class Entry {
 		logG(s+".inbeam: "+ testScore.percentParsable)
 		logG(s+".score: "+ testScore.aveScore())
 		end_track
-		
 		end_track
+		//--Debug dump
+		log("saving parses")
+		trainScores.zipWithIndex.foreach( pair => {
+			val (score,i) = pair
+			val writer = new java.io.FileWriter(Execution.touch("train"+i))
+			score.results.foreach( r => {
+				writer.write(r.toString); writer.write("\n")
+			})
+			writer.close
+		})
+		val writer = new java.io.FileWriter(Execution.touch(s))
+		testScore.results.foreach( r => {
+			writer.write(r.toString); writer.write("\n")
+		})
+		writer.close
 		this
 	}
 }
@@ -338,6 +369,7 @@ class Entry {
 object Entry {
 	def main(args:Array[String]):Unit = {
 //		Time.interactive
+//		SearchParser.interactive
 		Execution.exec(new Runnable(){
 			override def run:Unit = {
 				(new Entry).init.run

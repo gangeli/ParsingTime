@@ -7,6 +7,7 @@ import Conversions._
 import ParseConversions._
 
 import org.goobs.exec.Log._
+import org.goobs.exec.Execution
 
 import edu.stanford.nlp.stats.ClassicCounter;
 import edu.stanford.nlp.stats.Counter;
@@ -32,6 +33,7 @@ case class Sentence(words:Array[Int],pos:Array[Int]) {
 	def apply(i:Int) = words(i)
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
 	def length:Int = words.length
+	override def toString:String = U.sent2str(words)
 }
 
 //-----
@@ -243,10 +245,15 @@ trait Rule {
 				val a:Array[Head.Value] = Head.values.filter( v => accepts(v) ).toArray
 				a(0).toString
 			} else {
-				val a:Array[(Head.Value,Head.Value)] = 
-					Head.values.zip(Head.values).filter( 
-						pair => accepts(pair._1,pair._2) ).toArray
-				"" + a(0)._1 + "," + a(0)._2
+				var str = "<unknown>"
+				Head.values.foreach( v1 => {
+					Head.values.foreach( v2 => {
+						if(accepts(v1,v2)){
+							str = "" + v1 + "," + v2
+						}
+					})
+				})
+				str
 			}
 		outType.toString + "->" + children
 	}
@@ -283,6 +290,16 @@ case class BinaryRule(
 
 object SearchParser {
 //-----
+// INTERACTIVE
+//-----
+	def interactive:Unit = {
+		var cont:Boolean = true
+		while(cont){
+			val line = Console.readLine("search> ")
+			println(line)
+		}
+	}
+//-----
 // FEATURES
 //-----
 	trait Feature
@@ -314,9 +331,11 @@ object SearchParser {
 		rtn = rtn ::: ranges.map( (r:Range) => 
 			UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)))
 		//(durations)
-		val durations = List[Duration](
-			SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR,
-			MON,TUE,WED,THU,FRI,SAT,SUN)
+		val durations = 
+			List[Duration](SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR) :::
+			(1 to 7).map( i => DOW(i) ).toList :::
+			(1 to 12).map( i => MOY(i) ).toList :::
+			(1 to 4).map( i => QOY(i) ).toList
 		rtn = rtn ::: durations.map( (d:Duration) => 
 			UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)))
 
@@ -330,17 +349,59 @@ object SearchParser {
 				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
 			)) :: rtn
 		//(implicit intersect)
-//		rtn = UnaryRule(Head.F_R, Head.Range, hack(  TODO
-//				(r:Range) => intersect(r,_:Range)
-//			)) :: rtn
+		rtn = UnaryRule(Head.F_R, Head.Range, hack(
+				(r:Range) => intersect(r,_:Range)
+			)) :: rtn
 		//(sequence grounding)
 		rtn = UnaryRule(Head.Range, Head.Duration, hack( 
 				(d:Duration) => d(NOW)
 			)) :: rtn
 
-		//--Binary Rules TODO
-//		shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd,intersect,cons,
+		//--F[ Range, Duration ]
+		val rangeDurationFn = List[(Range,Duration)=>Range](
+			shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd)
+		//(intro)
+		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
+			UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn)))
+		//(right apply)
+		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
+				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+				)))
+		//(left apply)
+		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
+				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+				)))
 
+		//--F[ Range, Range ]
+		val rangeRangeFn = List[(Range,Range)=>Range](
+			intersect,cons)
+		//(intro)
+		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) =>  //intro
+			UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn)))
+		//(right apply)
+		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
+				(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
+				)))
+		//(left apply)
+		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
+				(r:Range,fn:(Range,Range)=>Range) => fn(r,_:Range)
+				)))
+
+		//--F[ Range ]
+		rtn = rtn ::: List[BinaryRule](
+			//(right apply)
+			BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
+				(fn:Range=>Range,r:Range) => fn(r)
+				)),
+			//(left apply)
+			BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
+				(r:Range,fn:Range=>Range) => fn(r)
+				))
+			)
 
 		//--Return
 		rtn.toArray
@@ -373,7 +434,7 @@ class SearchParser extends StandardParser {
 
 	def feedback(feats:Counter[Feature],good:Boolean,score:Double):Unit = {
 		if(good){ 
-			println(feats)
+//			println(feats)
 			weights.addAll(feats)
 		} else {
 			val negCounts:Counter[Feature] = new ClassicCounter[Feature]
@@ -381,11 +442,12 @@ class SearchParser extends StandardParser {
 				negCounts.incrementCount(f,-1.0*feats.getCount(f))
 			})
 			weights.addAll(negCounts)
-			print("NEG>>"); println(negCounts)
+//			print("NEG>>"); println(negCounts)
 		}
 	}
-	def prob(feats:Counter[Feature]):Double = {
-		1.0 / (1.0 + exp(-Counters.dotProduct(feats,weights)))
+	def score(feats:Counter[Feature]):Double = {
+//		-U.safeLn(1.0 / (1.0 + exp(-Counters.dotProduct(feats,weights))))
+		-Counters.dotProduct(feats,weights)
 	}
 
 
@@ -399,7 +461,7 @@ class SearchParser extends StandardParser {
 			c:Double,
 			updates:List[(Boolean,Double)=>Unit],
 			sent:Sentence
-				) extends SearchState{
+				) extends SearchState with Ordered[State]{
 		
 		def realParse:Parse = {
 			parse._1 match{
@@ -443,7 +505,7 @@ class SearchParser extends StandardParser {
 								wordI, wordI+1,
 								(rule.outType, rule(sent(wordI))),
 								null,null,
-								U.safeLn(prob(feats)),
+								score(feats),
 								List[(Boolean,Double)=>Unit](up),
 								sent) :: children
 						}
@@ -461,7 +523,7 @@ class SearchParser extends StandardParser {
 						val up = feedback(feats,_:Boolean,_:Double)
 						children = this.copy(
 							leftOf=(rule.outType, rule(sent(begin-1))), 
-							c=c+U.safeLn(prob(feats)),
+							c=c+score(feats),
 							updates=up::updates
 							) :: children
 					}
@@ -477,7 +539,7 @@ class SearchParser extends StandardParser {
 						val up = feedback(feats,_:Boolean,_:Double)
 						children = this.copy(
 							rightOf=(rule.outType, rule(sent(end+1))), 
-							c=c+U.safeLn(prob(feats)),
+							c=c+score(feats),
 							updates=up::updates
 							) :: children
 					}
@@ -488,16 +550,50 @@ class SearchParser extends StandardParser {
 				for( index <- 0 until RULES.length ){
 					val rule:Rule = RULES(index)
 					if( rule.arity == 1 && rule.accepts(parse._1) ){
+						//(type raise)
 						val feats = ruleFeatures(this,index)
 						val up = feedback(feats,_:Boolean,_:Double)
 						children = this.copy(
 								parse=(rule.outType,rule(parse._2)),
-								c=c+U.safeLn(prob(feats)),
+								c=c+score(feats),
 								updates=up::updates
 								) :: children
 					}else if(rule.arity == 2){
-						throw fail("Implement Me") //TODO
+						assert(begin>0 || leftOf==null, "moved too far left")
+						assert(end< sent.length || rightOf==null, "moved too far right")
+						val (parseType, parseValue) = parse
+						//(left apply)
+						if(leftOf != null){
+							val (nodeType, nodeValue) = leftOf
+							if(rule.accepts(nodeType, parseType)){
+								val feats = ruleFeatures(this,index)
+								val up = feedback(feats,_:Boolean,_:Double)
+								children = this.copy(
+										parse=(rule.outType,rule(nodeValue, parseValue)),
+										c=c+score(feats),
+										updates=up::updates,
+										leftOf=null,
+										begin=begin-1
+										) :: children
+							}
+						}
+						//(right apply)
+						if(rightOf != null){
+							val (nodeType, nodeValue) = rightOf
+							if(rule.accepts(parseType, nodeType)){
+								val feats = ruleFeatures(this,index)
+								val up = feedback(feats,_:Boolean,_:Double)
+								children = this.copy(
+										parse=(rule.outType,rule(parseValue, nodeValue)),
+										c=c+score(feats),
+										updates=up::updates,
+										rightOf=null,
+										end=end+1
+										) :: children
+							}
+						}
 					} else if(rule.arity > 2 || rule.arity < 1){
+						//(strange rule...)
 						throw fail("Arity > 2 rule")
 					}
 				}
@@ -506,36 +602,48 @@ class SearchParser extends StandardParser {
 			if(started && leftOf == null && begin > 0){
 				val feats = lexFeatures(sent,begin-1,NIL)
 				val up = feedback(feats,_:Boolean,_:Double)
-				this.copy(
+				children = this.copy(
 					begin=begin-1,
-					c=c+U.safeLn(prob(feats)),
+					c=c+score(feats),
 					updates=up::updates
 					) :: children
 			}
 			if(started && rightOf == null && end < sent.length-1){
 				val feats = lexFeatures(sent,end+1,NIL)
 				val up = feedback(feats,_:Boolean,_:Double)
-				this.copy(
+				children = this.copy(
 					end=end+1,
-					c=c+U.safeLn(prob(feats)),
+					c=c+score(feats),
 					updates=up::updates
 					) :: children
 			}
 			//--Return
 			children
 		}
-		override def cost:Double = -c
-		override def assertDequeueable:Boolean = true
+		override def cost:Double = c
+		override def assertDequeueable:Boolean = {
+			true
+		}
 		override def assertEnqueueable:Boolean = {
 			true
 		}
-		override def toString:String 
-			= ""+G.df.format(cost)+" ["+begin+"-"+end+")("+parse._1+")"+parse._2
+		override def compare(s:State) = {
+			if(this.cost > s.cost){        1 }
+			else if(this.cost < s.cost){  -1 }
+			else{                          0 }
+		}
+		override def toString:String = {
+			if(parse == null){
+				"START"
+			} else {
+				""+G.df.format(cost)+" ["+begin+"-"+end+")("+parse._1+")"+parse._2
+			}
+		}
 	}
 	
 	object State {
 		def start(sent:Sentence):State =
-			State(-1,-1,null,null,null,0.0,List[(Boolean,Double)=>Unit](),sent)
+			State(-1,-1,null,null,(null,null),0.0,List[(Boolean,Double)=>Unit](),sent)
 	}
 
 
@@ -544,12 +652,24 @@ class SearchParser extends StandardParser {
 //-----
 	override def report:Unit = {
 		val weightQueue = Counters.toPriorityQueue(weights)
+		val writer = new java.io.FileWriter(Execution.touch("weights"))
+		//--Print+File
 		start_track("top weights")
 		for(i <- 1 to min(10,weightQueue.size)){
 			val priority = weightQueue.getPriority
-			logG("" + weightQueue.removeFirst + " -> " + priority)
+			val msg = "["+priority+"] " + weightQueue.removeFirst
+			logG(msg)
+			writer.write(msg); writer.write("\n")
+		}
+		//--File
+		logG("" + weightQueue.size + " more...")
+		for(i <- 1 to weightQueue.size){
+			val priority = weightQueue.getPriority
+			val msg = "["+priority+"] " + weightQueue.removeFirst
+			writer.write(msg); writer.write("\n")
 		}
 		end_track
+		writer.close
 	}
 
 	// -- Parse --
@@ -558,7 +678,7 @@ class SearchParser extends StandardParser {
 		import Search._
 		//--Parse
 		var parseLst:List[State] = List[State]()
-		val search:Search[State] = Search(memcap(UNIFORM_COST,200000,0.5))
+		val search:Search[State] = Search(memcap(UNIFORM_COST,O.beam*2,0.5))
 		search.search(
 			State.start(sent),
 			(parse:State,iter:Int) => {
@@ -566,27 +686,23 @@ class SearchParser extends StandardParser {
 				true
 			},
 			O.maxSearchTime)
-		val parses:Array[State] = parseLst.reverse.toArray
+		val parses:Array[State] = parseLst.sortWith(_<_).toArray
 		//--Update (perceptron)
 		val update = (index:Int,exact:Boolean,score:Double) => {
 			if(exact && index != 0){ //something is right, and not gotten yet
 				val gold = parses(index)
 				val guess = parses(0)
-//				println("Missed: " + gold + "\n  (guess: " + guess +")")
 				gold.updates.foreach( _(true,score) )
 				guess.updates.foreach( _(false,score) )
 			}
 		}
 		//--Debug
 		log("Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
-			U.join(parses.slice(0,5).map( _.realParse ), " or "))
+			U.join(
+				parses.slice(0,1).map(
+					p => ""+p.realParse+"["+G.df.format(p.cost)+"]"), " or "))
 		(parses.map( _.realParse ), if(feedback){ update } else { (i,e,s)=>{} } )
 	}
 }
-
-
-
-
-
 
 
