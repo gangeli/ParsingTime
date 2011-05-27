@@ -20,7 +20,11 @@ env!(
 
 	run(
 		# -- LEARNING --
-		selo(0, 'parser', 'SearchParser', 'CKY', 'PrimitivesOnly', 'ItsAlwaysFriday'),
+		selo(0, 'parser', 
+			'CKYParser', 
+			'SearchParser', 
+			'PrimitivesOnly', 
+			'ItsAlwaysFriday'),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
 		o('beam', 10000),
@@ -34,9 +38,9 @@ env!(
 		o('train', '1-11'),
 		o('dev', '101-111'),
 		o('test', '151-152'),
-		o('train', '1-101'),
-		o('dev', '101-151'),
-		o('test', '151-187'),
+#		o('train', '1-101'),
+#		o('dev', '101-151'),
+#		o('test', '151-187'),
 		o('devTest', true),
 
 		# -- BOOTSTRAPING --

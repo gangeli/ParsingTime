@@ -38,7 +38,7 @@ class RepresentationSpec extends Spec with ShouldMatchers{
 				} should produce [IllegalFieldValueException]
 		}
 		it("should handle limit cases"){
-			Time.DAWN_OF - DAY  should be (Time.DAWN_OF)
+			Time.DAWN_OF - DAY should be (Time.DAWN_OF)
 			Time.END_OF + DAY  should be (Time.END_OF)
 			Time.DAWN_OF - SEC  should be (Time.DAWN_OF)
 			Time.END_OF + SEC  should be (Time.END_OF)

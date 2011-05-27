@@ -13,6 +13,172 @@ import edu.stanford.nlp.stats.ClassicCounter;
 import edu.stanford.nlp.stats.Counter;
 import edu.stanford.nlp.stats.Counters;
 
+
+//------------------------------------------------------------------------------
+// GRAMMAR
+//------------------------------------------------------------------------------
+object Head extends Enumeration {
+	type V = Value
+	val ROOT, Time, Range, Duration, F_RR, F_RD, F_R, F_D, Word = Value
+}
+trait Rule {
+	def apply(arg:Any):Any
+	def apply(arg1:Any, arg2:Any):Any
+	def arity:Int
+	def outType:Head.Value
+	def accepts(a:Head.Value):Boolean
+	def accepts(a:Head.Value,b:Head.Value):Boolean
+	def signature:String = {
+		val children:String = if(arity == 1){
+				val a:Array[Head.Value] = Head.values.filter( v => accepts(v) ).toArray
+				a(0).toString
+			} else {
+				var str = "<unknown>"
+				Head.values.foreach( v1 => {
+					Head.values.foreach( v2 => {
+						if(accepts(v1,v2)){
+							str = "" + v1 + "," + v2
+						}
+					})
+				})
+				str
+			}
+		outType.toString + "->" + children
+	}
+}
+case class UnaryRule(
+		out:Head.Value,
+		in:Head.Value,
+		fn:Any=>Any ) extends Rule {
+	override def apply(arg:Any):Any = fn(arg)
+	override def apply(arg1:Any,arg2:Any) 
+		= throw fail("binary apply to unary rule")
+	def arity:Int = 1
+	def outType:Head.Value = out
+	def accepts(a:Head.Value):Boolean = a == in
+	def accepts(a:Head.Value,b:Head.Value):Boolean = false
+	override def toString:String =
+		""+out+{if(in==Head.Word) "["+this(0)+"]" else ""}+"->"+in
+}
+case class BinaryRule(
+		out:Head.Value,
+		in1:Head.Value,
+		in2:Head.Value,
+		fn:(Any,Any)=>Any) extends Rule {
+	override def apply(arg:Any)
+		= throw fail("unary apply to binary rule")
+	override def apply(arg1:Any,arg2:Any):Any = fn(arg1,arg2)
+	def arity:Int = 2
+	def outType:Head.Value = out
+	def accepts(a:Head.Value):Boolean = false
+	def accepts(a:Head.Value,b:Head.Value):Boolean = (a == in1) && (b == in2)
+	override def toString:String =
+		""+out+"->"+in1+","+in2
+}
+
+object Grammar {
+	private val RULES:Array[Rule] = {
+		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
+		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
+			= fn.asInstanceOf[(Any,Any)=>Any]
+		var rtn = List[Rule]()
+
+		//--Lex Terms
+		//(times)
+		val times = List[Time](NOW)
+		rtn = rtn ::: times.map( (t:Time) => 
+			UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)))
+		//(ranges)
+		val ranges = List[Range]()
+		rtn = rtn ::: ranges.map( (r:Range) => 
+			UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)))
+		//(durations)
+		val durations = 
+			List[Duration](SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR) :::
+			(1 to 7).map( i => DOW(i) ).toList :::
+			(1 to 12).map( i => MOY(i) ).toList :::
+			(1 to 4).map( i => QOY(i) ).toList
+		rtn = rtn ::: durations.map( (d:Duration) => 
+			UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)))
+
+		//--Type Raises
+		//(range introduction)
+		rtn = UnaryRule(Head.Range, Head.Time, hack( 
+				(t:Time) => Range(t,t)
+			)) :: rtn
+		//(now augmentation)
+		rtn = UnaryRule(Head.F_D, Head.F_RD, hack( 
+				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
+			)) :: rtn
+		//(implicit intersect)
+		rtn = UnaryRule(Head.F_R, Head.Range, hack(
+				(r:Range) => intersect(r,_:Range)
+			)) :: rtn
+		//(sequence grounding)
+		rtn = UnaryRule(Head.Range, Head.Duration, hack( 
+				(d:Duration) => d(NOW)
+			)) :: rtn
+
+		//--F[ Range, Duration ]
+		val rangeDurationFn = List[(Range,Duration)=>Range](
+			shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd)
+		//(intro)
+		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
+			UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn)))
+		//(right apply)
+		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
+				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+				)))
+		//(left apply)
+		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
+				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+				)))
+
+		//--F[ Range, Range ]
+		val rangeRangeFn = List[(Range,Range)=>Range](
+			intersect,cons)
+		//(intro)
+		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) =>  //intro
+			UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn)))
+		//(right apply)
+		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
+				(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
+				)))
+		//(left apply)
+		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
+			BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
+				(r:Range,fn:(Range,Range)=>Range) => fn(r,_:Range)
+				)))
+
+		//--F[ Range ]
+		rtn = rtn ::: List[BinaryRule](
+			//(right apply)
+			BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
+				(fn:Range=>Range,r:Range) => fn(r)
+				)),
+			//(left apply)
+			BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
+				(r:Range,fn:Range=>Range) => fn(r)
+				))
+			)
+
+		//-ROOT
+		rtn = rtn ::: List[UnaryRule](
+			UnaryRule(Head.ROOT, Head.Time, hack((t:Time) => t)),
+			UnaryRule(Head.ROOT, Head.Range, hack((r:Range) => r)),
+			UnaryRule(Head.ROOT, Head.Duration, hack((d:Duration) => d)),
+			UnaryRule(Head.ROOT, Head.F_R, hack((fn:Range=>Range) => fn))
+			)
+		//--Return
+		rtn.toArray
+	}
+
+	private val NIL = -1 //LEX index of the NIL term
+}
+
 //------------------------------------------------------------------------------
 // PARSER
 //------------------------------------------------------------------------------
@@ -236,66 +402,9 @@ case class Tree[A](head:A,children:Array[Tree[A]]) {
 		b.toString
 	}
 }
-object Head extends Enumeration {
-	type V = Value
-	val Time, Range, Duration, F_RR, F_RD, F_R, F_D, Word = Value
-}
-trait Rule {
-	def apply(arg:Any):Any
-	def apply(arg1:Any, arg2:Any):Any
-	def arity:Int
-	def outType:Head.Value
-	def accepts(a:Head.Value):Boolean
-	def accepts(a:Head.Value,b:Head.Value):Boolean
-	def signature:String = {
-		val children:String = if(arity == 1){
-				val a:Array[Head.Value] = Head.values.filter( v => accepts(v) ).toArray
-				a(0).toString
-			} else {
-				var str = "<unknown>"
-				Head.values.foreach( v1 => {
-					Head.values.foreach( v2 => {
-						if(accepts(v1,v2)){
-							str = "" + v1 + "," + v2
-						}
-					})
-				})
-				str
-			}
-		outType.toString + "->" + children
-	}
-}
-case class UnaryRule(
-		out:Head.Value,
-		in:Head.Value,
-		fn:Any=>Any ) extends Rule {
-	override def apply(arg:Any):Any = fn(arg)
-	override def apply(arg1:Any,arg2:Any) 
-		= throw fail("binary apply to unary rule")
-	def arity:Int = 1
-	def outType:Head.Value = out
-	def accepts(a:Head.Value):Boolean = a == in
-	def accepts(a:Head.Value,b:Head.Value):Boolean = false
-	override def toString:String =
-		""+out+{if(in==Head.Word) "["+this(0)+"]" else ""}+"->"+in
-}
-case class BinaryRule(
-		out:Head.Value,
-		in1:Head.Value,
-		in2:Head.Value,
-		fn:(Any,Any)=>Any) extends Rule {
-	override def apply(arg:Any)
-		= throw fail("unary apply to binary rule")
-	override def apply(arg1:Any,arg2:Any):Any = fn(arg1,arg2)
-	def arity:Int = 2
-	def outType:Head.Value = out
-	def accepts(a:Head.Value):Boolean = false
-	def accepts(a:Head.Value,b:Head.Value):Boolean = (a == in1) && (b == in2)
-	override def toString:String =
-		""+out+"->"+in1+","+in2
-}
 
 object SearchParser {
+	import Grammar._
 //-----
 // INTERACTIVE
 //-----
@@ -318,115 +427,17 @@ object SearchParser {
 	case class IndicatorRuleFeature(rule:Int) extends Feature {
 		override def toString:String = RULES(rule).signature
 	}
-//-----
-// VALUES
-//-----
-
-	private val RULES:Array[Rule] = {
-		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
-		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
-			= fn.asInstanceOf[(Any,Any)=>Any]
-		var rtn = List[Rule]()
-
-		//--Lex Terms
-		//(times)
-		val times = List[Time](NOW)
-		rtn = rtn ::: times.map( (t:Time) => 
-			UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)))
-		//(ranges)
-		val ranges = List[Range]()
-		rtn = rtn ::: ranges.map( (r:Range) => 
-			UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)))
-		//(durations)
-		val durations = 
-			List[Duration](SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR) :::
-			(1 to 7).map( i => DOW(i) ).toList :::
-			(1 to 12).map( i => MOY(i) ).toList :::
-			(1 to 4).map( i => QOY(i) ).toList
-		rtn = rtn ::: durations.map( (d:Duration) => 
-			UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)))
-
-		//--Type Raises
-		//(range introduction)
-		rtn = UnaryRule(Head.Range, Head.Time, hack( 
-				(t:Time) => Range(t,t)
-			)) :: rtn
-		//(now augmentation)
-		rtn = UnaryRule(Head.F_D, Head.F_RD, hack( 
-				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
-			)) :: rtn
-		//(implicit intersect)
-		rtn = UnaryRule(Head.F_R, Head.Range, hack(
-				(r:Range) => intersect(r,_:Range)
-			)) :: rtn
-		//(sequence grounding)
-		rtn = UnaryRule(Head.Range, Head.Duration, hack( 
-				(d:Duration) => d(NOW)
-			)) :: rtn
-
-		//--F[ Range, Duration ]
-		val rangeDurationFn = List[(Range,Duration)=>Range](
-			shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd)
-		//(intro)
-		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
-			UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn)))
-		//(right apply)
-		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
-				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-				)))
-		//(left apply)
-		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
-				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-				)))
-
-		//--F[ Range, Range ]
-		val rangeRangeFn = List[(Range,Range)=>Range](
-			intersect,cons)
-		//(intro)
-		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) =>  //intro
-			UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn)))
-		//(right apply)
-		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
-				(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
-				)))
-		//(left apply)
-		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
-				(r:Range,fn:(Range,Range)=>Range) => fn(r,_:Range)
-				)))
-
-		//--F[ Range ]
-		rtn = rtn ::: List[BinaryRule](
-			//(right apply)
-			BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
-				(fn:Range=>Range,r:Range) => fn(r)
-				)),
-			//(left apply)
-			BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
-				(r:Range,fn:Range=>Range) => fn(r)
-				))
-			)
-
-		//--Return
-		rtn.toArray
-	}
-
-
-	private val NIL = -1 //LEX index of the NIL term
-	private val RULES_INDEX = RULES.zipWithIndex
 }
 
 
 class SearchParser extends StandardParser {
 	import SearchParser._
 	import scala.math.{min,max,log => ln,exp}
+	import Grammar._
 //-----
 // BEHAVIOR
 //-----
-	private val weights:Counter[Feature] = new ClassicCounter[Feature]
+	protected val weights:Counter[Feature] = new ClassicCounter[Feature]
 
 	def ruleFeatures(state:State,ruleIndex:Int):Counter[Feature] = {
 		val feats:Counter[Feature] = new ClassicCounter
@@ -473,30 +484,30 @@ class SearchParser extends StandardParser {
 				) extends SearchState with Ordered[State]{
 		
 		def realParse:Parse = {
-			parse._1 match{
-				case Head.Time => {
-					val t:Time = parse._2.asInstanceOf[Time]
-					Parse(Range(t,t),null,null)
-				}
-				case Head.Range => Parse(parse._2.asInstanceOf[Range],null,null)
-				case Head.Duration => Parse(null,parse._2.asInstanceOf[Duration],null)
-				case Head.F_R => Parse(null,null,parse._2.asInstanceOf[Range=>Range])
-				case _ => throw fail("Invalid end state: " + parse._1)
+			val (parseType, parseValue) = parse
+			assert(parseType == Head.ROOT, "No parse for non-root node")
+			parseValue match{
+				case (t:Time) => Parse(Range(t,t),null,null)
+				case (r:Range) => Parse(r,null,null)
+				case (d:Duration) => Parse(null,d,null)
+				case (fn:(Range=>Range)) => Parse(null,null,fn)
+				case _ => throw fail("Unknown parse output: " + parseValue)
 			}
 		}
 
 		override def isEndState = {
-			if(begin <= 0 && end >= sent.length){
-				parse._1 match{
-					case Head.Time => true
-					case Head.Range => true
-					case Head.Duration => true
-					case Head.F_R => true
-					case _ => false
-				}
-			} else {
-				false
-			}
+			begin <= 0 && end >= sent.length && parse._1 == Head.ROOT
+//			if(begin <= 0 && end >= sent.length){
+//				parse._1 match{
+//					case Head.Time => true
+//					case Head.Range => true
+//					case Head.Duration => true
+//					case Head.F_R => true
+//					case _ => false
+//				}
+//			} else {
+//				false
+//			}
 		}
 
 		override def children:List[State] = {
@@ -698,14 +709,15 @@ class SearchParser extends StandardParser {
 		val parses:Array[State] = parseLst.sortWith(_<_).toArray
 		//--Update (perceptron)
 		val update = (fb:Feedback) => {
-			if(fb.wasWrong){
+			if(fb.wasWrong && fb.correctCount > 0){
 				val guess = parses(0)
 				//(increment gold parses)
-				fb.correct.foreach( (pair:(Int,Double)) => {
-					val (index,score) = pair
-					val gold = parses(index)
-					gold.updates.foreach(_(true,1.0/fb.correctCountDbl))
-				})
+				parses(fb.correct(0)._1).updates.foreach(_(true,1.0))
+//				fb.correct.foreach( (pair:(Int,Double)) => {
+//					val (index,score) = pair
+//					val gold = parses(index)
+//					gold.updates.foreach(_(true,1.0/fb.correctCountDbl))
+//				})
 				//(decrement guess parse)
 				guess.updates.foreach(_(false,1.0))
 			}
@@ -720,3 +732,20 @@ class SearchParser extends StandardParser {
 }
 
 
+//------------------------------------------------------------------------------
+// CKY PARSER
+//------------------------------------------------------------------------------
+
+
+//class CKYParser extends StandardParser{
+//	override def parse(i:Int, sent:Sentence, feedback:Boolean
+//			):(Array[Parse],Feedback=>Any)={
+//		val parse:Array[Parse] = Array[Parse](
+//			FRI(NOW),                              // I think it's friday
+//			(r:Range) => Range(r.begin,NOW),       // or 'the past'
+//			WEEK,                                  // or a week
+//			Range(Time(2011,4,26),Time(2011,4,27)) // or April 26
+//			)
+//		(parse, (feedback:Feedback) => {})
+//	}
+//}

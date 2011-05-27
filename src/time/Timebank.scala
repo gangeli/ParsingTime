@@ -157,14 +157,17 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 					}
 				}
 				case "PERIOD" => {
-					assert(timeVal.length == 5, "Period has 4 elements")
+					assert(timeVal.length == 8, "Period has 4 elements")
 					//(case: duration)
 					new Duration(new Period(
 						Integer.parseInt(timeVal(1)),
 						Integer.parseInt(timeVal(2)),
 						Integer.parseInt(timeVal(3)),
 						Integer.parseInt(timeVal(4)),
-						0,0,0,0
+						Integer.parseInt(timeVal(5)),
+						Integer.parseInt(timeVal(6)),
+						Integer.parseInt(timeVal(7)),
+						0
 						))
 				}
 				case "UNK" => {
