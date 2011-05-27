@@ -27,13 +27,20 @@ object ParseConversions {
 }
 
 //-----
-// Sentence
+// Input / Output
 //-----
 case class Sentence(words:Array[Int],pos:Array[Int]) {
 	def apply(i:Int) = words(i)
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
 	def length:Int = words.length
 	override def toString:String = U.sent2str(words)
+}
+case class Feedback(correct:Array[(Int,Double)],incorrect:Array[(Int,Double)]) {
+	def hasCorrect:Boolean = correct.length > 0
+	def bestIndex:Int = correct(0)._1
+	def wasWrong:Boolean = (!hasCorrect || bestIndex != 0)
+	def correctCount:Int = correct.length
+	def correctCountDbl:Double = correctCount.asInstanceOf[Double]
 }
 
 //-----
@@ -130,7 +137,7 @@ trait Parser {
 
 trait StandardParser extends Parser {
 	def parse(iter:Int, sent:Sentence, feedback:Boolean
-		):(Array[Parse],(Int,Boolean,Double)=>Any)
+		):(Array[Parse],Feedback=>Any)
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			start_track("Iteration " + i)
@@ -150,14 +157,14 @@ trait StandardParser extends Parser {
 
 class ItsAlwaysFriday extends StandardParser{
 	override def parse(i:Int, sent:Sentence, feedback:Boolean
-			):(Array[Parse],(Int,Boolean,Double)=>Any)={
+			):(Array[Parse],Feedback=>Any)={
 		val parse:Array[Parse] = Array[Parse](
 			FRI(NOW),                              // I think it's friday
 			(r:Range) => Range(r.begin,NOW),       // or 'the past'
 			WEEK,                                  // or a week
 			Range(Time(2011,4,26),Time(2011,4,27)) // or April 26
 			)
-		(parse, (index:Int,exact:Boolean,score:Double) => {})
+		(parse, (feedback:Feedback) => {})
 	}
 }
 
@@ -175,7 +182,7 @@ class PrimitivesOnly extends StandardParser{
 
 
 	override def parse(i:Int, sent:Sentence, feedback:Boolean
-			):(Array[Parse],(Int,Boolean,Double)=>Any)={
+			):(Array[Parse],Feedback=>Any)={
 		assert(sent != null, "Sentence cannot be null")
 		//--Features
 		def features(sent:Sentence,out:Int):Counter[(Feature,Int)] = {
@@ -200,9 +207,9 @@ class PrimitivesOnly extends StandardParser{
 				simplePrimitives(pair._2)
 			})
 		//--Update
-		val update = (index:Int,exact:Boolean,score:Double) => {
-			if(exact){
-				val feats = features(sent,globalIndex(index,parse))
+		val update = (feedback:Feedback) => {
+			if(feedback.hasCorrect){
+				val feats = features(sent,globalIndex(feedback.bestIndex,parse))
 				weights.addAll(feats)
 			}
 		}
@@ -434,15 +441,17 @@ class SearchParser extends StandardParser {
 
 	def feedback(feats:Counter[Feature],good:Boolean,score:Double):Unit = {
 		if(good){ 
-//			println(feats)
-			weights.addAll(feats)
+			val posCounts:Counter[Feature] = new ClassicCounter[Feature]
+			feats.keySet.foreach( (f:Feature) => {
+				posCounts.incrementCount(f,score*feats.getCount(f))
+			})
+			weights.addAll(posCounts)
 		} else {
 			val negCounts:Counter[Feature] = new ClassicCounter[Feature]
 			feats.keySet.foreach( (f:Feature) => {
-				negCounts.incrementCount(f,-1.0*feats.getCount(f))
+				negCounts.incrementCount(f,-score*feats.getCount(f))
 			})
 			weights.addAll(negCounts)
-//			print("NEG>>"); println(negCounts)
 		}
 	}
 	def score(feats:Counter[Feature]):Double = {
@@ -674,7 +683,7 @@ class SearchParser extends StandardParser {
 
 	// -- Parse --
 	override def parse(i:Int, sent:Sentence, feedback:Boolean
-			):(Array[Parse],(Int,Boolean,Double)=>Any)={
+			):(Array[Parse],Feedback=>Any)={
 		import Search._
 		//--Parse
 		var parseLst:List[State] = List[State]()
@@ -688,12 +697,17 @@ class SearchParser extends StandardParser {
 			O.maxSearchTime)
 		val parses:Array[State] = parseLst.sortWith(_<_).toArray
 		//--Update (perceptron)
-		val update = (index:Int,exact:Boolean,score:Double) => {
-			if(exact && index != 0){ //something is right, and not gotten yet
-				val gold = parses(index)
+		val update = (fb:Feedback) => {
+			if(fb.wasWrong){
 				val guess = parses(0)
-				gold.updates.foreach( _(true,score) )
-				guess.updates.foreach( _(false,score) )
+				//(increment gold parses)
+				fb.correct.foreach( (pair:(Int,Double)) => {
+					val (index,score) = pair
+					val gold = parses(index)
+					gold.updates.foreach(_(true,1.0/fb.correctCountDbl))
+				})
+				//(decrement guess parse)
+				guess.updates.foreach(_(false,1.0))
 			}
 		}
 		//--Debug
@@ -701,7 +715,7 @@ class SearchParser extends StandardParser {
 			U.join(
 				parses.slice(0,1).map(
 					p => ""+p.realParse+"["+G.df.format(p.cost)+"]"), " or "))
-		(parses.map( _.realParse ), if(feedback){ update } else { (i,e,s)=>{} } )
+		(parses.map( _.realParse ), if(feedback){ update } else { fb=>{} } )
 	}
 }
 

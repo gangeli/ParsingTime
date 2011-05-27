@@ -2,12 +2,12 @@
 
 require 'date'
 require 'time'
-
 require 'dbi'
 require 'xml'
-
 require 'rubygems'
 require 'rjb'
+
+require "#{File.dirname(__FILE__)}/../timeutil.rb"
 
 #--Arguments
 DIR=ARGV[0]
@@ -29,111 +29,6 @@ TIMEX="timebank_timex"
 TLINK="timebank_tlink"
 SOURCE="source"
 SOURCE_ID="timebank_doc".hash
-
-
-#-------------------------------------------------------------------------------
-# PARSE TIME
-#-------------------------------------------------------------------------------
-def parse(str)
-	str = str.chomp
-	begin
-		#(ruby's parse time)
-		[:INSTANT, DateTime.parse(str)]
-	rescue Exception
-		# -- REAL TIMES --
-		#(year)
-		if str.match /^[0-9]{2,4}$/ then
-			str = "19"+str if str.length == 2
-			[:RANGE, 
-				DateTime.civil(str.to_i),
-				DateTime.civil(y=str.to_i+1)
-			]
-		#(year-month)
-		elsif str.match /^[0-9]{4}-[0-9]{2}$/ then
-			terms = str.split(/-/)
-			[:RANGE,
-				DateTime.civil(terms[0].to_i,terms[1].to_i),
-				DateTime.civil(
-					terms[1].to_i == 12 ? terms[0].to_i+1 : terms[0].to_i,
-					((terms[1].to_i)%12)+1)
-			]
-		#(year-quarter)
-		elsif str.match /^[0-9]{4}-Q[0-9]$/ then
-			terms = str.split(/-/)
-			yr = terms[0].to_i
-			qstart = (terms[1][1,2].to_i-1)*3 + 1
-			qend = (((terms[1][1,2].to_i)*3)%12) + 1
-			[:RANGE,
-				DateTime.civil(yr,qstart),
-				DateTime.civil(qend < qstart ? yr+1 : yr, qend)
-			]
-		elsif str.match /^[0-9]{4}-H[0-9]$/ then
-			terms = str.split(/-/)
-			yr = terms[0].to_i
-			qstart = (terms[1][1,2].to_i-1)*6 + 1
-			qend = (((terms[1][1,2].to_i)*6)%12) + 1
-			[:RANGE,
-				DateTime.civil(yr,qstart),
-				DateTime.civil(qend < qstart ? yr+1 : yr, qend)
-			]
-		#(year-season)
-		elsif str.match /^[0-9]{4}-((SP)|(SU)|(FA)|(WI))$/ then
-			terms = str.split(/-/)
-			yr = terms[0]
-			if(terms[1] == "WI") then
-				parse("#{yr}-Q1")
-			elsif(terms[1] == "SP") then
-				parse("#{yr}-Q2")
-			elsif(terms[1] == "SU") then
-				parse("#{yr}-Q3")
-			elsif(terms[1] == "FA") then
-				parse("#{yr}-Q4")
-			else
-				raise "UNKNOWN SEASON #{terms[1]} : #{str}"
-			end
-		# -- REAL TIMES --
-		#(past)
-		elsif str == "PAST_REF" then
-			[:RANGE, :x, :NOW]
-		#(future)
-		elsif str == "FUTURE_REF" then
-			[:RANGE, :NOW, :x]
-		#(present)
-		elsif str == "PRESENT_REF" then
-			[:INSTANT, :NOW]
-		#(unhandled)
-		# -- PERIOD --
-		elsif str.match /P([0-9]+(D|W|M|Q|Y|E|C|L))+/ then
-			period = [:PERIOD, 0, 0, 0, 0] #tag|year|month|week|day
-			str.scan(/[0-9]+[DWMY]/).each{ |d|
-				if d[-1].chr == "L" then
-					period[1] = d[0,d.length-1].to_i*1000
-				elsif d[-1].chr == "C" then
-					period[1] = d[0,d.length-1].to_i*100
-				elsif d[-1].chr == "E" then
-					period[1] = d[0,d.length-1].to_i*10
-				elsif d[-1].chr == "Y" then
-					period[1] = d[0,d.length-1].to_i
-				elsif d[-1].chr == "Q" then
-					period[2] = d[0,d.length-1].to_i*3
-				elsif d[-1].chr == "M" then
-					period[2] = d[0,d.length-1].to_i
-				elsif d[-1].chr == "W" then
-					period[3] = d[0,d.length-1].to_i
-				elsif d[-1].chr == "D" then
-					period[4] = d[0,d.length-1].to_i
-				else
-					raise "UNKNOWN INTERVAL #{d}"
-				end
-			}
-			period
-		elsif str.include? "X" then
-			[:UNK, str]
-		else
-			raise "UNKNOWN TIME EXPRESSION #{str}"
-		end
-	end
-end
 
 #-------------------------------------------------------------------------------
 # CREATE DATABASE
@@ -369,7 +264,7 @@ class Timex
 			reader.move_to_attribute(i)
 			@tid = reader.value if reader.name == "tid"
 			@type = reader.value if reader.name == "type"
-			@value = parse(reader.value) if reader.name == "value"
+			@value = parse(reader.value,nil) if reader.name == "value"
 			@temporalFn = reader.value if reader.name == "temporalFunction"
 			if reader.name == "functionInDocument"\
 					and (reader.value == "CREATION_TIME" or\
