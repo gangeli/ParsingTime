@@ -77,7 +77,7 @@ case class BinaryRule(
 }
 
 object Grammar {
-	private val RULES:Array[Rule] = {
+	val RULES:Array[Rule] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
 			= fn.asInstanceOf[(Any,Any)=>Any]
@@ -176,7 +176,7 @@ object Grammar {
 		rtn.toArray
 	}
 
-	private val NIL = -1 //LEX index of the NIL term
+	val NIL = -1 //LEX index of the NIL term
 }
 
 //------------------------------------------------------------------------------
