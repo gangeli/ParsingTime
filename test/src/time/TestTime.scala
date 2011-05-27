@@ -75,8 +75,11 @@ class RepresentationSpec extends Spec with ShouldMatchers{
 			assert((NOW+HOUR*24) ~ (NOW+DAY))
 		}
 		it("should be subtractable"){
-			((NOW+DAY) - NOW) ~ DAY
-			((NOW+DAY*2) - (NOW+DAY)) ~ DAY
+			assert( ((NOW+DAY) - NOW) ~ DAY )
+			assert( ((NOW+DAY*2) - (NOW+DAY)) ~ DAY)
+			val ground = Time(2011,4,25)
+			(NOW-DAY)(ground) should be (Time(2011,4,24))
+			(NOW+DAY)(ground) should be (Time(2011,4,26))
 		}
 		it("should be chainable"){
 			val march = (t:Time) => 

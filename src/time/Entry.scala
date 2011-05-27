@@ -374,12 +374,12 @@ class Entry {
 
 object Entry {
 	def main(args:Array[String]):Unit = {
-//		Time.interactive
+		Time.interactive
 //		SearchParser.interactive
-		Execution.exec(new Runnable(){
-			override def run:Unit = {
-				(new Entry).init.run
-			}
-		}, args)
+//		Execution.exec(new Runnable(){
+//			override def run:Unit = {
+//				(new Entry).init.run
+//			}
+//		}, args)
 	}
 }

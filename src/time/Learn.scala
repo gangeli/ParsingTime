@@ -737,15 +737,18 @@ class SearchParser extends StandardParser {
 //------------------------------------------------------------------------------
 
 
-//class CKYParser extends StandardParser{
-//	override def parse(i:Int, sent:Sentence, feedback:Boolean
-//			):(Array[Parse],Feedback=>Any)={
-//		val parse:Array[Parse] = Array[Parse](
-//			FRI(NOW),                              // I think it's friday
-//			(r:Range) => Range(r.begin,NOW),       // or 'the past'
-//			WEEK,                                  // or a week
-//			Range(Time(2011,4,26),Time(2011,4,27)) // or April 26
-//			)
-//		(parse, (feedback:Feedback) => {})
-//	}
-//}
+class CKYParser extends StandardParser{
+
+
+
+	override def parse(i:Int, sent:Sentence, feedback:Boolean
+			):(Array[Parse],Feedback=>Any)={
+		val parse:Array[Parse] = Array[Parse](
+			FRI(NOW),                              // I think it's friday
+			(r:Range) => Range(r.begin,NOW),       // or 'the past'
+			WEEK,                                  // or a week
+			Range(Time(2011,4,26),Time(2011,4,27)) // or April 26
+			)
+		(parse, (feedback:Feedback) => {})
+	}
+}

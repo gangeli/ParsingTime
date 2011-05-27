@@ -262,7 +262,8 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		val added = if(isGrounded){
 			//(case: adding to grounded time)
 			assert(offset == null, "Offset should be null")
-			if(base.getMillis > Long.MaxValue-diff.seconds*1000){
+			val diffMillis = diff.seconds*1000
+			if(diffMillis > 0 && base.getMillis > Long.MaxValue-diffMillis){
 				//((overflow))
 				new Time(new DateTime(Long.MaxValue),offset,modifiers)
 			} else {
@@ -288,9 +289,9 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		if(this.isGrounded){
 			//(case: subtracting grounded times)
 			val millis:Long = this.ground.getMillis - other.ground.getMillis
-			if(millis > Integer.MAX_VALUE){
+			if(millis > Int.MaxValue){
 				Duration.INFINITE
-			} else if(millis < Integer.MIN_VALUE) {
+			} else if(millis < Int.MinValue) {
 				Duration.NEG_INFINITE
 			} else {
 				new Period(millis)
@@ -306,7 +307,8 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		val subtracted = if(isGrounded){
 			//(case: subtracting grounded times)
 			assert(offset == null, "Offset should be null for grounded time")
-			if(base.getMillis < Long.MinValue+diff.seconds*1000){
+			val diffMillis = diff.seconds*1000
+			if( diffMillis > 0 && base.getMillis < Long.MinValue+diffMillis ){
 				//((underflow))
 				new Time(new DateTime(Long.MinValue),offset,modifiers)
 			} else {
@@ -493,8 +495,8 @@ object Range {
 
 object Duration {
 	def apply(millis:Long):Duration = new Period(millis)
-	val INFINITE:Duration = Period.years(Integer.MAX_VALUE)
-	val NEG_INFINITE:Duration = Period.years(Integer.MIN_VALUE)
+	val INFINITE:Duration = Period.years(Int.MaxValue)
+	val NEG_INFINITE:Duration = Period.years(Int.MinValue)
 }
 
 object Time {
