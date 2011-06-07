@@ -1,6 +1,7 @@
 package time
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.PriorityQueue
 
 import Lex._
 import Conversions._
@@ -19,15 +20,52 @@ import edu.stanford.nlp.stats.Counters;
 //------------------------------------------------------------------------------
 object Head extends Enumeration {
 	type V = Value
-	val ROOT, Time, Range, Duration, F_RR, F_RD, F_R, F_D, Word = Value
+	val ROOT, Word, Time, Range, Duration, F_RR, F_RD, F_R, F_D = Value
 }
 trait Rule {
 	def apply(arg:Any):Any
 	def apply(arg1:Any, arg2:Any):Any
 	def arity:Int
-	def outType:Head.Value
+	def head:Head.Value
 	def accepts(a:Head.Value):Boolean
 	def accepts(a:Head.Value,b:Head.Value):Boolean
+
+	private var leftChild:Head.Value = null
+	private var rightChild:Head.Value = null
+	private def cacheRule:Unit = {
+		if(leftChild != null){ return; }
+		if(arity == 1){
+			Head.values.foreach{ (child:Head.Value) =>
+				if(accepts(child)){
+					assert(leftChild == null, "Multiple accepted inputs for rule")
+					this.leftChild = child
+				}
+			}
+		} else if(arity == 2){
+			Head.values.foreach{ (left:Head.Value) =>
+				Head.values.foreach{ (right:Head.Value) =>
+					if(accepts(left,right)){
+						assert(leftChild==null && rightChild==null,
+							"Multiple accepted inputs for rule")
+						this.leftChild = left
+						this.rightChild = right
+					}
+				}
+			}
+		} else {
+			throw new IllegalStateException("Left on invalid arity rule")
+		}
+		assert(leftChild != null, "No accepted inputs for rule")
+		assert(arity == 1 || rightChild != null, "No accepted inputs for rule")
+	}
+	def left:Head.Value = { cacheRule; return left; }
+	def right:Head.Value = {
+		 assert(arity == 2, "Bad arity"); cacheRule; return right;
+	}
+	def child:Head.Value  = {
+		assert(arity == 1, "Bad arity"); cacheRule; return left;
+	}
+
 	def signature:String = {
 		val children:String = if(arity == 1){
 				val a:Array[Head.Value] = Head.values.filter( v => accepts(v) ).toArray
@@ -43,9 +81,10 @@ trait Rule {
 				})
 				str
 			}
-		outType.toString + "->" + children
+		head.toString + "->" + children
 	}
 }
+
 case class UnaryRule(
 		out:Head.Value,
 		in:Head.Value,
@@ -54,7 +93,7 @@ case class UnaryRule(
 	override def apply(arg1:Any,arg2:Any) 
 		= throw fail("binary apply to unary rule")
 	def arity:Int = 1
-	def outType:Head.Value = out
+	def head:Head.Value = out
 	def accepts(a:Head.Value):Boolean = a == in
 	def accepts(a:Head.Value,b:Head.Value):Boolean = false
 	override def toString:String =
@@ -69,7 +108,7 @@ case class BinaryRule(
 		= throw fail("unary apply to binary rule")
 	override def apply(arg1:Any,arg2:Any):Any = fn(arg1,arg2)
 	def arity:Int = 2
-	def outType:Head.Value = out
+	def head:Head.Value = out
 	def accepts(a:Head.Value):Boolean = false
 	def accepts(a:Head.Value,b:Head.Value):Boolean = (a == in1) && (b == in2)
 	override def toString:String =
@@ -207,6 +246,29 @@ case class Feedback(correct:Array[(Int,Double)],incorrect:Array[(Int,Double)]) {
 	def wasWrong:Boolean = (!hasCorrect || bestIndex != 0)
 	def correctCount:Int = correct.length
 	def correctCountDbl:Double = correctCount.asInstanceOf[Double]
+}
+
+trait Tree[A]{
+	def head:A
+	def children:Array[_<:Tree[A]]
+	def isLeaf:Boolean = (children.length == 0)
+	private def prettyPrintAppend(printer:A=>String,b:StringBuilder):Unit = {
+		b.append("(").append(printer(head))
+		children.foreach( (tree:Tree[A]) => {
+			b.append(" ")
+			tree.prettyPrintAppend(printer,b)
+		})
+		b.append(")")
+	}
+	def prettyPrint(printer:A=>String = _.toString):String = {
+		val b = new StringBuilder
+		prettyPrintAppend(printer,b)
+		b.toString
+	}
+}
+trait ParseTree extends Tree[Head.Value] {
+	override def children:Array[ParseTree]
+	def evaluate(sent:Sentence):(Head.Value,Any)
 }
 
 //-----
@@ -387,21 +449,6 @@ class PrimitivesOnly extends StandardParser{
 //------------------------------------------------------------------------------
 // SEARCH PARSER
 //------------------------------------------------------------------------------
-case class Tree[A](head:A,children:Array[Tree[A]]) {
-	private def prettyPrintAppend(printer:A=>String,b:StringBuilder):Unit = {
-		b.append("(").append(printer(head))
-		children.foreach( (tree:Tree[A]) => {
-			b.append(" ")
-			tree.prettyPrintAppend(printer,b)
-		})
-		b.append(")")
-	}
-	def prettyPrint(printer:A=>String = _.toString):String = {
-		val b = new StringBuilder
-		prettyPrintAppend(printer,b)
-		b.toString
-	}
-}
 
 object SearchParser {
 	import Grammar._
@@ -523,7 +570,7 @@ class SearchParser extends StandardParser {
 							val up = feedback(feats,_:Boolean,_:Double)
 							children = State(
 								wordI, wordI+1,
-								(rule.outType, rule(sent(wordI))),
+								(rule.head, rule(sent(wordI))),
 								null,null,
 								score(feats),
 								List[(Boolean,Double)=>Unit](up),
@@ -542,7 +589,7 @@ class SearchParser extends StandardParser {
 						val feats = lexFeatures(sent,begin-1,index)
 						val up = feedback(feats,_:Boolean,_:Double)
 						children = this.copy(
-							leftOf=(rule.outType, rule(sent(begin-1))), 
+							leftOf=(rule.head, rule(sent(begin-1))), 
 							c=c+score(feats),
 							updates=up::updates
 							) :: children
@@ -558,7 +605,7 @@ class SearchParser extends StandardParser {
 						val feats = lexFeatures(sent,end+1,index)
 						val up = feedback(feats,_:Boolean,_:Double)
 						children = this.copy(
-							rightOf=(rule.outType, rule(sent(end+1))), 
+							rightOf=(rule.head, rule(sent(end+1))), 
 							c=c+score(feats),
 							updates=up::updates
 							) :: children
@@ -574,7 +621,7 @@ class SearchParser extends StandardParser {
 						val feats = ruleFeatures(this,index)
 						val up = feedback(feats,_:Boolean,_:Double)
 						children = this.copy(
-								parse=(rule.outType,rule(parse._2)),
+								parse=(rule.head,rule(parse._2)),
 								c=c+score(feats),
 								updates=up::updates
 								) :: children
@@ -589,7 +636,7 @@ class SearchParser extends StandardParser {
 								val feats = ruleFeatures(this,index)
 								val up = feedback(feats,_:Boolean,_:Double)
 								children = this.copy(
-										parse=(rule.outType,rule(nodeValue, parseValue)),
+										parse=(rule.head,rule(nodeValue, parseValue)),
 										c=c+score(feats),
 										updates=up::updates,
 										leftOf=null,
@@ -604,7 +651,7 @@ class SearchParser extends StandardParser {
 								val feats = ruleFeatures(this,index)
 								val up = feedback(feats,_:Boolean,_:Double)
 								children = this.copy(
-										parse=(rule.outType,rule(parseValue, nodeValue)),
+										parse=(rule.head,rule(parseValue, nodeValue)),
 										c=c+score(feats),
 										updates=up::updates,
 										rightOf=null,
@@ -735,14 +782,232 @@ class SearchParser extends StandardParser {
 //------------------------------------------------------------------------------
 // CKY PARSER
 //------------------------------------------------------------------------------
-
-
 class CKYParser extends StandardParser{
+	import Grammar._
 
+	val ckyK = O.beam
+
+	class ChartElem(
+			var score:Double, 
+			var rule:Rule, 
+			var left:ChartElem,
+			var right:ChartElem) extends ParseTree {
+		// -- CKY Properties --
+		def this() = this(Double.NegativeInfinity,null,null,null)
+		def apply(score:Double,rule:Rule,left:ChartElem,right:ChartElem
+				):ChartElem = {
+			assert(rule.arity == 1 || rule.arity == 2, "Bad rule arity")
+			this.score = score
+			this.rule = rule
+			this.left = left
+			this.right = right
+			this
+		}
+		def apply(score:Double,rule:Rule,left:ChartElem):ChartElem = {
+			assert(rule.arity == 1, "Invalid apply for arity 1 rule")
+			apply(score,rule,left,null)
+		}
+		def nilify:Unit = { score = Double.NaN; rule = null}
+		def isNil:Boolean = rule == null
+		// -- ParseTree Properties --
+		override def head:Head.Value = rule.head
+		override def children:Array[ParseTree] = {
+			if(isNil) {
+				return Array[ParseTree]()
+			} else if(rule.arity == 1){
+				Array[ParseTree](left)
+			} else if(rule.arity == 2) {	
+				Array[ParseTree](left,right)
+			} else {
+				throw new IllegalStateException("Bad Rule Arity")
+			}
+		}
+		private def evaluateHelper(sent:Sentence,i:Int):(Int,(Head.Value,Any)) = {
+			if(isLeaf){
+				//(base case)
+				(i+1,(rule.head,rule(sent.words(i))))
+			}else{
+				//(recursive case)
+				if(rule.arity == 1){
+					val (childI,(childType,childValue)) = evaluateHelper(sent,i)
+					(childI,(rule.head,rule(childValue)))
+				} else if(rule.arity == 2) {	
+					val (leftI,(leftType,leftValue)) = evaluateHelper(sent,i)
+					val (rightI,(rightType,rightValue)) = evaluateHelper(sent,leftI)
+					(rightI,(rule.head,rule(leftValue,rightValue)))
+				} else {
+					throw new IllegalStateException("Bad Rule Arity")
+				}
+			}
+		}
+		override def evaluate(sent:Sentence):(Head.Value,Any) = {
+			val (length,output) = evaluateHelper(sent,0)
+			assert(length == sent.length)
+			output
+		}
+		// -- Object Properties --
+		override def equals(a:Any) = {
+			a match {
+				case (elem:ChartElem) => {
+					elem.rule == rule && elem.left == left && elem.right == right
+				}
+				case (_:Any) => false
+			}
+		}
+	}
+
+	class BestList(values:Array[ChartElem]) {
+		var length = 0
+		def apply(i:Int) = values(i)
+		def capacity:Int = values.length
+		def reset:Unit = {
+			values(0).nilify
+			length = 0
+		}
+		def add(score:Double,ruleI:Int) = {
+			//TODO
+		}
+		def suggest(score:Double,ruleI:Int) = {
+			if(length < capacity){ add(score,ruleI) }
+		}
+	}
+
+
+	type RuleList = Array[BestList]
+	type Chart = Array[Array[RuleList]]
+
+	val (lexRules, scores, posScores)
+			:(Array[(Rule,Int)],Array[Counter[Int]],Array[Counter[Int]]) = {
+		val rules = RULES.zipWithIndex.filter( p => p._1.accepts(Head.Word) )
+		val score = RULES.map( p => {
+				new ClassicCounter[Int]
+			}).toArray
+		val pos = RULES.map( p => {
+				new ClassicCounter[Int]
+			}).toArray
+		(rules, score, pos)
+	}
+	def lexCount(lex:Int,rule:Int):Double = scores(rule).getCount(lex)
+	def lexProb(lex:Int,rule:Int):Double = {
+		val count = lexCount(lex,rule)
+		val denom = scores(rule).totalCount
+		if(denom == 0.0) 0.0 else (count/denom)
+	}
+	def posCount(pos:Int,rule:Int):Double = posScores(rule).getCount(pos)
+	def posProb(pos:Int,rule:Int):Double = {
+		val count = posCount(pos,rule)
+		val denom = posScores(rule).totalCount
+		if(denom == 0.0) 0.0 else (count/denom)
+	}
+	
+	def makeChart:Int=>Chart = { //start,length,split
+		var largestChart = new Chart(0)
+		(len:Int) => {
+			//--Make Chart
+			val chart = if(len > largestChart.length){ 
+				//(create)
+				largestChart = (0 until len).map{ (start:Int) =>          //begin
+					assert(len-start > 0, "bad length end on start "+start+" len "+len)
+					(0 until (len-start)).map{ (length:Int) =>              //length
+						assert(Head.values.size > 0, "bad rules end")
+						(0 until Head.values.size).map{ (ruleI:Int) =>        //rules
+							assert(ckyK > 0, "bad kbest end")
+							new BestList((0 until ckyK).map{ (kbestItem:Int) => //kbest
+								new ChartElem
+							}.toArray) //convert to arrays
+						}.toArray
+					}.toArray
+				}.toArray
+				//(return)
+				largestChart
+			} else {
+				//(cached)
+				largestChart
+			}
+			//--Reset Chart
+			for(start <- 0 until len){
+				for(len <- 0 until chart(start).length){
+					for(head <- 0 until chart(start)(len).length){
+						chart(start)(len)(head).reset
+					}
+				}
+			}
+			//--Return
+			chart
+		}
+	}
+	
+	def gram(chart:Chart,begin:Int,end:Int,head:Int):BestList = {
+		//(asserts)
+		assert(end > begin+1, "Chart access error: bad end: " + begin + ", " + end)
+		assert(begin >= 0, "Chart access error: negative values: " + begin)
+		assert(head >= 0, "Chart access error: bad head: " + head)
+		assert(head < Head.values.size, "Chart access error: bad head: " + head)
+		//(access)
+		chart(begin)(end-begin-1)(head)
+	}
+	def lex(chart:Chart,elem:Int,head:Int):BestList = {
+		//(asserts)
+		assert(elem >= 0, "Chart access error: negative value: " + elem)
+		assert(head >= 0, "Chart access error: bad head: " + head)
+		assert(head < Head.values.size, "Chart access error: bad head: " + head)
+		chart(elem)(0)(head)
+	}
+	def klex(sent:Sentence,elem:Int,y:(Int,Double)=>Boolean):Int = {
+		val word = sent.words(elem)
+		val pos = sent.pos(elem)
+		//(get candidate parses)
+		val candidates = lexRules.map( (pair:(Rule,Int)) => {
+			val (r,rI) = pair
+			(rI, lexProb(word,rI)) //TODO POS backoff
+		})
+		//(sort)
+		candidates.sortBy( -_._2 )
+		//(yield)
+		for( i <- 0 until candidates.length) {
+			val (rI,score) = candidates(i)
+			if(!y(rI,score)){ return i; }
+		}
+		//(return)
+		return candidates.length
+	}
+
+	def cky[T](sent:Sentence):Array[Tree[T]] = {
+		//--Create Chart
+		val chart = makeChart(sent.length)
+		assert(chart.length >= sent.length, "Chart is too small")
+		//--Lex
+		for(elem <- 0 until sent.length) {
+			klex(sent,elem,(ruleI:Int,score:Double) => {
+				val typeIndex = RULES(ruleI).head.id
+				lex(chart,elem,typeIndex).suggest(score,ruleI)
+				true
+			})
+		}
+		//--Rules
+		for(begin <- 0 until sent.length-2) {
+			for(length <- 2 until sent.length-begin) {
+				val end = begin+length
+				for(split <- 1 until length) {
+					//--Generate Candidates
+					val queues = new Array[PriorityQueue[Int]](Head.values.size)
+					RULES.foreach{ (r:Rule) => 
+						8
+					}
+					//--Compress Candidates
+					Head.values.foreach{ (head:Head.Value) => 
+						9
+					}
+				}
+			}
+		}
+		null
+	}
 
 
 	override def parse(i:Int, sent:Sentence, feedback:Boolean
 			):(Array[Parse],Feedback=>Any)={
+		cky(sent)
 		val parse:Array[Parse] = Array[Parse](
 			FRI(NOW),                              // I think it's friday
 			(r:Range) => Range(r.begin,NOW),       // or 'the past'

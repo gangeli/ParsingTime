@@ -13,6 +13,12 @@ public class O {
 	@Option(name="devTest", gloss="Report on development set")
 	public static boolean devTest = false;
 
+	//--Parsing
+	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
+	public static int beam = 100000;
+	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
+	public static double ckyPosBackoff = 0.2;
+
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")
 	public static int iters = 40;
@@ -20,8 +26,6 @@ public class O {
 	public static String parser = null;
 	@Option(name="maxSearchTime", gloss="Max Iterations")
 	public static int maxSearchTime = 1000000;
-	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
-	public static int beam = 100000;
 	//--TESTING
 	@Option(name="exactmatchThreshold", 	
 		gloss="Max difference to consider exact match")
