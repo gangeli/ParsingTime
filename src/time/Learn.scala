@@ -116,32 +116,7 @@ case class BinaryRule(
 }
 
 object Grammar {
-	private def computeClosures(raw:Array[Rule]):Array[(Rule,List[Int])] = {
-//		val unaries:List[Rule] = raw.filter{ _.arity == 1 }.toList
-//		//--Construct Graph
-//		class Node(head:Head.Value,var neighbors:List[(Int,Int)]){
-//			def this(head:Head.Value) = this(head,List[Int]())
-//			def addNeighbor(id:Int,ruleI:Int) = { neighbors = (id,ruleI)::neighbors }
-//			def search(seen:Array[Boolean],backtrace:List[Int]
-//					tick:(Head.Value,List[Int])=>Any) = {
-//				if(seen[head.id]){ throw new IllegalStateException("Cyclic unaries") }
-//				seen[head.id] = true
-//				if(backtrace.length > 0){ tick(head,backtrace) }
-//			}
-//		}
-//		val graph = Head.values.map{ new Node(_) }
-//		unaries.zipWithIndex.foreach{ pair => 
-//			val (r,index) = pair
-//			graph(r.head.id).addNeighbor(r.child.id,index) 
-//		}
-//		//--Search Graph
-//		var closures:List[Rule] = List[Rule]()
-//		graph.foreach{ (start:Node) => 
-//			start.search
-//		}
-		null
-	}
-
+	
 	val RULES:Array[Rule] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
@@ -240,11 +215,46 @@ object Grammar {
 		//--Return
 		rtn.toArray
 	}
-	
-
+	val UNARIES:Array[(Rule,Int)]  = RULES.zipWithIndex.filter{ _._1.arity == 1 }
+	val BINARIES:Array[(Rule,Int)] = RULES.zipWithIndex.filter{ _._1.arity == 1 }
 	val RULES_INDEX = RULES.zipWithIndex
-//	val CLOSED_RULES:Array[(Rule,List[Int]) = computeClosures(RULES)
-//	val CLOSED_RULES_INDEX = CLOSED_RULES.zipWithIndex
+
+	case class Closure(head:Head.Value,child:Head.Value,rules:Array[Int])
+
+	private def computeClosures(raw:Array[Rule]):Array[Closure] = {
+		//--Construct Graph
+		case class Node(head:Head.Value,var neighbors:List[(Node,Int)]){
+			def this(head:Head.Value) = this(head,List[(Node,Int)]())
+			def addNeighbor(n:Node,ruleI:Int) = { neighbors = (n,ruleI)::neighbors }
+			def search(seen:Array[Boolean],backtrace:List[Int],
+					tick:(Head.Value,List[Int])=>Any):Unit = {
+				//(overhead)
+				if(seen(head.id)){ throw new IllegalStateException("Cyclic unaries") }
+				seen(head.id) = true
+				//(report path)
+				if(backtrace.length > 0){ tick(head,backtrace) }
+				//(continue searching
+				neighbors.foreach{ case (node,rid) =>
+					node.search(seen,rid :: backtrace,tick)
+				}
+			}
+		}
+		val graph = Head.values.map{ new Node(_) }.toArray
+		UNARIES.foreach{ case (r,rid) => 
+			graph(r.head.id).addNeighbor(graph(r.child.id),rid) 
+		}
+		//--Search Graph
+		var closures = List[Closure]()
+		graph.foreach{ (start:Node) => 
+			start.search(new Array[Boolean](graph.length), List[Int](),
+				(child:Head.Value,rules:List[Int]) => {
+					closures = Closure(start.head,child,rules.reverse.toArray) :: closures
+				})
+		}
+		closures.toArray
+	}
+	val CLOSURES:Array[Closure] = computeClosures(RULES)
+	val CLOSURES_INDEX:Array[(Closure,Int)] = CLOSURES.zipWithIndex
 
 	val NIL = -1 //LEX index of the NIL term
 }
