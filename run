@@ -27,7 +27,7 @@ env!(
 			'ItsAlwaysFriday'),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
-		o('beam', 1),
+		o('beam', 100),
 		# -- EVALUATION --
 		o('exactMatchThreshold', 60*60*24), # a day
 		o('scoreGranularity', 60*60*24), # a day
@@ -42,6 +42,9 @@ env!(
 #		o('dev', '101-151'),
 #		o('test', '151-187'),
 		o('devTest', true),
+
+		# -- DEBUG --
+		o('paranoid'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)

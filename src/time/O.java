@@ -13,7 +13,7 @@ public class O {
 	@Option(name="devTest", gloss="Report on development set")
 	public static boolean devTest = false;
 
-	//--Parsing
+	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
 	public static int beam = 100000;
 	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
@@ -36,4 +36,8 @@ public class O {
 	public static double c_overconstraining = 1.0;
 	@Option(name="c_vagueness", gloss="C_vague for score")
 	public static double c_vagueness = 1.0;
+	
+	//--DEBUG
+	@Option(name="paranoid", gloss="Paranoid correctness checks")
+	public static boolean paranoid = false;
 }

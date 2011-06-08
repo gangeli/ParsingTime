@@ -58,12 +58,12 @@ trait Rule {
 		assert(leftChild != null, "No accepted inputs for rule")
 		assert(arity == 1 || rightChild != null, "No accepted inputs for rule")
 	}
-	def left:Head.Value = { cacheRule; return left; }
+	def left:Head.Value = { cacheRule; return leftChild; }
 	def right:Head.Value = {
-		 assert(arity == 2, "Bad arity"); cacheRule; return right;
+		 assert(arity == 2, "Bad arity"); cacheRule; return rightChild;
 	}
 	def child:Head.Value  = {
-		assert(arity == 1, "Bad arity"); cacheRule; return left;
+		assert(arity == 1, "Bad arity"); cacheRule; return leftChild;
 	}
 
 	def signature:String = {
@@ -116,6 +116,32 @@ case class BinaryRule(
 }
 
 object Grammar {
+	private def computeClosures(raw:Array[Rule]):Array[(Rule,List[Int])] = {
+//		val unaries:List[Rule] = raw.filter{ _.arity == 1 }.toList
+//		//--Construct Graph
+//		class Node(head:Head.Value,var neighbors:List[(Int,Int)]){
+//			def this(head:Head.Value) = this(head,List[Int]())
+//			def addNeighbor(id:Int,ruleI:Int) = { neighbors = (id,ruleI)::neighbors }
+//			def search(seen:Array[Boolean],backtrace:List[Int]
+//					tick:(Head.Value,List[Int])=>Any) = {
+//				if(seen[head.id]){ throw new IllegalStateException("Cyclic unaries") }
+//				seen[head.id] = true
+//				if(backtrace.length > 0){ tick(head,backtrace) }
+//			}
+//		}
+//		val graph = Head.values.map{ new Node(_) }
+//		unaries.zipWithIndex.foreach{ pair => 
+//			val (r,index) = pair
+//			graph(r.head.id).addNeighbor(r.child.id,index) 
+//		}
+//		//--Search Graph
+//		var closures:List[Rule] = List[Rule]()
+//		graph.foreach{ (start:Node) => 
+//			start.search
+//		}
+		null
+	}
+
 	val RULES:Array[Rule] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
@@ -214,6 +240,11 @@ object Grammar {
 		//--Return
 		rtn.toArray
 	}
+	
+
+	val RULES_INDEX = RULES.zipWithIndex
+//	val CLOSED_RULES:Array[(Rule,List[Int]) = computeClosures(RULES)
+//	val CLOSED_RULES_INDEX = CLOSED_RULES.zipWithIndex
 
 	val NIL = -1 //LEX index of the NIL term
 }
@@ -787,32 +818,44 @@ class CKYParser extends StandardParser{
 
 	val ckyK = O.beam
 
+	//-----
+	// Elem / Tree / Derivation
+	//-----
 	class ChartElem(
-			var score:Double, 
-			var rule:Rule, 
+			var logScore:Double, 
+			var ruleI:Int, 
 			var left:ChartElem,
 			var right:ChartElem) extends ParseTree {
 		// -- CKY Properties --
-		def this() = this(Double.NegativeInfinity,null,null,null)
-		def apply(score:Double,rule:Rule,left:ChartElem,right:ChartElem
+		def this() = this(Double.NegativeInfinity,-1,null,null)
+		def this(logScore:Double,ruleI:Int) = this(logScore,ruleI,null,null)
+		def apply(logScore:Double,ruleI:Int,left:ChartElem,right:ChartElem
 				):ChartElem = {
+			val rule = RULES(ruleI)
 			assert(rule.arity == 1 || rule.arity == 2, "Bad rule arity")
-			this.score = score
-			this.rule = rule
+			this.logScore = logScore
+			this.ruleI = ruleI
 			this.left = left
 			this.right = right
 			this
 		}
-		def apply(score:Double,rule:Rule,left:ChartElem):ChartElem = {
-			assert(rule.arity == 1, "Invalid apply for arity 1 rule")
-			apply(score,rule,left,null)
+		def apply(logScore:Double,ruleI:Int,left:ChartElem):ChartElem = {
+			assert(RULES(ruleI).arity == 1, "Invalid apply for arity 1 rule")
+			apply(logScore,ruleI,left,null)
 		}
-		def nilify:Unit = { score = Double.NaN; rule = null}
-		def isNil:Boolean = rule == null
+		def apply(other:ChartElem):ChartElem = {
+			assert(!other.isNil, "Setting to nil chart element")
+			apply(other.logScore,other.ruleI,other.left,other.right)
+		}
+		def nilify:Unit = { logScore = Double.NaN; ruleI = -1 }
+		def isNil:Boolean = (ruleI < 0)
 		// -- ParseTree Properties --
-		override def head:Head.Value = rule.head
+		override def head:Head.Value 
+			= { assert(ruleI>=0,"taking head of null rule"); RULES(ruleI).head }
 		override def children:Array[ParseTree] = {
-			if(isNil) {
+			assert(ruleI>=0,"taking children of null rule")
+			val rule = RULES(ruleI)
+			if(left == null && right == null) { //leaf
 				return Array[ParseTree]()
 			} else if(rule.arity == 1){
 				Array[ParseTree](left)
@@ -823,6 +866,8 @@ class CKYParser extends StandardParser{
 			}
 		}
 		private def evaluateHelper(sent:Sentence,i:Int):(Int,(Head.Value,Any)) = {
+			assert(ruleI>=0,"evaluating null rule")
+			val rule = RULES(ruleI)
 			if(isLeaf){
 				//(base case)
 				(i+1,(rule.head,rule(sent.words(i))))
@@ -846,17 +891,25 @@ class CKYParser extends StandardParser{
 			output
 		}
 		// -- Object Properties --
+		override def clone:ChartElem = {
+			new ChartElem(logScore,ruleI,left,right)
+		}
 		override def equals(a:Any) = {
 			a match {
 				case (elem:ChartElem) => {
-					elem.rule == rule && elem.left == left && elem.right == right
+					elem.ruleI == ruleI && elem.left == left && elem.right == right
 				}
 				case (_:Any) => false
 			}
 		}
 	}
 
+	//-----
+	// K-Best List
+	//-----
 	class BestList(values:Array[ChartElem]) {
+
+		// -- Structure --
 		var length = 0
 		def apply(i:Int) = values(i)
 		def capacity:Int = values.length
@@ -864,15 +917,206 @@ class CKYParser extends StandardParser{
 			values(0).nilify
 			length = 0
 		}
-		def add(score:Double,ruleI:Int) = {
-			//TODO
+		def foreach(fn:ChartElem=>Any):Unit = {
+			for(i <- 0 until length){ fn(values(i)) }
+		}
+		def map[A : Manifest](fn:ChartElem=>A):Array[A] = {
+			val rtn = new Array[A](length)
+			for(i <- 0 until length){
+				rtn(i) = fn(values(i))
+			}
+			rtn
+		}
+		def zipWithIndex = values.slice(0,length).zipWithIndex
+		def toArray:Array[ChartElem] = {
+			values.slice(0,length)
+		}
+		override def clone:BestList = {
+			var rtn = new BestList(values.clone)
+			rtn.length = this.length
+			rtn
+		}
+		def deepclone:BestList = {
+			var rtn = new BestList(values.map{ _.clone })
+			rtn.length = this.length
+			rtn
+		}
+
+		// -- As Per (Huang and Chiang 2005) --
+		//<Paranoid Checks>
+		private def check(nonempty:Boolean=true):(Boolean,String) = {
+			//(non-empty)
+			if(nonempty && length == 0){ return (false,"empty") }
+			//(non-null)
+			for(i <- 0 until this.length){
+				if(values(i).isNil){ return (false,"nil element at " + i) }
+			}
+			//(non-infinite score)
+			for(i <- 0 until this.length){
+				if(values(i).logScore == Double.NegativeInfinity ||
+						values(i).logScore == Double.PositiveInfinity ||
+						values(i).logScore.isNaN ){ 
+					return (false,"bad score for element " + i)
+				}
+			}
+			//(sorted)
+			var last:Double = Double.PositiveInfinity
+			for(i <- 0 until this.length){
+				if(last < values(i).logScore){ return (false,"not sorted") }
+				last = values(i).logScore
+			}
+			//(unique)
+			for(i <- 0 until this.length) {
+				for(j <- (i+1) until this.length) {
+					if(values(i).equals(values(j))){ return (false,"not unique") }
+				}
+			}
+			//(ok)
+			return (true,"")
+		}
+
+		//<Algorithm 0>
+		private def mult0(ruleI:Int, left:BestList, right:BestList,
+				score:(ChartElem,ChartElem)=>Double
+				):Array[(Double,ChartElem,ChartElem)]= {
+			//--Create Combined List
+			val combined:Array[(Double,ChartElem,ChartElem)] = if(right != null){
+				//(case: binary rule)
+				assert(left.length > 0 && right.length > 0, "bad length")
+				val out 
+					= new Array[(Double,ChartElem,ChartElem)](left.length*right.length)
+				for( lI <- 0 until left.length ){
+					for(rI <- 0 until right.length ){
+						out(right.length*lI + rI) 
+							= (left(lI).logScore+right(rI).logScore+score(left(lI),right(rI)),
+							   left(lI),
+								 right(rI))
+					}
+				}
+				out
+			} else {
+				//(case: unary rule)
+				assert(left.length > 0, "bad length")
+				left.map{ elem => 
+					(elem.logScore+score(elem,null), elem, null)
+				}
+			}
+			//--Sort List
+			combined.sortBy( - _._1 )
+			assert(combined.length > 0, "empty combined vector")
+			combined
+		}
+		private def merge0(ruleI:Int, 
+				input:Array[(Double,ChartElem,ChartElem)]):Unit = {
+			assert(ruleI >= 0, "Merging bad rule")
+			assert(capacity > 0 && (this.length > 0 || input.length > 0),
+				"bad precondition to merge")
+			var defendP = 0
+			var candP = 0
+			var index:Int = 0
+			val defender = this.deepclone
+			while(index < capacity && 
+					(defendP < this.length ||
+					candP < input.length) ){
+				//(get candidate scores)
+				val defend:Double
+						= if(defendP < this.length) defender(defendP).logScore 
+						else Double.NegativeInfinity
+				val cand:Double
+						= if(candP < input.length) input(candP)._1
+						else Double.NegativeInfinity
+				assert(cand > Double.NegativeInfinity || 
+					defend > Double.NegativeInfinity,
+					"No acceptable scores")
+				//(set largest element)
+				if(cand > defend){
+					//(case: take new)
+					val (score,left,right) = input(candP)
+					candP += 1
+					if(right == null) {
+						assert(left != null, "setting to null rule")
+						values(index)(score,ruleI,left)
+					} else {
+						assert(left != null, "setting to null rules")
+						values(index)(score,ruleI,left,right)
+					}
+				} else {
+					//(case: keep old)
+					if(O.paranoid)
+						{ val (ok,str) = defender.check(false); assert(ok,"merge: " +str) }
+					assert(defendP < defender.length, "defendP is larger than length")
+					assert(defend > Double.NegativeInfinity, "score should be valid")
+					assert(!defender(defendP).isNil, "setting to nil element!")
+					values(index)(defender(defendP))
+					defendP += 1
+				}
+				//(increment index)
+				index += 1
+			}
+			//(set length)
+			length = index
+			assert(length != 0, "Merge returned length 0")
+		}
+		private def algorithm0(ruleI:Int, left:BestList, right:BestList,
+				score:(ChartElem,ChartElem)=>Double):Unit = {
+			assert(left.length > 0, "precondition for algorithm0")
+			merge0(ruleI,mult0(ruleI, left, right, score))
+		}
+
+		//<Top Level>
+		def combine(ruleI:Int, left:BestList, right:BestList,
+				score:(ChartElem,ChartElem)=>Double):Unit = {
+			if(left.length > 0 && (right == null || right.length > 0)){
+				//(pre)
+				var save:BestList = if(O.paranoid){ this.clone } else { null }
+				if(O.paranoid){ val (ok,str) = check(false); assert(ok,"pre: " +str) }
+				//(execute)
+				this.algorithm0(ruleI, left, right, score) //<--Execute
+				//(checks)
+				if(O.paranoid){ 
+					//(sanity)
+					val (ok,str) = check(); assert(ok,"post: " + str)
+					//(correctness)
+					save.algorithm0(ruleI, left, right, score)
+					assert(save.length == this.length, "length is wrong")
+					for(i <- 0 until length){
+						assert(save(i).equals(this(i)), "element " + i + " is wrong")
+					}
+				}
+			}
+		}
+		def combine(ruleI:Int, left:BestList,
+				score:(ChartElem,ChartElem)=>Double):Unit = {
+			assert(RULES(ruleI).arity == 1, "must be arity 1 rule")
+			combine(ruleI, left, null, score)
+		}
+
+		// -- Standard Methods --
+		def add(score:Double,ruleI:Int,left:ChartElem,right:ChartElem) = {
+			assert(RULES(ruleI).arity == 2, "must be arity 2 rule")
+			values(length)(score,ruleI,left,right)
+			length += 1
+		}
+		def add(score:Double,ruleI:Int,left:ChartElem) = {
+			assert(RULES(ruleI).arity == 1, "must be arity 1 rule")
+			values(length)(score,ruleI,left)
+			length += 1
+		}
+		def suggest(score:Double,ruleI:Int,left:ChartElem,right:ChartElem) = {
+			if(length < capacity){ add(score,ruleI,left,right) }
+		}
+		def suggest(score:Double,ruleI:Int,left:ChartElem) = {
+			if(length < capacity){ add(score,ruleI,left) }
 		}
 		def suggest(score:Double,ruleI:Int) = {
-			if(length < capacity){ add(score,ruleI) }
+			if(length < capacity){ add(score,ruleI,null) }
 		}
 	}
 
 
+	//-----
+	// Chart
+	//-----
 	type RuleList = Array[BestList]
 	type Chart = Array[Array[RuleList]]
 
@@ -937,7 +1181,11 @@ class CKYParser extends StandardParser{
 		}
 	}
 	
+	//-----
+	// Access/Set
+	//-----
 	def gram(chart:Chart,begin:Int,end:Int,head:Int):BestList = {
+		if(end == begin+1){ return lex(chart,begin,head) }
 		//(asserts)
 		assert(end > begin+1, "Chart access error: bad end: " + begin + ", " + end)
 		assert(begin >= 0, "Chart access error: negative values: " + begin)
@@ -972,42 +1220,70 @@ class CKYParser extends StandardParser{
 		return candidates.length
 	}
 
-	def cky[T](sent:Sentence):Array[Tree[T]] = {
+	//-----
+	// CKY
+	//-----
+	def cky[T](sent:Sentence):Array[ParseTree] = {
 		//--Create Chart
 		val chart = makeChart(sent.length)
 		assert(chart.length >= sent.length, "Chart is too small")
 		//--Lex
 		for(elem <- 0 until sent.length) {
+			//(add terms)
 			klex(sent,elem,(ruleI:Int,score:Double) => {
 				val typeIndex = RULES(ruleI).head.id
 				lex(chart,elem,typeIndex).suggest(score,ruleI)
 				true
 			})
+			//(check)
+			if(O.paranoid){
+				var count:Int = 0
+				Head.values.foreach{ head:Head.Value => 
+					count += lex(chart,elem,head.id).length
+				}
+				assert(count > 0, "Word " + elem + " should have lex completions")
+			}
 		}
-		//--Rules
-		for(begin <- 0 until sent.length-2) {
-			for(length <- 2 until sent.length-begin) {
-				val end = begin+length
-				for(split <- 1 until length) {
-					//--Generate Candidates
-					val queues = new Array[PriorityQueue[Int]](Head.values.size)
-					RULES.foreach{ (r:Rule) => 
-						8
-					}
-					//--Compress Candidates
-					Head.values.foreach{ (head:Head.Value) => 
-						9
+		//--Grammar
+		for(begin <- 0 until sent.length-2) {         // begin
+			for(length <- 2 until sent.length-begin) {  // length
+				val end:Int = begin+length
+				RULES_INDEX.foreach{ pair =>              // rules
+					val (r,ruleI) = pair
+					val head:Head.Value = r.head
+					val headI:Int = head.id
+					if(r.arity == 1){
+						val child:BestList = gram(chart,begin,end,r.child.id)
+						gram(chart,begin,end,headI).combine(ruleI,child,
+							(left:ChartElem,right:ChartElem) => {
+								0.0 //TODO
+							})
+					} else if(r.arity == 2){
+						for(split <- (begin+1) until (end-1)){ // splits
+							val left:BestList = gram(chart,begin,split,r.left.id)
+							val right:BestList = gram(chart,split,end,r.right.id)
+							gram(chart,begin,end,headI).combine(ruleI,left,right,
+								(left:ChartElem,right:ChartElem) => {
+									0.0 //TODO
+								})
+						}
+					} else {
+						throw new IllegalStateException("bad arity rule")
 					}
 				}
 			}
 		}
-		null
+		//--Return
+		gram(chart,0,sent.length,Head.ROOT.id).toArray.map{ x => x }
 	}
 
 
+	//-----
+	// Parse Method
+	//-----
 	override def parse(i:Int, sent:Sentence, feedback:Boolean
 			):(Array[Parse],Feedback=>Any)={
-		cky(sent)
+		log("|cky|=" + cky(sent).length + " for " + sent)
 		val parse:Array[Parse] = Array[Parse](
 			FRI(NOW),                              // I think it's friday
 			(r:Range) => Range(r.begin,NOW),       // or 'the past'
