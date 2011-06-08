@@ -216,7 +216,7 @@ object Grammar {
 		rtn.toArray
 	}
 	val UNARIES:Array[(Rule,Int)]  = RULES.zipWithIndex.filter{ _._1.arity == 1 }
-	val BINARIES:Array[(Rule,Int)] = RULES.zipWithIndex.filter{ _._1.arity == 1 }
+	val BINARIES:Array[(Rule,Int)] = RULES.zipWithIndex.filter{ _._1.arity == 2 }
 	val RULES_INDEX = RULES.zipWithIndex
 
 	case class Closure(head:Head.Value,child:Head.Value,rules:Array[Int])
@@ -229,17 +229,24 @@ object Grammar {
 			def search(seen:Array[Boolean],backtrace:List[Int],
 					tick:(Head.Value,List[Int])=>Any):Unit = {
 				//(overhead)
-				if(seen(head.id)){ throw new IllegalStateException("Cyclic unaries") }
+				if(seen(head.id)){ 
+					throw new IllegalStateException("Cyclic unaries for: " + head)
+				}
 				seen(head.id) = true
 				//(report path)
 				if(backtrace.length > 0){ tick(head,backtrace) }
 				//(continue searching
 				neighbors.foreach{ case (node,rid) =>
+					assert(RULES(rid).head == this.head, "graph constructed badly (head)")
+					assert(RULES(rid).child == node.head, "graph constructed badly (ch)")
 					node.search(seen,rid :: backtrace,tick)
 				}
+				//(pop up)
+				seen(head.id) = false
 			}
 		}
-		val graph = Head.values.map{ new Node(_) }.toArray
+		//(populate graph)
+		val graph = Head.values.toArray.map{ new Node(_) }
 		UNARIES.foreach{ case (r,rid) => 
 			graph(r.head.id).addNeighbor(graph(r.child.id),rid) 
 		}
@@ -249,17 +256,27 @@ object Grammar {
 			start.search(new Array[Boolean](graph.length), List[Int](),
 				(child:Head.Value,backtrace:List[Int]) => {
 					//(format backtrace)
-					val rules = backtrace.reverse.toArray
-					assert(RULES(rules(0)).head == start.head)
-					assert(RULES(rules(rules.length-1)).head == child)
+					val rules:Array[Int] = backtrace.reverse.toArray
+					assert(RULES(rules(0)).head == start.head, "bad head")
+					assert(RULES(rules(rules.length-1)).child == child, "bad child")
 					//(add closure)
 					closures = Closure(start.head,child,rules) :: closures
 				})
 		}
 		closures.toArray
 	}
+
 	val CLOSURES:Array[Closure] = computeClosures(RULES)
 	val CLOSURES_INDEX:Array[(Closure,Int)] = CLOSURES.zipWithIndex
+	
+	val unary2closure:Array[Int] = {
+		UNARIES.map{ case (rule,rid) =>
+			val lst = CLOSURES.zipWithIndex.filter{ case (c,index) => 
+				c.rules.length == 1 && c.rules(0) == rid }
+			assert(lst.length == 1, "multiple (or no) closures for rule")
+			lst(0)._2
+		}
+	}
 	
 
 	val NIL = -1 //LEX index of the NIL term
@@ -852,67 +869,67 @@ class CKYParser extends StandardParser{
 	//-----
 	class ChartElem(
 			var logScore:Double, 
-			var rid:Int, 
+			var ckyI:Int, 
 			var left:ChartElem,
 			var right:ChartElem) extends ParseTree {
 		// -- CKY Properties --
 		def this() = this(Double.NegativeInfinity,-1,null,null)
-		def this(logScore:Double,rid:Int) = this(logScore,rid,null,null)
-		def apply(logScore:Double,rid:Int,left:ChartElem,right:ChartElem
+		def this(logScore:Double,ckyI:Int) = this(logScore,ckyI,null,null)
+		def apply(logScore:Double,ckyI:Int,left:ChartElem,right:ChartElem
 				):ChartElem = {
 			this.logScore = logScore
-			this.rid = rid
+			this.ckyI = ckyI
 			this.left = left
 			this.right = right
 			this
 		}
-		def apply(logScore:Double,rid:Int,left:ChartElem):ChartElem = {
-			assert(RULES(rid).arity == 1, "Invalid apply for arity 1 rule")
-			apply(logScore,rid,left,null)
+		def apply(logScore:Double,ckyI:Int,left:ChartElem):ChartElem = {
+			assert(isClosure(ckyI), "Invalid apply for arity 1 rule")
+			apply(logScore,ckyI,left,null)
 		}
 		def apply(other:ChartElem):ChartElem = {
 			assert(!other.isNil, "Setting to nil chart element")
-			apply(other.logScore,other.rid,other.left,other.right)
+			apply(other.logScore,other.ckyI,other.left,other.right)
 		}
-		def nilify:Unit = { logScore = Double.NaN; rid = -1 }
-		def isNil:Boolean = (rid < 0)
+		def nilify:Unit = { logScore = Double.NaN; ckyI = -1 }
+		def isNil:Boolean = (ckyI < 0)
 		// -- ParseTree Properties --
 		override def head:Head.Value = {
-			assert(rid>=0,"taking head of null rule"); 
-			RULES(CKY_TERMS(rid)(0)).head
+			assert(ckyI>=0,"taking head of null rule"); 
+			RULES(CKY_TERMS(ckyI)(0)).head
 		}
 		override def children:Array[ParseTree] = {
-			assert(rid>=0,"taking children of null rule")
+			assert(ckyI>=0,"taking children of null rule")
 			if(left == null && right == null) { //leaf
 				return Array[ParseTree]()
-			} else if(isClosure(rid)) {
+			} else if(isClosure(ckyI)) {
 				assert(right == null, "closure with 2 children")
 				Array[ParseTree](left)
-			} else if(isBinary(rid)) {	
+			} else if(isBinary(ckyI)) {	
 				Array[ParseTree](left,right)
 			} else {
-				throw new IllegalStateException("Bad cky term index: " + rid)
+				throw new IllegalStateException("Bad cky term index: " + ckyI)
 			}
 		}
 		private def evaluateHelper(sent:Sentence,i:Int):(Int,(Head.Value,Any)) = {
-			assert(rid>=0,"evaluating null rule")
-			val ckyTerm = CKY_TERMS(rid)
-			if(isClosure(rid)) {
+			assert(ckyI>=0,"evaluating null rule")
+			val ckyTerm = CKY_TERMS(ckyI)
+			if(isClosure(ckyI)) {
 				//(case: closure)
-				assert(right == null, "binary rule on closure rid")
+				assert(right == null, "binary rule on closure ckyI")
 				var (childI,(childType,childValue)) = {
 					if(isLeaf) (i,(Head.Word,sent(i))) //<--Base Case
 					else left.evaluateHelper(sent,i)
 				}
-				CKY_TERMS(rid).reverse.foreach{ realID =>
+				CKY_TERMS(ckyI).reverse.foreach{ realID =>
 					assert(RULES(realID).arity == 1, "closure with binary rule")
 					childValue = RULES(realID)(childValue)
 				}
 				(childI,(head,childValue))
-			}else if(isBinary(rid)){
+			}else if(isBinary(ckyI)){
 				//(case: binary rule)
-				assert(CKY_TERMS(rid).length == 0, "Multi-rule non-closure")
-				val rule = RULES(CKY_TERMS(rid)(0))
+				assert(CKY_TERMS(ckyI).length == 0, "Multi-rule non-closure")
+				val rule = RULES(CKY_TERMS(ckyI)(0))
 				assert(rule.arity == 2, "non-closure unary")
 				val (leftI,(leftType,leftValue)) = left.evaluateHelper(sent,i)
 				val (rightI,(rightType,rightValue)) = right.evaluateHelper(sent,leftI)
@@ -928,12 +945,12 @@ class CKYParser extends StandardParser{
 		}
 		// -- Object Properties --
 		override def clone:ChartElem = {
-			new ChartElem(logScore,rid,left,right)
+			new ChartElem(logScore,ckyI,left,right)
 		}
 		override def equals(a:Any) = {
 			a match {
 				case (elem:ChartElem) => {
-					elem.rid == rid && elem.left == left && elem.right == right
+					elem.ckyI == ckyI && elem.left == left && elem.right == right
 				}
 				case (_:Any) => false
 			}
@@ -1012,7 +1029,7 @@ class CKYParser extends StandardParser{
 		}
 
 		//<Algorithm 0>
-		private def mult0(rid:Int, left:BestList, right:BestList,
+		private def mult0(ckyI:Int, left:BestList, right:BestList,
 				score:(ChartElem,ChartElem)=>Double
 				):Array[(Double,ChartElem,ChartElem)]= {
 			//--Create Combined List
@@ -1042,9 +1059,9 @@ class CKYParser extends StandardParser{
 			assert(combined.length > 0, "empty combined vector")
 			combined
 		}
-		private def merge0(rid:Int, 
+		private def merge0(ckyI:Int, 
 				input:Array[(Double,ChartElem,ChartElem)]):Unit = {
-			assert(rid >= 0, "Merging bad rule")
+			assert(ckyI >= 0, "Merging bad rule")
 			assert(capacity > 0 && (this.length > 0 || input.length > 0),
 				"bad precondition to merge")
 			var defendP = 0
@@ -1071,10 +1088,10 @@ class CKYParser extends StandardParser{
 					candP += 1
 					if(right == null) {
 						assert(left != null, "setting to null rule")
-						values(index)(score,rid,left)
+						values(index)(score,ckyI,left)
 					} else {
 						assert(left != null, "setting to null rules")
-						values(index)(score,rid,left,right)
+						values(index)(score,ckyI,left,right)
 					}
 				} else {
 					//(case: keep old)
@@ -1093,27 +1110,27 @@ class CKYParser extends StandardParser{
 			length = index
 			assert(length != 0, "Merge returned length 0")
 		}
-		private def algorithm0(rid:Int, left:BestList, right:BestList,
+		private def algorithm0(ckyI:Int, left:BestList, right:BestList,
 				score:(ChartElem,ChartElem)=>Double):Unit = {
 			assert(left.length > 0, "precondition for algorithm0")
-			merge0(rid,mult0(rid, left, right, score))
+			merge0(ckyI,mult0(ckyI, left, right, score))
 		}
 
 		//<Top Level>
-		def combine(rid:Int, left:BestList, right:BestList,
+		def combine(ckyI:Int, left:BestList, right:BestList,
 				score:(ChartElem,ChartElem)=>Double):Unit = {
 			if(left.length > 0 && (right == null || right.length > 0)){
 				//(pre)
 				var save:BestList = if(O.paranoid){ this.clone } else { null }
 				if(O.paranoid){ val (ok,str) = check(false); assert(ok,"pre: " +str) }
 				//(execute)
-				this.algorithm0(rid, left, right, score) //<--Execute
+				this.algorithm0(ckyI, left, right, score) //<--Execute
 				//(checks)
 				if(O.paranoid){ 
 					//(sanity)
 					val (ok,str) = check(); assert(ok,"post: " + str)
 					//(correctness)
-					save.algorithm0(rid, left, right, score)
+					save.algorithm0(ckyI, left, right, score)
 					assert(save.length == this.length, "length is wrong")
 					for(i <- 0 until length){
 						assert(save(i).equals(this(i)), "element " + i + " is wrong")
@@ -1121,31 +1138,31 @@ class CKYParser extends StandardParser{
 				}
 			}
 		}
-		def combine(rid:Int, left:BestList,
+		def combine(ckyI:Int, left:BestList,
 				score:(ChartElem,ChartElem)=>Double):Unit = {
-			assert(RULES(rid).arity == 1, "must be arity 1 rule")
-			combine(rid, left, null, score)
+			assert(isClosure(ckyI), "must be arity 1 rule")
+			combine(ckyI, left, null, score)
 		}
 
 		// -- Standard Methods --
-		def add(score:Double,rid:Int,left:ChartElem,right:ChartElem) = {
-			assert(RULES(rid).arity == 2, "must be arity 2 rule")
-			values(length)(score,rid,left,right)
+		def add(score:Double,ckyI:Int,left:ChartElem,right:ChartElem) = {
+			assert(isBinary(ckyI), "must be arity 2 rule")
+			values(length)(score,ckyI,left,right)
 			length += 1
 		}
-		def add(score:Double,rid:Int,left:ChartElem) = {
-			assert(RULES(rid).arity == 1, "must be arity 1 rule")
-			values(length)(score,rid,left)
+		def add(score:Double,ckyI:Int,left:ChartElem) = {
+			assert(isClosure(ckyI), "must be arity 1 rule")
+			values(length)(score,ckyI,left)
 			length += 1
 		}
-		def suggest(score:Double,rid:Int,left:ChartElem,right:ChartElem) = {
-			if(length < capacity){ add(score,rid,left,right) }
+		def suggest(score:Double,ckyI:Int,left:ChartElem,right:ChartElem) = {
+			if(length < capacity){ add(score,ckyI,left,right) }
 		}
-		def suggest(score:Double,rid:Int,left:ChartElem) = {
-			if(length < capacity){ add(score,rid,left) }
+		def suggest(score:Double,ckyI:Int,left:ChartElem) = {
+			if(length < capacity){ add(score,ckyI,left) }
 		}
-		def suggest(score:Double,rid:Int) = {
-			if(length < capacity){ add(score,rid,null) }
+		def suggest(score:Double,ckyI:Int) = {
+			if(length < capacity){ add(score,ckyI,null) }
 		}
 	}
 
@@ -1156,21 +1173,17 @@ class CKYParser extends StandardParser{
 	type RuleList = Array[BestList]
 	type Chart = Array[Array[RuleList]]
 
-	val (lexRules, scores, posScores)
-			:(Array[(Rule,Int)],Array[Counter[Int]],Array[Counter[Int]]) = {
-		val rules = RULES.zipWithIndex.filter( p => p._1.accepts(Head.Word) )
-		val score = RULES.map( p => {
-				new ClassicCounter[Int]
-			}).toArray
-		val pos = RULES.map( p => {
-				new ClassicCounter[Int]
-			}).toArray
-		(rules, score, pos)
+	val (lexScores, posScores)
+			:(Array[Counter[Int]],Array[Counter[Int]]) = {
+		(
+			CLOSURES.map{ p => new ClassicCounter[Int] },
+			CLOSURES.map{ p => new ClassicCounter[Int] }
+		)
 	}
-	def lexCount(lex:Int,rule:Int):Double = scores(rule).getCount(lex)
+	def lexCount(lex:Int,rule:Int):Double = lexScores(rule).getCount(lex)
 	def lexProb(lex:Int,rule:Int):Double = {
 		val count = lexCount(lex,rule)
-		val denom = scores(rule).totalCount
+		val denom = lexScores(rule).totalCount
 		if(denom == 0.0) 0.0 else (count/denom)
 	}
 	def posCount(pos:Int,rule:Int):Double = posScores(rule).getCount(pos)
@@ -1241,18 +1254,19 @@ class CKYParser extends StandardParser{
 		val word = sent.words(elem)
 		val pos = sent.pos(elem)
 		//(get candidate parses)
-		val candidates = lexRules.map( (pair:(Rule,Int)) => {
-			val (r,rI) = pair
-			(rI, lexProb(word,rI)) //TODO POS backoff
-		})
+		val candidates = CLOSURES_INDEX.filter{ case (closure,index) =>
+				closure.child == Head.Word
+			}.map{ case (closure,index) =>
+				(index, lexProb(word,index)) //TODO POS backoff
+			}
 		//(sort)
 		candidates.sortBy( -_._2 )
 		//(yield)
-		for( i <- 0 until candidates.length) {
-			val (rI,score) = candidates(i)
-			if(!y(rI,score)){ return i; }
+		var i:Int = 0
+		candidates.foreach{ case (closureI,score) => 
+			if(!y(closureI,score)){ return i }
+			i += 1
 		}
-		//(return)
 		return candidates.length
 	}
 
@@ -1266,9 +1280,9 @@ class CKYParser extends StandardParser{
 		//--Lex
 		for(elem <- 0 until sent.length) {
 			//(add terms)
-			klex(sent,elem,(rid:Int,score:Double) => {
-				val typeIndex = RULES(rid).head.id
-				lex(chart,elem,typeIndex).suggest(score,rid)
+			klex(sent,elem,(closureI:Int,score:Double) => {
+				val typeIndex = CLOSURES(closureI).head.id
+				lex(chart,elem,typeIndex).suggest(score,closure2ckyTerm(closureI))
 				true
 			})
 			//(check)

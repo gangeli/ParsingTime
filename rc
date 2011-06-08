@@ -8,3 +8,7 @@ function v {
 	last=`ls out | sort -nr | head -n 1`
 	vim out/$last/$file
 }
+
+function r {
+	make && ./run
+}
