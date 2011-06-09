@@ -217,14 +217,18 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 
 	def isGrounded:Boolean = this.base != null
 	def alsoMod(mods:List[Time=>Time]):Time = {
+		assert(mods != null, "adding mod to time, but mod is null")
 		val existingMods = if(modifiers == null) List() else modifiers
 		if(offset == null){
+			assert(existingMods != null, "Appending to null mods")
 			new Time(base, null, mods ::: existingMods)
 		} else {
 			new Time(base, null, mods ::: (((t:Time)=>t+offset) :: existingMods) )
 		}
 	}
-	def alsoMod(other:Time):Time = alsoMod(other.modifiers)
+	def alsoMod(other:Time):Time = {
+		if(other.modifiers != null){ alsoMod(other.modifiers) } else { this }
+	}
 
 	def ground:Instant = {
 		if(!isGrounded){

@@ -145,6 +145,8 @@ class RepresentationSpec extends Spec with ShouldMatchers{
 				~ Range(Time(2011,3,5),Time(2011,3,6)) )
 			assert( (MOY(3)(NOW) ^ DOM(5)(NOW))(ground) 
 				~ Range(Time(2011,3,5),Time(2011,3,6)) )
+			assert( (Range(NOW,NOW) ^ Range(NOW,NOW))
+				~ Range(NOW,NOW) )
 		}
 	}
 
