@@ -27,7 +27,11 @@ env!(
 			'ItsAlwaysFriday'),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
-		o('beam', 100),
+		o('weightedUpdate'),
+		selo(1, 'smoothing',
+			'addOne',
+			'none'),
+		o('beam', 10),
 		# -- EVALUATION --
 		o('exactMatchThreshold', 60*60*24), # a day
 		o('scoreGranularity', 60*60*24), # a day

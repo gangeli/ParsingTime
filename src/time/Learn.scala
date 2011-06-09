@@ -333,6 +333,7 @@ trait Tree[A]{
 trait ParseTree extends Tree[Head.Value] {
 	override def children:Array[ParseTree]
 	def evaluate(sent:Sentence):(Head.Value,Any,Double)
+	def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit
 }
 
 //-----
@@ -445,14 +446,18 @@ trait Parser {
 }
 
 trait StandardParser extends Parser {
+	def startIteration(iter:Int):Unit = {}
+	def endIteration(iter:Int):Unit = {}
 	def parse(iter:Int, sent:Sentence, feedback:Boolean
 		):(Array[Parse],Feedback=>Any)
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			start_track("Iteration " + i)
+			startIteration(i)
 			val score = data.eachExample( (sent:Sentence) => {
 				parse(i, sent, feedback)
 			})
+			endIteration(i)
 			log("Score: " + score)
 			end_track
 			score
@@ -892,7 +897,7 @@ class CKYParser extends StandardParser{
 	private val CKY_UNARY:Array[CkyRule]
 		= CKY_TERMS.filter{ term => term.arity == 1 }
 	private val CKY_LEX:Array[CkyRule]
-		= CKY_UNARY.filter{ term => term.child == Head.Word }
+		= CKY_UNARY.filter{term => term.rids.length == 1 && term.child == Head.Word}
 	private val CKY_BINARY:Array[CkyRule]
 		= CKY_TERMS.filter{ term => term.arity == 2 }
 
@@ -979,6 +984,31 @@ class CKYParser extends StandardParser{
 				"missed words in evaluation: " + length + " " + sent.length)
 			(tag,value,this.logScore)
 		}
+		private def traverseHelper(i:Int,ruleFn:Int=>Any,lexFn:(Int,Int)=>Any
+				):Int = {
+			assert(term != null, "evaluating null rule")
+			if(term.arity == 1) {
+				//(case: unary rule)
+				assert(right == null, "binary rule on closure ckyI")
+				if(isLeaf) {
+					assert(term.rids.length==1, "closure used as lex tag")
+					lexFn(term.rid,i)
+					i + 1 //return
+				} else {
+					term.rids.foreach{ (rid:Int) => ruleFn(rid) }
+					left.traverseHelper(i,ruleFn,lexFn) //return
+				}
+			}else if(term.arity == 2){
+				term.rids.foreach{ (rid:Int) => ruleFn(rid) }
+				val leftI = left.traverseHelper(i,ruleFn,lexFn)
+				right.traverseHelper(leftI,ruleFn,lexFn) //return
+			}else{
+				throw new IllegalStateException("Invalid cky term")
+			}
+		}
+		override def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit = {
+			traverseHelper(0,ruleFn,lexFn)
+		}
 		// -- Object Properties --
 		override def clone:ChartElem = {
 			new ChartElem(logScore,term,left,right)
@@ -1040,11 +1070,9 @@ class CKYParser extends StandardParser{
 			for(i <- 0 until this.length){
 				if(values(i).isNil){ return (false,"nil element at " + i) }
 			}
-			//(non-infinite score)
+			//(acceptable score)
 			for(i <- 0 until this.length){
-				if(values(i).logScore == Double.NegativeInfinity ||
-						values(i).logScore == Double.PositiveInfinity ||
-						values(i).logScore.isNaN ){ 
+				if(values(i).logScore > 0 || values(i).logScore.isNaN ){ 
 					return (false,"bad score for element " + i)
 				}
 			}
@@ -1114,12 +1142,11 @@ class CKYParser extends StandardParser{
 				val cand:Double
 						= if(candP < input.length) input(candP)._1
 						else Double.NegativeInfinity
-				assert(cand > Double.NegativeInfinity || 
-					defend > Double.NegativeInfinity,
-					"No acceptable scores")
+				assert(!defend.isNaN, "NaN on defending rule")
+				assert(!cand.isNaN, "NaN on candidate rule")
 				//(set largest element)
-				if(cand > defend){
-					//(case: take new)
+				if(cand > defend || defendP >= this.length){ 
+					//(case: take new) //^ second condition only fires when both neg_inf
 					val (score,left,right) = input(candP)
 					candP += 1
 					if(right == null) {
@@ -1268,20 +1295,45 @@ class CKYParser extends StandardParser{
 		assert(head < Head.values.size, "Chart access error: bad head: " + head)
 		chart(elem)(0)(head)
 	}
-
+	
+	//-----
+	// Learning
+	//-----
+	var ruleScores:Array[Double] = new Array[Double](RULES.length).map{ x => 1.0 }
+	var wordScores:Array[Counter[Int]] =
+		(0 until RULES.length).map{ i => new ClassicCounter[Int] }.toArray
+	var posScores:Array[Counter[Int]] =
+		(0 until RULES.length).map{ i => new ClassicCounter[Int] }.toArray
+	
 	def lexProb(w:Int,pos:Int,rule:CkyRule):Double = {
-		0.0 //TODO
+		assert(rule.arity == 1, "Lex with binary rule")
+		val wordCount:Double = wordScores(rule.rid).getCount(w)
+		val wordTotal:Double = wordScores(rule.rid).totalCount
+		val wordProb:Double = O.smoothing match {
+			case O.SmoothingType.none => 
+				if(wordTotal == 0.0){ 1.0 / G.W.asInstanceOf[Double] } 
+				else { (wordCount / wordTotal ) }
+			case O.SmoothingType.addOne =>
+				(wordCount+1.0) / (wordTotal + G.W.asInstanceOf[Double])
+			case _ => 
+				throw new IllegalStateException("Unknown smoothing: " + O.smoothing)
+		}
+		U.safeLn(wordProb)
 	}
+	def ruleProb(rule:CkyRule):Double = {
+		rule.rids.foldLeft(0.0){ (logScore:Double,rid:Int) => 
+			logScore + U.safeLn(ruleScores(rid)) }
+	}
+
 	def klex(sent:Sentence,elem:Int,y:(CkyRule,Double)=>Boolean):Int = {
 		val word:Int = sent.words(elem)
 		val pos:Int = sent.pos(elem)
 		//(get candidate parses)
 		val candidates = CKY_LEX.map{ term => (term, lexProb(word,pos,term)) }
 		//(sort)
-		candidates.sortBy( -_._2 )
 		//(yield)
 		var i:Int = 0
-		candidates.foreach{ case (term,score) => 
+		candidates.sortBy( - _._2).foreach{ case (term,score) => 
 			assert(term.child == Head.Word, "bad term returned in klex")
 			if(!y(term,score)){ return i }
 			i += 1
@@ -1302,7 +1354,8 @@ class CKYParser extends StandardParser{
 			var lastScore:Double = Double.PositiveInfinity
 			klex(sent,elem,(term:CkyRule,score:Double) => {
 				lex(chart,elem,term.head.id).suggest(score,term)
-				assert(score <= lastScore,"KLex out of order"); lastScore = score
+				assert(score <= lastScore,"KLex out of order: "+lastScore+"->"+score); 
+				lastScore = score
 				true
 			})
 			//(check)
@@ -1320,24 +1373,22 @@ class CKYParser extends StandardParser{
 				val end:Int = begin+length
 				assert(end <= sent.length, "end is out of bounds")
 				CKY_BINARY.foreach{ (term:CkyRule) =>              // rules [binary]
+					val ruleProbability = ruleProb(term)
 					assert(term.arity == 2, "Binary rule should be binary")
 					val r = term.rule
 					for(split <- (begin+1) to (end-1)){              // splits
 						val left:BestList = gram(chart,begin,split,r.left.id)
 						val right:BestList = gram(chart,split,end,r.right.id)
 						gram(chart,begin,end,r.head.id).combine(term,left,right,
-							(left:ChartElem,right:ChartElem) => {
-								0.0 //TODO
-							})
+							(left:ChartElem,right:ChartElem) => { ruleProbability })
 					}
 				}
 				CKY_UNARY.foreach{ (term:CkyRule) =>               // rules [unary]
+					val ruleProbability = ruleProb(term)
 					assert(term.arity == 1, "Unary rule should be unary")
 					val child:BestList = gram(chart,begin,end,term.child.id)
 					gram(chart,begin,end,term.head.id).combine(term,child,
-						(left:ChartElem,right:ChartElem) => {
-							0.0 //TODO
-						})
+						(left:ChartElem,right:ChartElem) => { ruleProbability })
 				}
 			}
 		}
@@ -1348,6 +1399,69 @@ class CKYParser extends StandardParser{
 	//-----
 	// Parse Method
 	//-----
+	private val rulesCounted:Array[Double] = RULES.map{ r => 0.0 }
+	private val wordsCounted:Array[Counter[Int]] = 
+		RULES.map{ r => new ClassicCounter[Int] }
+	private val posCounted:Array[Counter[Int]] = 
+		RULES.map{ r => new ClassicCounter[Int] }
+
+	override def endIteration(iter:Int):Unit = {
+		log("Computing new weights")
+		//--Recalculate weights
+		//(rules)
+		val totalCounts:Array[Double] = new Array[Double](Head.values.size)
+		rulesCounted.zipWithIndex.foreach{ case (count,rid) =>
+			totalCounts(RULES(rid).head.id) += count
+		}
+		rulesCounted.zipWithIndex.foreach{ case (count,rid) =>
+			if(count > 0){
+				assert(totalCounts(RULES(rid).head.id) > 0.0, "total counts wrong")
+				ruleScores(rid) = count / totalCounts(RULES(rid).head.id)
+			} else {
+				ruleScores(rid) = 0.0
+			}
+			rulesCounted(rid) = 0.0
+		}
+		//(lex)
+		wordsCounted.zipWithIndex.foreach{ case (counter,index) =>
+			wordScores(index) = counter
+			wordsCounted(index) = new ClassicCounter[Int]
+		}
+		posCounted.zipWithIndex.foreach{ case (counter,index) =>
+			posScores(index) = counter
+			posCounted(index) = new ClassicCounter[Int]
+		}
+		//--Debug
+		start_track("Iteration Summary")
+		report
+		end_track
+	}
+
+	override def report:Unit = {
+		//--Debug Print
+		//(best lex)
+		val bestWords:Array[(Int,Int,Double)] = wordScores.zipWithIndex.map{ 
+			case (counter:Counter[Int],rid:Int) => 
+				val argmax = Counters.argmax(counter) 
+				val score = 
+					if(counter.totalCount == 0.0){ 0.0 } 
+					else { counter.getCount(argmax) / counter.totalCount }
+				(rid,argmax,score)
+			}.sortBy( - _._3 ).slice(0,10)
+		start_track("lex scores (top)")
+		bestWords.foreach{ case (rid,w,score) =>
+			logG("[" + G.df.format(score) + "] " + 
+				U.w2str(w) + " from " + RULES(rid).head)
+		}
+		end_track
+		//(best rules)
+		start_track("rule scores (top)")
+		ruleScores.zipWithIndex.sortBy(-_._1).slice(0,10).foreach{case (score,rid)=>
+			logG("[" + G.df.format(score) + "] " + RULES(rid))
+		}
+		end_track
+	}
+
 	override def parse(i:Int, sent:Sentence, feedback:Boolean
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
@@ -1361,12 +1475,22 @@ class CKYParser extends StandardParser{
 			U.join(
 				scored.slice(0,1).map{ case (tag,parse,score) => 
 					""+parse+"["+G.df.format(score)+"]"}, " or "))
+
 		//--Format Return
-		(
-			parses, 
+		(	parses, 
 			(feedback:Feedback) => {
-				//TODO
+				feedback.correct.foreach{ case (index,score) => {
+					trees(index).traverse( 
+							{(rid:Int) => rulesCounted(rid) += 1},
+							{(rid:Int,i:Int) => 
+								wordsCounted(rid).incrementCount(sent.words(i),1.0)
+								posCounted(rid).incrementCount(sent.pos(i),1.0)
+							}
+						)
+					}
+				}
 			}
 		)
+
 	}
 }

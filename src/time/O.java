@@ -18,6 +18,11 @@ public class O {
 	public static int beam = 100000;
 	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
 	public static double ckyPosBackoff = 0.2;
+	@Option(name="weightedUpdate", gloss="Counts weighted by score")
+	public static boolean weightedUpdate = false;
+	public static enum SmoothingType{ none, addOne }
+	@Option(name="smoothing", gloss="Smoothing type for grammar")
+	public static SmoothingType smoothing = SmoothingType.none;
 
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")

@@ -27,6 +27,8 @@ object G {
 	val idStringMap = new HashMap[Int,String]
 	val df = new DecimalFormat("0.000")
 	val pf = new DecimalFormat("0.0")
+	def W:Int = wordIndexer.size
+	def P:Int = posIndexer.size
 }
 
 /**
