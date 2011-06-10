@@ -23,6 +23,10 @@ public class O {
 	public static enum SmoothingType{ none, addOne }
 	@Option(name="smoothing", gloss="Smoothing type for grammar")
 	public static SmoothingType smoothing = SmoothingType.none;
+	@Option(name="useTime", gloss="Parse date and time both")
+	public static boolean useTime = false;
+	@Option(name="kbestCKYAlgorithm", gloss="algorithm from (Huang et. al)")
+	public static int kbestCKYAlgorithm = 0;
 
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")

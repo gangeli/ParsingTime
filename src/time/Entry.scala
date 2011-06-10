@@ -10,13 +10,15 @@ import java.text.DecimalFormat
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(lib)
-import org.goobs.slib.JMaps._
+import org.goobs.slib.Def
 import org.goobs.testing._
 import org.goobs.exec.Log._
 import org.goobs.exec.Execution
 import org.goobs.utils.Indexer;
 import org.goobs.utils.MetaClass;
 import org.goobs.testing.ResultLogger;
+
+
 
 /**
 	Globally accessible values
@@ -29,6 +31,7 @@ object G {
 	val pf = new DecimalFormat("0.0")
 	def W:Int = wordIndexer.size
 	def P:Int = posIndexer.size
+	val F_R = new Def[Range=>Range]
 }
 
 /**
@@ -193,7 +196,7 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 					val diff:(Duration,Duration) = gold match{
 						case r:Range => {parse.rangeDiff(r, t.grounding)}
 						case tm:Time => {parse.timeDiff(tm, t.grounding)}
-						case fn:(Range=>Range) => {parse.fnDiff(fn, t.grounding)}
+						case (fn:(Range=>Range)) => {parse.fnDiff(fn, t.grounding)}
 						case d:Duration => {parse.durationDiff(d, t.grounding)}
 						case unk:UNK => {parse.unkDiff(unk)}
 						case _:Any => {

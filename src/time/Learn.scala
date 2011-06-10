@@ -9,6 +9,7 @@ import ParseConversions._
 
 import org.goobs.exec.Log._
 import org.goobs.exec.Execution
+import org.goobs.slib.Def
 
 import edu.stanford.nlp.stats.ClassicCounter;
 import edu.stanford.nlp.stats.Counter;
@@ -134,7 +135,8 @@ object Grammar {
 			UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)))
 		//(durations)
 		val durations = 
-			List[Duration](SEC,MIN,HOUR,DAY,WEEK,MONTH,QUARTER,YEAR) :::
+			{if(O.useTime) List[Duration](SEC,MIN,HOUR) else List[Duration]()} :::
+			List[Duration](DAY,WEEK,MONTH,QUARTER,YEAR) :::
 			(1 to 7).map( i => DOW(i) ).toList :::
 			(1 to 12).map( i => MOY(i) ).toList :::
 			(1 to 4).map( i => QOY(i) ).toList
@@ -861,8 +863,6 @@ class SearchParser extends StandardParser {
 class CKYParser extends StandardParser{
 	import Grammar._
 
-	private val ckyK = O.beam
-
 	case class CkyRule(
 			arity:Int,
 			head:Head.Value,
@@ -881,6 +881,7 @@ class CKYParser extends StandardParser{
 			assert(childOrNull != null, "something went very wrong")
 			childOrNull
 		}
+		override def toString:String = "<" + U.join(rules,", ") + ">"
 	}
 	
 	private val CKY_TERMS:Array[CkyRule] = {
@@ -1021,22 +1022,53 @@ class CKYParser extends StandardParser{
 				case (_:Any) => false
 			}
 		}
+		override def hashCode:Int = {
+			term.hashCode ^ left.hashCode
+		}
+		override def toString:String = {
+			"[" + G.df.format(logScore) + "] " + 
+				term + " -> (" + U.join(children.map{ _.head },", ") + ")"
+		}
 	}
 
 	//-----
 	// K-Best List
 	//-----
-	class BestList(values:Array[ChartElem]) {
+	class BestList(values:Array[ChartElem],var capacity:Int) {
+		type LazyStruct = (CkyRule,BestList,BestList,(ChartElem,ChartElem)=>Double)
 
 		// -- Structure --
 		var length = 0
-		def apply(i:Int) = values(i)
-		def capacity:Int = values.length
-		def reset:Unit = {
+		private var lazyIncoming:List[LazyStruct] = null
+		private var forceNonLazy = false
+		def lazyEval = lazyIncoming != null
+
+		def apply(i:Int) = {
+			if(lazyEval) {
+				if(forceNonLazy){ while(lazyNext){} }
+				while(i >= length){
+					if(!lazyNext){ throw new ArrayIndexOutOfBoundsException(""+i) }
+				}
+			} else {
+				if(i > length){ throw new ArrayIndexOutOfBoundsException(""+i) }
+			}
+			values(i)
+		}
+		def has(i:Int):Boolean = {
+			if(forceNonLazy){ while(lazyNext){} }
+			while(i >= length){
+				if(!lazyNext){ return false }
+			}
+			return true
+		}
+		def reset(newCapacity:Int):Unit = {
 			values(0).nilify
 			length = 0
+			capacity = newCapacity
+			lazyIncoming = null
 		}
 		def foreach(fn:ChartElem=>Any):Unit = {
+			if(lazyEval) { while(lazyNext){} }
 			for(i <- 0 until length){ fn(values(i)) }
 		}
 		def map[A : Manifest](fn:ChartElem=>A):Array[A] = {
@@ -1048,15 +1080,18 @@ class CKYParser extends StandardParser{
 		}
 		def zipWithIndex = values.slice(0,length).zipWithIndex
 		def toArray:Array[ChartElem] = {
+			if(lazyEval) { while(lazyNext){} }
 			values.slice(0,length)
 		}
 		override def clone:BestList = {
-			var rtn = new BestList(values.clone)
+			if(lazyEval) { while(lazyNext){} }
+			var rtn = new BestList(values.clone,capacity)
 			rtn.length = this.length
 			rtn
 		}
 		def deepclone:BestList = {
-			var rtn = new BestList(values.map{ _.clone })
+			if(lazyEval) { while(lazyNext){} }
+			var rtn = new BestList(values.map{ _.clone },capacity)
 			rtn.length = this.length
 			rtn
 		}
@@ -1085,7 +1120,9 @@ class CKYParser extends StandardParser{
 			//(unique)
 			for(i <- 0 until this.length) {
 				for(j <- (i+1) until this.length) {
-					if(values(i).equals(values(j))){ return (false,"not unique") }
+					if(values(i).equals(values(j))){ 
+						return (false,"not unique: " + values(i) + " versus " + values(j)) 
+					}
 				}
 			}
 			//(ok)
@@ -1119,9 +1156,19 @@ class CKYParser extends StandardParser{
 				}
 			}
 			//--Sort List
-			combined.sortBy( - _._1 )
-			assert(combined.length > 0, "empty combined vector")
-			combined
+			val sorted = combined.sortBy( - _._1 )
+			assert(sorted.length > 0, "empty combined vector")
+			if(O.paranoid){
+				//(check)
+				var highest:Double = Double.PositiveInfinity
+				sorted.foreach{ case (score:Double,left,right) => 
+					assert(!score.isNaN, "NaN score found")
+					assert(score <= highest, 
+						"mult0 output not sorted: " + score + " > " + highest)
+					highest = score
+				}
+			}
+			sorted
 		}
 		private def merge0(term:CkyRule, 
 				input:Array[(Double,ChartElem,ChartElem)]):Unit = {
@@ -1132,23 +1179,25 @@ class CKYParser extends StandardParser{
 			var candP = 0
 			var index:Int = 0
 			val defender = this.deepclone
+			//--Merge
 			while(index < capacity && 
 					(defendP < this.length ||
 					candP < input.length) ){
-				//(get candidate scores)
-				val defend:Double
-						= if(defendP < this.length) defender(defendP).logScore 
-						else Double.NegativeInfinity
-				val cand:Double
-						= if(candP < input.length) input(candP)._1
-						else Double.NegativeInfinity
-				assert(!defend.isNaN, "NaN on defending rule")
-				assert(!cand.isNaN, "NaN on candidate rule")
-				//(set largest element)
-				if(cand > defend || defendP >= this.length){ 
-					//(case: take new) //^ second condition only fires when both neg_inf
+				val takeNew = 
+					if(defendP < defender.length && candP < input.length){
+						//(case: either element valid)
+						if(defender(defendP).logScore >= input(candP)._1){
+							false
+						} else {
+							true
+						}
+					} else if(defendP < defender.length) { false //(case: only defender)
+					} else if(candP < input.length) { true //(case: only candidate)
+					} else { throw new IllegalStateException() }
+				if(takeNew){
+					//(case: take candidate)
 					val (score,left,right) = input(candP)
-					candP += 1
+					assert(!score.isNaN, "setting to NaN score")
 					if(right == null) {
 						assert(left != null, "setting to null rule")
 						values(index)(score,term,left)
@@ -1156,19 +1205,15 @@ class CKYParser extends StandardParser{
 						assert(left != null, "setting to null rules")
 						values(index)(score,term,left,right)
 					}
+					index += 1; candP += 1;
 				} else {
-					//(case: keep old)
-					if(O.paranoid)
-						{ val (ok,str) = defender.check(false); assert(ok,"merge: " +str) }
-					assert(defendP < defender.length, "defendP is larger than length")
-					assert(defend > Double.NegativeInfinity, "score should be valid")
-					assert(!defender(defendP).isNil, "setting to nil element!")
+					//(case: keep defender)
+					assert(!defender(defendP).logScore.isNaN, "setting to NaN score")
 					values(index)(defender(defendP))
-					defendP += 1
+					index += 1; defendP += 1;
 				}
-				//(increment index)
-				index += 1
 			}
+			//--Cleanup
 			//(set length)
 			length = index
 			assert(length != 0, "Merge returned length 0")
@@ -1178,6 +1223,192 @@ class CKYParser extends StandardParser{
 			assert(left.length > 0, "precondition for algorithm0")
 			merge0(term,mult0(term, left, right, score))
 		}
+		
+		//<Algorithm 1>
+		private def mult1(term:CkyRule, left:BestList, right:BestList,
+				score:(ChartElem,ChartElem)=>Double
+				):Array[(Double,ChartElem,ChartElem)] = {
+			val combined:Array[(Double,ChartElem,ChartElem)] = if(term.arity == 1) {
+				//--Unary Rule
+				left.map{ elem => 
+					(elem.logScore+score(elem,null), elem, null)
+				}
+			} else if(term.arity == 2) {
+				//--Binary Rule
+				//(setup queue)
+				val pq = new PriorityQueue[(Double,Int,Int)]
+				val seen = new Array[Boolean](left.length*right.length)
+				def enqueue(lI:Int,rI:Int) = {
+					if(!seen(lI*right.length+rI)){
+						val s 
+							= left(lI).logScore+right(rI).logScore+score(left(lI),right(rI))
+						pq.enqueue( (s,lI,rI) )
+						seen(lI*right.length+rI) = true
+					}
+				}
+				enqueue(0,0)
+				var out = List[(Double,ChartElem,ChartElem)]()
+				//(uniform cost search)
+				assert(right != null, "no right child for binary rule")
+				assert(left.capacity == right.capacity, "k differs between children")
+				while(out.length < left.capacity && !pq.isEmpty) {
+					//(dequeue)
+					val (s,lI,rI) = pq.dequeue
+					out = (s,left(lI),right(rI)) :: out
+					//(add neighbors)
+					if(lI < left.length-1){ enqueue(lI+1,rI) }
+					if(rI < right.length-1){ enqueue(lI,rI+1) }
+				}
+				//(pass value up)
+				assert(!pq.isEmpty || left.length*right.length <= left.capacity,
+					"priority queue is prematurely empty: " + out.length)
+				out.reverse.toArray
+			} else {
+				throw new IllegalStateException("Arity > 2 rule")
+			}
+			//--Sanity Checks
+			assert(combined.length > 0, "empty combined vector")
+			if(O.paranoid){
+				//(check sorted)
+				var highest:Double = Double.PositiveInfinity
+				combined.foreach{ case (score:Double,left,right) => 
+					assert(!score.isNaN, "NaN score found")
+					assert(score <= highest, 
+						"mult0 output not sorted: " + score + " > " + highest)
+					highest = score
+				}
+				//(matches algorithm 0)
+				assert(
+					mult0(term, left, right, score).
+						zip(combined).forall{ case ((s0,l0,r0),(s1,l1,r1)) => s0 == s1 },
+					"mult0 should match up with mult1")
+				//(unique elements)
+				for(i <- 0 until combined.length){
+					for(j <- (i+1) until combined.length){
+						val (sA,lA,rA) = combined(i)
+						val (sB,lB,rB) = combined(j)
+						assert(!(sA == sB && lA == lB && rA == rB), 
+							"duplicate in mult1: " + i + ", " + j)
+					}
+				}
+			}
+			combined
+		}
+		private def algorithm1(term:CkyRule, left:BestList, right:BestList,
+				score:(ChartElem,ChartElem)=>Double):Unit = {
+			assert(left.length > 0, "precondition for algorithm1")
+			merge0(term,mult1(term, left, right, score))
+		}
+		
+		//<Algorithm 2>
+		private def lazyNext:Boolean = {
+			if(lazyNextFn == null){ lazyNextFn = mkLazyNext }
+			lazyNextFn()
+		}
+		private var lazyNextFn:Unit=>Boolean = null
+		private def mkLazyNext:Unit=>Boolean = {
+			//--State
+			//(bookeeping)
+			var haveReturnedFalse:Boolean = false
+			var lazyArray:Array[LazyStruct] = lazyIncoming.toArray
+			//(priority queue)
+			case class DataSource(score:Double,source:Int,leftI:Int,rightI:Int
+					) extends Ordered[DataSource] {
+				def compare(that:DataSource):Int = {
+					if(this.score < that.score) -1
+					else if(this.score > that.score) 1
+					else 0
+				}
+			}
+			var pq = new PriorityQueue[DataSource]
+			var seen = new Array[Boolean](lazyArray.length*capacity*capacity)
+			//(enqueue method)
+			def enqueue(source:Int,lI:Int,rI:Int) = {
+				val (rule,left,right,score) = lazyArray(source)
+				if(	left.has(lI) &&
+						(right == null || right.has(rI)) &&  //no right, or right in bounds
+						!seen(	source * capacity * capacity + 
+						        lI * capacity +
+										rI			) //not already seen
+							){
+					val s = if(right == null) {
+							left(lI).logScore+score(left(lI),null)
+						} else {
+							left(lI).logScore+right(rI).logScore+score(left(lI),right(rI))
+						}
+					pq.enqueue( DataSource(s,source,lI,rI) ) //<--actual enqueue
+					seen(	source * capacity * capacity + 
+						        lI * capacity +
+										rI			) = true
+				}
+			}
+			//(initialize queue)
+			for(i <- 0 until lazyArray.length) { enqueue(i,0,0) }
+			//(cleanup memory)
+			def cleanup = { pq = null; seen = null; lazyArray = null }
+			//--Function
+			(Unit) => {
+				if(length >= capacity) {
+					//(too long)
+					cleanup; false
+				} else if(pq == null || pq.isEmpty) {
+					//(no more terms to evaluate)
+					if(O.paranoid){
+						val potentialSize = lazyArray.foldLeft(0){ 
+							case (sizeSoFar, (term,left,right,score)) => 
+								while(left.lazyNext){}
+								var size = left.length
+								if(right != null){
+									while(right.lazyNext){}
+									size *= right.length
+								}
+								sizeSoFar + size }
+						assert(potentialSize == length, "pq did not exhaust options: " + 
+							potentialSize + ", used " + length + " rules " + lazyArray.length)
+					}
+					cleanup; false
+				} else {
+					//(dequeue)
+					val datum = pq.dequeue
+					//(process datum)
+					val (rule,left,right,score) = lazyArray(datum.source)
+					val lI = datum.leftI
+					val rI = datum.rightI
+					if(rule.arity == 1){
+						values(length)(datum.score,rule,left(lI))
+					} else {
+						values(length)(datum.score,rule,left(lI),right(rI))
+					}
+					length += 1
+					//(add neighbors) //note: checks are done in enqueue
+					assert(datum.source < lazyArray.length, "source out of bounds")
+					enqueue(datum.source,lI+1,rI)
+					enqueue(datum.source,lI,rI+1)
+					//(return)
+					true
+				}
+			}
+		}
+
+		private def algorithm2(term:CkyRule, left:BestList, right:BestList,
+				score:(ChartElem,ChartElem)=>Double):Unit = {
+			algorithm3(term,left,right,score)
+			forceNonLazy = true
+		}
+
+		//<Algorithm 3>
+		private def lazify:Unit = {
+			if(lazyIncoming == null){
+				lazyIncoming = List[LazyStruct]()
+			}
+		}
+		private def algorithm3(term:CkyRule, left:BestList, right:BestList,
+				score:(ChartElem,ChartElem)=>Double):Unit = {
+			this.lazify
+			left.lazify
+			if(right != null){ right.lazify }
+			lazyIncoming = (term,left,right,score) :: lazyIncoming
+		}
 
 		//<Top Level>
 		def combine(term:CkyRule, left:BestList, right:BestList,
@@ -1186,20 +1417,36 @@ class CKYParser extends StandardParser{
 			assert(term.arity == 1 || right != null, "binary rule has 1 child")
 			if(left.length > 0 && (right == null || right.length > 0)){
 				//(pre)
-				var save:BestList = if(O.paranoid){ this.clone } else { null }
-				if(O.paranoid){ val (ok,str) = check(false); assert(ok,"pre: " +str) }
+				var save:BestList = if(O.paranoid && O.kbestCKYAlgorithm < 2){ 
+						val (ok,str) = check(false); assert(ok,"pre: " +str)
+						val (leftOK,leftStr) = left.check(false); 
+						assert(leftOK, "left: "+leftStr)
+						if(right != null){
+							val (rightOK,rightStr) = right.check(false); 
+							assert(rightOK, "right: "+rightStr)
+						}
+						this.deepclone 
+					} else { null }
 				//(execute)
-				this.algorithm0(term, left, right, score) //<--Execute
+				O.kbestCKYAlgorithm match{
+					case 0 => this.algorithm0(term, left, right, score)
+					case 1 => this.algorithm1(term, left, right, score)
+					case 2 => this.algorithm2(term, left, right, score)
+					case 3 => this.algorithm3(term, left, right, score)
+				}
 				//(checks)
-				if(O.paranoid){ 
+				if(O.paranoid && O.kbestCKYAlgorithm < 2){ 
 					//(sanity)
 					val (ok,str) = check(); assert(ok,"post: " + str)
 					//(correctness)
 					save.algorithm0(term, left, right, score)
+					val (ok3,str3) = save.check(); assert(ok3,"clone: " + str3)
 					assert(save.length == this.length, "length is wrong")
 					for(i <- 0 until length){
-						assert(save(i).equals(this(i)), "element " + i + " is wrong")
+						assert(save(i).logScore == this(i).logScore, 
+							"element " + i + " is wrong")
 					}
+					val (okn,strn) = check(); assert(okn,"onReturn: " + strn)
 				}
 			}
 		}
@@ -1238,21 +1485,25 @@ class CKYParser extends StandardParser{
 	type RuleList = Array[BestList]
 	type Chart = Array[Array[RuleList]]
 	
-	def makeChart:Int=>Chart = { //start,length,split
+	val makeChart:(Int,Int)=>Chart = { //start,length,split
 		var largestChart = new Chart(0)
-		(len:Int) => {
+		var largestBeam = 0
+		(inputLength:Int,inputBeam:Int) => {
 			//--Make Chart
-			val chart = if(len > largestChart.length){ 
+			val chart = if(inputLength > largestChart.length || 
+					inputBeam > largestBeam){ 
+				val len = math.max(inputLength, largestChart.length)
+				val beam = math.max(inputBeam, largestBeam)
 				//(create)
 				largestChart = (0 until len).map{ (start:Int) =>          //begin
 					assert(len-start > 0, "bad length end on start "+start+" len "+len)
 					(0 until (len-start)).map{ (length:Int) =>              //length
 						assert(Head.values.size > 0, "bad rules end")
 						(0 until Head.values.size).map{ (rid:Int) =>        //rules
-							assert(ckyK > 0, "bad kbest end")
-							new BestList((0 until ckyK).map{ (kbestItem:Int) => //kbest
+							assert(beam > 0, "bad kbest end")
+							new BestList((0 until beam).map{ (kbestItem:Int) => //kbest
 								new ChartElem
-							}.toArray) //convert to arrays
+							}.toArray, beam) //convert to arrays
 						}.toArray
 					}.toArray
 				}.toArray
@@ -1263,10 +1514,10 @@ class CKYParser extends StandardParser{
 				largestChart
 			}
 			//--Reset Chart
-			for(start <- 0 until len){
+			for(start <- 0 until inputLength){
 				for(len <- 0 until chart(start).length){
 					for(head <- 0 until chart(start)(len).length){
-						chart(start)(len)(head).reset
+						chart(start)(len)(head).reset(inputBeam)
 					}
 				}
 			}
@@ -1344,9 +1595,9 @@ class CKYParser extends StandardParser{
 	//-----
 	// CKY
 	//-----
-	def cky[T](sent:Sentence):Array[ParseTree] = {
+	def cky[T](sent:Sentence,beam:Int):Array[ParseTree] = {
 		//--Create Chart
-		val chart = makeChart(sent.length)
+		val chart = makeChart(sent.length,beam)
 		assert(chart.length >= sent.length, "Chart is too small")
 		//--Lex
 		for(elem <- 0 until sent.length) {
@@ -1437,11 +1688,12 @@ class CKYParser extends StandardParser{
 		end_track
 	}
 
+	private val IntCounter = new Def[Counter[Int]]
 	override def report:Unit = {
 		//--Debug Print
 		//(best lex)
 		val bestWords:Array[(Int,Int,Double)] = wordScores.zipWithIndex.map{ 
-			case (counter:Counter[Int],rid:Int) => 
+			case (IntCounter(counter),rid:Int) => 
 				val argmax = Counters.argmax(counter) 
 				val score = 
 					if(counter.totalCount == 0.0){ 0.0 } 
@@ -1466,7 +1718,14 @@ class CKYParser extends StandardParser{
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
 		//(run CKY)
-		val trees:Array[ParseTree] = cky(sent)
+		val trees:Array[ParseTree] = cky(sent,O.beam)
+		//(check: single-best consistency)
+		if(O.paranoid && trees.length > 0){
+			val singleBest:Array[ParseTree] = cky(sent,1)
+			assert(singleBest.length > 0, "single best returned no tree")
+			assert(singleBest.length == 1, "single best returned > 1 tree")
+			assert(trees(0).equals(singleBest(0)), "parse doesn't match single-best")
+		}
 		//(convert to parses)
 		val scored:Array[(Head.Value,Any,Double)] = trees.map{ _.evaluate(sent) }
 		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
@@ -1475,7 +1734,19 @@ class CKYParser extends StandardParser{
 			U.join(
 				scored.slice(0,1).map{ case (tag,parse,score) => 
 					""+parse+"["+G.df.format(score)+"]"}, " or "))
-
+		//(check: algorithm0 consistency)
+		if(O.paranoid){
+			val saveAlg = O.kbestCKYAlgorithm
+			O.kbestCKYAlgorithm = 0
+			val reference = cky(sent,O.beam)
+			assert(reference.length == scored.length, 
+				"Algorithm different size from algorithm 0")
+			assert( scored.zip(reference.map{ _.evaluate(sent) }).forall{ 
+				case ((tag,value,score),(refTag,refValue,refScore)) => 
+					score == refScore
+				}, "Algorithm differed from algorithm 0"  )
+			O.kbestCKYAlgorithm = saveAlg
+		}
 		//--Format Return
 		(	parses, 
 			(feedback:Feedback) => {
