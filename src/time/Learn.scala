@@ -118,6 +118,7 @@ case class BinaryRule(
 
 object Grammar {
 	
+	
 	val RULES:Array[Rule] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
@@ -860,8 +861,13 @@ class SearchParser extends StandardParser {
 //------------------------------------------------------------------------------
 // CKY PARSER
 //------------------------------------------------------------------------------
+object CKYParser {
+	val UNARY:Int = 0
+	val BINARY:Int = 1
+}
 class CKYParser extends StandardParser{
 	import Grammar._
+	import CKYParser._
 
 	case class CkyRule(
 			arity:Int,
@@ -1035,17 +1041,32 @@ class CKYParser extends StandardParser{
 	// K-Best List
 	//-----
 	class BestList(values:Array[ChartElem],var capacity:Int) {
+		
+		// -- Lazy Eval --
 		type LazyStruct = (CkyRule,BestList,BestList,(ChartElem,ChartElem)=>Double)
+		private var deferred:List[LazyStruct] = null
+		private var lazyNextFn:Unit=>Boolean = null
+		def markLazy = { 
+			assert(deferred == null, "marking as lazy twice")
+			deferred = List[LazyStruct]() 
+		}
+		def markEvaluated = { deferred = null }
+		def isLazy:Boolean = (deferred != null)
+		def ensureEvaluated = { 
+			if(isLazy){
+				while(lazyNext){ }
+				markEvaluated 
+			}
+			if(O.paranoid){
+				val (ok,str) = check(false); assert(ok,"ensureEvaluated: " +str)
+			}
+		}
 
 		// -- Structure --
 		var length = 0
-		private var lazyIncoming:List[LazyStruct] = null
-		private var forceNonLazy = false
-		def lazyEval = lazyIncoming != null
 
 		def apply(i:Int) = {
-			if(lazyEval) {
-				if(forceNonLazy){ while(lazyNext){} }
+			if(isLazy) {
 				while(i >= length){
 					if(!lazyNext){ throw new ArrayIndexOutOfBoundsException(""+i) }
 				}
@@ -1055,46 +1076,53 @@ class CKYParser extends StandardParser{
 			values(i)
 		}
 		def has(i:Int):Boolean = {
-			if(forceNonLazy){ while(lazyNext){} }
-			while(i >= length){
-				if(!lazyNext){ return false }
+			if(isLazy){
+				while(i >= length){
+					if(!lazyNext){ return false }
+				}
+				return true
+			} else {
+				return i < length
 			}
-			return true
 		}
 		def reset(newCapacity:Int):Unit = {
-			values(0).nilify
 			length = 0
 			capacity = newCapacity
-			lazyIncoming = null
+			markEvaluated
 		}
 		def foreach(fn:ChartElem=>Any):Unit = {
-			if(lazyEval) { while(lazyNext){} }
+			ensureEvaluated
 			for(i <- 0 until length){ fn(values(i)) }
 		}
 		def map[A : Manifest](fn:ChartElem=>A):Array[A] = {
+			ensureEvaluated
 			val rtn = new Array[A](length)
 			for(i <- 0 until length){
 				rtn(i) = fn(values(i))
 			}
 			rtn
 		}
-		def zipWithIndex = values.slice(0,length).zipWithIndex
+		def zipWithIndex = {
+			ensureEvaluated
+			values.slice(0,length).zipWithIndex
+		}
 		def toArray:Array[ChartElem] = {
-			if(lazyEval) { while(lazyNext){} }
+			ensureEvaluated
 			values.slice(0,length)
 		}
 		override def clone:BestList = {
-			if(lazyEval) { while(lazyNext){} }
+			ensureEvaluated
 			var rtn = new BestList(values.clone,capacity)
 			rtn.length = this.length
 			rtn
 		}
 		def deepclone:BestList = {
-			if(lazyEval) { while(lazyNext){} }
+			ensureEvaluated
 			var rtn = new BestList(values.map{ _.clone },capacity)
 			rtn.length = this.length
 			rtn
 		}
+		
 
 		// -- As Per (Huang and Chiang 2005) --
 		//<Paranoid Checks>
@@ -1239,7 +1267,9 @@ class CKYParser extends StandardParser{
 				val pq = new PriorityQueue[(Double,Int,Int)]
 				val seen = new Array[Boolean](left.length*right.length)
 				def enqueue(lI:Int,rI:Int) = {
-					if(!seen(lI*right.length+rI)){
+					if(	lI < left.length && 
+							rI < right.length && 
+							!seen(lI*right.length+rI)){
 						val s 
 							= left(lI).logScore+right(rI).logScore+score(left(lI),right(rI))
 						pq.enqueue( (s,lI,rI) )
@@ -1256,8 +1286,8 @@ class CKYParser extends StandardParser{
 					val (s,lI,rI) = pq.dequeue
 					out = (s,left(lI),right(rI)) :: out
 					//(add neighbors)
-					if(lI < left.length-1){ enqueue(lI+1,rI) }
-					if(rI < right.length-1){ enqueue(lI,rI+1) }
+					enqueue(lI+1,rI)
+					enqueue(lI,rI+1)
 				}
 				//(pass value up)
 				assert(!pq.isEmpty || left.length*right.length <= left.capacity,
@@ -1305,12 +1335,22 @@ class CKYParser extends StandardParser{
 			if(lazyNextFn == null){ lazyNextFn = mkLazyNext }
 			lazyNextFn()
 		}
-		private var lazyNextFn:Unit=>Boolean = null
 		private def mkLazyNext:Unit=>Boolean = {
+			assert(isLazy, "mkLazy called on non-lazy structure")
 			//--State
 			//(bookeeping)
-			var haveReturnedFalse:Boolean = false
-			var lazyArray:Array[LazyStruct] = lazyIncoming.toArray
+			var lazyArray:Array[LazyStruct] = deferred.toArray
+			//(check)
+			if(O.paranoid){
+				for(i <- 0 until lazyArray.length){
+					val (rl1,l1,r1,fn1) = lazyArray(i)
+					for(j <- (i+1) until lazyArray.length){
+						val (rl2,l2,r2,fn1) = lazyArray(j)
+						assert(rl1 != rl2, "duplicates in lazyArray")
+					}
+				}
+			}
+			assert(length == 0, "mklazy called with existing length")
 			//(priority queue)
 			case class DataSource(score:Double,source:Int,leftI:Int,rightI:Int
 					) extends Ordered[DataSource] {
@@ -1325,7 +1365,7 @@ class CKYParser extends StandardParser{
 			//(enqueue method)
 			def enqueue(source:Int,lI:Int,rI:Int) = {
 				val (rule,left,right,score) = lazyArray(source)
-				if(	left.has(lI) &&
+				if(	left.has(lI) && //left in bounds
 						(right == null || right.has(rI)) &&  //no right, or right in bounds
 						!seen(	source * capacity * capacity + 
 						        lI * capacity +
@@ -1344,14 +1384,12 @@ class CKYParser extends StandardParser{
 			}
 			//(initialize queue)
 			for(i <- 0 until lazyArray.length) { enqueue(i,0,0) }
-			//(cleanup memory)
-			def cleanup = { pq = null; seen = null; lazyArray = null }
 			//--Function
 			(Unit) => {
 				if(length >= capacity) {
 					//(too long)
-					cleanup; false
-				} else if(pq == null || pq.isEmpty) {
+					false
+				} else if(pq.isEmpty) {
 					//(no more terms to evaluate)
 					if(O.paranoid){
 						val potentialSize = lazyArray.foldLeft(0){ 
@@ -1366,7 +1404,7 @@ class CKYParser extends StandardParser{
 						assert(potentialSize == length, "pq did not exhaust options: " + 
 							potentialSize + ", used " + length + " rules " + lazyArray.length)
 					}
-					cleanup; false
+					false
 				} else {
 					//(dequeue)
 					val datum = pq.dequeue
@@ -1393,21 +1431,14 @@ class CKYParser extends StandardParser{
 		private def algorithm2(term:CkyRule, left:BestList, right:BestList,
 				score:(ChartElem,ChartElem)=>Double):Unit = {
 			algorithm3(term,left,right,score)
-			forceNonLazy = true
 		}
 
 		//<Algorithm 3>
-		private def lazify:Unit = {
-			if(lazyIncoming == null){
-				lazyIncoming = List[LazyStruct]()
-			}
-		}
 		private def algorithm3(term:CkyRule, left:BestList, right:BestList,
 				score:(ChartElem,ChartElem)=>Double):Unit = {
-			this.lazify
-			left.lazify
-			if(right != null){ right.lazify }
-			lazyIncoming = (term,left,right,score) :: lazyIncoming
+			if(!isLazy){ this.markLazy }
+			assert(deferred.forall{ case (r,l,rr,s) => r != term }, "duplicate")
+			deferred = (term,left,right,score) :: deferred
 		}
 
 		//<Top Level>
@@ -1415,39 +1446,20 @@ class CKYParser extends StandardParser{
 				score:(ChartElem,ChartElem)=>Double):Unit = {
 			assert(term.arity == 2 || right == null, "unary rule has 2 children")
 			assert(term.arity == 1 || right != null, "binary rule has 1 child")
-			if(left.length > 0 && (right == null || right.length > 0)){
-				//(pre)
-				var save:BestList = if(O.paranoid && O.kbestCKYAlgorithm < 2){ 
-						val (ok,str) = check(false); assert(ok,"pre: " +str)
-						val (leftOK,leftStr) = left.check(false); 
-						assert(leftOK, "left: "+leftStr)
-						if(right != null){
-							val (rightOK,rightStr) = right.check(false); 
-							assert(rightOK, "right: "+rightStr)
-						}
-						this.deepclone 
-					} else { null }
-				//(execute)
-				O.kbestCKYAlgorithm match{
-					case 0 => this.algorithm0(term, left, right, score)
-					case 1 => this.algorithm1(term, left, right, score)
-					case 2 => this.algorithm2(term, left, right, score)
-					case 3 => this.algorithm3(term, left, right, score)
+			O.kbestCKYAlgorithm match{
+				case 0 => if(left.length > 0 && (right == null || right.length > 0)) {
+					if(O.paranoid){val (ok,str) = check(false); assert(ok,"pre: " + str)}
+					this.algorithm0(term, left, right, score)
+					if(O.paranoid){val (ok,str) = check(); assert(ok,"post: " + str)}
 				}
-				//(checks)
-				if(O.paranoid && O.kbestCKYAlgorithm < 2){ 
-					//(sanity)
-					val (ok,str) = check(); assert(ok,"post: " + str)
-					//(correctness)
-					save.algorithm0(term, left, right, score)
-					val (ok3,str3) = save.check(); assert(ok3,"clone: " + str3)
-					assert(save.length == this.length, "length is wrong")
-					for(i <- 0 until length){
-						assert(save(i).logScore == this(i).logScore, 
-							"element " + i + " is wrong")
-					}
-					val (okn,strn) = check(); assert(okn,"onReturn: " + strn)
+				case 1 => if(left.length > 0 && (right == null || right.length > 0)) {
+					if(O.paranoid){val (ok,str) = check(false); assert(ok,"pre: " + str)}
+					this.algorithm1(term, left, right, score)
+					if(O.paranoid){val (ok,str) = check(); assert(ok,"post: " + str)}
 				}
+				case 2 => this.algorithm2(term, left, right, score)
+				case 3 => this.algorithm3(term, left, right, score)
+				case _ => throw fail("bad algorithm: " + O.kbestCKYAlgorithm)
 			}
 		}
 		def combine(term:CkyRule, left:BestList,
@@ -1483,7 +1495,8 @@ class CKYParser extends StandardParser{
 	// Chart
 	//-----
 	type RuleList = Array[BestList]
-	type Chart = Array[Array[RuleList]]
+	type RulePairList = Array[RuleList]
+	type Chart = Array[Array[RulePairList]]
 	
 	val makeChart:(Int,Int)=>Chart = { //start,length,split
 		var largestChart = new Chart(0)
@@ -1495,15 +1508,17 @@ class CKYParser extends StandardParser{
 				val len = math.max(inputLength, largestChart.length)
 				val beam = math.max(inputBeam, largestBeam)
 				//(create)
-				largestChart = (0 until len).map{ (start:Int) =>          //begin
+				largestChart = (0 until len).map{ (start:Int) =>            //begin
 					assert(len-start > 0, "bad length end on start "+start+" len "+len)
-					(0 until (len-start)).map{ (length:Int) =>              //length
+					(0 until (len-start)).map{ (length:Int) =>                //length
 						assert(Head.values.size > 0, "bad rules end")
-						(0 until Head.values.size).map{ (rid:Int) =>        //rules
-							assert(beam > 0, "bad kbest end")
-							new BestList((0 until beam).map{ (kbestItem:Int) => //kbest
-								new ChartElem
-							}.toArray, beam) //convert to arrays
+						(0 to 1).map{ (arity:Int) =>                            //arity
+							(0 until Head.values.size).map{ (rid:Int) =>          //rules
+								assert(beam > 0, "bad kbest end")
+								new BestList((0 until beam).map{ (kbestItem:Int) => //kbest
+									new ChartElem
+								}.toArray, beam) //convert to arrays
+							}.toArray
 						}.toArray
 					}.toArray
 				}.toArray
@@ -1517,7 +1532,10 @@ class CKYParser extends StandardParser{
 			for(start <- 0 until inputLength){
 				for(len <- 0 until chart(start).length){
 					for(head <- 0 until chart(start)(len).length){
-						chart(start)(len)(head).reset(inputBeam)
+						chart(start)(len)(UNARY)(head).reset(inputBeam)
+						chart(start)(len)(BINARY)(head).reset(inputBeam)
+						assert( chart(start)(len)(UNARY)(head) !=
+							chart(start)(len)(BINARY)(head), "corrupted chart")
 					}
 				}
 			}
@@ -1529,22 +1547,23 @@ class CKYParser extends StandardParser{
 	//-----
 	// Access/Set
 	//-----
-	def gram(chart:Chart,begin:Int,end:Int,head:Int):BestList = {
-		if(end == begin+1){ return lex(chart,begin,head) }
+	def gram(chart:Chart,begin:Int,end:Int,head:Int,t:Int):BestList = {
+		if(end == begin+1){ return lex(chart,begin,head,t) }
 		//(asserts)
 		assert(end > begin+1, "Chart access error: bad end: " + begin + ", " + end)
 		assert(begin >= 0, "Chart access error: negative values: " + begin)
 		assert(head >= 0, "Chart access error: bad head: " + head)
 		assert(head < Head.values.size, "Chart access error: bad head: " + head)
+		assert(t == 0 || t == 1, "must be one of UNARY/BINARY")
 		//(access)
-		chart(begin)(end-begin-1)(head)
+		chart(begin)(end-begin-1)(t)(head)
 	}
-	def lex(chart:Chart,elem:Int,head:Int):BestList = {
+	def lex(chart:Chart,elem:Int,head:Int,t:Int=BINARY):BestList = {
 		//(asserts)
 		assert(elem >= 0, "Chart access error: negative value: " + elem)
 		assert(head >= 0, "Chart access error: bad head: " + head)
 		assert(head < Head.values.size, "Chart access error: bad head: " + head)
-		chart(elem)(0)(head)
+		chart(elem)(0)(t)(head)
 	}
 	
 	//-----
@@ -1623,28 +1642,43 @@ class CKYParser extends StandardParser{
 			for(begin <- 0 to sent.length-length) {              // begin
 				val end:Int = begin+length
 				assert(end <= sent.length, "end is out of bounds")
+				//(update chart)
 				CKY_BINARY.foreach{ (term:CkyRule) =>              // rules [binary]
 					val ruleProbability = ruleProb(term)
 					assert(term.arity == 2, "Binary rule should be binary")
 					val r = term.rule
 					for(split <- (begin+1) to (end-1)){              // splits
-						val left:BestList = gram(chart,begin,split,r.left.id)
-						val right:BestList = gram(chart,split,end,r.right.id)
-						gram(chart,begin,end,r.head.id).combine(term,left,right,
-							(left:ChartElem,right:ChartElem) => { ruleProbability })
+						val leftU:BestList = gram(chart,  begin, split, r.left.id,  UNARY)
+						val rightU:BestList = gram(chart, split, end,   r.right.id, UNARY)
+						val leftB:BestList = gram(chart,  begin, split, r.left.id,  BINARY)
+						val rightB:BestList = gram(chart, split, end,   r.right.id, BINARY)
+						assert(leftU != leftB && rightU != rightB, ""+begin+" to "+end)
+						val output = gram(chart,begin,end,r.head.id,BINARY)
+						val score = (left:ChartElem,right:ChartElem) => { ruleProbability }
+						output.combine(term,leftU,rightU,score)
+						output.combine(term,leftU,rightB,score)
+						output.combine(term,leftB,rightU,score)
+						output.combine(term,leftB,rightB,score)
 					}
 				}
 				CKY_UNARY.foreach{ (term:CkyRule) =>               // rules [unary]
 					val ruleProbability = ruleProb(term)
 					assert(term.arity == 1, "Unary rule should be unary")
-					val child:BestList = gram(chart,begin,end,term.child.id)
-					gram(chart,begin,end,term.head.id).combine(term,child,
+					val child:BestList = gram(chart,begin,end,term.child.id,BINARY)
+					gram(chart,begin,end,term.head.id,UNARY).combine(term,child,
 						(left:ChartElem,right:ChartElem) => { ruleProbability })
+				}
+				//(post-update tasks)
+				if(O.kbestCKYAlgorithm < 3) {
+					Head.values.foreach { head => 
+						gram(chart,begin,end,head.id,BINARY).ensureEvaluated
+						gram(chart,begin,end,head.id,UNARY).ensureEvaluated
+					}
 				}
 			}
 		}
 		//--Return
-		gram(chart,0,sent.length,Head.ROOT.id).toArray.map{ x => x }
+		gram(chart,0,sent.length,Head.ROOT.id,UNARY).toArray.map{ x => x }
 	}
 
 	//-----

@@ -597,4 +597,8 @@ object Time {
 		
 		println
 	}
+
+	def main(args:Array[String]):Unit = {
+		interactive
+	}
 }
