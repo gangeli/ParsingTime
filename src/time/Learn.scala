@@ -335,6 +335,46 @@ trait Tree[A]{
 	}
 }
 trait ParseTree extends Tree[Head.Value] {
+	//<<Common Methods>>
+	private def cleanParseString(
+			indent:Int,b:StringBuilder,sent:Sentence,i:Int):Int = {
+		for(i <- 0 until indent){ b.append("  ") }
+		if(isLeaf){
+			//--Case: Leaf
+			val head = headString
+			val tail = leafString(sent,i)
+			if(tail != null && !tail.equals("")){
+				b.append("(").append(head.replaceAll(" ","_")).append(" ")
+				b.append(tail.replaceAll(" ","_")).append(")")
+			} else {
+				b.append(head.replaceAll(" ","_"))
+			}
+			i+1
+		} else {
+			//--Case: Not Leaf
+			//(overhead)
+			var retI = i
+			val ch = children
+			//(write)
+			b.append("(").append(headString.replaceAll(" ","_"))
+			for(i <- 0 until ch.length) {
+				val child:ParseTree = ch(i)
+				b.append("\n")
+				retI = child.cleanParseString(indent+1,b,sent,retI)
+			}
+			b.append(")")
+			retI
+		}
+	}
+	def asParseString(sent:Sentence):String = {
+		val b = new StringBuilder
+		cleanParseString(0,b,sent,0)
+		b.toString
+	}
+	//<<Possible Overrides>>
+	def headString:String = head.toString
+	def leafString(sent:Sentence,index:Int):String = U.w2str(sent(index))
+	//<<Overrides>>
 	override def children:Array[ParseTree]
 	def evaluate(sent:Sentence):(Head.Value,Any,Double)
 	def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit
@@ -954,6 +994,7 @@ class CKYParser extends StandardParser{
 		}
 		def nilify:Unit = { logScore = Double.NaN; term = null }
 		def isNil:Boolean = (term == null)
+
 		// -- ParseTree Properties --
 		override def head:Head.Value = {
 			assert(term != null,"taking head of null rule"); 
@@ -1830,6 +1871,7 @@ class CKYParser extends StandardParser{
 		//--Run Parser
 		//(run CKY)
 		val trees:Array[ParseTree] = cky(sent,O.beam)
+		println(trees(0).asParseString(sent))
 		//(check: single-best consistency)
 		if(O.paranoid && trees.length > 0){
 			val singleBest:Array[ParseTree] = cky(sent,1)
