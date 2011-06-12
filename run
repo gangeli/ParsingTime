@@ -20,24 +20,28 @@ env!(
 
 	run(
 		# -- LEARNING --
+		# <parser>
 		selo(0, 'parser', 
 			'CKYParser', 
 			'SearchParser', 
 			'PrimitivesOnly', 
 			'ItsAlwaysFriday'),
-		o('iters', 10),
-		o('maxSearchTime', 10000),
-		o('weightedUpdate'),
-		selo(1, 'smoothing',
-			'addOne',
-			'none'),
 		selo(2, 'kbestCKYAlgorithm',
 			'0',   #G n^3 k^2 logk          naive
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-#		o('usetime'),
+		selo(1, 'smoothing',
+			'addOne',
+			'none'),
+		# <training>
 		o('beam', 100),
+		o('iters', 10),
+		o('maxSearchTime', 10000),
+		#<params>
+#		o('weightedUpdate'),
+#		o('usetime'),
+
 		# -- EVALUATION --
 		o('exactMatchThreshold', 60*60*24), # a day
 		o('scoreGranularity', 60*60*24), # a day

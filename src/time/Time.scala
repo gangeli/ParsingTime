@@ -267,9 +267,13 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 			//(case: adding to grounded time)
 			assert(offset == null, "Offset should be null")
 			val diffMillis = diff.seconds*1000
-			if(diffMillis > 0 && base.getMillis > Long.MaxValue-diffMillis){
+			val baseMillis = base.getMillis
+			if(diffMillis > 0 && baseMillis > Long.MaxValue-diffMillis){
 				//((overflow))
 				new Time(new DateTime(Long.MaxValue),offset,modifiers)
+			} else if(diffMillis < 0 && baseMillis < Long.MinValue-diffMillis ){
+				//((underflow))
+				new Time(new DateTime(Long.MinValue),offset,modifiers)
 			} else {
 				//((normal))
 				new Time(base.plus(diff),offset,modifiers)
@@ -312,9 +316,13 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 			//(case: subtracting grounded times)
 			assert(offset == null, "Offset should be null for grounded time")
 			val diffMillis = diff.seconds*1000
-			if( diffMillis > 0 && base.getMillis < Long.MinValue+diffMillis ){
+			val baseMillis = base.getMillis
+			if( diffMillis > 0 && baseMillis < Long.MinValue+diffMillis ){
 				//((underflow))
 				new Time(new DateTime(Long.MinValue),offset,modifiers)
+			} else if(diffMillis < 0 && baseMillis > Long.MaxValue+diffMillis){
+				//((overflow))
+				new Time(new DateTime(Long.MaxValue),offset,modifiers)
 			} else {
 				//((normal))
 				new Time(base.minus(diff),offset,modifiers)

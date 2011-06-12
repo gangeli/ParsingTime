@@ -2,6 +2,7 @@ package time
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.PriorityQueue
+import scala.collection.mutable.HashSet
 
 import Lex._
 import Conversions._
@@ -407,6 +408,22 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 			"<<function>>"
 		} else {
 			"<<no parse>>"
+		}
+	}
+	override def equals(o:Any):Boolean = {
+		o match {
+			case (p:Parse) => {
+				if(range != null){
+					p.range != null && (range ~ p.range)
+				} else if(duration != null){
+					p.duration != null && (duration ~ p.duration)
+				} else if(fn != null){
+					p.fn != null && Time.probablyEqualRange(fn,p.fn)
+				} else {
+					throw new IllegalStateException("Equality on invalid parse")
+				}
+			}
+			case _ => false
 		}
 	}
 }
@@ -1016,6 +1033,11 @@ class CKYParser extends StandardParser{
 		override def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit = {
 			traverseHelper(0,ruleFn,lexFn)
 		}
+		def deepclone:ChartElem = {
+			val leftClone = if(left == null) null else left.deepclone
+			val rightClone = if(right == null) null else right.deepclone
+			new ChartElem(logScore,term,leftClone,rightClone)
+		}
 		// -- Object Properties --
 		override def clone:ChartElem = {
 			new ChartElem(logScore,term,left,right)
@@ -1332,6 +1354,7 @@ class CKYParser extends StandardParser{
 		
 		//<Algorithm 2>
 		private def lazyNext:Boolean = {
+			assert(isLazy, "Lazy next called on non-lazy structure")
 			if(lazyNextFn == null){ lazyNextFn = mkLazyNext }
 			lazyNextFn()
 		}
@@ -1346,7 +1369,7 @@ class CKYParser extends StandardParser{
 					val (rl1,l1,r1,fn1) = lazyArray(i)
 					for(j <- (i+1) until lazyArray.length){
 						val (rl2,l2,r2,fn1) = lazyArray(j)
-						assert(rl1 != rl2, "duplicates in lazyArray")
+						assert(rl1 != rl2 || l1 != l2 || r1 != r2,"duplicates in lazyArray")
 					}
 				}
 			}
@@ -1361,25 +1384,31 @@ class CKYParser extends StandardParser{
 				}
 			}
 			var pq = new PriorityQueue[DataSource]
-			var seen = new Array[Boolean](lazyArray.length*capacity*capacity)
+			var seen = new HashSet[Int]
+			var seenUnary = new HashSet[Int]
+//			var seen = new Array[Boolean](lazyArray.length*capacity*capacity)
+//			var seenUnary = new Array[Boolean](lazyArray.length*capacity)
 			//(enqueue method)
 			def enqueue(source:Int,lI:Int,rI:Int) = {
 				val (rule,left,right,score) = lazyArray(source)
-				if(	left.has(lI) && //left in bounds
-						(right == null || right.has(rI)) &&  //no right, or right in bounds
-						!seen(	source * capacity * capacity + 
-						        lI * capacity +
-										rI			) //not already seen
+				if(	left.has(lI) &&
+						( ( right == null && 
+						    !seenUnary( source*capacity + lI ) ) ||
+							( ( right != null && right.has(rI) &&
+						      !seen(	source * capacity * capacity + 
+						              lI * capacity +
+									  	    rI			) ) ) )
 							){
-					val s = if(right == null) {
+					val s:Double = if(right == null) {
+							seenUnary( source*capacity + lI ) = true
 							left(lI).logScore+score(left(lI),null)
 						} else {
+							seen(	source * capacity * capacity + 
+								        lI * capacity +
+												rI			) = true
 							left(lI).logScore+right(rI).logScore+score(left(lI),right(rI))
 						}
 					pq.enqueue( DataSource(s,source,lI,rI) ) //<--actual enqueue
-					seen(	source * capacity * capacity + 
-						        lI * capacity +
-										rI			) = true
 				}
 			}
 			//(initialize queue)
@@ -1394,10 +1423,10 @@ class CKYParser extends StandardParser{
 					if(O.paranoid){
 						val potentialSize = lazyArray.foldLeft(0){ 
 							case (sizeSoFar, (term,left,right,score)) => 
-								while(left.lazyNext){}
+								left.ensureEvaluated
 								var size = left.length
 								if(right != null){
-									while(right.lazyNext){}
+									right.ensureEvaluated
 									size *= right.length
 								}
 								sizeSoFar + size }
@@ -1437,7 +1466,6 @@ class CKYParser extends StandardParser{
 		private def algorithm3(term:CkyRule, left:BestList, right:BestList,
 				score:(ChartElem,ChartElem)=>Double):Unit = {
 			if(!isLazy){ this.markLazy }
-			assert(deferred.forall{ case (r,l,rr,s) => r != term }, "duplicate")
 			deferred = (term,left,right,score) :: deferred
 		}
 
@@ -1678,7 +1706,10 @@ class CKYParser extends StandardParser{
 			}
 		}
 		//--Return
-		gram(chart,0,sent.length,Head.ROOT.id,UNARY).toArray.map{ x => x }
+		Array.concat(
+			gram(chart,0,sent.length,Head.ROOT.id,UNARY).toArray,
+			gram(chart,0,sent.length,Head.ROOT.id,BINARY).toArray
+			).map{ x => x.deepclone }
 	}
 
 	//-----
@@ -1748,6 +1779,52 @@ class CKYParser extends StandardParser{
 		end_track
 	}
 
+	private def isEquivalentOutput(
+			guess:Array[(Head.Value,Any,Double)],
+			gold:Array[(Head.Value,Any,Double)]   ):(Boolean,String) = {
+		if(guess.length != gold.length){ return (false,"different lengths") }
+		//--Set Equality
+		def setEquality(begin:Int,end:Int):(Boolean,String) = {
+			for(i <- begin until end){
+				if( !(begin until end).exists{ (j:Int) => 
+							val (guessH,guessV,guessS) = guess(i)
+							val (goldH,goldV,goldS) = gold(j)
+							Parse(guessH,guessV).equals( Parse(goldH,goldV) )
+						} ) {
+					return (false, "no reference match for guess " + i)
+				}
+			}
+			return (true,"ok")
+		}
+		//--Loop
+		var score:Double = Double.NaN
+		var begin:Int = 0
+		var end:Int = 0
+		for(i <- 0 until guess.length) {
+			val (headGuess,parseGuess,scoreGuess) = guess(i)
+			val (headGold,parseGold,scoreGold) = gold(i)
+			if(scoreGuess != scoreGold){ return (false,"mismatched scores: " + i) }
+			if(scoreGuess != score) {
+				//(new score)
+				val (ok,str) = setEquality(begin,end)
+				if(!ok){ return (ok,str) }
+				begin = i
+				end = i+1
+				score = scoreGuess
+			} else {
+				//(same score)
+				end += 1
+			}
+		}
+		//--Last Check / Return
+		if(guess.length < O.beam){ //things can dangle off the end
+			setEquality(begin,end)
+		} else {
+			(true,"ok")
+		}
+	}
+
+
 	override def parse(i:Int, sent:Sentence, feedback:Boolean
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
@@ -1773,12 +1850,21 @@ class CKYParser extends StandardParser{
 			val saveAlg = O.kbestCKYAlgorithm
 			O.kbestCKYAlgorithm = 0
 			val reference = cky(sent,O.beam)
+			val scoredReference = reference.map{ _.evaluate(sent) }
 			assert(reference.length == scored.length, 
 				"Algorithm different size from algorithm 0")
-			assert( scored.zip(reference.map{ _.evaluate(sent) }).forall{ 
+			assert( scored.zip(scoredReference).forall{ 
 				case ((tag,value,score),(refTag,refValue,refScore)) => 
 					score == refScore
-				}, "Algorithm differed from algorithm 0"  )
+				}, "Algorithm differed in scores from algorithm 0"  )
+			val (equivalent,message) = isEquivalentOutput(scoredReference, scored)
+			if(!equivalent){
+				println("----ALGORITHM 0----")
+				println(U.join(scoredReference, "\n"))
+				println("----ALGORITHM "+saveAlg+"----")
+				println(U.join(scored, "\n"))
+			}
+			assert( equivalent, "Inconsistent with algorithm 0: " + message)
 			O.kbestCKYAlgorithm = saveAlg
 		}
 		//--Format Return
