@@ -86,7 +86,7 @@ class TimebankTag extends DatabaseObject{
 @Table(name="timebank_timex")
 class Timex extends DatabaseObject with Ordered[Timex]{
 	@PrimaryKey(name="tid")
-	private var tid:Int = 0
+	var tid:Int = 0
 	@Key(name="sid")
 	private var sid:Int = 0
 	@Key(name="scope_begin")

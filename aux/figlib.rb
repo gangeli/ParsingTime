@@ -1,81 +1,11 @@
 #!/usr/bin/ruby
 
 require 'rfig/FigureSet'
+require "#{ENV['HOME']}/lib/ruby/earley.rb"
 
 class Parse
+	@@parser = Earley::Parser.new(Earley::TREE)
 	private
-	#-----
-	# PARSE
-	#-----
-	def parenparse(input) #TODO not really correct (escaped \( \), quotes, etc)
-		def recurse(data,indent=0) # returns [sub_parse, remaining_terms]
-			def isEscaped(content)
-				not content.match(/^\s*$/) and content[-1..-1] == '\\'
-			end
-			#--Variables
-			lst = []
-			content, matched = data[0]
-			data = data[1..-1]
-			while content and (isEscaped(content) or not matched.match /^\)$/) do
-				#--Open Paren
-				if matched.match /^\($/ and not isEscaped(content) then
-					lst << content  if not content.match /^\s*$/
-					term, data = recurse(data,indent+1)
-					lst << term.compact if term
-				#--Content
-				else
-					content = "#{content[0...-1]}#{matched}"\
-						if isEscaped(content) #escape characters matched
-					content = nil if content.match /^\s*$/ #empty nonsense
-					lst << content if content
-				end
-				content, matched = data[0]
-				data = data[1..-1]
-			end
-			#--Global end
-			if not content then
-				[lst,data]
-			#--Close Paren
-			elsif content.match /^\s*$/ then
-				[lst,data]
-			else
-				lst << content if content
-				[lst, data]
-			end
-		end
-		#--Clean Special Characters
-		def clean(lst)
-			rtn = []
-			lst.each{ |term|
-				if term.is_a? Array then
-					rtn << clean(term)
-				else
-					#(get last element)
-					last = rtn[-1]
-					#(if last element was escaped; compress)
-					if last and (last[-1..-1] == "(" or last[-1..-1] == ")") then
-						rtn = rtn[0...-1]
-						rtn << "#{last}#{term}"
-					#(else add)
-					else
-						rtn << term
-					end
-				end
-			}
-			rtn
-		end
-		def spacify(lst)
-			rtn = []
-			lst.map{ |term|
-				if term.is_a? Array then
-					spacify(term)
-				else
-					term.gsub(/_/,' ')
-				end
-			}
-		end
-		recurse( input.scan(/(.*?)(\s+|\)|\()/) )[0][0]
-	end
 	#-----
 	# RFIG UTIL
 	#-----
@@ -143,7 +73,7 @@ class Parse
 		if input.is_a? Array
 			@input = input
 		else
-			@input = parenparse(input)
+			@input = @@parser.parse(input)
 			puts to_s
 		end
 	end

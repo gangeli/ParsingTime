@@ -177,14 +177,15 @@ class Score {
 case class Data(train:DataStore,dev:DataStore,test:DataStore)
 
 trait DataStore {
-	def eachExample(fn:Sentence=>(Array[Parse],Feedback=>Any) ):Score
+	def eachExample(fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score
 }
 
 class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
-	override def eachExample( fn:Sentence=>(Array[Parse],Feedback=>Any) ):Score ={
+	override def eachExample( 
+			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 		val score:Score = new Score
 		timexes.foreach( (t:Timex) => {
-			val (parses,feedback) = fn(Sentence(t.words,t.pos))
+			val (parses,feedback) = fn(Sentence(t.words,t.pos), t.tid)
 			val placeOneParse = 
 				if(parses != null && parses.length > 0) parses(0) else null
 			val gold = t.gold
@@ -230,6 +231,8 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 				score.store(Sentence(t.words,t.pos),placeOneParse,gold,topExact)
 				//--Feedback
 				feedback(Feedback(
+					gold, 
+					t.grounding,
 					scored.
 						filter( triple => triple._2 ).
 						map( triple => (triple._1,Score.score(triple._3)) ),

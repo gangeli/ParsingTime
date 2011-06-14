@@ -118,8 +118,39 @@ case class BinaryRule(
 }
 
 object Grammar {
-	
-	
+	val DOW_STR = Array[String]("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
+	val MOY_STR = Array[String]("Jan","Feb","Mar","Apr","May","Jun","Jul",
+		"Aug","Sep","Oct","Nov","Dec")
+	val QOY_STR = Array[String]("Q1","Q2","Q3","Q4")
+
+	private val LEX_RULES:Array[(UnaryRule,String)] = {
+		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
+		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
+			= fn.asInstanceOf[(Any,Any)=>Any]
+		var rtn = List[(UnaryRule,String)]()
+		//(times)
+		val times = List[(Time,String)]((NOW,"REF"))
+		rtn = rtn ::: times.map{ case (t:Time,s:String) => 
+			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
+		//(ranges)
+		val ranges = List[(Range,String)]()
+		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
+			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
+		//(durations)
+		val durations = 
+			{if(O.useTime) List[(Duration,String)]((SEC,"Second"),(MIN,"Minute"),
+				(HOUR,"Hour")) else List[(Duration,String)]()} :::
+			List[(Duration,String)](
+				(DAY,"Day"),(WEEK,"Week"),(MONTH,"Month"),(QUARTER,"Quarter"),
+				(YEAR,"Year")) :::
+			(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
+			(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
+			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList
+		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
+			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
+		rtn.toArray
+	}
+
 	val RULES:Array[Rule] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
@@ -127,23 +158,7 @@ object Grammar {
 		var rtn = List[Rule]()
 
 		//--Lex Terms
-		//(times)
-		val times = List[Time](NOW)
-		rtn = rtn ::: times.map( (t:Time) => 
-			UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)))
-		//(ranges)
-		val ranges = List[Range]()
-		rtn = rtn ::: ranges.map( (r:Range) => 
-			UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)))
-		//(durations)
-		val durations = 
-			{if(O.useTime) List[Duration](SEC,MIN,HOUR) else List[Duration]()} :::
-			List[Duration](DAY,WEEK,MONTH,QUARTER,YEAR) :::
-			(1 to 7).map( i => DOW(i) ).toList :::
-			(1 to 12).map( i => MOY(i) ).toList :::
-			(1 to 4).map( i => QOY(i) ).toList
-		rtn = rtn ::: durations.map( (d:Duration) => 
-			UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)))
+		rtn = rtn ::: LEX_RULES.map{ _._1 }.toList
 
 		//--Type Raises
 		//(range introduction)
@@ -222,6 +237,14 @@ object Grammar {
 	val UNARIES:Array[(Rule,Int)]  = RULES.zipWithIndex.filter{ _._1.arity == 1 }
 	val BINARIES:Array[(Rule,Int)] = RULES.zipWithIndex.filter{ _._1.arity == 2 }
 	val RULES_INDEX = RULES.zipWithIndex
+
+	val RULES_STR:Array[String] = {
+		val rtn = RULES.map{ _.toString }
+		for(i <- 0 until LEX_RULES.length){
+			rtn(i) = LEX_RULES(i)._2
+		}
+		rtn
+	}
 
 	case class Closure(head:Head.Value,child:Head.Value,rules:Array[Int])
 
@@ -308,7 +331,8 @@ case class Sentence(words:Array[Int],pos:Array[Int]) {
 	def length:Int = words.length
 	override def toString:String = U.sent2str(words)
 }
-case class Feedback(correct:Array[(Int,Double)],incorrect:Array[(Int,Double)]) {
+case class Feedback(ref:Any,grounding:Time,
+		correct:Array[(Int,Double)],incorrect:Array[(Int,Double)]) {
 	def hasCorrect:Boolean = correct.length > 0
 	def bestIndex:Int = correct(0)._1
 	def wasWrong:Boolean = (!hasCorrect || bestIndex != 0)
@@ -389,6 +413,21 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 		val grndA = if(shouldGround && !a.isGrounded){ a(ground) } else { a }
 		val grndB = if(shouldGround && !b.isGrounded){ b(ground) } else { b }
 		grndB-grndA
+	}
+	def ground(ground:Time) = {
+		if(fn != null) {
+			fn(Range(ground,ground))
+		} else if(duration != null) {
+			if(duration.isGroundable){
+				duration(ground)
+			} else {
+				duration
+			}
+		} else if(range != null) {
+			range(ground)
+		} else {
+			throw new IllegalStateException("Bad parse")
+		}
 	}
 	def unkDiff(gold:UNK):(Duration,Duration) = {
 		(Duration.INFINITE, Duration.INFINITE)
@@ -508,15 +547,15 @@ trait Parser {
 trait StandardParser extends Parser {
 	def startIteration(iter:Int):Unit = {}
 	def endIteration(iter:Int):Unit = {}
-	def parse(iter:Int, sent:Sentence, feedback:Boolean
+	def parse(iter:Int, sent:Sentence, feedback:Boolean,sid:Int
 		):(Array[Parse],Feedback=>Any)
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			start_track("Iteration " + i)
 			startIteration(i)
-			val score = data.eachExample( (sent:Sentence) => {
-				parse(i, sent, feedback)
-			})
+			val score = data.eachExample{ (sent:Sentence,id:Int) => 
+				parse(i, sent, feedback, id)
+			}
 			endIteration(i)
 			log("Score: " + score)
 			end_track
@@ -530,7 +569,7 @@ trait StandardParser extends Parser {
 //------------------------------------------------------------------------------
 
 class ItsAlwaysFriday extends StandardParser{
-	override def parse(i:Int, sent:Sentence, feedback:Boolean
+	override def parse(i:Int, sent:Sentence, feedback:Boolean, sid:Int
 			):(Array[Parse],Feedback=>Any)={
 		val parse:Array[Parse] = Array[Parse](
 			FRI(NOW),                              // I think it's friday
@@ -555,7 +594,7 @@ class PrimitivesOnly extends StandardParser{
 	val weights:Counter[(Feature,Int)] = new ClassicCounter[(Feature,Int)]
 
 
-	override def parse(i:Int, sent:Sentence, feedback:Boolean
+	override def parse(i:Int, sent:Sentence, feedback:Boolean, sid:Int
 			):(Array[Parse],Feedback=>Any)={
 		assert(sent != null, "Sentence cannot be null")
 		//--Features
@@ -876,7 +915,7 @@ class SearchParser extends StandardParser {
 	}
 
 	// -- Parse --
-	override def parse(i:Int, sent:Sentence, feedback:Boolean
+	override def parse(i:Int, sent:Sentence, feedback:Boolean, sid:Int
 			):(Array[Parse],Feedback=>Any)={
 		import Search._
 		//--Parse
@@ -1049,10 +1088,10 @@ class CKYParser extends StandardParser{
 				"missed words in evaluation: " + length + " " + sent.length)
 			(tag,value,this.logScore)
 		}
-		private def traverseHelper(i:Int,ruleFn:Int=>Any,lexFn:(Int,Int)=>Any
-				):Int = {
+		private def traverseHelper(i:Int,
+				ruleFn:Int=>Any,lexFn:(Int,Int)=>Any,up:()=>Any):Int = {
 			assert(term != null, "evaluating null rule")
-			if(term.arity == 1) {
+			val pos = if(term.arity == 1) {
 				//(case: unary rule)
 				assert(right == null, "binary rule on closure ckyI")
 				if(isLeaf) {
@@ -1061,18 +1100,41 @@ class CKYParser extends StandardParser{
 					i + 1 //return
 				} else {
 					term.rids.foreach{ (rid:Int) => ruleFn(rid) }
-					left.traverseHelper(i,ruleFn,lexFn) //return
+					left.traverseHelper(i,ruleFn,lexFn,up) //return
 				}
 			}else if(term.arity == 2){
 				term.rids.foreach{ (rid:Int) => ruleFn(rid) }
-				val leftI = left.traverseHelper(i,ruleFn,lexFn)
-				right.traverseHelper(leftI,ruleFn,lexFn) //return
+				val leftI = left.traverseHelper(i,ruleFn,lexFn,up)
+				right.traverseHelper(leftI,ruleFn,lexFn,up) //return
 			}else{
 				throw new IllegalStateException("Invalid cky term")
 			}
+			//(pop stack and return)
+			term.rids.foreach{ (rid:Int) => up }
+			pos
 		}
 		override def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit = {
-			traverseHelper(0,ruleFn,lexFn)
+			traverseHelper(0,ruleFn,lexFn,()=>{})
+		}
+		override def asParseString(sent:Sentence):String = {
+			val b = new StringBuilder
+			//(clean string)
+			def clean(str:String) = {
+				"\"" + str.replaceAll("\"","\\\"") + "\""
+			}
+			//(traverse)
+			traverseHelper(0,
+				(rid:Int) => {
+					b.append("( ").append(clean(Grammar.RULES_STR(rid)))
+				},
+				(rid:Int,w:Int) => {
+					b.append("( ").append(clean(Grammar.RULES_STR(rid))).append(" ").
+						append(clean(U.w2str(sent.words(w)))).append(" ) ")
+				},
+				() => {
+					b.append(" ) ")
+				})
+			b.toString
 		}
 		def deepclone:ChartElem = {
 			val leftClone = if(left == null) null else left.deepclone
@@ -1790,12 +1852,14 @@ class CKYParser extends StandardParser{
 		}
 		//--Debug
 		start_track("Iteration Summary")
-		report
+		reportInternal(false)
 		end_track
 	}
 
 	private val IntCounter = new Def[Counter[Int]]
-	override def report:Unit = {
+	private val guess 
+		= new scala.collection.mutable.HashMap[Int,(String,Any,Any)]
+	private def reportInternal(writeParses:Boolean):Unit = {
 		//--Debug Print
 		//(best lex)
 		val bestWords:Array[(Int,Int,Double)] = wordScores.zipWithIndex.map{ 
@@ -1818,7 +1882,30 @@ class CKYParser extends StandardParser{
 			logG("[" + G.df.format(score) + "] " + RULES(rid))
 		}
 		end_track
+		//(write guesses)
+		if(writeParses){
+			start_track("Creating Presentation")
+			var leftToPrint = guess.size
+			var index = 0
+			val b = new StringBuilder
+			b.append(Const.START_PRESENTATION)
+			while(leftToPrint > 0){
+				if(this.guess.contains(index)){
+					val (tree,guess,gold) = this.guess(index)
+					b.append(Const.SLIDE(index,tree,guess.toString,gold.toString))
+					leftToPrint -= 1
+				}
+				index += 1
+			}
+			b.append(Const.END_PRESENTATION)
+			val writer = new java.io.FileWriter(Execution.touch("parses.rb"))
+			writer.write(b.toString)
+			writer.close
+			end_track
+		}
 	}
+
+	override def report = reportInternal(true)
 
 	private def isEquivalentOutput(
 			guess:Array[(Head.Value,Any,Double)],
@@ -1866,12 +1953,11 @@ class CKYParser extends StandardParser{
 	}
 
 
-	override def parse(i:Int, sent:Sentence, feedback:Boolean
+	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:Int
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
 		//(run CKY)
 		val trees:Array[ParseTree] = cky(sent,O.beam)
-		println(trees(0).asParseString(sent))
 		//(check: single-best consistency)
 		if(O.paranoid && trees.length > 0){
 			val singleBest:Array[ParseTree] = cky(sent,1)
@@ -1912,6 +1998,12 @@ class CKYParser extends StandardParser{
 		//--Format Return
 		(	parses, 
 			(feedback:Feedback) => {
+				//(debug)
+				val (head,parse,score) = scored(0)
+				val guessStr=parses(0).ground(feedback.grounding)+
+					" ["+G.df.format(scored(0)._3)+"]"
+				guess(identifier) = (trees(0).asParseString(sent),guessStr,feedback.ref)
+				//(update
 				feedback.correct.foreach{ case (index,score) => {
 					trees(index).traverse( 
 							{(rid:Int) => rulesCounted(rid) += 1},
