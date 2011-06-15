@@ -59,6 +59,7 @@ env!(
 
 		# -- DEBUG --
 		o('paranoid'),
+		o('toy'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)

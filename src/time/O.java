@@ -49,4 +49,6 @@ public class O {
 	//--DEBUG
 	@Option(name="paranoid", gloss="Paranoid correctness checks")
 	public static boolean paranoid = false;
+	@Option(name="toy", gloss="Use the toy corpus")
+	public static boolean toy = true;
 }

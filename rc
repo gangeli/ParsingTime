@@ -1,12 +1,17 @@
 #!/bin/bash
 
 #-----
-# View a file from the last run
+# Manage Runs
 #-----
 function v {
 	file=$1
 	last=`ls out | sort -nr | head -n 1`
 	vim out/$last/$file
+}
+
+function present() {
+	last=`ls out | sort -nr | head -n 1`
+	cd out/$last && ruby parses.rb && evince present.pdf; cd -
 }
 
 #-----

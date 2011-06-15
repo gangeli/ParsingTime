@@ -123,11 +123,11 @@ object Grammar {
 		"Aug","Sep","Oct","Nov","Dec")
 	val QOY_STR = Array[String]("Q1","Q2","Q3","Q4")
 
-	private val LEX_RULES:Array[(UnaryRule,String)] = {
+	private val NAMED_RULES:Array[(Rule,String)] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
 			= fn.asInstanceOf[(Any,Any)=>Any]
-		var rtn = List[(UnaryRule,String)]()
+		var rtn = List[(Rule,String)]()
 		//(times)
 		val times = List[(Time,String)]((NOW,"REF"))
 		rtn = rtn ::: times.map{ case (t:Time,s:String) => 
@@ -148,6 +148,51 @@ object Grammar {
 			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
 			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
+		
+		//--F[ Range, Duration ]
+		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
+			(shiftLeft,"<<"),(shiftRight,">>"),
+			(catLeft,"<|"),(catRight,"|>"),
+			(shrinkBegin,"|<"),(shrinkEnd,">|") )
+		//(intro)
+		rtn = rtn ::: rangeDurationFn.map{ 
+			case (fn:((Range,Duration)=>Range),str:String) => //intro
+				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
+				)),str+"$(R,D):R$")}
+		//(right apply)
+		rtn = rtn ::: rangeDurationFn.map{ 
+			case (fn:((Range,Duration)=>Range),str:String) => //intro
+				(BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
+					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+					)),str+"$(R,):R$")}
+		//(left apply)
+		rtn = rtn ::: rangeDurationFn.map{ 
+			case (fn:((Range,Duration)=>Range),str:String) => //intro
+				(BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
+					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+					)), str+"$(R,):R$")}
+		
+		//--F[ Range, Range ]
+		val rangeRangeFn = List[((Range,Range)=>Range,String)](
+			(intersect,"intersect"),(cons,"cons"))
+		//(intro)
+		rtn = rtn ::: rangeRangeFn.map{ 
+			case (fn:((Range,Range)=>Range),str:String) =>  //intro
+				(UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
+				)),str+"$(R,R):R$")}
+		//(right apply)
+		rtn = rtn ::: rangeRangeFn.map{ 
+			case (fn:((Range,Range)=>Range),str:String) => //intro
+				(BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
+					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
+					)),str+"$(R,):R$")}
+		//(left apply)
+		rtn = rtn ::: rangeRangeFn.map{ 
+			case (fn:((Range,Range)=>Range),str:String) => //intro
+				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
+					(r:Range,fn:(Range,Range)=>Range) => fn(r,_:Range)
+					)),str+"$(,R):R$")}
+		//--Return
 		rtn.toArray
 	}
 
@@ -157,60 +202,26 @@ object Grammar {
 			= fn.asInstanceOf[(Any,Any)=>Any]
 		var rtn = List[Rule]()
 
-		//--Lex Terms
-		rtn = rtn ::: LEX_RULES.map{ _._1 }.toList
+		//--Named Rules
+		rtn = rtn ::: NAMED_RULES.map{ _._1 }.toList
 
 		//--Type Raises
 		//(range introduction)
-		rtn = UnaryRule(Head.Range, Head.Time, hack( 
+		rtn = rtn ::: List[Rule]( UnaryRule(Head.Range, Head.Time, hack( 
 				(t:Time) => Range(t,t)
-			)) :: rtn
+			)))
 		//(now augmentation)
-		rtn = UnaryRule(Head.F_D, Head.F_RD, hack( 
+		rtn = rtn ::: List[Rule]( UnaryRule(Head.F_D, Head.F_RD, hack( 
 				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
-			)) :: rtn
+			)))
 		//(implicit intersect)
-		rtn = UnaryRule(Head.F_R, Head.Range, hack(
+		rtn = rtn ::: List[Rule]( UnaryRule(Head.F_R, Head.Range, hack(
 				(r:Range) => intersect(r,_:Range)
-			)) :: rtn
+			)))
 		//(sequence grounding)
-		rtn = UnaryRule(Head.Range, Head.Duration, hack( 
+		rtn = rtn ::: List[Rule]( UnaryRule(Head.Range, Head.Duration, hack( 
 				(d:Duration) => d(NOW)
-			)) :: rtn
-
-		//--F[ Range, Duration ]
-		val rangeDurationFn = List[(Range,Duration)=>Range](
-			shiftLeft,shiftRight,catLeft,catRight,shrinkBegin,shrinkEnd)
-		//(intro)
-		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
-			UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn)))
-		//(right apply)
-		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
-				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-				)))
-		//(left apply)
-		rtn = rtn ::: rangeDurationFn.map( (fn:(Range,Duration)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
-				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-				)))
-
-		//--F[ Range, Range ]
-		val rangeRangeFn = List[(Range,Range)=>Range](
-			intersect,cons)
-		//(intro)
-		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) =>  //intro
-			UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn)))
-		//(right apply)
-		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
-				(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
-				)))
-		//(left apply)
-		rtn = rtn ::: rangeRangeFn.map( (fn:(Range,Range)=>Range) => //intro
-			BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
-				(r:Range,fn:(Range,Range)=>Range) => fn(r,_:Range)
-				)))
+			)))
 
 		//--F[ Range ]
 		rtn = rtn ::: List[BinaryRule](
@@ -239,9 +250,10 @@ object Grammar {
 	val RULES_INDEX = RULES.zipWithIndex
 
 	val RULES_STR:Array[String] = {
-		val rtn = RULES.map{ _.toString }
-		for(i <- 0 until LEX_RULES.length){
-			rtn(i) = LEX_RULES(i)._2
+		val rtn = RULES.map{ _.head.toString }
+		for(i <- 0 until NAMED_RULES.length){
+			assert(RULES(i) == NAMED_RULES(i)._1, "name mismatch")
+			rtn(i) = NAMED_RULES(i)._2
 		}
 		rtn
 	}
@@ -414,6 +426,17 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 		val grndB = if(shouldGround && !b.isGrounded){ b(ground) } else { b }
 		grndB-grndA
 	}
+	def value:Any = {
+		if(range != null){
+			range
+		} else if(duration != null){
+			duration
+		} else if(fn != null){
+			fn
+		} else {
+			throw new IllegalStateException()
+		}
+	}
 	def ground(ground:Time) = {
 		if(fn != null) {
 			fn(Range(ground,ground))
@@ -508,6 +531,7 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 }
 
 object Parse {
+	def apply(parseValue:Any):Parse = apply(Head.ROOT,parseValue)
 	def apply(parse:(Head.Value,Any)):Parse = {
 		val (parseType, parseValue) = parse
 		apply(parseType,parseValue)
@@ -519,6 +543,7 @@ object Parse {
 			case (r:Range) => Parse(r,null,null)
 			case (d:Duration) => Parse(null,d,null)
 			case (fn:(Range=>Range)) => Parse(null,null,fn)
+			case (unk:UNK) => null
 			case _ => throw fail("Unknown parse output: " + parseValue)
 		}
 	}
@@ -1091,6 +1116,7 @@ class CKYParser extends StandardParser{
 		private def traverseHelper(i:Int,
 				ruleFn:Int=>Any,lexFn:(Int,Int)=>Any,up:()=>Any):Int = {
 			assert(term != null, "evaluating null rule")
+			var stackDepth:Int = 0
 			val pos = if(term.arity == 1) {
 				//(case: unary rule)
 				assert(right == null, "binary rule on closure ckyI")
@@ -1099,18 +1125,18 @@ class CKYParser extends StandardParser{
 					lexFn(term.rid,i)
 					i + 1 //return
 				} else {
-					term.rids.foreach{ (rid:Int) => ruleFn(rid) }
+					term.rids.foreach{ (rid:Int) => stackDepth+=1; ruleFn(rid) }
 					left.traverseHelper(i,ruleFn,lexFn,up) //return
 				}
 			}else if(term.arity == 2){
-				term.rids.foreach{ (rid:Int) => ruleFn(rid) }
+				term.rids.foreach{ (rid:Int) => stackDepth+=1; ruleFn(rid) }
 				val leftI = left.traverseHelper(i,ruleFn,lexFn,up)
 				right.traverseHelper(leftI,ruleFn,lexFn,up) //return
 			}else{
 				throw new IllegalStateException("Invalid cky term")
 			}
 			//(pop stack and return)
-			term.rids.foreach{ (rid:Int) => up }
+			(0 until stackDepth).foreach{ (rid:Int) => up() }
 			pos
 		}
 		override def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit = {
@@ -1120,19 +1146,19 @@ class CKYParser extends StandardParser{
 			val b = new StringBuilder
 			//(clean string)
 			def clean(str:String) = {
-				"\"" + str.replaceAll("\"","\\\"") + "\""
+				"\"" + str.replaceAll("\"","\\\\\"").replaceAll("'","\\\\'") + "\""
 			}
 			//(traverse)
 			traverseHelper(0,
 				(rid:Int) => {
-					b.append("( ").append(clean(Grammar.RULES_STR(rid)))
+					b.append("(").append(clean(Grammar.RULES_STR(rid))).append(" ")
 				},
 				(rid:Int,w:Int) => {
 					b.append("( ").append(clean(Grammar.RULES_STR(rid))).append(" ").
 						append(clean(U.w2str(sent.words(w)))).append(" ) ")
 				},
 				() => {
-					b.append(" ) ")
+					b.append(") ")
 				})
 			b.toString
 		}
@@ -1858,7 +1884,7 @@ class CKYParser extends StandardParser{
 
 	private val IntCounter = new Def[Counter[Int]]
 	private val guess 
-		= new scala.collection.mutable.HashMap[Int,(String,Any,Any)]
+		= new scala.collection.mutable.HashMap[Int,(String,Any,Any,Time,Boolean)]
 	private def reportInternal(writeParses:Boolean):Unit = {
 		//--Debug Print
 		//(best lex)
@@ -1891,8 +1917,9 @@ class CKYParser extends StandardParser{
 			b.append(Const.START_PRESENTATION)
 			while(leftToPrint > 0){
 				if(this.guess.contains(index)){
-					val (tree,guess,gold) = this.guess(index)
-					b.append(Const.SLIDE(index,tree,guess.toString,gold.toString))
+					val (tree,guess,gold,ground,hasCorrect) = this.guess(index)
+					b.append(Const.SLIDE(
+						index,hasCorrect,tree,guess.toString,gold.toString,ground.toString))
 					leftToPrint -= 1
 				}
 				index += 1
@@ -1995,16 +2022,21 @@ class CKYParser extends StandardParser{
 			assert( equivalent, "Inconsistent with algorithm 0: " + message)
 			O.kbestCKYAlgorithm = saveAlg
 		}
-		//--Format Return
+		//--Return / Feedback
 		(	parses, 
 			(feedback:Feedback) => {
 				//(debug)
 				val (head,parse,score) = scored(0)
-				val guessStr=parses(0).ground(feedback.grounding)+
+				val guessStr = parses(0).ground(feedback.grounding)+
 					" ["+G.df.format(scored(0)._3)+"]"
-				guess(identifier) = (trees(0).asParseString(sent),guessStr,feedback.ref)
-				//(update
-				feedback.correct.foreach{ case (index,score) => {
+				val goldParse = Parse(Head.ROOT,feedback.ref)
+				val goldStr = if(goldParse != null) goldParse.ground(feedback.grounding)
+				              else "UNK"
+				guess(identifier) 
+					= (trees(0).asParseString(sent),guessStr,goldStr,feedback.grounding,
+						feedback.hasCorrect)
+				//(update)
+				def update(index:Int) = {
 					trees(index).traverse( 
 							{(rid:Int) => rulesCounted(rid) += 1},
 							{(rid:Int,i:Int) => 
@@ -2012,8 +2044,11 @@ class CKYParser extends StandardParser{
 								posCounted(rid).incrementCount(sent.pos(i),1.0)
 							}
 						)
-					}
 				}
+				if(feedback.correct.length > 0){
+					update(feedback.correct(0)._1)
+				}
+//				feedback.correct.foreach{ case (index,score) => update(index) }
 			}
 		)
 

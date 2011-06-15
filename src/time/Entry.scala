@@ -61,14 +61,16 @@ object U {
 	def w2str(w:Int):String = G.wordIndexer.get(w)
 	def str2w(str:String):Int = G.wordIndexer.addAndGetIndex(str)
 	def pos2str(pos:Int):String = G.posIndexer.get(pos)
-	def pos2int(str:String):Int = G.posIndexer.addAndGetIndex(str)
+	def str2pos(str:String):Int = G.posIndexer.addAndGetIndex(str)
 	def sent2str(sent:Array[Int]) = join(sent.map(G.wordIndexer.get(_)), " ")
 
 	def sumDiff(diff:(Duration,Duration)):Int = {
 		val secA:Long = diff._1.seconds.abs
 		val secB:Long = diff._2.seconds.abs
-		if((secA+secB) > Integer.MAX_VALUE.longValue){
-			java.lang.Integer.MAX_VALUE
+		if(secA > Integer.MAX_VALUE-secB){
+			Int.MaxValue
+		} else if(secB > Integer.MAX_VALUE-secA){
+			Int.MaxValue
 		} else {
 			(secA+secB).intValue
 		}
@@ -76,7 +78,7 @@ object U {
 
 	def safeLn(d:Double) = {
 		if(d == 0.0){ 
-			java.lang.Double.NEGATIVE_INFINITY 
+			Double.NegativeInfinity
 		} else { 
 			scala.math.log(d) 
 		}
@@ -178,76 +180,133 @@ case class Data(train:DataStore,dev:DataStore,test:DataStore)
 
 trait DataStore {
 	def eachExample(fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score
+	def handleParse(
+			parses:Array[Parse], 
+			gold:Any, 
+			grounding:Time,
+			score:Score,
+			sent:Sentence,
+			feedback:(Feedback=>Any)) = {
+		//--Score Parses
+		val placeOneParse = 
+			if(parses != null && parses.length > 0) parses(0) else null
+		val scored:Array[(Int,Boolean,(Duration,Duration))] 
+			= parses.zipWithIndex.map( (pair) => {
+				val (parse,i) = pair
+				//(score candidates)
+				val diff:(Duration,Duration) = gold match{
+					case r:Range => {parse.rangeDiff(r, grounding)}
+					case tm:Time => {parse.timeDiff(tm, grounding)}
+					case (fn:(Range=>Range)) => {parse.fnDiff(fn, grounding)}
+					case d:Duration => {parse.durationDiff(d, grounding)}
+					case unk:UNK => {parse.unkDiff(unk)}
+					case _:Any => {
+						throw fail("Cannot score example; gold= " + gold)
+					}
+				}
+				//(accumulate output)
+				val exactMatch:Boolean = U.sumDiff(diff) <= O.exactMatchThreshold
+				(i,exactMatch,diff)
+			})
+		//--Get Best Index
+		if(scored.length > 0){
+			val (topIndex,topExact,topRange) = scored(0)
+			//(sort)
+			quickSort(scored)( Ordering.fromLessThan(
+					( a:(Int,Boolean,(Duration,Duration)),
+					  b:(Int,Boolean,(Duration,Duration))   ) => {
+				val (aIndex,aExact,aDiff) = a
+				val (bIndex,bExact,bDiff) = b
+				val aSumSec:Int = U.sumDiff(aDiff)
+				val bSumSec:Int = U.sumDiff(bDiff)
+				if(aSumSec != bSumSec){
+					aSumSec < bSumSec //order by difference
+				} else {
+					aIndex < bIndex //tiebreak by index
+				}
+			}))
+			val (bestIndex,bestExact,bestRange) = scored(0)
+			//--Record Score
+			score.enter(topExact,topRange, if(bestExact) bestIndex else -1)
+			score.store(sent,placeOneParse,gold,topExact)
+			//--Feedback
+			feedback(Feedback(
+				gold, 
+				grounding,
+				scored.
+					filter( triple => triple._2 ).
+					map( triple => (triple._1,Score.score(triple._3)) ),
+				scored.
+					filter( triple => !triple._2 ).
+					map( triple => (triple._1,Score.score(triple._3)) )
+				))
+		} else {
+			//--Record Miss
+			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
+			score.store(sent,placeOneParse,gold,false)
+		}
+	}
 }
 
 class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 	override def eachExample( 
 			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 		val score:Score = new Score
-		timexes.foreach( (t:Timex) => {
-			val (parses,feedback) = fn(Sentence(t.words,t.pos), t.tid)
-			val placeOneParse = 
-				if(parses != null && parses.length > 0) parses(0) else null
-			val gold = t.gold
-			//--Score Parses
-			val scored:Array[(Int,Boolean,(Duration,Duration))] 
-				= parses.zipWithIndex.map( (pair) => {
-					val (parse,i) = pair
-					//(score candidates)
-					val diff:(Duration,Duration) = gold match{
-						case r:Range => {parse.rangeDiff(r, t.grounding)}
-						case tm:Time => {parse.timeDiff(tm, t.grounding)}
-						case (fn:(Range=>Range)) => {parse.fnDiff(fn, t.grounding)}
-						case d:Duration => {parse.durationDiff(d, t.grounding)}
-						case unk:UNK => {parse.unkDiff(unk)}
-						case _:Any => {
-							throw fail("Cannot score timex " + t + " gold: " + gold)
-						}
-					}
-					//(accumulate output)
-					val exactMatch:Boolean = U.sumDiff(diff) <= O.exactMatchThreshold
-					(i,exactMatch,diff)
-				})
-			//--Get Best Index
-			if(scored.length > 0){
-				val (topIndex,topExact,topRange) = scored(0)
-				//(sort)
-				quickSort(scored)( Ordering.fromLessThan(
-						( a:(Int,Boolean,(Duration,Duration)),
-						  b:(Int,Boolean,(Duration,Duration))   ) => {
-					val (aIndex,aExact,aDiff) = a
-					val (bIndex,bExact,bDiff) = b
-					val aSumSec:Int = U.sumDiff(aDiff)
-					val bSumSec:Int = U.sumDiff(bDiff)
-					if(aSumSec != bSumSec){
-						aSumSec < bSumSec //order by difference
-					} else {
-						aIndex < bIndex //tiebreak by index
-					}
-				}))
-				val (bestIndex,bestExact,bestRange) = scored(0)
-				//--Record Score
-				score.enter(topExact,topRange, if(bestExact) bestIndex else -1)
-				score.store(Sentence(t.words,t.pos),placeOneParse,gold,topExact)
-				//--Feedback
-				feedback(Feedback(
-					gold, 
-					t.grounding,
-					scored.
-						filter( triple => triple._2 ).
-						map( triple => (triple._1,Score.score(triple._3)) ),
-					scored.
-						filter( triple => !triple._2 ).
-						map( triple => (triple._1,Score.score(triple._3)) )
-					))
-			} else {
-				//--Record Miss
-				score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
-				score.store(Sentence(t.words,t.pos),placeOneParse,gold,false)
-			}
-		})
+		//--Iterate
+		timexes.foreach{ (t:Timex) =>
+			//(variables)
+			val sent = Sentence(t.words,t.pos)
+			//(parse)
+			val (parses,feedback) = fn(sent, t.tid)
+			//(score)
+			handleParse(parses,t.gold,t.grounding,score,sent,feedback)
+		}
 		//--Return
 		score
+	}
+}
+
+object ToyData {
+	import Lex._
+	private val toys = new HashSet[String]
+
+	private val NONE = ToyStore(Array[(String,Parse)]())
+	private def store(args:(String,Parse)*) = ToyStore(args.toArray)
+	private val today = ("today",Parse(Range(NOW,NOW+DAY)))
+	private val week = ("week",Parse(WEEK))
+	private val lastWeekNow = ("last week now",Parse(Range(NOW-WEEK,NOW)))
+	private val lastWeek = ("last week",Parse(Range(NOW-WEEK,NOW)))
+	private val month = ("month",Parse(MONTH))
+	private val aMonth = ("a month",Parse(MONTH))
+	private val lastMonth = ("last month",Parse(Range(NOW-MONTH,NOW)))
+
+	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
+		override def eachExample( 
+				fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
+			val score:Score = new Score
+			gold.zipWithIndex.foreach{ case ((sent:String,gold:Parse),id:Int) =>
+				//(variables)
+				val words = sent.split(" ").map{ (str:String) => U.str2w(str) }
+				val s = Sentence(words, words.map{ (w:Int) => U.str2pos("UNK") })
+				toys.add(sent)
+				//(parse)
+				val (parses, feedback) = fn(s,toys.size)
+				//(feedback)
+				handleParse(parses,gold.value,TODAY,score,s,feedback)
+			}
+			score
+		}
+	}
+
+	val TODAY_ONLY:Data = {
+		Data(store(today),store(today),NONE)
+	}
+	
+	val STANDARD:Data = {
+		Data(
+			store(today,week,lastWeekNow,lastWeek,month,aMonth),
+			store(lastMonth),
+			NONE)
 	}
 }
 
@@ -256,7 +315,7 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 //------------------------------------------------------------------------------
 class Entry {
 	private var dataset:Dataset[TimebankDocument] = null
-	private var timexData:Data = null
+	private var data:Data = null
 	private var parser:Parser = null
 
 //------
@@ -293,25 +352,34 @@ class Entry {
 			})
 		}
 		//(timexes)
-		start_track("Loading Timexes")
-		logG("* train: " + O.train)
-		logG({if(O.devTest) "*" else " "} + "   dev: " + O.dev)
-		logG({if(!O.devTest) "*" else " "} + "  test: " + O.test)
-		this.timexData =  Data(
-			new SimpleTimexStore(
-				U.accum(
-					timexes(O.train.minInclusive,O.train.maxExclusive,_:Timex=>Unit), 
-					(x:Timex) => log("[train] " + x) ).toArray ),
-			new SimpleTimexStore(
-				U.accum(
-					timexes(O.dev.minInclusive,O.dev.maxExclusive,_:Timex=>Unit), 
-					(x:Timex) => log("[dev] " + x) ).toArray ),
-			new SimpleTimexStore(
-				U.accum(
-					timexes(O.test.minInclusive,O.test.maxExclusive,_:Timex=>Unit), 
-					(x:Timex) => log("[test] " + x) ).toArray )
-			)
-		end_track
+		this.data =  
+			if(O.toy){
+				start_track("Toy Data")
+				val data = ToyData.STANDARD
+				end_track
+				data
+			} else {
+				start_track("Loading Timexes")
+				logG("* train: " + O.train)
+				logG({if(O.devTest) "*" else " "} + "   dev: " + O.dev)
+				logG({if(!O.devTest) "*" else " "} + "  test: " + O.test)
+				val data = Data(
+					new SimpleTimexStore(
+						U.accum(
+							timexes(O.train.minInclusive,O.train.maxExclusive,_:Timex=>Unit), 
+							(x:Timex) => log("[train] " + x) ).toArray ),
+					new SimpleTimexStore(
+						U.accum(
+							timexes(O.dev.minInclusive,O.dev.maxExclusive,_:Timex=>Unit), 
+							(x:Timex) => log("[dev] " + x) ).toArray ),
+					new SimpleTimexStore(
+						U.accum(
+							timexes(O.test.minInclusive,O.test.maxExclusive,_:Timex=>Unit), 
+							(x:Timex) => log("[test] " + x) ).toArray )
+					)
+					end_track
+					data
+				}
 		//--Create Parser
 		start_track("Creating Parser")
 		parser = new MetaClass("time."+O.parser).createInstance(classOf[Parser])
@@ -329,7 +397,7 @@ class Entry {
 		//--Run
 		start_track("Running")
 		val (trainScores:Array[Score],testScore:Score)
-			= parser.run(this.timexData,O.iters)
+			= parser.run(this.data,O.iters)
 		end_track
 		//--Process
 		start_track("Results")

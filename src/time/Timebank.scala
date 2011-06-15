@@ -58,7 +58,7 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 				case "form" =>
 					words(tags(i).wid-1) = U.str2w(tags(i).value)
 				case "pos" =>
-					pos(tags(i).wid-1) = U.pos2int(tags(i).value)
+					pos(tags(i).wid-1) = U.str2pos(tags(i).value)
 				case _ => 
 					//do nothing
 			}

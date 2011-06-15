@@ -500,6 +500,9 @@ object Lex {
 	val shrinkEnd:(Range,Duration)=>Range = _ >| _
 	val intersect:(Range,Range)=>Range = _ ^ _
 	val cons:(Range,Range)=>Range = _.cons(_)
+
+	//--Dynamic
+	def TODAY:Time = Time((new DateTime).withMillisOfDay(0))
 }
 
 object Range {
@@ -515,6 +518,7 @@ object Time {
 	val DAWN_OF = new Time(new DateTime(java.lang.Long.MIN_VALUE), null, null)
 	val END_OF = new Time(new DateTime(java.lang.Long.MAX_VALUE), null, null)
 
+	def apply(base:DateTime) = new Time(base, null, null)
 	def apply(base:DateTime, offset:Duration) = new Time(base, offset, null)
 
 	def apply(year:Int, month:Int, day:Int, hour:Int, min:Int, sec:Int):Time = {
