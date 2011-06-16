@@ -34,8 +34,13 @@ env!(
 		selo(1, 'smoothing',
 			'addOne',
 			'none'),
+		selo(3,'ckyCountType',
+			'all',
+			'bestAll',
+			'bestRandom',
+			'bestShallow'),
 		# <training>
-		o('beam', 100),
+		o('beam', 1000),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
 		#<params>
@@ -58,8 +63,8 @@ env!(
 		o('devTest', true),
 
 		# -- DEBUG --
-		o('paranoid'),
-		o('toy'),
+#		o('paranoid'),
+#		o('toy'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)

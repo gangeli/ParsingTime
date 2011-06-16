@@ -11,7 +11,11 @@ function v {
 
 function present() {
 	last=`ls out | sort -nr | head -n 1`
-	cd out/$last && ruby parses.rb && evince present.pdf; cd -
+	if [ "$1" -a "$2" ]; then
+		cd out/$last/iteration$1/ && ruby datum$2.rb && evince present.pdf; cd -
+	else 
+		cd out/$last && ruby parses.rb && evince present.pdf; cd -
+	fi
 }
 
 #-----

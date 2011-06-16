@@ -22,7 +22,7 @@ import edu.stanford.nlp.stats.Counters;
 //------------------------------------------------------------------------------
 object Head extends Enumeration {
 	type V = Value
-	val ROOT, Word, Time, Range, Duration, F_RR, F_RD, F_R, F_D = Value
+	val ROOT, Word, Time, Range, Duration, F_RR, F_RD, F_R, F_D, NIL = Value
 }
 trait Rule {
 	def apply(arg:Any):Any
@@ -118,59 +118,66 @@ case class BinaryRule(
 }
 
 object Grammar {
-	val DOW_STR = Array[String]("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
-	val MOY_STR = Array[String]("Jan","Feb","Mar","Apr","May","Jun","Jul",
-		"Aug","Sep","Oct","Nov","Dec")
-	val QOY_STR = Array[String]("Q1","Q2","Q3","Q4")
+	case class NIL()
 
+	val DOW_STR = Array[String]("Mon:D","Tue:D","Wed:D","Thu:D","Fri:D",
+		"Sat:D","Sun:D")
+	val MOY_STR = Array[String]("Jan:D","Feb:D","Mar:D","Apr:D","May:D",
+		"Jun:D","Jul:D","Aug:D","Sep:D","Oct:D","Nov:D","Dec:D")
+	val QOY_STR = Array[String]("Q1:D","Q2:D","Q3:D","Q4:D")
+	
 	private val NAMED_RULES:Array[(Rule,String)] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
 			= fn.asInstanceOf[(Any,Any)=>Any]
 		var rtn = List[(Rule,String)]()
+		//--Lex
 		//(times)
-		val times = List[(Time,String)]((NOW,"REF"))
+		val times = List[(Time,String)]((NOW,"REF:T"))
 		rtn = rtn ::: times.map{ case (t:Time,s:String) => 
 			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
 		//(ranges)
-		val ranges = List[(Range,String)]()
+		val ranges = List[(Range,String)]((Range(NOW,NOW+DAY),"REF:R"))
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
 			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
 		//(durations)
 		val durations = 
-			{if(O.useTime) List[(Duration,String)]((SEC,"Second"),(MIN,"Minute"),
+			{if(O.useTime) List[(Duration,String)]((SEC,"Sec:D"),(MIN,"Min:D"),
 				(HOUR,"Hour")) else List[(Duration,String)]()} :::
 			List[(Duration,String)](
-				(DAY,"Day"),(WEEK,"Week"),(MONTH,"Month"),(QUARTER,"Quarter"),
-				(YEAR,"Year")) :::
+				(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
+				(YEAR,"Year:D")) :::
 			(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
 			(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
 			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
 			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
+		//(nil)
+		rtn = rtn ::: List[(Rule,String)](
+			(UnaryRule(Head.NIL, Head.Word, hack((w:Int) => new NIL)), "nil") )
 		
 		//--F[ Range, Duration ]
 		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
-			(shiftLeft,"<<"),(shiftRight,">>"),
-			(catLeft,"<|"),(catRight,"|>"),
-			(shrinkBegin,"|<"),(shrinkEnd,">|") )
+			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight"),
+			(catLeft,"catLeft"),(catRight,"catRight"),
+			(shrinkBegin,"shrinkBegin"),(shrinkEnd,"shrinkEnd") )
 		//(intro)
 		rtn = rtn ::: rangeDurationFn.map{ 
 			case (fn:((Range,Duration)=>Range),str:String) => //intro
 				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
-				)),str+"$(R,D):R$")}
+				)),str+"$(-:R,-:D):R$")}
 		//(right apply)
 		rtn = rtn ::: rangeDurationFn.map{ 
 			case (fn:((Range,Duration)=>Range),str:String) => //intro
 				(BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
 					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-					)),str+"$(R,):R$")}
+					)),str+"$(-:R,d:D):R$")}
 		//(left apply)
 		rtn = rtn ::: rangeDurationFn.map{ 
 			case (fn:((Range,Duration)=>Range),str:String) => //intro
 				(BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
 					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-					)), str+"$(R,):R$")}
+					)), str+"$(-:R,d:D):R$")}
 		
 		//--F[ Range, Range ]
 		val rangeRangeFn = List[((Range,Range)=>Range,String)](
@@ -179,19 +186,114 @@ object Grammar {
 		rtn = rtn ::: rangeRangeFn.map{ 
 			case (fn:((Range,Range)=>Range),str:String) =>  //intro
 				(UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
-				)),str+"$(R,R):R$")}
+				)),str+"$(-:R,-:R):R$")}
 		//(right apply)
 		rtn = rtn ::: rangeRangeFn.map{ 
 			case (fn:((Range,Range)=>Range),str:String) => //intro
 				(BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
 					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
-					)),str+"$(R,):R$")}
+					)),str+"$(-:R,r:R):R$")}
 		//(left apply)
 		rtn = rtn ::: rangeRangeFn.map{ 
 			case (fn:((Range,Range)=>Range),str:String) => //intro
 				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
-					(r:Range,fn:(Range,Range)=>Range) => fn(r,_:Range)
-					)),str+"$(,R):R$")}
+					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
+					)),str+"$(-:R,r:R):R$")}
+		
+		//--F[ Range ]
+		rtn = rtn ::: List[(Rule,String)](
+			//(right apply)
+			(BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
+				(fn:Range=>Range,r:Range) => fn(r)
+				)), "r$_{r,r}$:R"),
+			//(left apply)
+			(BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
+				(r:Range,fn:Range=>Range) => fn(r)
+				)), "r$_{l,r}$:R")
+			)
+		
+		//--F[ Duration ]
+		rtn = rtn ::: List[(Rule,String)](
+			//(right apply)
+			(BinaryRule(Head.Range, Head.F_D, Head.Duration, hack2(
+				(fn:Duration=>Range,d:Duration) => fn(d)
+				)), "r$_{r,d}$:R"),
+			//(left apply)
+			(BinaryRule(Head.Range, Head.Duration, Head.F_D, hack2(
+				(d:Duration,fn:Duration=>Range) => fn(d)
+				)), "r$_{l,d}$:R")
+			)
+		
+		//--Type Raises
+		rtn = rtn ::: List[(Rule,String)]( 
+//			//(range introduction)
+//			(UnaryRule(Head.Range, Head.Time, hack( 
+//				(t:Time) => Range(t,t)
+//				)),"time:R"),
+			//(now augmentation (arity 2))
+			(UnaryRule(Head.F_D, Head.F_RD, hack( 
+				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
+				)),"f(ref:R,-:D):R"),
+//			//(now augmentation (arity 1)) //<--causes a cycle
+//			(UnaryRule(Head.Range, Head.F_R, hack( 
+//				(f:(Range)=>Range) => f(Range(NOW,NOW)) 
+//				)),"r:R"),
+			//(implicit intersect)
+			(UnaryRule(Head.F_R, Head.Range, hack(
+				(r:Range) => intersect(r,_:Range)
+				)),"intersect(ref:R,-:R):R"),
+			//(sequence grounding)
+			(UnaryRule(Head.Range, Head.Duration, hack( 
+				(d:Duration) => d(NOW)
+				)),"duration:R")
+			)
+
+		//--NIL Identities
+		rtn = rtn ::: List[(Rule,String)]( 
+			//(range)
+			(BinaryRule(Head.Range, Head.Range, Head.NIL, hack2( 
+				(r:Range,n:NIL) => r
+				)),"r:R"),
+			(BinaryRule(Head.Range, Head.NIL, Head.Range, hack2( 
+				(n:NIL,r:Range) => r
+				)),"r:R"),
+			//(duration)
+			(BinaryRule(Head.Duration, Head.Duration, Head.NIL, hack2( 
+				(d:Duration,n:NIL) => d
+				)),"d:D"),
+			(BinaryRule(Head.Duration, Head.NIL, Head.Duration, hack2( 
+				(n:NIL,d:Duration) => d
+				)),"d:D"),
+			//(f_range)
+			(BinaryRule(Head.F_R, Head.F_R, Head.NIL, hack2( 
+				(f:Range=>Range,n:NIL) => f
+				)),"$f(-:R):R$"),
+			(BinaryRule(Head.F_R, Head.NIL, Head.F_R, hack2( 
+				(n:NIL,f:Range=>Range) => f
+				)),"$f(-:R):R$"),
+			//(f_duration)
+			(BinaryRule(Head.F_D, Head.F_D, Head.NIL, hack2( 
+				(f:Duration=>Range,n:NIL) => f
+				)),"$f(-:D):R$"),
+			(BinaryRule(Head.F_D, Head.NIL, Head.F_D, hack2( 
+				(n:NIL,f:Duration=>Range) => f
+				)),"$f(-:D):R$")
+//			//(f_rd)
+//			(BinaryRule(Head.F_RD, Head.F_RD, Head.NIL, hack2( 
+//				(f:((Range,Duration)=>Range),n:NIL) => f
+//				)),"$f(-:R,-:D):R$"),
+//			(BinaryRule(Head.F_RD, Head.NIL, Head.F_RD, hack2( 
+//				(n:NIL,f:((Range,Duration)=>Range)) => f
+//				)),"$f(-:R,-:D):R$"),
+//			//(f_rr)
+//			(BinaryRule(Head.F_RR, Head.F_RR, Head.NIL, hack2( 
+//				(f:((Range,Range)=>Range),n:NIL) => f
+//				)),"$f(-:R,-:R):R$"),
+//			(BinaryRule(Head.F_RR, Head.NIL, Head.F_RR, hack2( 
+//				(n:NIL,f:((Range,Range)=>Range)) => f
+//				)),"$f(-:R,-:R):R$")
+			)
+
 		//--Return
 		rtn.toArray
 	}
@@ -201,39 +303,9 @@ object Grammar {
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
 			= fn.asInstanceOf[(Any,Any)=>Any]
 		var rtn = List[Rule]()
-
+		
 		//--Named Rules
 		rtn = rtn ::: NAMED_RULES.map{ _._1 }.toList
-
-		//--Type Raises
-		//(range introduction)
-		rtn = rtn ::: List[Rule]( UnaryRule(Head.Range, Head.Time, hack( 
-				(t:Time) => Range(t,t)
-			)))
-		//(now augmentation)
-		rtn = rtn ::: List[Rule]( UnaryRule(Head.F_D, Head.F_RD, hack( 
-				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
-			)))
-		//(implicit intersect)
-		rtn = rtn ::: List[Rule]( UnaryRule(Head.F_R, Head.Range, hack(
-				(r:Range) => intersect(r,_:Range)
-			)))
-		//(sequence grounding)
-		rtn = rtn ::: List[Rule]( UnaryRule(Head.Range, Head.Duration, hack( 
-				(d:Duration) => d(NOW)
-			)))
-
-		//--F[ Range ]
-		rtn = rtn ::: List[BinaryRule](
-			//(right apply)
-			BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
-				(fn:Range=>Range,r:Range) => fn(r)
-				)),
-			//(left apply)
-			BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
-				(r:Range,fn:Range=>Range) => fn(r)
-				))
-			)
 
 		//-ROOT
 		rtn = rtn ::: List[UnaryRule](
@@ -245,6 +317,7 @@ object Grammar {
 		//--Return
 		rtn.toArray
 	}
+
 	val UNARIES:Array[(Rule,Int)]  = RULES.zipWithIndex.filter{ _._1.arity == 1 }
 	val BINARIES:Array[(Rule,Int)] = RULES.zipWithIndex.filter{ _._1.arity == 2 }
 	val RULES_INDEX = RULES.zipWithIndex
@@ -317,8 +390,6 @@ object Grammar {
 		}
 	}
 	
-
-	val NIL = -1 //LEX index of the NIL term
 }
 
 //------------------------------------------------------------------------------
@@ -345,8 +416,13 @@ case class Sentence(words:Array[Int],pos:Array[Int]) {
 }
 case class Feedback(ref:Any,grounding:Time,
 		correct:Array[(Int,Double)],incorrect:Array[(Int,Double)]) {
+	def bestScore = correct(0)._2
 	def hasCorrect:Boolean = correct.length > 0
 	def bestIndex:Int = correct(0)._1
+	def tiedBest:Array[Int] = {
+		correct.filter{ case (index,score) => score == bestScore }.map{ _._1 }
+	}
+	def isCorrect:Boolean = hasCorrect &&  bestIndex == 0
 	def wasWrong:Boolean = (!hasCorrect || bestIndex != 0)
 	def correctCount:Int = correct.length
 	def correctCountDbl:Double = correctCount.asInstanceOf[Double]
@@ -410,6 +486,7 @@ trait ParseTree extends Tree[Head.Value] {
 	//<<Possible Overrides>>
 	def headString:String = head.toString
 	def leafString(sent:Sentence,index:Int):String = U.w2str(sent(index))
+	def maxDepth:Int = throw fail() //TODO implement something reasonable here
 	//<<Overrides>>
 	override def children:Array[ParseTree]
 	def evaluate(sent:Sentence):(Head.Value,Any,Double)
@@ -867,7 +944,7 @@ class SearchParser extends StandardParser {
 			}
 			//--Nil Introduction
 			if(started && leftOf == null && begin > 0){
-				val feats = lexFeatures(sent,begin-1,NIL)
+				val feats = lexFeatures(sent,begin-1,-1)
 				val up = feedback(feats,_:Boolean,_:Double)
 				children = this.copy(
 					begin=begin-1,
@@ -876,7 +953,7 @@ class SearchParser extends StandardParser {
 					) :: children
 			}
 			if(started && rightOf == null && end < sent.length-1){
-				val feats = lexFeatures(sent,end+1,NIL)
+				val feats = lexFeatures(sent,end+1,-1)
 				val up = feedback(feats,_:Boolean,_:Double)
 				children = this.copy(
 					end=end+1,
@@ -989,6 +1066,10 @@ object CKYParser {
 class CKYParser extends StandardParser{
 	import Grammar._
 	import CKYParser._
+	
+	RULES_STR.zipWithIndex.foreach{ case (name:String,index:Int) => 
+		println(index + ": " + name)
+	}
 
 	case class CkyRule(
 			arity:Int,
@@ -1161,6 +1242,15 @@ class CKYParser extends StandardParser{
 					b.append(") ")
 				})
 			b.toString
+		}
+		override def maxDepth:Int = {
+			var maxDepth = 0
+			var depth = 0
+			traverseHelper(0,
+				(rid:Int) => {depth += 1; maxDepth = math.max(depth,maxDepth) },
+				(rid:Int,w:Int) => { },
+				() => { depth -= 1 })
+			maxDepth+1 // +1 for lex terms
 		}
 		def deepclone:ChartElem = {
 			val leftClone = if(left == null) null else left.deepclone
@@ -1851,6 +1941,12 @@ class CKYParser extends StandardParser{
 		RULES.map{ r => new ClassicCounter[Int] }
 
 	override def endIteration(iter:Int):Unit = {
+		//--Cheat //TODO don't cheat
+//		wordsCounted(33).incrementCount(U.str2w("last"), 1.0)
+//		wordsCounted(30).incrementCount(U.str2w("a"), 1.0)
+//		rulesCounted(59) += 1
+//		rulesCounted(57) += 1
+//		rulesCounted(65) += 1
 		log("Computing new weights")
 		//--Recalculate weights
 		//(rules)
@@ -1914,7 +2010,7 @@ class CKYParser extends StandardParser{
 			var leftToPrint = guess.size
 			var index = 0
 			val b = new StringBuilder
-			b.append(Const.START_PRESENTATION)
+			b.append(Const.START_PRESENTATION("Results"))
 			while(leftToPrint > 0){
 				if(this.guess.contains(index)){
 					val (tree,guess,gold,ground,hasCorrect) = this.guess(index)
@@ -2034,7 +2130,22 @@ class CKYParser extends StandardParser{
 				              else "UNK"
 				guess(identifier) 
 					= (trees(0).asParseString(sent),guessStr,goldStr,feedback.grounding,
-						feedback.hasCorrect)
+						feedback.isCorrect)
+				//(debug dump)
+				val b = new StringBuilder
+				b.append(Const.START_PRESENTATION("Correct Parses for " + identifier))
+				feedback.correct.foreach{ case (index:Int,score:Double) =>
+					b.append(Const.SLIDE(
+						index,true,trees(index).asParseString(sent),
+						parses(index).ground(feedback.grounding).toString,
+						goldStr.toString,
+						feedback.grounding.toString))
+				}
+				b.append(Const.END_PRESENTATION)
+				val writer = new java.io.FileWriter(
+					Execution.touch("iteration"+i+"/datum"+identifier+".rb"))
+				writer.write(b.toString)
+				writer.close
 				//(update)
 				def update(index:Int) = {
 					trees(index).traverse( 
@@ -2045,10 +2156,28 @@ class CKYParser extends StandardParser{
 							}
 						)
 				}
-				if(feedback.correct.length > 0){
-					update(feedback.correct(0)._1)
+				O.ckyCountType match {
+					case O.CkyCountType.all => 
+						//(update every correct parse)
+						feedback.correct.foreach{ case (index,score) => update(index) }
+					case O.CkyCountType.bestAll =>
+						//(update every tied-for-best parse)
+						feedback.tiedBest.foreach{ (index:Int) => update(index) }
+					case O.CkyCountType.bestRandom =>
+						//(update the 'first' tied-for-best parse)
+						if(feedback.hasCorrect){update(feedback.bestIndex) }
+					case O.CkyCountType.bestShallow =>
+						//(update the shallowest tied-for-best parse)
+						val (best,depth) =
+							feedback.tiedBest.foldLeft((-1,Int.MaxValue)){
+								case ((argmin,min),cand) =>
+									val candMin = trees(cand).maxDepth
+									if(candMin < min) (cand,candMin) else (argmin,min)
+								}
+						assert(!feedback.hasCorrect || best >= 0, "Bad shallow computation")
+						if(best >= 0){ update(best) }
+					case _ => throw fail("Unknown case")
 				}
-//				feedback.correct.foreach{ case (index,score) => update(index) }
 			}
 		)
 

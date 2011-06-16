@@ -191,8 +191,7 @@ trait DataStore {
 		val placeOneParse = 
 			if(parses != null && parses.length > 0) parses(0) else null
 		val scored:Array[(Int,Boolean,(Duration,Duration))] 
-			= parses.zipWithIndex.map( (pair) => {
-				val (parse,i) = pair
+			= parses.zipWithIndex.map{ case (parse,i) =>
 				//(score candidates)
 				val diff:(Duration,Duration) = gold match{
 					case r:Range => {parse.rangeDiff(r, grounding)}
@@ -206,8 +205,10 @@ trait DataStore {
 				}
 				//(accumulate output)
 				val exactMatch:Boolean = U.sumDiff(diff) <= O.exactMatchThreshold
+				if(exactMatch){
+				}
 				(i,exactMatch,diff)
-			})
+			}
 		//--Get Best Index
 		if(scored.length > 0){
 			val (topIndex,topExact,topRange) = scored(0)
@@ -268,7 +269,7 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 
 object ToyData {
 	import Lex._
-	private val toys = new HashSet[String]
+	private val toys = new HashMap[String,Int]
 
 	private val NONE = ToyStore(Array[(String,Parse)]())
 	private def store(args:(String,Parse)*) = ToyStore(args.toArray)
@@ -288,9 +289,9 @@ object ToyData {
 				//(variables)
 				val words = sent.split(" ").map{ (str:String) => U.str2w(str) }
 				val s = Sentence(words, words.map{ (w:Int) => U.str2pos("UNK") })
-				toys.add(sent)
+				if(!toys.contains(sent)){ toys(sent) = toys.size }
 				//(parse)
-				val (parses, feedback) = fn(s,toys.size)
+				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
 				handleParse(parses,gold.value,TODAY,score,s,feedback)
 			}
@@ -304,7 +305,7 @@ object ToyData {
 	
 	val STANDARD:Data = {
 		Data(
-			store(today,week,lastWeekNow,lastWeek,month,aMonth),
+			store(today,week,lastWeek,month,aMonth),
 			store(lastMonth),
 			NONE)
 	}

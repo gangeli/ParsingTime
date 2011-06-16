@@ -1,7 +1,7 @@
 package time
 
 object Const {
-def START_PRESENTATION = 
+def START_PRESENTATION(name:String) = {
 """#!/usr/bin/ruby
 
 require 'rfig/Presentation'
@@ -31,16 +31,16 @@ end
 ################################################################################
 # Title
 ################################################################################
-slide!('Parses Summary',
+slide!('"""+name+"""',
 nil){ |slide| slide.label('title').signature(1).titleSpacing(u(0)) }
 """
+}
 
 def SLIDE(id:Int,correct:Boolean,
 	tree:String,guess:String,gold:String,ground:String) = 
 """
 ################################################################################
-# Datum """+id+""" ("""+
-	{if(correct) "\\green{correct}" else "\\red{incorrect}"}+""")
+# Datum """+id+"""
 ################################################################################
 slide!('Datum """+id+""" ("""+
 	{if(correct) """\green{correct}""" else """\red{incorrect}"""}+""")',

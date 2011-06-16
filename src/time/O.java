@@ -16,8 +16,6 @@ public class O {
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
 	public static int beam = 100000;
-	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
-	public static double ckyPosBackoff = 0.2;
 	@Option(name="weightedUpdate", gloss="Counts weighted by score")
 	public static boolean weightedUpdate = false;
 	public static enum SmoothingType{ none, addOne }
@@ -25,8 +23,14 @@ public class O {
 	public static SmoothingType smoothing = SmoothingType.none;
 	@Option(name="useTime", gloss="Parse date and time both")
 	public static boolean useTime = false;
+	//<CKY>
+	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
+	public static double ckyPosBackoff = 0.2;
 	@Option(name="kbestCKYAlgorithm", gloss="algorithm from (Huang et. al)")
 	public static int kbestCKYAlgorithm = 0;
+	public static enum CkyCountType{ all, bestAll, bestRandom, bestShallow }
+	@Option(name="ckyCountType", gloss="Parses to count as 'correct'")
+	public static CkyCountType ckyCountType = CkyCountType.bestAll;
 
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")
@@ -50,5 +54,5 @@ public class O {
 	@Option(name="paranoid", gloss="Paranoid correctness checks")
 	public static boolean paranoid = false;
 	@Option(name="toy", gloss="Use the toy corpus")
-	public static boolean toy = true;
+	public static boolean toy = false;
 }
