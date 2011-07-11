@@ -87,6 +87,7 @@ query(db,"CREATE TABLE #{TIMEX} (
 		scope_end INTEGER,
 		type VARCHAR(31),
 		value VARCHAR(127),
+		original_value VARCHAR(127),
 		temporal_function BOOLEAN,
 		mod VARCHAR(15),
 		gloss VARCHAR(63)
@@ -110,8 +111,9 @@ TAG_STMT = db.prepare("INSERT INTO #{TAG}
 	(wid, sid, did, key, value)
   VALUES(?, ?, ?, ?, ?)")
 TIMEX_STMT = db.prepare("INSERT INTO #{TIMEX} 
-	(tid, sid, scope_begin, scope_end, type, value, temporal_function, mod, gloss)
-  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	(tid, sid, scope_begin, scope_end, type, value, original_value, 
+		temporal_function, mod, gloss)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 TLINK_STMT = db.prepare("INSERT INTO #{TLINK} 
 	(lid, fid, source, target, type)
   VALUES(?, ?, ?, ?, ?)")
@@ -192,7 +194,7 @@ class Sent
 	def setText(text)
 		#--Tokenize
 		@text = text
-		text = text.strip.gsub(/\-/,' - ').gsub(/\//,' / ').gsub(/\s+/,' ')
+		text = text.strip.gsub(/\//,' / ').gsub(/\s+/,' ')#.gsub(/\-/,' - ')
 		File.open("tmp", 'w') {|f| f.write(text) }
 		@tokens = `tokenize tmp`.split(/\s+/)
 		#--Tag
@@ -264,6 +266,7 @@ class Timex
 			reader.move_to_attribute(i)
 			@tid = reader.value if reader.name == "tid"
 			@type = reader.value if reader.name == "type"
+			@original_value = reader.value if reader.name == "value"
 			@value = parse(reader.value,nil) if reader.name == "value"
 			@temporalFn = reader.value if reader.name == "temporalFunction"
 			if reader.name == "functionInDocument"\
@@ -287,7 +290,7 @@ class Timex
 	end
 	def to_db(doc,sent)
 		#(inefficient index match)
-		text = @text.strip.gsub(/\-/,' - ').gsub(/\//,' / ').gsub(/\s+/,' ')
+		text = @text.strip.gsub(/\//,' / ').gsub(/\s+/,' ')#.gsub(/\-/,' - ').
 		File.open("tmp", 'w') {|f| f.write(text) }
 		tokens = `tokenize tmp`.split(/\s+/)
 		startI = nil
@@ -305,6 +308,7 @@ class Timex
 			startI + tokens.length,
 			@type,
 			value,
+			@original_value,
 			@temporalFn,
 			@mod ? @mod : "NONE",
 			text.chomp)

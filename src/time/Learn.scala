@@ -2148,11 +2148,12 @@ class CKYParser extends StandardParser{
 				writer.close
 				//(update)
 				def update(index:Int) = {
+					val incr:Double = if(O.hardEM) 1.0 else math.exp(scored(index)._3)
 					trees(index).traverse( 
-							{(rid:Int) => rulesCounted(rid) += 1},
+							{(rid:Int) => rulesCounted(rid) += incr},
 							{(rid:Int,i:Int) => 
-								wordsCounted(rid).incrementCount(sent.words(i),1.0)
-								posCounted(rid).incrementCount(sent.pos(i),1.0)
+								wordsCounted(rid).incrementCount(sent.words(i),incr)
+								posCounted(rid).incrementCount(sent.pos(i),incr)
 							}
 						)
 				}

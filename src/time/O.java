@@ -23,6 +23,8 @@ public class O {
 	public static SmoothingType smoothing = SmoothingType.none;
 	@Option(name="useTime", gloss="Parse date and time both")
 	public static boolean useTime = false;
+	@Option(name="hardEM", gloss="Use hard rather than soft EM updates")
+	public static boolean hardEM = false;
 	//<CKY>
 	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
 	public static double ckyPosBackoff = 0.2;

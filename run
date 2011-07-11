@@ -26,7 +26,7 @@ env!(
 			'SearchParser', 
 			'PrimitivesOnly', 
 			'ItsAlwaysFriday'),
-		selo(2, 'kbestCKYAlgorithm',
+		selo(3, 'kbestCKYAlgorithm',
 			'0',   #G n^3 k^2 logk          naive
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
@@ -34,11 +34,12 @@ env!(
 		selo(1, 'smoothing',
 			'addOne',
 			'none'),
-		selo(3,'ckyCountType',
+		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
 			'bestShallow'),
+#		o('hardEM'),
 		# <training>
 		o('beam', 1000),
 		o('iters', 10),
@@ -63,8 +64,8 @@ env!(
 		o('devTest', true),
 
 		# -- DEBUG --
-#		o('paranoid'),
-#		o('toy'),
+		o('paranoid'),
+		o('toy'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)

@@ -456,7 +456,6 @@ object Entry {
 //		SearchParser.interactive
 		Execution.exec(new Runnable(){
 			override def run:Unit = {
-				val parser = new CKYParser
 				(new Entry).init.run
 			}
 		}, args)

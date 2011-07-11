@@ -18,7 +18,7 @@ DAY = "1D"
 WK = "1W"
 MON = "1M"
 YR  = "1Y"
-NOW = "x"
+NOW = "REF"
 def grammar
 	def parse(arg); Parse.new(arg).constituency; end
 	table(

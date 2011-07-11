@@ -97,6 +97,8 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var timeType:String = null
 	@Key(name="value")
 	private var timeVal:Array[String] = null
+	@Key(name="original_value")
+	private var originalValue:String = null
 	@Key(name="temporal_function")
 	private var temporalFunction:Boolean = false
 	@Key(name="mod")
