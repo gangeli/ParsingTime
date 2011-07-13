@@ -11,6 +11,10 @@ import org.goobs.exec.Log._
 
 import Conversions._
 
+object Timebank {
+	
+}
+
 @Table(name="timebank_doc")
 class TimebankDocument extends org.goobs.testing.Datum{
 	@PrimaryKey(name="fid")
@@ -48,12 +52,15 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 
 	private var words:Array[Int] = null
 	private var pos:Array[Int] = null
+	private var nums:Array[Int] = null
 	private var indexMap:Array[Int] = null
 
 	def wordSlice(begin:Int,end:Int):Array[Int] 
 		= words.slice(indexMap(begin),indexMap(end))
 	def posSlice(begin:Int,end:Int):Array[Int]
 		= pos.slice(indexMap(begin),indexMap(end))
+	def numSlice(begin:Int,end:Int):Array[Int]
+		= nums.slice(indexMap(begin),indexMap(end))
 	
 	def init(str2w:String=>Int,str2pos:String=>Int):Unit = { 
 		refreshLinks; 
@@ -91,11 +98,13 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 		if(O.collapseNumbers){
 			var wList = List[String]()
 			var pList = List[String]()
+			var nList = List[Number]()
 			var i:Int = 0
 			while(i < length){
 				if(numbers(i) != null){
 					wList = numbers(i).toString :: wList
 					pList = "CD" :: wList
+					nList = numbers(i) :: nList
 					(0 until num_len(i)).foreach{ (diff:Int) => 
 						indexMap(i+diff) = wList.length-1
 					}
@@ -103,16 +112,19 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 				} else {
 					wList = words(i) :: wList
 					pList = pos(i) :: pList
+					nList = null :: nList
 					indexMap(i) = wList.length-1
 					i += 1
 				}
 				this.words = wList.reverse.map( str2w(_) ).toArray
 				this.pos   = pList.reverse.map( str2pos(_) ).toArray
+				this.nums  = nList.reverse.map( _.intValue ).toArray
 			}
 			indexMap(length) = wList.length-1
 		} else {
 			this.words = words.map( str2w(_) )
 			this.pos   = pos.map( str2pos(_) )
+			this.nums  = words.map{ U.str2int(_) }.toArray
 		}
 	}
 
@@ -160,15 +172,18 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var timeCache:Any = null
 	var grounding:Time = null
 	private var wordArray:Array[Int] = null
+	private var numArray:Array[Int] = null
 	private var posArray:Array[Int] = null
 
 	def setWords(s:TimebankSentence):Timex = {
 		wordArray = s.wordSlice(scopeBegin,scopeEnd)
+		numArray = s.numSlice(scopeBegin,scopeEnd)
 		posArray = s.posSlice(scopeBegin,scopeEnd)
 		this
 	}
 	def words:Array[Int] = wordArray
 	def pos:Array[Int] = posArray
+	def nums:Array[Int] = numArray
 	def ground(t:Time):Timex = { grounding = t; this }
 	def gold:Any = {
 		if(timeCache == null){

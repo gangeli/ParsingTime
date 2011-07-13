@@ -29,13 +29,14 @@ object G {
 	val idStringMap = new HashMap[Int,String]
 	val df = new DecimalFormat("0.000")
 	val pf = new DecimalFormat("0.0")
+	val F_R = new Def[Range=>Range]
+	val random:scala.util.Random =
+		if(O.useSeed) new scala.util.Random(O.seed) else new scala.util.Random 
 	def W:Int = wordIndexer.size
 	def P:Int = posIndexer.size
 	def UNK:Int = W
 	def PUNK:Int = P
-	val F_R = new Def[Range=>Range]
-	val random:scala.util.Random =
-		if(O.useSeed) new scala.util.Random(O.seed) else new scala.util.Random 
+	val NUM:Int = wordIndexer.addAndGetIndex("--NUM--")
 }
 
 /**
@@ -62,11 +63,19 @@ object U {
 		lst.reverse
 	}
 
-	def w2str(w:Int):String = if(w < G.W) G.wordIndexer.get(w) else "--UNK--"
-	def str2w(str:String):Int = G.wordIndexer.addAndGetIndex(str)
+	def w2str(w:Int):String = {
+		if(w < G.W) G.wordIndexer.get(w) else "--UNK--"
+	}
+	def str2w(str:String):Int = {
+		if(isInt(str)) G.NUM else G.wordIndexer.addAndGetIndex(str)
+	}
 	def str2wTest(str:String):Int = {
-		val w:Int = G.wordIndexer.indexOf(str)
-		if(w < 0) G.UNK else w
+		if(isInt(str)){
+			G.NUM 
+		} else {
+			val w:Int = G.wordIndexer.indexOf(str)
+			if(w < 0) G.UNK else w
+		}
 	}
 	def pos2str(pos:Int):String = 
 		if(pos < G.P) G.posIndexer.get(pos) else "--UNK--"
@@ -98,6 +107,23 @@ object U {
 	}
 
 	def rand:Double = G.random.nextDouble
+
+	private val isInt = """^(\-?[0-9]+)$""".r
+	private val canInt = """^(\-?[0-9]+\.0+)$""".r
+	def isInt(str:String):Boolean = {
+		str match {
+			case isInt(e) => true
+			case canInt(e) => true
+			case _ => false
+		}
+	}
+	def str2int(str:String):Int = {
+		str match {
+			case isInt(e) => str.toInt
+			case canInt(e) => str.toDouble.toInt
+			case _ => throw new IllegalArgumentException("Not an integer: " + str)
+		}
+	}
 			
 }
 
@@ -271,7 +297,7 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		//--Iterate
 		timexes.foreach{ (t:Timex) =>
 			//(variables)
-			val sent = Sentence(t.words,t.pos)
+			val sent = Sentence(t.words,t.pos,t.nums)
 			//(parse)
 			val (parses,feedback) = fn(sent, t.tid)
 			//(score)
@@ -296,6 +322,8 @@ object ToyData {
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(MONTH))
 	private val lastMonth = ("last month",Parse(Range(NOW-MONTH,NOW)))
+	private val y1776 = ("1776",Parse(YEAR(1776)))
+	private val y17sp76 = ("17 76",Parse(YEAR(1776)))
 
 	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
 		override def eachExample( 
@@ -304,7 +332,12 @@ object ToyData {
 			gold.zipWithIndex.foreach{ case ((sent:String,gold:Parse),id:Int) =>
 				//(variables)
 				val words = sent.split(" ").map{ (str:String) => U.str2wTest(str) }
-				val s = Sentence(words, words.map{ (w:Int) => U.str2posTest("UNK") })
+				val s = Sentence(
+					words, 
+					words.map{ (w:Int) => U.str2posTest("UNK") },
+					sent.split(" ").map{ (str:String) =>
+						if(U.isInt(str)) U.str2int(str) else -1 }
+					)
 				if(!toys.contains(sent)){ toys(sent) = toys.size }
 				//(parse)
 				val (parses, feedback) = fn(s,toys(sent))
@@ -327,8 +360,8 @@ object ToyData {
 	
 	def STANDARD:Data = {
 		Data(
-//			store(today,week).internWords,
-			store(today,week,lastWeekToday,lastWeek,month,aMonth).internWords,
+			store(y1776,y17sp76).internWords,
+//			store(today,week,lastWeekToday,lastWeek,month,aMonth).internWords,
 			store(lastMonth),
 			NONE)
 	}

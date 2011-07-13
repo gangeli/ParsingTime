@@ -416,7 +416,11 @@ object Lex {
 		def dom:(Time,Int)=>Range = (t:Time,iArg:Int) => {
 			val i:Int = if(iArg < 0) t.base.getDayOfMonth else iArg
 			val begin:Time = if(t.isGrounded){
-					Time(t.base.withDayOfMonth(i).withMillisOfDay(0), null)
+					try{
+						Time(t.base.withDayOfMonth(i).withMillisOfDay(0), null)
+					} catch { case (e:IllegalFieldValueException) => 
+						Time(t.base.withDayOfMonth(0).withMillisOfDay(0),null)+MONTH-DAY
+					}
 				} else {
 					new Time(null,null)
 				}
@@ -427,6 +431,13 @@ object Lex {
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withWeekOfWeekyear(i)
 						.withDayOfWeek(1).withMillisOfDay(0), null)
+					try{
+						Time(t.base.withWeekOfWeekyear(i)
+							.withDayOfWeek(1).withMillisOfDay(0), null)
+					} catch { case (e:IllegalFieldValueException) => 
+						Time(t.base.withWeekOfWeekyear(i)
+							.withDayOfWeek(1).withMillisOfDay(0), null)+YEAR-WEEK
+					}
 				} else {
 					new Time(null,null)
 				}
@@ -451,6 +462,16 @@ object Lex {
 					new Time(null,null)
 				}
 			Range(begin, begin+Months.THREE)
+		}
+		def yoc:(Time,Int)=>Range = (t:Time,iArg:Int) => {
+			val i:Int = if(iArg < 0) 0 else iArg
+			val begin:Time = if(t.isGrounded){
+					Time(t.base.withYear(t.base.getYear - (t.base.getYear%100) + i)
+						.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0), null)
+				} else {
+					new Time(null,null)
+				}
+			Range(begin, begin+Years.ONE)
 		}
 	}
 	//--Durations
@@ -481,7 +502,10 @@ object Lex {
 	def WOY(i:Int) = new Duration(Years.ONE, LexUtil.woy(_,i))
 	def MOY(i:Int) = new Duration(Years.ONE, LexUtil.moy(_,i))
 	def QOY(i:Int) = new Duration(Years.ONE, LexUtil.qoy(_,i))
+	def YOC(i:Int) = new Duration(Years.years(100), LexUtil.yoc(_,i))
 	def YEAR(i:Int) = new Range(Time(i),Time(i+1))
+	def DECADE(i:Int) = new Range(Time(i*10),Time((i+1)*10))
+	def CENTURY(i:Int) = new Range(Time(i*100),Time((i+1)*100))
 	val AYEAR = new Duration(Years.ONE, (t:Time) => {
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withDayOfYear(1).withMillisOfDay(0), null)

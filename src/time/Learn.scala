@@ -22,15 +22,20 @@ import edu.stanford.nlp.stats.Counters;
 //------------------------------------------------------------------------------
 object Head extends Enumeration {
 	type V = Value
-	val ROOT, Word, Time, Range, Duration, F_RR, F_RD, F_R, F_D, NIL = Value
+	val ROOT, Word, Number, 
+		Time, Range, Duration, F_RR, F_RD, F_R, F_D, NIL = Value
 }
 trait Rule {
+	// -- Must Override --
 	def apply(arg:Any):Any
 	def apply(arg1:Any, arg2:Any):Any
 	def arity:Int
 	def head:Head.Value
 	def accepts(a:Head.Value):Boolean
 	def accepts(a:Head.Value,b:Head.Value):Boolean
+	
+	// -- Can Override --
+	def validInput(w:Int) = isLex
 
 	private var leftChild:Head.Value = null
 	private var rightChild:Head.Value = null
@@ -67,7 +72,8 @@ trait Rule {
 	def child:Head.Value = {
 		assert(arity == 1, "Bad arity"); cacheRule; return leftChild;
 	}
-	def isLex:Boolean = (arity == 1 && child == Head.Word)
+	def isLex:Boolean = 
+		(arity == 1 && (child == Head.Word || child == Head.Number))
 
 	def signature:String = {
 		val children:String = if(arity == 1){
@@ -92,13 +98,16 @@ case class UnaryRule(
 		out:Head.Value,
 		in:Head.Value,
 		fn:Any=>Any ) extends Rule {
+	private var checkValid:Int=>Boolean = (i:Int) => true
 	override def apply(arg:Any):Any = fn(arg)
 	override def apply(arg1:Any,arg2:Any) 
 		= throw fail("binary apply to unary rule")
+	override def validInput(w:Int):Boolean = isLex && checkValid(w)
 	def arity:Int = 1
 	def head:Head.Value = out
 	def accepts(a:Head.Value):Boolean = a == in
 	def accepts(a:Head.Value,b:Head.Value):Boolean = false
+	def ensureValidity(fn:Int=>Boolean):UnaryRule = { checkValid = fn; this }
 	override def toString:String =
 		""+out+{if(in==Head.Word) "["+this(0)+"]" else ""}+"->"+in
 }
@@ -156,6 +165,33 @@ object Grammar {
 		//(nil)
 		rtn = rtn ::: List[(Rule,String)](
 			(UnaryRule(Head.NIL, Head.Word, hack((w:Int) => new NIL)), "nil") )
+		//(numbers)
+		rtn = rtn ::: List[(Rule,String)](
+			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  DOW(num) ))
+				.ensureValidity( (w:Int) => w >= 1 && w <= 7 ),
+				"dow(n):D"),
+			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  DOM(num) ))
+				.ensureValidity( (w:Int) => w >= 1 && w <= 31 ),
+				"dom(n):D"),
+			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  WOY(num) ))
+				.ensureValidity( (w:Int) => w >= 1 && w <= 52 ),
+				"woy(n):D"),
+			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  MOY(num) ))
+				.ensureValidity( (w:Int) => w >= 1 && w <= 12 ),
+				"moy(n):D"),
+			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  QOY(num) ))
+				.ensureValidity( (w:Int) => w >= 1 && w <= 4 ),
+				"qoy(n):D"),
+			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  YOC(num) ))
+				.ensureValidity( (w:Int) => w >= 0 && w <= 99 ),
+				"yoc(n):D"),
+			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  YEAR(num) )),
+				"year(n):R"),
+			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  DECADE(num) )),
+				"decade(n):R"),
+			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  CENTURY(num) )),
+				"century(n):R")
+			)
 		
 		//--F[ Range, Duration ]
 		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
@@ -277,178 +313,6 @@ object Grammar {
 		rtn.toArray
 	}
 	
-//	private val NAMED_RULES:Array[(Rule,String)] = {
-//		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
-//		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
-//			= fn.asInstanceOf[(Any,Any)=>Any]
-//		var rtn = List[(Rule,String)]()
-//		//--Lex
-//		//(times)
-//		val times = List[(Time,String)]((NOW,"REF:T"))
-//		rtn = rtn ::: times.map{ case (t:Time,s:String) => 
-//			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
-//		//(ranges)
-//		val ranges = List[(Range,String)]((Range(NOW,NOW+DAY),"REF:R"))
-//		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
-//			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
-//		//(durations)
-//		val durations = 
-//			{if(O.useTime) List[(Duration,String)]((SEC,"Sec:D"),(MIN,"Min:D"),
-//				(HOUR,"Hour")) else List[(Duration,String)]()} :::
-//			List[(Duration,String)](
-//				(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
-//				(YEAR,"Year:D")) :::
-//			(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
-//			(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
-//			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList
-//		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
-//			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
-//		//(nil)
-//		rtn = rtn ::: List[(Rule,String)](
-//			(UnaryRule(Head.NIL, Head.Word, hack((w:Int) => new NIL)), "nil") )
-//		
-//		//--F[ Range, Duration ]
-//		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
-//			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight"),
-//			(catLeft,"catLeft"),(catRight,"catRight"),
-//			(shrinkBegin,"shrinkBegin"),(shrinkEnd,"shrinkEnd") )
-//		//(intro)
-//		rtn = rtn ::: rangeDurationFn.map{ 
-//			case (fn:((Range,Duration)=>Range),str:String) => //intro
-//				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
-//				)),str+"$(-:R,-:D):R$")}
-//		//(right apply)
-//		rtn = rtn ::: rangeDurationFn.map{ 
-//			case (fn:((Range,Duration)=>Range),str:String) => //intro
-//				(BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
-//					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-//					)),str+"$(-:R,d:D):R$")}
-//		//(left apply)
-//		rtn = rtn ::: rangeDurationFn.map{ 
-//			case (fn:((Range,Duration)=>Range),str:String) => //intro
-//				(BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
-//					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-//					)), str+"$(-:R,d:D):R$")}
-//		
-//		//--F[ Range, Range ]
-//		val rangeRangeFn = List[((Range,Range)=>Range,String)](
-//			(intersect,"intersect"),(cons,"cons"))
-//		//(intro)
-//		rtn = rtn ::: rangeRangeFn.map{ 
-//			case (fn:((Range,Range)=>Range),str:String) =>  //intro
-//				(UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
-//				)),str+"$(-:R,-:R):R$")}
-//		//(right apply)
-//		rtn = rtn ::: rangeRangeFn.map{ 
-//			case (fn:((Range,Range)=>Range),str:String) => //intro
-//				(BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
-//					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
-//					)),str+"$(-:R,r:R):R$")}
-//		//(left apply)
-//		rtn = rtn ::: rangeRangeFn.map{ 
-//			case (fn:((Range,Range)=>Range),str:String) => //intro
-//				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
-//					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
-//					)),str+"$(-:R,r:R):R$")}
-//		
-//		//--F[ Range ]
-//		rtn = rtn ::: List[(Rule,String)](
-//			//(right apply)
-//			(BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
-//				(fn:Range=>Range,r:Range) => fn(r)
-//				)), "r$_{r,r}$:R"),
-//			//(left apply)
-//			(BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
-//				(r:Range,fn:Range=>Range) => fn(r)
-//				)), "r$_{l,r}$:R")
-//			)
-//		
-//		//--F[ Duration ]
-//		rtn = rtn ::: List[(Rule,String)](
-//			//(right apply)
-//			(BinaryRule(Head.Range, Head.F_D, Head.Duration, hack2(
-//				(fn:Duration=>Range,d:Duration) => fn(d)
-//				)), "r$_{r,d}$:R"),
-//			//(left apply)
-//			(BinaryRule(Head.Range, Head.Duration, Head.F_D, hack2(
-//				(d:Duration,fn:Duration=>Range) => fn(d)
-//				)), "r$_{l,d}$:R")
-//			)
-//		
-//		//--Type Raises
-//		rtn = rtn ::: List[(Rule,String)]( 
-////			//(range introduction)
-////			(UnaryRule(Head.Range, Head.Time, hack( 
-////				(t:Time) => Range(t,t)
-////				)),"time:R"),
-//			//(now augmentation (arity 2))
-//			(UnaryRule(Head.F_D, Head.F_RD, hack( 
-//				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
-//				)),"f(ref:R,-:D):R"),
-////			//(now augmentation (arity 1)) //<--causes a cycle
-////			(UnaryRule(Head.Range, Head.F_R, hack( 
-////				(f:(Range)=>Range) => f(Range(NOW,NOW)) 
-////				)),"r:R"),
-//			//(implicit intersect)
-//			(UnaryRule(Head.F_R, Head.Range, hack(
-//				(r:Range) => intersect(r,_:Range)
-//				)),"intersect(ref:R,-:R):R"),
-//			//(sequence grounding)
-//			(UnaryRule(Head.Range, Head.Duration, hack( 
-//				(d:Duration) => d(NOW)
-//				)),"duration:R")
-//			)
-//
-//		//--NIL Identities
-//		rtn = rtn ::: List[(Rule,String)]( 
-//			//(range)
-//			(BinaryRule(Head.Range, Head.Range, Head.NIL, hack2( 
-//				(r:Range,n:NIL) => r
-//				)),"r:R"),
-//			(BinaryRule(Head.Range, Head.NIL, Head.Range, hack2( 
-//				(n:NIL,r:Range) => r
-//				)),"r:R"),
-//			//(duration)
-//			(BinaryRule(Head.Duration, Head.Duration, Head.NIL, hack2( 
-//				(d:Duration,n:NIL) => d
-//				)),"d:D"),
-//			(BinaryRule(Head.Duration, Head.NIL, Head.Duration, hack2( 
-//				(n:NIL,d:Duration) => d
-//				)),"d:D"),
-//			//(f_range)
-//			(BinaryRule(Head.F_R, Head.F_R, Head.NIL, hack2( 
-//				(f:Range=>Range,n:NIL) => f
-//				)),"$f(-:R):R$"),
-//			(BinaryRule(Head.F_R, Head.NIL, Head.F_R, hack2( 
-//				(n:NIL,f:Range=>Range) => f
-//				)),"$f(-:R):R$"),
-//			//(f_duration)
-//			(BinaryRule(Head.F_D, Head.F_D, Head.NIL, hack2( 
-//				(f:Duration=>Range,n:NIL) => f
-//				)),"$f(-:D):R$"),
-//			(BinaryRule(Head.F_D, Head.NIL, Head.F_D, hack2( 
-//				(n:NIL,f:Duration=>Range) => f
-//				)),"$f(-:D):R$")
-////			//(f_rd)
-////			(BinaryRule(Head.F_RD, Head.F_RD, Head.NIL, hack2( 
-////				(f:((Range,Duration)=>Range),n:NIL) => f
-////				)),"$f(-:R,-:D):R$"),
-////			(BinaryRule(Head.F_RD, Head.NIL, Head.F_RD, hack2( 
-////				(n:NIL,f:((Range,Duration)=>Range)) => f
-////				)),"$f(-:R,-:D):R$"),
-////			//(f_rr)
-////			(BinaryRule(Head.F_RR, Head.F_RR, Head.NIL, hack2( 
-////				(f:((Range,Range)=>Range),n:NIL) => f
-////				)),"$f(-:R,-:R):R$"),
-////			(BinaryRule(Head.F_RR, Head.NIL, Head.F_RR, hack2( 
-////				(n:NIL,f:((Range,Range)=>Range)) => f
-////				)),"$f(-:R,-:R):R$")
-//			)
-//
-//		//--Return
-//		rtn.toArray
-//	}
-
 	val RULES:Array[Rule] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
@@ -511,8 +375,9 @@ object Grammar {
 		//(populate graph)
 		val graph = Head.values.toArray.map{ new Node(_) }
 		UNARIES.foreach{ case (r,rid) => 
-			assert(r.head != Head.Word, "Unary headed by a Word")
-			if(r.child != Head.Word){ //don't add lex rules
+			assert(r.head != Head.Word && r.head != Head.Number, 
+				"Unary headed by a Word")
+			if(r.child != Head.Word && r.child != Head.Number){ //don't add lex rules
 				graph(r.head.id).addNeighbor(graph(r.child.id),rid) 
 			}
 		}
@@ -553,7 +418,7 @@ object ParseConversions {
 //-----
 // Input / Output
 //-----
-case class Sentence(words:Array[Int],pos:Array[Int]) {
+case class Sentence(words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	def apply(i:Int) = words(i)
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
 	def length:Int = words.length
@@ -1235,6 +1100,8 @@ class CKYParser extends StandardParser{
 			childOrNull
 		}
 		def numChildren:Int = rids.length
+		def isLex:Boolean = rids.length == 1 && rule.isLex
+		def validInput(w:Int):Boolean = rule.validInput(w)
 		override def toString:String = "<" + U.join(rules,", ") + ">"
 	}
 	
@@ -1242,7 +1109,7 @@ class CKYParser extends StandardParser{
 			CkyRule(1,closure.head,closure.child,closure.rules)
 		}
 	private val CKY_LEX:Array[CkyRule] = UNARIES
-		.filter{ case (rule,rid) => rule.child == Head.Word }
+		.filter{ case (rule,rid) => rule.isLex }
 		.map{ case (rule,rid) =>
 			assert(rule.arity == 1, "unary rule is not unary")
 			CkyRule(rule.arity,rule.head,rule.child,Array[Int](rid))
@@ -1307,8 +1174,17 @@ class CKYParser extends StandardParser{
 				//(case: unary rule)
 				assert(right == null, "binary rule on closure ckyI")
 				var (childI,(childType,childValue)) = {
-					if(isLeaf) (i+1,(Head.Word,sent(i))) //<--Base Case
-					else left.evaluateHelper(sent,i)
+					if(isLeaf){ //<--Base Case (leaf node)
+						if(sent.words(i) == G.NUM){
+							//(case: number)
+							(i+1,(Head.Number,sent.nums(i)))
+						} else {
+							//(case: word)
+							(i+1,(Head.Word,sent.words(i)))
+						}
+					} else {
+						left.evaluateHelper(sent,i)
+					}
 				}
 				term.rules.reverse.foreach{ r =>
 					assert(r.arity == 1, "closure with binary rule")
@@ -2007,12 +1883,18 @@ class CKYParser extends StandardParser{
 	def klex(sent:Sentence,elem:Int,y:(CkyRule,Double)=>Boolean):Int = {
 		val word:Int = sent.words(elem)
 		val pos:Int = sent.pos(elem)
+		val num:Int = sent.nums(elem)
 		//(get candidate parses)
-		val candidates = CKY_LEX.map{ term => (term, lexLogProb(word,pos,term)) }
+		val candidates = CKY_LEX
+			.filter{ (term:CkyRule) =>
+				(  term.child == Head.Word ||
+				   (term.child == Head.Number && word == G.NUM) ) &&  //is valid rule
+				term.validInput( if(word == G.NUM) num else word ) }  //is in range
+			.map{ (term:CkyRule) => (term, lexLogProb(word,pos,term)) }
 		//(yield)
 		var i:Int = 0
 		candidates.sortBy( - _._2).foreach{ case (term,score) => 
-			assert(term.child == Head.Word, "bad term returned in klex")
+			assert(term.isLex, "bad term returned in klex")
 			if(!y(term,score)){ return i }
 			i += 1
 		}
@@ -2101,13 +1983,19 @@ class CKYParser extends StandardParser{
 		RULES.map{ r => new ClassicCounter[Int] }
 
 	override def beginIteration(iter:Int,feedback:Boolean):Unit = {
-//		ruleScores.zipWithIndex.foreach{ case (score:Double,rid:Int) =>
-//			println("rule["+RULES(rid).arity+"] w/head " + RULES(rid).head + " score " + score)
-//		}
+		start_track("Begin Iteration")
+		ruleScores.zipWithIndex.foreach{ case (score:Double,rid:Int) =>
+			debugG("rule["+RULES_STR(rid)+"] score " + score)
+		}
 
 		CKY_UNARY.foreach{ (r:CkyRule) => 
-			println("[" + G.df.format(ruleLogProb(r))+"]  "+r.rids.length+" "+r)
+			debugG("unary [" + G.df.format(ruleLogProb(r))+"]  "+r.rids.length+" "+r)
 		}
+		
+		CKY_LEX.foreach{ (r:CkyRule) => 
+			debugG("lex "+RULES_STR(r.rid))
+		}
+		end_track
 	}
 
 	override def endIteration(iter:Int,feedback:Boolean):Unit = {
@@ -2356,7 +2244,7 @@ class CKYParser extends StandardParser{
 				}
 		}
 		assert(seen.zipWithIndex.forall{ case (seen:Boolean,rid:Int) => 
-				seen || (RULES(rid).arity==1 && RULES(rid).child==Head.Word)
+				seen || RULES(rid).isLex
 			}, "Some rules were not seen")
 		//--Lex
 		Head.values.foreach{ (head:Head.Value) =>
