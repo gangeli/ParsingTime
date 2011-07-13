@@ -415,11 +415,12 @@ object Lex {
 		}
 		def dom:(Time,Int)=>Range = (t:Time,iArg:Int) => {
 			val i:Int = if(iArg < 0) t.base.getDayOfMonth else iArg
+			if(i <= 0){throw new IllegalArgumentException("negative day of month")}
 			val begin:Time = if(t.isGrounded){
 					try{
 						Time(t.base.withDayOfMonth(i).withMillisOfDay(0), null)
 					} catch { case (e:IllegalFieldValueException) => 
-						Time(t.base.withDayOfMonth(0).withMillisOfDay(0),null)+MONTH-DAY
+						Time(t.base.withDayOfMonth(1).withMillisOfDay(0),null)+MONTH-DAY
 					}
 				} else {
 					new Time(null,null)
@@ -428,6 +429,7 @@ object Lex {
 		}
 		def woy:(Time,Int)=>Range = (t:Time,iArg:Int) => {
 			val i:Int = if(iArg < 0) t.base.getWeekOfWeekyear else iArg
+			if(i <= 0){throw new IllegalArgumentException("negative week of year")}
 			val begin:Time = if(t.isGrounded){
 					Time(t.base.withWeekOfWeekyear(i)
 						.withDayOfWeek(1).withMillisOfDay(0), null)
