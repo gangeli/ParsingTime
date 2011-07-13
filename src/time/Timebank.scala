@@ -112,7 +112,7 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 				} else {
 					wList = words(i) :: wList
 					pList = pos(i) :: pList
-					nList = null :: nList
+					nList = -1 :: nList
 					indexMap(i) = wList.length-1
 					i += 1
 				}
