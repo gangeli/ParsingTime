@@ -257,14 +257,14 @@ import scala.collection.JavaConversions._
 			numbers.foreach{ (num:NAnn) => 
 				//(value tag)
 				val start = db.emptyObject(classOf[TimebankTag])
-				start.wid = num.start
+				start.wid = num.start+1
 				start.sid = sent.sid
 				start.did = did
 				start.key = "num"
 				start.value = num.num.toString
 				//(length tag)
 				val len = db.emptyObject(classOf[TimebankTag])
-				len.wid = num.start
+				len.wid = num.start+1
 				len.sid = sent.sid
 				len.did = did
 				len.key = "num_length"

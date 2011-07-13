@@ -45,23 +45,74 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 	private var tags:Array[TimebankTag] = null
 	@Child(localField="sid", childField="sid")
 	var timexes:Array[Timex] = null
-	var words:Array[Int] = null
-	var pos:Array[Int] = null
+
+	private var words:Array[Int] = null
+	private var pos:Array[Int] = null
+	private var indexMap:Array[Int] = null
+
+	def wordSlice(begin:Int,end:Int):Array[Int] 
+		= words.slice(indexMap(begin),indexMap(end))
+	def posSlice(begin:Int,end:Int):Array[Int]
+		= pos.slice(indexMap(begin),indexMap(end))
 	
-	def init:Unit = { 
+	def init(str2w:String=>Int,str2pos:String=>Int):Unit = { 
 		refreshLinks; 
 		quickSort(timexes);
-		words = new Array[Int](length)
-		pos = new Array[Int](length)
+		indexMap = (0 to length).toArray
+		//(tag variables)
+		val words = new Array[String](length)
+		val pos = new Array[String](length)
+		val numbers = new Array[Number](length)
+		val num_len = new Array[Int](length)
+		//(get tags)
 		for( i <- 0 until tags.length ){
 			tags(i).key match {
 				case "form" =>
-					words(tags(i).wid-1) = U.str2w(tags(i).value)
+					words(tags(i).wid-1) = tags(i).value
 				case "pos" =>
-					pos(tags(i).wid-1) = U.str2pos(tags(i).value)
+					pos(tags(i).wid-1) = tags(i).value
+				case "num" => {
+					val isInt = """^(\-?[0-9]+)$""".r
+					val canInt = """^(\-?[0-9]+\.0+)$""".r
+					tags(i).value match {
+						case isInt(e) => numbers(tags(i).wid-1) = tags(i).value.toInt
+						case canInt(e) => 
+							numbers(tags(i).wid-1) = tags(i).value.toDouble.toInt
+						case _ => numbers(tags(i).wid-1) = tags(i).value.toDouble
+					}
+				}
+				case "num_length" => 
+					num_len(tags(i).wid-1) = tags(i).value.toInt
 				case _ => 
 					//do nothing
 			}
+		}
+		//(process numbers)
+		if(O.collapseNumbers){
+			var wList = List[String]()
+			var pList = List[String]()
+			var i:Int = 0
+			while(i < length){
+				if(numbers(i) != null){
+					wList = numbers(i).toString :: wList
+					pList = "CD" :: wList
+					(0 until num_len(i)).foreach{ (diff:Int) => 
+						indexMap(i+diff) = wList.length-1
+					}
+					i += num_len(i)
+				} else {
+					wList = words(i) :: wList
+					pList = pos(i) :: pList
+					indexMap(i) = wList.length-1
+					i += 1
+				}
+				this.words = wList.reverse.map( str2w(_) ).toArray
+				this.pos   = pList.reverse.map( str2pos(_) ).toArray
+			}
+			indexMap(length) = wList.length-1
+		} else {
+			this.words = words.map( str2w(_) )
+			this.pos   = pos.map( str2pos(_) )
 		}
 	}
 
@@ -112,8 +163,8 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var posArray:Array[Int] = null
 
 	def setWords(s:TimebankSentence):Timex = {
-		wordArray = s.words.slice(scopeBegin,scopeEnd)
-		posArray = s.pos.slice(scopeBegin,scopeEnd)
+		wordArray = s.wordSlice(scopeBegin,scopeEnd)
+		posArray = s.posSlice(scopeBegin,scopeEnd)
 		this
 	}
 	def words:Array[Int] = wordArray
@@ -185,7 +236,8 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	override def compare(t:Timex):Int = this.tid - t.tid
 	override def toString:String = {
 		"" + tid + "["+scopeBegin+"-"+scopeEnd+"]: " +
-			gloss.replaceAll("""\n+"""," ")
+		{ if(this.wordArray==null) gloss.replaceAll("""\n+"""," ") 
+		  else U.join(this.wordArray.map( U.w2str(_) )," ") }
 	}
 	override def equals(other:Any):Boolean = {
 		return other.isInstanceOf[Timex] && other.asInstanceOf[Timex].tid == tid

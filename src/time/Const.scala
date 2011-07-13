@@ -55,6 +55,18 @@ slide!('Datum """+id+""" ("""+
 nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
 """
 
+def AUTO_MISS(id:Int) = 
+"""
+################################################################################
+# Datum """+id+"""
+################################################################################
+slide!('Datum """+id+""" \red{(no parses)}
+	'',
+	center,
+	_(TODO debug information),
+nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
+"""
+
 def END_PRESENTATION = 
 """
 ################################################################################

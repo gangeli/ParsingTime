@@ -34,11 +34,12 @@ env!(
 		selo(1, 'smoothing',
 			'addOne',
 			'none'),
-		selo(0,'ckyCountType',
+		selo(1,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
 			'bestShallow'),
+		selo(0,'initMethod','uniform','random'),
 #		o('hardEM'),
 		# <training>
 		o('beam', 1000),
@@ -55,6 +56,7 @@ env!(
 		o('c_vagueness', 1.0),
 
 		# -- DATA --
+		o('collapseNumbers'),
 		o('train', '1-11'),
 		o('dev', '101-111'),
 		o('test', '151-152'),
@@ -65,7 +67,9 @@ env!(
 
 		# -- DEBUG --
 		o('paranoid'),
-		o('toy'),
+#		o('toy'),
+		o('useSeed'),
+		o('seed','42'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)

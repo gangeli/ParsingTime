@@ -31,7 +31,11 @@ object G {
 	val pf = new DecimalFormat("0.0")
 	def W:Int = wordIndexer.size
 	def P:Int = posIndexer.size
+	def UNK:Int = W
+	def PUNK:Int = P
 	val F_R = new Def[Range=>Range]
+	val random:scala.util.Random =
+		if(O.useSeed) new scala.util.Random(O.seed) else new scala.util.Random 
 }
 
 /**
@@ -58,11 +62,20 @@ object U {
 		lst.reverse
 	}
 
-	def w2str(w:Int):String = G.wordIndexer.get(w)
+	def w2str(w:Int):String = if(w < G.W) G.wordIndexer.get(w) else "--UNK--"
 	def str2w(str:String):Int = G.wordIndexer.addAndGetIndex(str)
-	def pos2str(pos:Int):String = G.posIndexer.get(pos)
+	def str2wTest(str:String):Int = {
+		val w:Int = G.wordIndexer.indexOf(str)
+		if(w < 0) G.UNK else w
+	}
+	def pos2str(pos:Int):String = 
+		if(pos < G.P) G.posIndexer.get(pos) else "--UNK--"
 	def str2pos(str:String):Int = G.posIndexer.addAndGetIndex(str)
-	def sent2str(sent:Array[Int]) = join(sent.map(G.wordIndexer.get(_)), " ")
+	def str2posTest(str:String):Int = {
+		val p:Int = G.posIndexer.indexOf(str)
+		if(p < 0) G.PUNK else p
+	}
+	def sent2str(sent:Array[Int]) = join(sent.map(w2str(_)), " ")
 
 	def sumDiff(diff:(Duration,Duration)):Int = {
 		val secA:Long = diff._1.seconds.abs
@@ -83,6 +96,8 @@ object U {
 			scala.math.log(d) 
 		}
 	}
+
+	def rand:Double = G.random.nextDouble
 			
 }
 
@@ -272,9 +287,10 @@ object ToyData {
 	private val toys = new HashMap[String,Int]
 
 	private val NONE = ToyStore(Array[(String,Parse)]())
-	private def store(args:(String,Parse)*) = ToyStore(args.toArray)
+	private def store(args:(String,Parse)*):ToyStore = ToyStore(args.toArray)
 	private val today = ("today",Parse(Range(NOW,NOW+DAY)))
 	private val week = ("week",Parse(WEEK))
+	private val lastWeekToday = ("last week today",Parse(Range(NOW-WEEK,NOW)))
 	private val lastWeekNow = ("last week now",Parse(Range(NOW-WEEK,NOW)))
 	private val lastWeek = ("last week",Parse(Range(NOW-WEEK,NOW)))
 	private val month = ("month",Parse(MONTH))
@@ -287,8 +303,8 @@ object ToyData {
 			val score:Score = new Score
 			gold.zipWithIndex.foreach{ case ((sent:String,gold:Parse),id:Int) =>
 				//(variables)
-				val words = sent.split(" ").map{ (str:String) => U.str2w(str) }
-				val s = Sentence(words, words.map{ (w:Int) => U.str2pos("UNK") })
+				val words = sent.split(" ").map{ (str:String) => U.str2wTest(str) }
+				val s = Sentence(words, words.map{ (w:Int) => U.str2posTest("UNK") })
 				if(!toys.contains(sent)){ toys(sent) = toys.size }
 				//(parse)
 				val (parses, feedback) = fn(s,toys(sent))
@@ -297,15 +313,22 @@ object ToyData {
 			}
 			score
 		}
+		def internWords:ToyStore = {
+			gold.foreach{ case (sent:String,gold:Parse) =>
+				sent.split(" ").foreach{ (str:String) => U.str2w(str) }
+			}
+			this
+		}
 	}
 
-	val TODAY_ONLY:Data = {
-		Data(store(today),store(today),NONE)
+	def TODAY_ONLY:Data = {
+		Data(store(today).internWords,store(today),NONE)
 	}
 	
-	val STANDARD:Data = {
+	def STANDARD:Data = {
 		Data(
-			store(today,week,lastWeek,month,aMonth),
+//			store(today,week).internWords,
+			store(today,week,lastWeekToday,lastWeek,month,aMonth).internWords,
 			store(lastMonth),
 			NONE)
 	}
@@ -339,12 +362,15 @@ class Entry {
 				fn(doc)
 			}
 		}
-		def timexes(begin:Int,end:Int,fn:Timex=>Unit):Unit = {
+		def timexes(begin:Int,end:Int,fn:Timex=>Unit,collectWords:Boolean):Unit = {
 			docs(begin,end, (doc:TimebankDocument) => {
 				val siter = doc.sentences.iterator
 				while(siter.hasNext){
 					val sent:TimebankSentence = siter.next
-					sent.init
+					sent.init(
+						if(collectWords) U.str2w(_) else U.str2wTest(_),
+						if(collectWords) U.str2pos(_) else U.str2posTest(_)
+						)
 					val titer = sent.timexes.iterator
 					while(titer.hasNext){
 						fn(titer.next.ground(doc.grounding).setWords(sent))
@@ -367,22 +393,26 @@ class Entry {
 				val data = Data(
 					new SimpleTimexStore(
 						U.accum(
-							timexes(O.train.minInclusive,O.train.maxExclusive,_:Timex=>Unit), 
-							(x:Timex) => log("[train] " + x) ).toArray ),
+							timexes(O.train.minInclusive,O.train.maxExclusive,
+								_:Timex=>Unit,true), 
+							(x:Timex) => log("[train] " + x) ).toArray),
 					new SimpleTimexStore(
 						U.accum(
-							timexes(O.dev.minInclusive,O.dev.maxExclusive,_:Timex=>Unit), 
-							(x:Timex) => log("[dev] " + x) ).toArray ),
+							timexes(O.dev.minInclusive,O.dev.maxExclusive,
+								_:Timex=>Unit,false), 
+							(x:Timex) => log("[dev] " + x) ).toArray),
 					new SimpleTimexStore(
 						U.accum(
-							timexes(O.test.minInclusive,O.test.maxExclusive,_:Timex=>Unit), 
-							(x:Timex) => log("[test] " + x) ).toArray )
+							timexes(O.test.minInclusive,O.test.maxExclusive,
+								_:Timex=>Unit,false), 
+							(x:Timex) => log("[test] " + x) ).toArray)
 					)
 					end_track
 					data
 				}
 		//--Create Parser
 		start_track("Creating Parser")
+		assert(G.W > 0, "Words have not been interned yet!")
 		parser = new MetaClass("time."+O.parser).createInstance(classOf[Parser])
 		end_track
 		//--Return

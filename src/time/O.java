@@ -12,6 +12,8 @@ public class O {
 	public static org.goobs.utils.Range test;
 	@Option(name="devTest", gloss="Report on development set")
 	public static boolean devTest = false;
+	@Option(name="collapseNumbers", gloss="Pre-parse numeric expressions")
+	public static boolean collapseNumbers = false;
 
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
@@ -25,6 +27,9 @@ public class O {
 	public static boolean useTime = false;
 	@Option(name="hardEM", gloss="Use hard rather than soft EM updates")
 	public static boolean hardEM = false;
+	public static enum InitType{ uniform, random }
+	@Option(name="initMethod", gloss="Initialize EM to random/uniform counts")
+	public static InitType initMethod = InitType.uniform;
 	//<CKY>
 	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
 	public static double ckyPosBackoff = 0.2;
@@ -57,4 +62,8 @@ public class O {
 	public static boolean paranoid = false;
 	@Option(name="toy", gloss="Use the toy corpus")
 	public static boolean toy = false;
+	@Option(name="useSeed", gloss="Use the same random seed")
+	public static boolean useSeed = false;
+	@Option(name="seed", gloss="The random seed to use")
+	public static int seed = 42;
 }
