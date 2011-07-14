@@ -431,8 +431,6 @@ object Lex {
 			val i:Int = if(iArg < 0) t.base.getWeekOfWeekyear else iArg
 			if(i <= 0){throw new IllegalArgumentException("negative week of year")}
 			val begin:Time = if(t.isGrounded){
-					Time(t.base.withWeekOfWeekyear(i)
-						.withDayOfWeek(1).withMillisOfDay(0), null)
 					try{
 						Time(t.base.withWeekOfWeekyear(i)
 							.withDayOfWeek(1).withMillisOfDay(0), null)
@@ -468,8 +466,17 @@ object Lex {
 		def yoc:(Time,Int)=>Range = (t:Time,iArg:Int) => {
 			val i:Int = if(iArg < 0) 0 else iArg
 			val begin:Time = if(t.isGrounded){
-					Time(t.base.withYear(t.base.getYear - (t.base.getYear%100) + i)
-						.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0), null)
+					val newYear = t.base.getYear - (t.base.getYear%100) + i
+					try{
+						Time(t.base.withYear(newYear)
+							.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0), null)
+					} catch { case (e:IllegalFieldValueException) => 
+						if(newYear < 0){
+							Time.DAWN_OF
+						}else{
+							Time.END_OF
+						}
+					}
 				} else {
 					new Time(null,null)
 				}

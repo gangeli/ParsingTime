@@ -324,6 +324,8 @@ object ToyData {
 	private val lastMonth = ("last month",Parse(Range(NOW-MONTH,NOW)))
 	private val y1776 = ("1776",Parse(YEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(YEAR(1776)))
+	private val months2 = ("2 months",Parse(MONTH*2))
+	private val years2 = ("2 years",Parse(YEAR*2))
 
 	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
 		override def eachExample( 
@@ -360,7 +362,7 @@ object ToyData {
 	
 	def STANDARD:Data = {
 		Data(
-			store(y1776,y17sp76).internWords,
+			store(y1776,years2).internWords,
 //			store(today,week,lastWeekToday,lastWeek,month,aMonth).internWords,
 			store(lastMonth),
 			NONE)

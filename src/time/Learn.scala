@@ -167,6 +167,8 @@ object Grammar {
 			(UnaryRule(Head.NIL, Head.Word, hack((w:Int) => new NIL)), "nil") )
 		//(numbers)
 		rtn = rtn ::: List[(Rule,String)](
+			(UnaryRule(Head.Number, Head.Number, hack((num:Int) =>  num )),
+				"NUM"),
 			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  DOW(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 7 ),
 				"dow(n):D"),
@@ -236,6 +238,16 @@ object Grammar {
 				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
 					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
 					)),str+"$(-:R,r:R):R$")}
+		
+		//--F[ Duration, Number ]
+		rtn = rtn ::: List[(Rule,String)](
+			(BinaryRule(Head.Duration, Head.Duration, Head.Number, hack2(
+				(d:Duration,n:Int) => d*n
+				)), "D*n"),
+			(BinaryRule(Head.Duration, Head.Number, Head.Duration, hack2(
+				(n:Int,d:Duration) => d*n
+				)), "n*D")
+			)
 		
 		//--F[ Range ]
 		rtn = rtn ::: List[(Rule,String)](
@@ -375,8 +387,7 @@ object Grammar {
 		//(populate graph)
 		val graph = Head.values.toArray.map{ new Node(_) }
 		UNARIES.foreach{ case (r,rid) => 
-			assert(r.head != Head.Word && r.head != Head.Number, 
-				"Unary headed by a Word")
+			assert(r.head != Head.Word, "Unary headed by a Word")
 			if(r.child != Head.Word && r.child != Head.Number){ //don't add lex rules
 				graph(r.head.id).addNeighbor(graph(r.child.id),rid) 
 			}
