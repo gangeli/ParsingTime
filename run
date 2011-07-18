@@ -54,12 +54,13 @@ env!(
 		o('scoreGranularity', 60*60*24), # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
+		o('instantAsDay'),
 
 		# -- DATA --
 		o('collapseNumbers'),
 		o('train', '1-11'),
 		o('dev', '101-111'),
-		o('test', '151-152'),
+		o('test', '101-111'),
 #		o('train', '1-101'),
 #		o('dev', '101-151'),
 #		o('test', '151-187'),

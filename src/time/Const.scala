@@ -43,7 +43,7 @@ def SLIDE(id:Int,correct:Boolean,
 # Datum """+id+"""
 ################################################################################
 slide!('Datum """+id+""" ("""+
-	{if(correct) """\green{correct}""" else """\red{incorrect}"""}+""")',
+	{if(correct) """{\green correct}""" else """{\red incorrect}"""}+""")',
 	'',
 	center,
 	Parse.new(fstr('"""+tree+"""')).constituency,

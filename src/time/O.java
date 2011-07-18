@@ -56,6 +56,8 @@ public class O {
 	public static double c_overconstraining = 1.0;
 	@Option(name="c_vagueness", gloss="C_vague for score")
 	public static double c_vagueness = 1.0;
+	@Option(name="instantAsDay", gloss="Treat a [gold] instant as a day")
+	public static boolean instantAsDay = false;
 	
 	//--DEBUG
 	@Option(name="paranoid", gloss="Paranoid correctness checks")

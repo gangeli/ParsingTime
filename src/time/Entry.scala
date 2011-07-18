@@ -245,9 +245,7 @@ trait DataStore {
 					}
 				}
 				//(accumulate output)
-				val exactMatch:Boolean = U.sumDiff(diff) <= O.exactMatchThreshold
-				if(exactMatch){
-				}
+				val exactMatch:Boolean = U.sumDiff(diff) < O.exactMatchThreshold
 				(i,exactMatch,diff)
 			}
 		//--Get Best Index
@@ -261,10 +259,12 @@ trait DataStore {
 				val (bIndex,bExact,bDiff) = b
 				val aSumSec:Int = U.sumDiff(aDiff)
 				val bSumSec:Int = U.sumDiff(bDiff)
-				if(aSumSec != bSumSec){
-					aSumSec < bSumSec //order by difference
+				if(aExact && !bExact){
+					true              //order by exact match
+				} else if(aSumSec != bSumSec){
+					aSumSec < bSumSec //then by difference
 				} else {
-					aIndex < bIndex //tiebreak by index
+					aIndex < bIndex   //tiebreak by index
 				}
 			}))
 			val (bestIndex,bestExact,bestRange) = scored(0)
@@ -326,6 +326,8 @@ object ToyData {
 	private val y17sp76 = ("17 76",Parse(YEAR(1776)))
 	private val months2 = ("2 months",Parse(MONTH*2))
 	private val years2 = ("2 years",Parse(YEAR*2))
+	private val april = ("april",Parse(MOY(4)(NOW)))
+	private val ayear = ("a year",Parse(YEAR))
 
 	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
 		override def eachExample( 
@@ -362,7 +364,7 @@ object ToyData {
 	
 	def STANDARD:Data = {
 		Data(
-			store(y1776,years2).internWords,
+			store(ayear,today,week,lastWeek).internWords,
 //			store(today,week,lastWeekToday,lastWeek,month,aMonth).internWords,
 			store(lastMonth),
 			NONE)

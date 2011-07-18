@@ -554,10 +554,18 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 		(Duration.INFINITE, Duration.INFINITE)
 	}
 	def rangeDiff(gold:Range, guess:Range, ground:Time):(Duration,Duration) = {
+		//(asserts)
 		assert(gold != null, "gold is null")
 		assert(guess != null, "guess is null")
-		( diff(gold.begin, guess.begin, ground),
-			diff(gold.end, guess.end, ground) )
+		//(modifications)
+		val modGold:Range = if(O.instantAsDay && gold.norm.seconds == 0){
+				gold |> DAY
+			} else {
+				gold
+			}
+		//(score)
+		( diff(modGold.begin, guess.begin, ground),
+			diff(modGold.end, guess.end, ground) )
 	}
 	def rangeDiff(gold:Range, ground:Time):(Duration,Duration) = {
 		if(range != null){
@@ -589,8 +597,9 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	}
 	def durationDiff(gold:Duration, ground:Time):(Duration,Duration) = {
 		if(duration != null){
-			rangeDiff(Range(NOW, NOW+gold.flatten), 
-				Range(NOW, NOW+duration.flatten), ground)
+			(Duration(0),Duration((duration-gold).seconds))
+//			rangeDiff(Range(NOW, NOW+gold.flatten), //April and Year are same
+//				Range(NOW, NOW+duration.flatten), ground)
 		} else if(range != null){
 			(Duration.INFINITE, Duration.INFINITE)
 		} else if(fn != null){
@@ -2084,8 +2093,8 @@ class CKYParser extends StandardParser{
 					b.append(Const.SLIDE(
 						index,hasCorrect,tree,guess.toString,gold.toString,ground.toString))
 					leftToPrint -= 1
-				} else {
-					b.append(Const.AUTO_MISS(index))
+//				} else {
+//					b.append(Const.AUTO_MISS(index))
 				}
 				index += 1
 			}
