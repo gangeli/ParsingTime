@@ -23,7 +23,7 @@ import edu.stanford.nlp.stats.Counters;
 object Head extends Enumeration {
 	type V = Value
 	val ROOT, Word, Number, 
-		Time, Range, Duration, F_RR, F_RD, F_R, F_D, NIL = Value
+		Time, Range, Duration, Sequence, F_RR, F_RD, F_R, F_D, NIL = Value
 }
 trait Rule {
 	// -- Must Override --
@@ -156,12 +156,15 @@ object Grammar {
 				(HOUR,"Hour")) else List[(Duration,String)]()} :::
 			List[(Duration,String)](
 				(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
-				(YEAR,"Year:D")) :::
+				(YEAR,"Year:D"))
+		val sequences = 
 			(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
 			(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
 			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
 			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
+		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
+			(UnaryRule(Head.Sequence, Head.Word, hack((w:Int) => d)), s) }
 		//(nil)
 		rtn = rtn ::: List[(Rule,String)](
 			(UnaryRule(Head.NIL, Head.Word, hack((w:Int) => new NIL)), "nil") )
@@ -169,22 +172,22 @@ object Grammar {
 		rtn = rtn ::: List[(Rule,String)](
 			(UnaryRule(Head.Number, Head.Number, hack((num:Int) =>  num )),
 				"NUM"),
-			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  DOW(num) ))
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOW(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 7 ),
 				"dow(n):D"),
-			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  DOM(num) ))
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOM(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 31 ),
 				"dom(n):D"),
-			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  WOY(num) ))
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  WOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 52 ),
 				"woy(n):D"),
-			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  MOY(num) ))
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  MOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 12 ),
 				"moy(n):D"),
-			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  QOY(num) ))
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  QOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 4 ),
 				"qoy(n):D"),
-			(UnaryRule(Head.Duration, Head.Number, hack((num:Int) =>  YOC(num) ))
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  YOC(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w <= 99 ),
 				"yoc(n):D"),
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  YEAR(num) )),
@@ -194,50 +197,66 @@ object Grammar {
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  CENTURY(num) )),
 				"century(n):R")
 			)
-		
+
 		//--F[ Range, Duration ]
 		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
 			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight"),
 			(catLeft,"catLeft"),(catRight,"catRight"),
 			(shrinkBegin,"shrinkBegin"),(shrinkEnd,"shrinkEnd") )
-		//(intro)
-		rtn = rtn ::: rangeDurationFn.map{ 
-			case (fn:((Range,Duration)=>Range),str:String) => //intro
-				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
-				)),str+"$(-:R,-:D):R$")}
-		//(right apply)
-		rtn = rtn ::: rangeDurationFn.map{ 
-			case (fn:((Range,Duration)=>Range),str:String) => //intro
-				(BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
-					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-					)),str+"$(-:R,d:D):R$")}
-		//(left apply)
-		rtn = rtn ::: rangeDurationFn.map{ 
-			case (fn:((Range,Duration)=>Range),str:String) => //intro
-				(BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
-					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-					)), str+"$(-:R,d:D):R$")}
+		def expandFnRD(fn:(Range,Duration)=>Range,str:String):List[(Rule,String)] ={
+			var rtn = List[(Rule,String)]()
+			//(intro)
+			rtn = (UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
+				)),str+"$(-:R,-:D):R$") :: rtn
+			//(right apply)
+			rtn = (BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
+				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+				)),str+"$(-:R,d:D):R$") :: rtn
+			rtn = (BinaryRule(Head.F_R, Head.F_RD, Head.Sequence, hack2(
+				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+				)),str+"$(-:R,d:S):R$") :: rtn
+			//(left apply)
+			rtn = (BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
+				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+				)), str+"$(-:R,d:D):R$") :: rtn
+			rtn = (BinaryRule(Head.F_R, Head.Sequence, Head.F_RD, hack2(
+				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+				)), str+"$(-:R,d:S):R$") :: rtn
+			//(return)
+			rtn
+		}
+		rtn = rtn ::: rangeDurationFn.foldLeft(List[(Rule,String)]()){ case 
+				(soFar:List[(Rule,String)],
+					(fn:((Range,Duration)=>Range),
+					 str:String)) =>
+			soFar ::: expandFnRD(fn,str)
+		}
 		
 		//--F[ Range, Range ]
+		def expandFnRR(fn:(Range,Range)=>Range,str:String):List[(Rule,String)] = {
+			var rtn = List[(Rule,String)]()
+			//(intro)
+			rtn = (UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
+				)),str+"$(-:R,-:R):R$") :: rtn
+			//(right apply)
+			rtn = (BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
+				(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
+				)),str+"$(-:R,r:R):R$") :: rtn
+			//(left apply)
+			rtn = (BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
+				(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
+				)), str+"$(-:R,r:R):R$") :: rtn
+			//(return)
+			rtn
+		}
 		val rangeRangeFn = List[((Range,Range)=>Range,String)](
 			(intersect,"intersect"),(cons,"cons"))
-		//(intro)
-		rtn = rtn ::: rangeRangeFn.map{ 
-			case (fn:((Range,Range)=>Range),str:String) =>  //intro
-				(UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
-				)),str+"$(-:R,-:R):R$")}
-		//(right apply)
-		rtn = rtn ::: rangeRangeFn.map{ 
-			case (fn:((Range,Range)=>Range),str:String) => //intro
-				(BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
-					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
-					)),str+"$(-:R,r:R):R$")}
-		//(left apply)
-		rtn = rtn ::: rangeRangeFn.map{ 
-			case (fn:((Range,Range)=>Range),str:String) => //intro
-				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
-					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
-					)),str+"$(-:R,r:R):R$")}
+		rtn = rtn ::: rangeRangeFn.foldLeft(List[(Rule,String)]()){ case 
+				(soFar:List[(Rule,String)],
+					(fn:((Range,Range)=>Range),
+					 str:String)) =>
+			soFar ::: expandFnRR(fn,str)
+		}
 		
 		//--F[ Duration, Number ]
 		rtn = rtn ::: List[(Rule,String)](
@@ -266,11 +285,17 @@ object Grammar {
 			//(right apply)
 			(BinaryRule(Head.Range, Head.F_D, Head.Duration, hack2(
 				(fn:Duration=>Range,d:Duration) => fn(d)
-				)), "r$_{r,d}$:R"),
+				)), "$f_{d}$:R"),
+			(BinaryRule(Head.Range, Head.F_D, Head.Sequence, hack2(
+				(fn:Duration=>Range,d:Duration) => fn(d)
+				)), "$f_{s}$:R"),
 			//(left apply)
 			(BinaryRule(Head.Range, Head.Duration, Head.F_D, hack2(
 				(d:Duration,fn:Duration=>Range) => fn(d)
-				)), "r$_{l,d}$:R")
+				)), "$f_{d}$:R"),
+			(BinaryRule(Head.Range, Head.Sequence, Head.F_D, hack2(
+				(d:Duration,fn:Duration=>Range) => fn(d)
+				)), "$f_{s}$:R")
 			)
 		
 		//--Type Raises
@@ -284,9 +309,9 @@ object Grammar {
 				(r:Range) => intersect(r,_:Range)
 				)),"intersect(ref:R,-:R):R"),
 			//(sequence grounding)
-			(UnaryRule(Head.Range, Head.Duration, hack( 
+			(UnaryRule(Head.Range, Head.Sequence, hack( 
 				(d:Duration) => d(NOW)
-				)),"duration:R")
+				)),"d:R")
 			)
 
 		//--NIL Identities
@@ -305,6 +330,13 @@ object Grammar {
 			(BinaryRule(Head.Duration, Head.NIL, Head.Duration, hack2( 
 				(n:NIL,d:Duration) => d
 				)),"d:D"),
+			//(sequence)
+			(BinaryRule(Head.Sequence, Head.Sequence, Head.NIL, hack2( 
+				(d:Duration,n:NIL) => d
+				)),"s:D"),
+			(BinaryRule(Head.Sequence, Head.NIL, Head.Sequence, hack2( 
+				(n:NIL,d:Duration) => d
+				)),"s:D"),
 			//(f_range)
 			(BinaryRule(Head.F_R, Head.F_R, Head.NIL, hack2( 
 				(f:Range=>Range,n:NIL) => f

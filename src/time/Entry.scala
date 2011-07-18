@@ -364,8 +364,8 @@ object ToyData {
 	
 	def STANDARD:Data = {
 		Data(
-			store(ayear,today,week,lastWeek).internWords,
-//			store(today,week,lastWeekToday,lastWeek,month,aMonth).internWords,
+			store(today,week,lastWeekToday,lastWeek,month,aMonth,
+				april,ayear).internWords,
 			store(lastMonth),
 			NONE)
 	}

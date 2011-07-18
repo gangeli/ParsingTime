@@ -68,7 +68,7 @@ env!(
 
 		# -- DEBUG --
 		o('paranoid'),
-		o('toy'),
+#		o('toy'),
 		o('useSeed'),
 		o('seed','42'),
 

@@ -30,7 +30,7 @@ function present() {
 # Utilities
 #-----
 function make {
-	/usr/bin/make $@ 2>&1 | color -r -cyan:red:yellow '([^ /]+.scala):([0-9]+): (error:.*)' -red -fatal '([a-z]+|[0-9]+) errors? found' | color -r -red -fatal "make: \*\*\* No rule to make target .*"
+	/usr/bin/make $@ 2>&1 | color -r -cyan:red:yellow '([^ /]+.scala):([0-9]+): (error:.*)' -red -fatal '([a-z]+|[0-9]+) errors? found' || return 1
 }
 function r {
 	make $@ && ./run
