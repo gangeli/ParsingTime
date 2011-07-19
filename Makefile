@@ -17,8 +17,7 @@ ${DIST}/time.jar: $(wildcard src/time/*.java)	$(wildcard src/time/*.scala)
 	mkdir -p ${BUILD}
 	mkdir -p ${DIST}
 	javac -d $(BUILD) -cp $(CP) `find $(SRC) -name "*.java"`
-	fsc -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
-#	scalac -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
+	scalac -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
 	jar cf ${DIST}/time.jar -C $(BUILD) .
 	jar uf ${DIST}/time.jar -C $(SRC) .
 
