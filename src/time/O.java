@@ -46,6 +46,8 @@ public class O {
 	public static String parser = null;
 	@Option(name="maxSearchTime", gloss="Max Iterations")
 	public static int maxSearchTime = 1000000;
+	@Option(name="crfTag", gloss="Use a CRF (versus PCFG) tagger")
+	public static boolean crfTag = false;
 	@Option(name="crfFeatureFactory", gloss="FeatureFactory class for tagging")
 	public static String crfFeatureFactory 
 		= "edu.stanford.nlp.sequences.SuperSimpleFeatureFactory";

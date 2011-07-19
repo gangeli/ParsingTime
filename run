@@ -40,6 +40,10 @@ env!(
 			'bestRandom',
 			'bestShallow'),
 		selo(0,'initMethod','uniform','random'),
+		o('crfTag'),
+		selo(0,'crfFeatureFactory',
+			'time.NeighboringWords'),
+			'edu.stanford.nlp.sequences.SuperSimpleFeatureFactory'),
 #		o('hardEM'),
 		# <training>
 		o('beam', 1000),

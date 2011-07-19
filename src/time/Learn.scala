@@ -19,6 +19,7 @@ import edu.stanford.nlp.stats.Counters;
 import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ie.crf.CRFClassifier
 import edu.stanford.nlp.sequences.SeqClassifierFlags
+import edu.stanford.nlp.sequences.FeatureFactory
 
 //------------------------------------------------------------------------------
 // GRAMMAR
@@ -736,6 +737,17 @@ trait StandardParser extends Parser {
 //-----
 // CRF Tagger
 //-----
+class NeighboringWords extends FeatureFactory[CoreMap] {
+	import edu.stanford.nlp.util.PaddedList
+	import edu.stanford.nlp.sequences.Clique
+	override def getCliqueFeatures(
+			info:PaddedList[CoreMap],
+			position:Int,
+			clique:Clique):java.util.Collection[String] = {
+		val wds:Array[String] = info
+		List[String](""+wds(position-1)+"<-"+wds(position)+"->"+wds(position+1))
+	}
+}
 object CRFTagger {
 	def apply(dataset:Array[(Sentence,Array[Int])]):CRFTagger = {
 		start_track("Training CRF Classifier")
