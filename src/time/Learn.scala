@@ -14,6 +14,7 @@ import org.goobs.slib.Def
 import org.goobs.slib.JavaNLP._
 
 import edu.stanford.nlp.stats.ClassicCounter;
+import edu.stanford.nlp.stats.TwoDimensionalCounter;
 import edu.stanford.nlp.stats.Counter;
 import edu.stanford.nlp.stats.Counters;
 import edu.stanford.nlp.util.CoreMap
@@ -381,6 +382,13 @@ object Grammar {
 		rtn.toArray
 	}
 
+	val NIL_RID:Int = {
+		val matches:Array[(Rule,Int)] 
+			= RULES.zipWithIndex.filter{ _._1.head == Head.NIL }
+		assert(matches.length == 1, "invalid nil rule count (should be 1)")
+		matches(0)._2
+	}
+
 	val UNARIES:Array[(Rule,Int)]  = RULES.zipWithIndex.filter{ _._1.arity == 1 }
 	val BINARIES:Array[(Rule,Int)] = RULES.zipWithIndex.filter{ _._1.arity == 2 }
 	val RULES_INDEX = RULES.zipWithIndex
@@ -540,6 +548,11 @@ trait ParseTree extends Tree[Head.Value] {
 		cleanParseString(0,b,sent,0)
 		b.toString
 	}
+	def lexRules:Array[Int] = {
+		var terms = List[Int]()
+		traverse( (rid:Int) => {}, (rid:Int,w:Int) => { terms = rid :: terms } )
+		terms.reverse.toArray
+	}
 	//<<Possible Overrides>>
 	def headString:String = head.toString
 	def leafString(sent:Sentence,index:Int):String = U.w2str(sent(index))
@@ -547,7 +560,7 @@ trait ParseTree extends Tree[Head.Value] {
 	//<<Overrides>>
 	override def children:Array[ParseTree]
 	def evaluate(sent:Sentence):(Head.Value,Any,Double)
-	def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit
+	def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit //lexFn: (rid,w)=>Any
 }
 
 //-----
@@ -713,18 +726,18 @@ trait Parser {
 }
 
 trait StandardParser extends Parser {
-	def beginIteration(iter:Int,feedback:Boolean):Unit = {}
-	def endIteration(iter:Int,feedback:Boolean):Unit = {}
+	def beginIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {}
+	def endIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {}
 	def parse(iter:Int, sent:Sentence, feedback:Boolean,sid:Int
 		):(Array[Parse],Feedback=>Any)
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			start_track("Iteration " + i)
-			beginIteration(i,feedback)
+			beginIteration(i,feedback,data)
 			val score = data.eachExample{ (sent:Sentence,id:Int) => 
 				parse(i, sent, feedback, id)
 			}
-			endIteration(i,feedback)
+			endIteration(i,feedback,data)
 			log("Score: " + score)
 			end_track
 			score
@@ -734,9 +747,6 @@ trait StandardParser extends Parser {
 //------------------------------------------------------------------------------
 // CKY PARSER
 //------------------------------------------------------------------------------
-//-----
-// CRF Tagger
-//-----
 class NeighboringWords extends FeatureFactory[CoreMap] {
 	import edu.stanford.nlp.util.PaddedList
 	import edu.stanford.nlp.sequences.Clique
@@ -745,58 +755,183 @@ class NeighboringWords extends FeatureFactory[CoreMap] {
 			position:Int,
 			clique:Clique):java.util.Collection[String] = {
 		val wds:Array[String] = info
-		List[String](""+wds(position-1)+"<-"+wds(position)+"->"+wds(position+1))
-	}
-}
-object CRFTagger {
-	def apply(dataset:Array[(Sentence,Array[Int])]):CRFTagger = {
-		start_track("Training CRF Classifier")
-		//(create data)
-		log("creating data...")
-		val javaData:java.util.List[java.util.List[CoreMap]] =
-			dataset.map{ case (sent:Sentence,ann:Array[Int]) => 
-				annotate( 
-					sent2coremaps(sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))),
-					ann.map{ _.toString} )
-			}.toList
-		//(create flags)
-		val flags = new SeqClassifierFlags
-		flags.featureFactory = O.crfFeatureFactory
-		log("flags.featureFactory: " + flags.featureFactory)
-		val classifier = new CRFClassifier[CoreMap](flags)
-		//(train classifier)
-		log("training...")
-		classifier.train(javaData)
-		end_track
-		new CRFTagger(classifier)
-	}
-}
-class CRFTagger(classifier:CRFClassifier[CoreMap]) {
-	import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
-	def tag(sent:Sentence):Array[Int] = {
-		val tagged = classifier.classify(
-			sent2coremaps(sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))) )
-		tagged.map{ (term:CoreMap) => 
-			term.get[String,AnswerAnnotation](ANSWER).toInt
-		}.toArray
+		val lastWord = if(position<=0) "^" else wds(position-1)
+		val nextWord = if(position>=(info.size-1)) "$" else wds(position+1)
+		List[String](""+lastWord+" <"+wds(position)+"> "+nextWord)
 	}
 }
 
-//-----
-// CKY Parser
-//-----
 object CKYParser {
 	val UNARY:Int = 0
 	val BINARY:Int = 1
-}
-class CKYParser extends StandardParser{
 	import Grammar._
-	import CKYParser._
-	
-//	RULES_STR.zipWithIndex.foreach{ case (name:String,index:Int) => 
-//		println(index + ": " + name)
-//	}
 
+	//-----
+	// CRF Tagger
+	//-----
+	object CRFTagger {
+		def apply(dataset:Array[(Sentence,Array[Int])]):CRFTagger = {
+			start_track("Training CRF Classifier")
+			//(create data)
+			log("creating data...")
+			val javaData:java.util.List[java.util.List[CoreMap]] =
+				dataset.map{ case (sent:Sentence,ann:Array[Int]) => 
+					assert(ann.forall{ _.toString.toInt >= 0}, "numbers crashed")
+					annotate( 
+						sent2coremaps(
+							sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))),
+						ann.map{ _.toString} )
+				}.toList
+			//(create flags)
+			val flags = new SeqClassifierFlags
+			flags.featureFactory = O.crfFeatureFactory
+			log("flags.featureFactory: " + flags.featureFactory)
+			flags.backgroundSymbol = NIL_RID.toString
+			log("flags.backgroundSymbol: " + flags.featureFactory)
+			val classifier = new CRFClassifier[CoreMap](flags)
+			//(train classifier)
+			log("training...")
+			classifier.train(javaData)
+			end_track
+			new CRFTagger(classifier)
+		}
+	}
+	class CRFTagger(classifier:CRFClassifier[CoreMap]) {
+		import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
+		def tag(sent:Sentence):Array[Int] = {
+			val tagged = classifier.classify(
+				sent2coremaps(sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))) )
+			tagged.map{ (term:CoreMap) => 
+				term.get[String,AnswerAnnotation](ANSWER).toInt
+			}.toArray
+		}
+		def tagK(sent:Sentence,k:Int):Array[(Array[Int],Double)] = {
+			val counter = classifier.classifyKBest(
+				sent2coremaps(sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))),
+				ANSWER,
+				k)
+			counter.keySet.map{ (tagged:java.util.List[CoreMap]) =>
+				(
+					tagged.map{ (term:CoreMap) => 
+						term.get[String,AnswerAnnotation](ANSWER).toInt //TODO
+					}.toArray,
+					counter.getCount(tagged)
+				)
+			}.toArray.sortBy( _._2 )
+		}
+		def klex(sent:Sentence,k:Int,y:(CkyRule,Int,Double)=>Boolean):Array[Int] = {
+			//(tag)
+			val sequences = tagK(sent,k)
+			val sum = sequences.foldLeft(0.0) 
+				{ case (sofar:Double,(term:Array[Int],score:Double)) => sofar + score }
+			//( P(slot,rule) )
+			val pSlotRule:Array[Array[Double]] = {
+				//(create)
+				val probs:Array[Array[Double]] = (0 until sent.length).map{ (i:Int) =>
+					(0 until CKY_LEX.length).map{ (rid:Int) => 0.0 }.toArray
+				}.toArray
+				//(fill)
+				sequences.foreach{ case (rids:Array[Int],score:Double) =>
+					rids.zipWithIndex.foreach{ case (rid:Int,i:Int) => 
+						assert(rid2lexI(rid) >= 0, "Invalid rule " + rid)
+						if(sum != 0.0){
+							probs(i)(rid2lexI(rid)) = (score / sum)
+						} else {
+							probs(i)(rid2lexI(rid)) = 1.0/CKY_LEX.length.asInstanceOf[Double]
+						}
+					}
+				}
+				//(return)
+				probs
+			}
+			//(yield)
+			(0 until sent.length).map{ (i:Int) =>
+				var shouldCont:Boolean = true
+				var count:Int = 0
+				pSlotRule(i).zipWithIndex.sortBy(-_._1)
+						.foreach{ case (p:Double,lexI:Int) =>
+					assert(p >= 0.0, "Negative probability")
+					if(p == 0.0){ shouldCont = false }
+					if(shouldCont){
+						shouldCont = y(CKY_LEX(lexI),i,U.safeLn(p))
+						count += 1
+					}
+				}
+				count
+			}.toArray
+		}
+	}
+	
+	//-----
+	// Values
+	//-----
+	//(guessed parses)
+	private case class GuessInfo
+			(sid:Int,parse:ParseTree,score:Double,sent:Sentence){
+		var correct=true; def wrong:GuessInfo = {correct = false; this}
+		var feedback:Feedback=null
+		def feedback(f:Feedback):GuessInfo = { feedback=f; this }
+		def parseVal:Parse = Parse(Head.ROOT,parse.evaluate(sent)._2)
+	}
+	private var corrects = List[GuessInfo]()
+	private var guesses = List[GuessInfo]()
+
+	//(rules)
+	private val CKY_UNARY:Array[CkyRule] = CLOSURES.map{ (closure:Closure) =>
+			CkyRule(1,closure.head,closure.child,closure.rules)
+		}
+	private val CKY_LEX:Array[CkyRule] = UNARIES
+		.filter{ case (rule,rid) => rule.isLex }
+		.map{ case (rule,rid) =>
+			assert(rule.arity == 1, "unary rule is not unary")
+			CkyRule(rule.arity,rule.head,rule.child,Array[Int](rid))
+		}
+	private val CKY_BINARY:Array[CkyRule] = BINARIES.map{ case (rule,rid) => 
+			assert(rule.arity == 2, "binary rules computed wrong")
+			CkyRule(rule.arity,rule.head,null,Array[Int](rid))
+		}
+	//(utilities)
+	private val rid2lexI:Array[Int] = (0 until RULES.length).map{ (rid:Int) =>
+			val matches = 
+				CKY_LEX.zipWithIndex.filter{ case (r:CkyRule,i:Int) => r.rid == rid }
+			assert(matches.length <= 1, "multiple cky rules for rid " + rid)
+			if(matches.length > 0) matches(0)._2 else -1
+		}.toArray
+	
+	//(counts)
+	private val rulesCounted:Array[Double] = RULES.map{ r => 0.0 }
+	private val wordsCounted:Array[Counter[Int]] = 
+		RULES.map{ r => new ClassicCounter[Int] }
+	
+	//(parameters)
+	private val ruleScores:Array[Double] = (0 until RULES.length).map{(rid:Int) =>
+		if(RULES(rid).isLex){
+			Double.NaN
+		} else {
+			O.initMethod match {
+				case O.InitType.uniform => 1.0
+				case O.InitType.random => U.rand
+			}
+		}
+	}.toArray
+	private val wordScores:Array[Array[Double]] = (0 until RULES.length).map{ r =>
+		(0 to G.W).map{ w =>
+			O.initMethod match {
+				case O.InitType.uniform => 1.0
+				case O.InitType.random => U.rand
+			}
+		}.toArray}.toArray
+	private val wordTotalCounts:Array[Double] = 
+		(0 until RULES.length).map{ r => 0.0 }.toArray
+	
+	//(substructures)
+	private var tagger:CRFTagger = null
+	
+	
+
+	//-----
+	// Subclasses
+	//-----
 	case class CkyRule(
 			arity:Int,
 			head:Head.Value,
@@ -820,24 +955,7 @@ class CKYParser extends StandardParser{
 		def validInput(w:Int):Boolean = rule.validInput(w)
 		override def toString:String = "<" + U.join(rules,", ") + ">"
 	}
-	
-	private val CKY_UNARY:Array[CkyRule] = CLOSURES.map{ (closure:Closure) =>
-			CkyRule(1,closure.head,closure.child,closure.rules)
-		}
-	private val CKY_LEX:Array[CkyRule] = UNARIES
-		.filter{ case (rule,rid) => rule.isLex }
-		.map{ case (rule,rid) =>
-			assert(rule.arity == 1, "unary rule is not unary")
-			CkyRule(rule.arity,rule.head,rule.child,Array[Int](rid))
-		}
-	private val CKY_BINARY:Array[CkyRule] = BINARIES.map{ case (rule,rid) => 
-			assert(rule.arity == 2, "binary rules computed wrong")
-			CkyRule(rule.arity,rule.head,null,Array[Int](rid))
-		}
 
-	//-----
-	// Elem / Tree / Derivation
-	//-----
 	class ChartElem(
 			var logScore:Double, 
 			var term:CkyRule, 
@@ -1111,7 +1229,7 @@ class CKYParser extends StandardParser{
 			//(acceptable score)
 			for(i <- 0 until this.length){
 				if(values(i).logScore > 0 || values(i).logScore.isNaN ){ 
-					return (false,"bad score for element " + i)
+					return (false,"bad score for element " + i + " " + values(i).logScore)
 				}
 			}
 			//(sorted)
@@ -1551,28 +1669,6 @@ class CKYParser extends StandardParser{
 	// Learning
 	//-----
 
-	//(initialize counts)
-	val ruleScores:Array[Double] = (0 until RULES.length).map{ (rid:Int) => 
-		if(RULES(rid).isLex){
-			Double.NaN
-		} else {
-			O.initMethod match {
-				case O.InitType.uniform => 1.0
-				case O.InitType.random => U.rand
-			}
-		}
-	}.toArray
-	val wordScores:Array[Array[Double]] = (0 until RULES.length).map{ r =>
-		(0 to G.W).map{ w =>
-			O.initMethod match {
-				case O.InitType.uniform => 1.0
-				case O.InitType.random => U.rand
-			}
-		}.toArray}.toArray
-	val wordTotalCounts:Array[Double] = 
-		(0 until RULES.length).map{ r => 0.0 }.toArray
-	//(normalize)
-	normalize
 	
 	
 	def lexLogProb(w:Int,pos:Int,rule:CkyRule):Double = {
@@ -1616,6 +1712,16 @@ class CKYParser extends StandardParser{
 		}
 		return candidates.length
 	}
+}
+
+class CKYParser extends StandardParser{
+	import CKYParser._
+	import Grammar._
+	//-----
+	// Startup
+	//-----
+	//(normalize)
+	normalize
 
 	//-----
 	// CKY
@@ -1625,16 +1731,33 @@ class CKYParser extends StandardParser{
 		val chart = makeChart(sent.length,beam)
 		assert(chart.length >= sent.length, "Chart is too small")
 		//--Lex
-		for(elem <- 0 until sent.length) {
-			//(add terms)
-			var lastScore:Double = Double.PositiveInfinity
-			val added:Int = klex(sent,elem,(term:CkyRule,score:Double) => {
+		if(O.crfTag && tagger != null){
+			//(CRF Tag)
+			val lastScore:Array[Double] = (0 until sent.length).map{ 
+				(i:Int) => Double.PositiveInfinity }.toArray
+			tagger.klex(sent,O.crfKBest, (term:CkyRule,elem:Int,score:Double) => {
+				//(add terms)
 				lex(chart,elem,term.head.id).suggest(score,term)
-				assert(score <= lastScore,"KLex out of order: "+lastScore+"->"+score); 
-				lastScore = score
+				assert(score <= lastScore(elem),
+					"KLex out of order: "+lastScore(elem)+"->"+score);
+				lastScore(elem) = score
 				true
 			})
-			//(check)
+		} else {
+			//(PCFG tag)
+			for(elem <- 0 until sent.length) {
+				//(add terms)
+				var lastScore:Double = Double.PositiveInfinity
+				val added:Int = klex(sent,elem,(term:CkyRule,score:Double) => {
+					lex(chart,elem,term.head.id).suggest(score,term)
+					assert(score <= lastScore,"KLex out of order: "+lastScore+"->"+score);
+					lastScore = score
+					true
+				})
+			}
+		}
+		//(check)
+		for(elem <- 0 until sent.length) {
 			if(O.paranoid){
 				var count:Int = 0
 				Head.values.foreach{ head:Head.Value => 
@@ -1694,27 +1817,27 @@ class CKYParser extends StandardParser{
 	//-----
 	// Parse Method
 	//-----
-	private val rulesCounted:Array[Double] = RULES.map{ r => 0.0 }
-	private val wordsCounted:Array[Counter[Int]] = 
-		RULES.map{ r => new ClassicCounter[Int] }
 
-	override def beginIteration(iter:Int,feedback:Boolean):Unit = {
+	override def beginIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {
 		start_track("Begin Iteration")
+		//(debug rules)
 		ruleScores.zipWithIndex.foreach{ case (score:Double,rid:Int) =>
 			debugG("rule["+RULES_STR(rid)+"] score " + score)
 		}
-
 		CKY_UNARY.foreach{ (r:CkyRule) => 
 			debugG("unary [" + G.df.format(ruleLogProb(r))+"]  "+r.rids.length+" "+r)
 		}
-		
 		CKY_LEX.foreach{ (r:CkyRule) => 
 			debugG("lex "+RULES_STR(r.rid))
 		}
+		//(clear last decoded)
+		log("clearing last parses")
+		guesses = List[GuessInfo]()
+		corrects = List[GuessInfo]()
 		end_track
 	}
 
-	override def endIteration(iter:Int,feedback:Boolean):Unit = {
+	override def endIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {
 		if(feedback){
 			log("updating counts")
 			//--Copy Weights
@@ -1748,8 +1871,6 @@ class CKYParser extends StandardParser{
 		end_track
 	}
 
-	private val guess 
-		= new scala.collection.mutable.HashMap[Int,(String,Any,Any,Time,Boolean)]
 
 	private def reportInternal(writeParses:Boolean):Unit = {
 		//--Debug Print
@@ -1779,20 +1900,16 @@ class CKYParser extends StandardParser{
 		//(write guesses)
 		if(writeParses){
 			start_track("Creating Presentation")
-			var leftToPrint = guess.size
-			var index = 0
 			val b = new StringBuilder
 			b.append(Const.START_PRESENTATION("Results"))
-			while(leftToPrint > 0){
-				if(this.guess.contains(index)){
-					val (tree,guess,gold,ground,hasCorrect) = this.guess(index)
-					b.append(Const.SLIDE(
-						index,hasCorrect,tree,guess.toString,gold.toString,ground.toString))
-					leftToPrint -= 1
-//				} else {
-//					b.append(Const.AUTO_MISS(index))
-				}
-				index += 1
+			guesses.sortBy( _.sid ).foreach{ (g:GuessInfo) =>
+				b.append(Const.SLIDE(
+						id=g.sid, correct=g.correct, tree=g.parse.asParseString(g.sent),
+						guess=g.parseVal.ground(g.feedback.grounding).toString,
+						gold=Parse(Head.ROOT,g.feedback.ref)
+							.ground(g.feedback.grounding).toString,
+						ground=g.feedback.grounding.toString
+					))
 			}
 			b.append(Const.END_PRESENTATION)
 			val writer = new java.io.FileWriter(Execution.touch("parses.rb"))
@@ -1987,6 +2104,17 @@ class CKYParser extends StandardParser{
 				}
 			}
 		}
+		//--CRF Retrain
+		if(O.crfTag && corrects.length > 0){
+			tagger = CRFTagger(corrects.map{ (guess:GuessInfo) =>
+					val sent:Sentence = guess.sent
+					val rules:Array[Int] = guess.parse.lexRules
+					assert(guess.sent.length == rules.length, "length mismatch")
+					( guess.sent, rules )
+				}.toArray)
+		} else {
+			tagger = null
+		}
 		//--Debug
 		if(O.paranoid){
 			val (ok,msg) = ensureValidProbabilities; assert(ok,msg)
@@ -2038,45 +2166,42 @@ class CKYParser extends StandardParser{
 			assert( equivalent, "Inconsistent with algorithm 0: " + message)
 			O.kbestCKYAlgorithm = saveAlg
 		}
+		//--Debug (begin)
+		//(presentation)
+		val b = new StringBuilder //debug start
+		b.append(Const.START_PRESENTATION("Correct Parses, sid " + identifier))
 		//--Return / Feedback
-		(	parses, 
+		val rtn = (	parses, 
 			(feedback:Feedback) => {
-				//(debug)
+				//(best guess)
 				val (head,parse,score) = scored(0)
-				val guessStr = parses(0).ground(feedback.grounding)+
-					" ["+G.df.format(scored(0)._3)+"]"
-				val goldParse = Parse(Head.ROOT,feedback.ref)
-				val goldStr = if(goldParse != null) goldParse.ground(feedback.grounding)
-				              else "UNK"
-				guess(identifier) 
-					= (trees(0).asParseString(sent),guessStr,goldStr,feedback.grounding,
-						feedback.isCorrect)
-				//(debug dump)
-				val b = new StringBuilder
-				b.append(Const.START_PRESENTATION("Correct Parses for " + identifier))
-				feedback.correct.foreach{ case (index:Int,score:Double) =>
-					b.append(Const.SLIDE(
-						index,true,trees(index).asParseString(sent),
-						parses(index).ground(feedback.grounding).toString,
-						goldStr.toString,
-						feedback.grounding.toString))
-				}
-				b.append(Const.END_PRESENTATION)
-				val writer = new java.io.FileWriter(
-					Execution.touch("iteration"+i+"/datum"+identifier+".rb"))
-				writer.write(b.toString)
-				writer.close
+				val guess = GuessInfo(identifier,trees(0),score,sent).feedback(feedback)
+				guesses = {if(feedback.isCorrect) guess else guess.wrong} :: guesses
 				//(update)
 				def update(index:Int) = {
 					val incr:Double = if(O.hardEM) 1.0 else math.exp(scored(index)._3)
 					assert(incr >= 0.0 && incr <= 1.0, "invalid increment")
+					//(count rules)
 					trees(index).traverse( 
 							{(rid:Int) => rulesCounted(rid) += incr},
 							{(rid:Int,i:Int) => 
 								wordsCounted(rid).incrementCount(sent.words(i),incr)
 							}
 						)
+					//(append guesses)
+					val score = scored(index)._3
+					val parse = trees(index)
+					corrects = GuessInfo(identifier,parse,score,sent) :: corrects
+					//(debug)
+					b.append(Const.SLIDE(
+							id=identifier, correct=true, tree=parse.asParseString(sent),
+							guess=parses(index).ground(feedback.grounding).toString,
+							gold=Parse(Head.ROOT,feedback.ref)
+								.ground(feedback.grounding).toString,
+							ground=feedback.grounding.toString
+						))
 				}
+				//(run update)
 				O.ckyCountType match {
 					case O.CkyCountType.all => 
 						//(update every correct parse)
@@ -2101,6 +2226,15 @@ class CKYParser extends StandardParser{
 				}
 			}
 		)
-
+		//--Debug (end)
+		//(end presentation)
+		b.append(Const.END_PRESENTATION)
+		//(write presentation)
+		val writer = new java.io.FileWriter(
+			Execution.touch("iteration"+i+"/datum"+identifier+".rb"))
+		writer.write(b.toString)
+		writer.close
+		//--Return
+		rtn
 	}
 }

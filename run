@@ -41,8 +41,9 @@ env!(
 			'bestShallow'),
 		selo(0,'initMethod','uniform','random'),
 		o('crfTag'),
+		o('crfKBest', 1000),
 		selo(0,'crfFeatureFactory',
-			'time.NeighboringWords'),
+			'time.NeighboringWords',
 			'edu.stanford.nlp.sequences.SuperSimpleFeatureFactory'),
 #		o('hardEM'),
 		# <training>
@@ -72,7 +73,7 @@ env!(
 
 		# -- DEBUG --
 		o('paranoid'),
-#		o('toy'),
+		o('toy'),
 		o('useSeed'),
 		o('seed','42'),
 

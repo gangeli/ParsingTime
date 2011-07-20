@@ -48,6 +48,8 @@ public class O {
 	public static int maxSearchTime = 1000000;
 	@Option(name="crfTag", gloss="Use a CRF (versus PCFG) tagger")
 	public static boolean crfTag = false;
+	@Option(name="crfKBest", gloss="Number of tags to use to approx. word dist.")
+	public static int crfKBest = 1000;
 	@Option(name="crfFeatureFactory", gloss="FeatureFactory class for tagging")
 	public static String crfFeatureFactory 
 		= "edu.stanford.nlp.sequences.SuperSimpleFeatureFactory";
