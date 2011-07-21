@@ -41,6 +41,7 @@ trait Rule {
 	
 	// -- Can Override --
 	def validInput(w:Int) = isLex
+	def setStr(str:String) = {}
 
 	private var leftChild:Head.Value = null
 	private var rightChild:Head.Value = null
@@ -104,6 +105,7 @@ case class UnaryRule(
 		in:Head.Value,
 		fn:Any=>Any ) extends Rule {
 	private var checkValid:Int=>Boolean = (i:Int) => true
+	private var str:String = null; override def setStr(str:String) = this.str=str;
 	override def apply(arg:Any):Any = fn(arg)
 	override def apply(arg1:Any,arg2:Any) 
 		= throw fail("binary apply to unary rule")
@@ -113,14 +115,18 @@ case class UnaryRule(
 	def accepts(a:Head.Value):Boolean = a == in
 	def accepts(a:Head.Value,b:Head.Value):Boolean = false
 	def ensureValidity(fn:Int=>Boolean):UnaryRule = { checkValid = fn; this }
-	override def toString:String =
-		""+out+{if(in==Head.Word) "["+this(0)+"]" else ""}+"->"+in
+	override def toString:String = if(str != null){
+			str
+		} else {
+			""+out+{if(in==Head.Word) "["+this(0)+"]" else ""}+"->"+in
+		}
 }
 case class BinaryRule(
 		out:Head.Value,
 		in1:Head.Value,
 		in2:Head.Value,
 		fn:(Any,Any)=>Any) extends Rule {
+	private var str:String = null; override def setStr(str:String) = this.str=str;
 	override def apply(arg:Any)
 		= throw fail("unary apply to binary rule")
 	override def apply(arg1:Any,arg2:Any):Any = fn(arg1,arg2)
@@ -128,8 +134,11 @@ case class BinaryRule(
 	def head:Head.Value = out
 	def accepts(a:Head.Value):Boolean = false
 	def accepts(a:Head.Value,b:Head.Value):Boolean = (a == in1) && (b == in2)
-	override def toString:String =
-		""+out+"->"+in1+","+in2
+	override def toString:String = if(str != null){
+			str
+		} else {
+			""+out+"->"+in1+","+in2
+		}
 }
 
 object Grammar {
@@ -359,6 +368,7 @@ object Grammar {
 			)
 
 		//--Return
+		rtn.foreach{ case (r:Rule,s:String) => r.setStr(s) }
 		rtn.toArray
 	}
 	
@@ -369,7 +379,7 @@ object Grammar {
 		var rtn = List[Rule]()
 		
 		//--Named Rules
-		rtn = rtn ::: NAMED_RULES.map{ _._1 }.toList
+		rtn = rtn ::: NAMED_RULES.map( _._1 ).toList
 
 		//-ROOT
 		rtn = rtn ::: List[UnaryRule](
@@ -758,6 +768,7 @@ class NeighboringWords extends FeatureFactory[CoreMap] {
 		val lastWord = if(position<=0) "^" else wds(position-1)
 		val nextWord = if(position>=(info.size-1)) "$" else wds(position+1)
 		List[String](""+lastWord+" <"+wds(position)+"> "+nextWord)
+//		List[String](wds(position))
 	}
 }
 
@@ -785,12 +796,26 @@ object CKYParser {
 			//(create flags)
 			val flags = new SeqClassifierFlags
 			flags.featureFactory = O.crfFeatureFactory
-			log("flags.featureFactory: " + flags.featureFactory)
+			debug("flags.featureFactory: " + flags.featureFactory)
 			flags.backgroundSymbol = NIL_RID.toString
-			log("flags.backgroundSymbol: " + flags.featureFactory)
+			debug("flags.backgroundSymbol: " + flags.backgroundSymbol)
+			flags.inferenceType = "Beam"
+			debug("flags.inferenceType: " + flags.inferenceType)
+			flags.beamSize = O.crfKBest
+			debug("flags.beamSize: " + flags.beamSize)
 			val classifier = new CRFClassifier[CoreMap](flags)
 			//(train classifier)
 			log("training...")
+			javaData.foreach{ (jlst:java.util.List[CoreMap]) => 
+				val lst = jlst
+				import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
+				import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation
+				val strs:Array[String] = lst.map{ (m:CoreMap) => 
+					""+m.get[String,TextAnnotation](WORD)+
+					"("+RULES_STR(m.get[String,AnswerAnnotation](ANSWER).toInt)+")"
+				}.toArray
+				println("train:  " + U.join(strs, "  ") ) 
+			}
 			classifier.train(javaData)
 			end_track
 			new CRFTagger(classifier)
@@ -798,6 +823,7 @@ object CKYParser {
 	}
 	class CRFTagger(classifier:CRFClassifier[CoreMap]) {
 		import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
+		import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation
 		def tag(sent:Sentence):Array[Int] = {
 			val tagged = classifier.classify(
 				sent2coremaps(sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))) )
@@ -813,9 +839,9 @@ object CKYParser {
 			counter.keySet.map{ (tagged:java.util.List[CoreMap]) =>
 				(
 					tagged.map{ (term:CoreMap) => 
-						term.get[String,AnswerAnnotation](ANSWER).toInt //TODO
+						term.get[String,AnswerAnnotation](ANSWER).toInt
 					}.toArray,
-					counter.getCount(tagged)
+					U.sigmoid(counter.getCount(tagged))
 				)
 			}.toArray.sortBy( _._2 )
 		}
@@ -824,6 +850,12 @@ object CKYParser {
 			val sequences = tagK(sent,k)
 			val sum = sequences.foldLeft(0.0) 
 				{ case (sofar:Double,(term:Array[Int],score:Double)) => sofar + score }
+			assert(sequences.forall( _._2 >= 0.0), "Negative score")
+			//(debug) //TODO removeme
+			println("-----KLEX " + sent + "------")
+			sequences.foreach{ case (term:Array[Int],score:Double) => 
+				println(sent + " (" + G.df.format(score) + ") :: " + U.join(term.map{ (i:Int) => CKY_LEX(rid2lexI(i))},"   "))
+			}
 			//( P(slot,rule) )
 			val pSlotRule:Array[Array[Double]] = {
 				//(create)
@@ -1832,8 +1864,10 @@ class CKYParser extends StandardParser{
 		}
 		//(clear last decoded)
 		log("clearing last parses")
-		guesses = List[GuessInfo]()
-		corrects = List[GuessInfo]()
+		if(feedback){
+			guesses = List[GuessInfo]()
+			corrects = List[GuessInfo]()
+		}
 		end_track
 	}
 

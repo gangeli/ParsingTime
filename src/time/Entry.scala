@@ -124,6 +124,8 @@ object U {
 			case _ => throw new IllegalArgumentException("Not an integer: " + str)
 		}
 	}
+
+	def sigmoid(d:Double):Double = 1.0 / (1.0 + math.exp(-d))
 			
 }
 
@@ -366,6 +368,7 @@ object ToyData {
 		Data(
 			store(today,week,lastWeekToday,lastWeek,month,aMonth,
 				april,ayear).internWords,
+//			store(week).internWords,
 			store(lastMonth),
 			NONE)
 	}
