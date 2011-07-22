@@ -48,6 +48,10 @@ public class O {
 	public static int maxSearchTime = 1000000;
 	@Option(name="crfTag", gloss="Use a CRF (versus PCFG) tagger")
 	public static boolean crfTag = false;
+	public static enum TagMethod { PCFG, CRF }
+	@Option(name="lexTagMethod", gloss="Method to tag pre-terminals")
+	public static TagMethod lexTagMethod = TagMethod.PCFG;
+	//(crf)
 	@Option(name="crfKBest", gloss="Number of tags to use to approx. word dist.")
 	public static int crfKBest = 1000;
 	@Option(name="crfFeatureFactory", gloss="FeatureFactory class for tagging")
@@ -75,4 +79,6 @@ public class O {
 	public static boolean useSeed = false;
 	@Option(name="seed", gloss="The random seed to use")
 	public static int seed = 42;
+	@Option(name="runDebug", gloss="Run a debug program")
+	public static String runDebug = "none";
 }

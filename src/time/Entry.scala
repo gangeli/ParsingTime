@@ -4,6 +4,7 @@ package time
 import scala.util.Sorting._
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
+import scala.util.matching.Regex
 //(java)
 import java.io.StringReader
 import java.text.DecimalFormat
@@ -522,12 +523,23 @@ class Entry {
 
 object Entry {
 	def main(args:Array[String]):Unit = {
-//		Time.interactive
-//		SearchParser.interactive
 		Execution.exec(new Runnable(){
 			override def run:Unit = {
-				(new Entry).init.run
+				O.runDebug.toLowerCase match {
+					//(case: time expression console)
+					case "console" => Time.interactive
+					//(case: test the CRF)
+					case "crf" => CKYParser.CRFTagger.debugSequence
+					//(case: don't run a debug sequence)
+					case "none" => {
+						(new Entry).init.run
+					}
+					case _ => {
+						throw fail("invalid runDebug flag")
+					}
+				}
 			}
 		}, args)
 	}
 }
+

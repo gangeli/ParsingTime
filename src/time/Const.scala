@@ -74,4 +74,25 @@ def END_PRESENTATION =
 ################################################################################
 finishPresentation
 """
+
+def CRF_DATA_NOAMBIGUITY:Array[(Sentence,Array[Int])] = {
+	val strings = Array[String]("today", "week", "last week today", "last week", 
+		"month", "a month", "april", "a year")
+	strings.map{ (str:String) =>
+		str.split(" ").map{ (w:String) =>
+			(U.str2w(w),w)
+		}
+	}.map{ (arr:Array[(Int,String)]) =>
+		val words = arr.map(_._1)
+		(Sentence(
+				words, 
+				words.map{(w:Int) => U.str2pos("POS")}, 
+				words.map{w => -1} ),
+			words
+		)
+	}
 }
+
+}
+
+

@@ -40,11 +40,9 @@ env!(
 			'bestRandom',
 			'bestShallow'),
 		selo(0,'initMethod','uniform','random'),
-		o('crfTag'),
-		o('crfKBest', 1000),
-		selo(0,'crfFeatureFactory',
-			'time.NeighboringWords',
-			'edu.stanford.nlp.sequences.SuperSimpleFeatureFactory'),
+		selo(0,'lexTagMethod',
+			'PCFG',
+			'CRF'),
 #		o('hardEM'),
 		# <training>
 		o('beam', 1000),
@@ -53,6 +51,13 @@ env!(
 		#<params>
 #		o('weightedUpdate'),
 #		o('usetime'),
+
+		#--AUX PARAMS--
+		#(crf)
+		o('crfKBest', 1000),
+		selo(0,'crfFeatureFactory',
+			'time.NeighboringWords',
+			'edu.stanford.nlp.sequences.SuperSimpleFeatureFactory'),
 
 		# -- EVALUATION --
 		o('exactMatchThreshold', 60*60*24), # a day
@@ -72,10 +77,16 @@ env!(
 		o('devTest', true),
 
 		# -- DEBUG --
+		#(general)
 #		o('paranoid'),
 #		o('toy'),
 		o('useSeed'),
 		o('seed','42'),
+		#(debug programs)
+		selo(0,'runDebug',
+			'none',
+			'console',
+			'crf'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)

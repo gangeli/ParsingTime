@@ -213,11 +213,15 @@ object Grammar {
 			)
 
 		//--F[ Range, Duration ]
-		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
-			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight"),
-			(catLeft,"catLeft"),(catRight,"catRight"),
-			(shrinkBegin,"shrinkBegin"),(shrinkEnd,"shrinkEnd") )
-		def expandFnRD(fn:(Range,Duration)=>Range,str:String):List[(Rule,String)] ={
+		val rangeDurationFn = List[((Range,Duration)=>Range,String,Boolean)](
+			(shiftLeft,"shiftLeft",true),(shiftRight,"shiftRight",true),
+			(catLeft,"catLeft",false),(catRight,"catRight",false),
+			(shrinkBegin,"shrinkBegin",false),(shrinkEnd,"shrinkEnd",false) )
+		def expandFnRD(
+				fn:(Range,Duration)=>Range,
+				str:String,
+				seqAlso:Boolean=true
+				):List[(Rule,String)] ={
 			var rtn = List[(Rule,String)]()
 			//(intro)
 			rtn = (UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
@@ -226,24 +230,29 @@ object Grammar {
 			rtn = (BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
 				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
 				)),str+"$(-:R,d:D):R$") :: rtn
-			rtn = (BinaryRule(Head.F_R, Head.F_RD, Head.Sequence, hack2(
-				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-				)),str+"$(-:R,d:S):R$") :: rtn
+			if(seqAlso){
+				rtn = (BinaryRule(Head.F_R, Head.F_RD, Head.Sequence, hack2(
+					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+					)),str+"$(-:R,d:S):R$") :: rtn
+			}
 			//(left apply)
 			rtn = (BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
 				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
 				)), str+"$(-:R,d:D):R$") :: rtn
-			rtn = (BinaryRule(Head.F_R, Head.Sequence, Head.F_RD, hack2(
-				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-				)), str+"$(-:R,d:S):R$") :: rtn
+			if(seqAlso){
+				rtn = (BinaryRule(Head.F_R, Head.Sequence, Head.F_RD, hack2(
+					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+					)), str+"$(-:R,d:S):R$") :: rtn
+			}
 			//(return)
 			rtn
 		}
 		rtn = rtn ::: rangeDurationFn.foldLeft(List[(Rule,String)]()){ case 
 				(soFar:List[(Rule,String)],
 					(fn:((Range,Duration)=>Range),
-					 str:String)) =>
-			soFar ::: expandFnRD(fn,str)
+					 str:String,
+					 seqAlso:Boolean)) =>
+			soFar ::: expandFnRD(fn,str,seqAlso)
 		}
 		
 		//--F[ Range, Range ]
@@ -767,8 +776,12 @@ class NeighboringWords extends FeatureFactory[CoreMap] {
 		val wds:Array[String] = info
 		val lastWord = if(position<=0) "^" else wds(position-1)
 		val nextWord = if(position>=(info.size-1)) "$" else wds(position+1)
-		List[String](""+lastWord+" <"+wds(position)+"> "+nextWord)
-//		List[String](wds(position))
+		List[String](
+			""+lastWord+" <- "+wds(position)+" -> "+nextWord,
+			""+lastWord+" <- "+wds(position),
+			""+wds(position)+" -> "+nextWord,
+			wds(position)
+			)
 	}
 }
 
@@ -781,7 +794,46 @@ object CKYParser {
 	// CRF Tagger
 	//-----
 	object CRFTagger {
-		def apply(dataset:Array[(Sentence,Array[Int])]):CRFTagger = {
+		private def debugSequence(data:Array[(Sentence,Array[Int])],
+				ruleStr:Boolean=false):Unit = {
+			import org.goobs.utils.Indexer;
+			//(vars)
+			val toS:Int=>String = if(ruleStr) RULES_STR(_) else U.w2str(_)
+			val tagger = apply(data,false)
+			//(group by sentence)
+			val grouped:Array[(Sentence,Array[Array[Int]])] = {
+				val indexer = new Indexer[Sentence]
+				data.map(_._1).foreach{(sent:Sentence) => indexer.addAndGetIndex(sent)}
+				(0 until indexer.size).map{ (i:Int) =>
+					(indexer.get(i),
+						data.filter{case (s:Sentence,t:Array[Int]) => indexer.indexOf(s)==i}
+							.map(_._2).toArray)
+				}.toArray
+			}
+			//(print info)
+			grouped.foreach{ case (sent:Sentence,tags:Array[Array[Int]]) =>
+				val guess = tagger.tag(sent)
+				println("" + sent + "::  " + U.join(guess.map( toS(_) ), " " ))
+				tags.foreach{ (gold:Array[Int]) =>
+					if(guess.zip(gold).forall{ case(a:Int,b:Int) => a == b }){
+						print(" *")
+					} else {
+						print("  ")
+					}
+					println(U.join(gold.map( toS(_) )," "))
+				}
+			}
+		}
+		def debugSequence:Unit = {
+			debugSequence(Const.CRF_DATA_NOAMBIGUITY)
+		}
+
+		def apply(dataset:Array[(Sentence,Array[Int])],db:Boolean=false):CRFTagger={
+			if(db){
+				println("-----DEBUG SEQUENCE------")
+				debugSequence(dataset,true)
+				println("-------------------------")
+			}
 			start_track("Training CRF Classifier")
 			//(create data)
 			log("creating data...")
@@ -806,16 +858,17 @@ object CKYParser {
 			val classifier = new CRFClassifier[CoreMap](flags)
 			//(train classifier)
 			log("training...")
-			javaData.foreach{ (jlst:java.util.List[CoreMap]) => 
-				val lst = jlst
-				import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
-				import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation
-				val strs:Array[String] = lst.map{ (m:CoreMap) => 
-					""+m.get[String,TextAnnotation](WORD)+
-					"("+RULES_STR(m.get[String,AnswerAnnotation](ANSWER).toInt)+")"
-				}.toArray
-				println("train:  " + U.join(strs, "  ") ) 
-			}
+			//(debug) TODO removeme
+//			javaData.foreach{ (jlst:java.util.List[CoreMap]) => 
+//				val lst = jlst
+//				import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
+//				import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation
+//				val strs:Array[String] = lst.map{ (m:CoreMap) => 
+//					""+m.get[String,TextAnnotation](WORD)+
+//					"("+RULES_STR(m.get[String,AnswerAnnotation](ANSWER).toInt)+")"
+//				}.toArray
+//				println("train:  " + U.join(strs, "  ") ) 
+//			}
 			classifier.train(javaData)
 			end_track
 			new CRFTagger(classifier)
@@ -852,10 +905,10 @@ object CKYParser {
 				{ case (sofar:Double,(term:Array[Int],score:Double)) => sofar + score }
 			assert(sequences.forall( _._2 >= 0.0), "Negative score")
 			//(debug) //TODO removeme
-			println("-----KLEX " + sent + "------")
-			sequences.foreach{ case (term:Array[Int],score:Double) => 
-				println(sent + " (" + G.df.format(score) + ") :: " + U.join(term.map{ (i:Int) => CKY_LEX(rid2lexI(i))},"   "))
-			}
+//			println("-----KLEX " + sent + "------")
+//			sequences.foreach{ case (term:Array[Int],score:Double) => 
+//				println(sent + " (" + G.df.format(score) + ") :: " + U.join(term.map{ (i:Int) => CKY_LEX(rid2lexI(i))},"   "))
+//			}
 			//( P(slot,rule) )
 			val pSlotRule:Array[Array[Double]] = {
 				//(create)
@@ -1724,25 +1777,26 @@ object CKYParser {
 			logScore + U.safeLn(ruleScores(rid)) }
 	}
 
-	def klex(sent:Sentence,elem:Int,y:(CkyRule,Double)=>Boolean):Int = {
-		val word:Int = sent.words(elem)
-		val pos:Int = sent.pos(elem)
-		val num:Int = sent.nums(elem)
-		//(get candidate parses)
-		val candidates = CKY_LEX
-			.filter{ (term:CkyRule) =>
-				(  term.child == Head.Word ||
-				   (term.child == Head.Number && word == G.NUM) ) &&  //is valid rule
-				term.validInput( if(word == G.NUM) num else word ) }  //is in range
-			.map{ (term:CkyRule) => (term, lexLogProb(word,pos,term)) }
-		//(yield)
-		var i:Int = 0
-		candidates.sortBy( - _._2).foreach{ case (term,score) => 
-			assert(term.isLex, "bad term returned in klex")
-			if(!y(term,score)){ return i }
-			i += 1
-		}
-		return candidates.length
+	def klex(sent:Sentence,y:(CkyRule,Int,Double)=>Boolean):Array[Int] = {
+		(0 until sent.length).map{ (elem:Int) => 
+			val word:Int = sent.words(elem)
+			val pos:Int = sent.pos(elem)
+			val num:Int = sent.nums(elem)
+			//(get candidate parses)
+			val candidates = CKY_LEX
+				.filter{ (term:CkyRule) =>
+					(  term.child == Head.Word ||
+					   (term.child == Head.Number && word == G.NUM) ) &&  //is valid rule
+					term.validInput( if(word == G.NUM) num else word ) }  //is in range
+				.map{ (term:CkyRule) => (term, lexLogProb(word,pos,term)) }
+			//(yield)
+			var ok:Boolean = true
+			candidates.sortBy( - _._2).foreach{ case (term,score) => 
+				assert(term.isLex, "bad term returned in klex")
+				if(ok && !y(term,elem,score)){ ok = false }
+			}
+			candidates.length
+		}.toArray
 	}
 }
 
@@ -1763,31 +1817,25 @@ class CKYParser extends StandardParser{
 		val chart = makeChart(sent.length,beam)
 		assert(chart.length >= sent.length, "Chart is too small")
 		//--Lex
-		if(O.crfTag && tagger != null){
-			//(CRF Tag)
-			val lastScore:Array[Double] = (0 until sent.length).map{ 
-				(i:Int) => Double.PositiveInfinity }.toArray
-			tagger.klex(sent,O.crfKBest, (term:CkyRule,elem:Int,score:Double) => {
-				//(add terms)
-				lex(chart,elem,term.head.id).suggest(score,term)
-				assert(score <= lastScore(elem),
-					"KLex out of order: "+lastScore(elem)+"->"+score);
-				lastScore(elem) = score
-				true
-			})
-		} else {
-			//(PCFG tag)
-			for(elem <- 0 until sent.length) {
-				//(add terms)
-				var lastScore:Double = Double.PositiveInfinity
-				val added:Int = klex(sent,elem,(term:CkyRule,score:Double) => {
-					lex(chart,elem,term.head.id).suggest(score,term)
-					assert(score <= lastScore,"KLex out of order: "+lastScore+"->"+score);
-					lastScore = score
-					true
-				})
+		//(get probability function)
+		val lexLogProb:(Sentence,(CkyRule,Int,Double)=>Boolean)=>Array[Int]
+			= O.lexTagMethod match {
+				case O.TagMethod.PCFG => CKYParser.klex(_,_)
+				case O.TagMethod.CRF  => 
+					if(tagger == null) CKYParser.klex(_,_)
+					else tagger.klex(_,O.crfKBest,_)
 			}
-		}
+		//(fill chart)
+		val lastScore:Array[Double] = (0 until sent.length).map{ 
+			(i:Int) => Double.PositiveInfinity }.toArray
+		lexLogProb(sent, (term:CkyRule,elem:Int,score:Double) => {
+			//(add terms)
+			lex(chart,elem,term.head.id).suggest(score,term)
+			assert(score <= lastScore(elem),
+				"KLex out of order: "+lastScore(elem)+"->"+score);
+			lastScore(elem) = score
+			true
+		})
 		//(check)
 		for(elem <- 0 until sent.length) {
 			if(O.paranoid){
