@@ -608,11 +608,14 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 			fn(Range(ground,ground))
 		} else if(duration != null) {
 			if(duration.isGroundable){
+				assert(duration(ground) != null, "Returning null grounding")
 				duration(ground)
 			} else {
+				assert(duration != null, "trivial")
 				duration
 			}
 		} else if(range != null) {
+			assert(range(ground) != null, "Returning null grounding")
 			range(ground)
 		} else {
 			throw new IllegalStateException("Bad parse")
@@ -968,7 +971,8 @@ object CKYParser {
 	private val CKY_LEX:Array[CkyRule] = UNARIES
 		.filter{ case (rule,rid) => rule.isLex }
 		.map{ case (rule,rid) =>
-			assert(rule.arity == 1, "unary rule is not unary")
+			assert(rule.arity == 1, "unary rule is not unary")	
+			println(">>" + rid + " " + RULES_STR(rid))
 			CkyRule(rule.arity,rule.head,rule.child,Array[Int](rid))
 		}
 	private val CKY_BINARY:Array[CkyRule] = BINARIES.map{ case (rule,rid) => 
@@ -1985,13 +1989,19 @@ class CKYParser extends StandardParser{
 			val b = new StringBuilder
 			b.append(Const.START_PRESENTATION("Results"))
 			guesses.sortBy( _.sid ).foreach{ (g:GuessInfo) =>
-				b.append(Const.SLIDE(
-						id=g.sid, correct=g.correct, tree=g.parse.asParseString(g.sent),
-						guess=g.parseVal.ground(g.feedback.grounding).toString,
-						gold=Parse(Head.ROOT,g.feedback.ref)
-							.ground(g.feedback.grounding).toString,
-						ground=g.feedback.grounding.toString
-					))
+				assert(g.feedback != null, "No feedback stored with " + g)
+				assert(g.feedback.grounding != null, "No grounding stored with " + g)
+				if(Parse(Head.ROOT,g.feedback.ref) != null){
+					b.append(Const.SLIDE(
+							id=g.sid, correct=g.correct, tree=g.parse.asParseString(g.sent),
+							guess=g.parseVal.ground(g.feedback.grounding).toString,
+							gold=Parse(Head.ROOT,g.feedback.ref)
+								.ground(g.feedback.grounding).toString,
+							ground=g.feedback.grounding.toString
+						))
+				} else {
+					b.append(Const.AUTO_MISS(g.sid))
+				}
 			}
 			b.append(Const.END_PRESENTATION)
 			val writer = new java.io.FileWriter(Execution.touch("parses.rb"))
