@@ -65,6 +65,10 @@ case class Range(begin:Time, end:Time) {
 	}
 	def cons(other:Range):Range = Range(this.begin, other.end)
 	def apply(ground:Time):Range = {
+		assert(ground.isGrounded, "grounding range with ungrounded time")
+		assert(ground.offset == null, "grounded time has an offset: "+ground.offset)
+		assert(ground.modifiers == null, 
+			"grounded time has modifiers: "+ground.modifiers)
 		new Range(
 				{if(begin.isGrounded) begin else begin(ground)},
 				{if(end.isGrounded) end else end(ground)}
@@ -250,6 +254,7 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 	def isGrounded:Boolean = this.base != null
 	def alsoMod(mods:List[Time=>Time]):Time = {
 		assert(mods != null, "adding mod to time, but mod is null")
+		assert(!this.isGrounded, "adding modifier to grounded time")
 		val existingMods = if(modifiers == null) List() else modifiers
 		if(offset == null){
 			assert(existingMods != null, "Appending to null mods")
@@ -287,11 +292,15 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 
 	def ::(ground:Time=>Time):Time = {
 		if(ground == null){ return this }
-		val existingMods = if(modifiers == null) List() else modifiers
-		if(offset == null){
-			new Time(base, offset, ground :: existingMods)
+		if(isGrounded){
+			ground(this)
 		} else {
-			new Time(base, null, ground :: (((t:Time)=>t+offset) :: existingMods) )
+			val existingMods = if(modifiers == null) List() else modifiers
+			if(offset == null){
+				new Time(base, offset, ground :: existingMods)
+			} else {
+				new Time(base, null, ground :: (((t:Time)=>t+offset) :: existingMods) )
+			}
 		}
 	}
 	def +(diff:Duration):Time = {
@@ -317,6 +326,8 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 			//(case: adding new offset)
 			new Time(base, diff, modifiers)
 		}
+		assert(!added.isGrounded || added.modifiers == null,
+			"modifiers on grounded time")
 		diff.grounding :: added
 	}
 	def -(other:Time):Duration = {
@@ -386,6 +397,8 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 			//(case: no offset)
 			new Time(base, ZERO.minus(diff), modifiers)
 		}
+		assert(!subtracted.isGrounded || subtracted.modifiers == null,
+			"modifiers on grounded time")
 		diff.grounding :: subtracted
 	}
 	def apply(grnd:Time):Time = {

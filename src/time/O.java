@@ -83,4 +83,7 @@ public class O {
 	public static String goldTagFile = "goldTags";
 	@Option(name="runDebug", gloss="Run a debug program")
 	public static String runDebug = "none";
+	@Option(name="printAllParses", gloss="Print status for all parses")
+	public static boolean printAllParses = false;
+
 }

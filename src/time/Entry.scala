@@ -249,7 +249,8 @@ trait DataStore {
 				}
 				//(accumulate output)
 				val exactMatch:Boolean = U.sumDiff(diff) < O.exactMatchThreshold
-				assert(!(parse.value.toString.equals(gold.toString) && !exactMatch),
+				assert(gold.toString.equals("<function1>") ||
+					!(parse.value.toString.equals(gold.toString) && !exactMatch),
 					"parses are string-wise equal, but not marked as same: " + 
 					U.sumDiff(diff) + " :: " + diff + " [" +gold.toString+"]")
 				(i,exactMatch,diff)

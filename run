@@ -4,6 +4,7 @@ require 'execrunner'
 
 # -- DEPENDENCIES --
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
+JAR='time'
 
 # -- RUN --
 env!( 
@@ -11,10 +12,10 @@ env!(
 	'java',
 	# Runtime Options
 	o('cp', 
-		"dist/time.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
+		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
 	o('Xrunhprof:cpu=samples'),
-	o('Xmx500M'),
 	o('server'),
+	o('Xmx500M'),
 	o('ea'),
 	'time.Entry',
 
@@ -40,7 +41,7 @@ env!(
 			'bestRandom',
 			'bestShallow'),
 		selo(0,'initMethod','uniform','random'),
-		selo(0,'lexTagMethod',
+		selo(2,'lexTagMethod',
 			'PCFG',
 			'CRF',
 			'GOLD'),
@@ -65,15 +66,15 @@ env!(
 		o('scoreGranularity', 60*60*24), # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
-		o('instantAsDay'),
+#		o('instantAsDay'),
 
 		# -- DATA --
 		o('collapseNumbers'),
 		o('train', '1-9'),
 		o('dev', '9-10'),
 		o('test', '101-111'),
-		o('train', '1-101'),
-		o('dev', '101-151'),
+#		o('train', '1-101'),
+#		o('dev', '101-151'),
 #		o('test', '151-187'),
 		o('devTest', true),
 
@@ -84,6 +85,7 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
+		o('printAllParses'),
 		#(debug programs)
 		selo(0,'runDebug',
 			'none',
@@ -97,7 +99,7 @@ env!(
 		o('ignoreClasspath', "\"[#{ENV['JAVANLP_HOME']}/.*,etc/scala-.*.jar,etc/postgres.jar,etc/jdom.jar,etc/joda-time.jar]\""),
 		#(logging)
 		o('execDir', 'out'),
-		o('execOutput', '"psql://research@localhost:time<what?why42?"'),
+		o('execOutput', "\"psql://research@localhost:#{JAR}<what?why42?\""),
 		#(data)
 		o('execData', '"psql://research@localhost:data<what?why42?"'),
 	nil),

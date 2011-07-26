@@ -26,6 +26,23 @@ function present() {
 	fi
 }
 
+function plot() {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" ]; then
+		last="$1.exec"
+	fi
+	cat out/$last/log | grep 'Score: accuracy:' | sed -r -e 's/\s+Score: accuracy: ([01]\.[0-9]{3}); average pos: [0-9\.]+ \(in (1?)([0-9]{2})\.([0-9])%\).*/\1 \2.\3\4/g' | nl > /tmp/data
+	echo "#!/usr/bin/gnuplot
+set title \"EM Training Summary\"
+set xlabel \"Iteration\"
+set ylabel \"Accuracy\"
+set yr [0.0:1.0]
+plot \"/tmp/data\" using 1:2 title 'Training' with linespoints, \\
+  \"/tmp/data\" using 1:3 title 'In Beam' with lines
+pause -1 \"Hit enter to continue...\"" > /tmp/data.plot
+	gnuplot /tmp/data.plot
+}
+
 #-----
 # Utilities
 #-----
@@ -35,8 +52,6 @@ function make {
 function r {
 	make $@ && ./run
 }
-
-
 function cmd {
 	java -cp bin:etc/joda-time.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar time.Time
 }

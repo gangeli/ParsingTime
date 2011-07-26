@@ -2248,10 +2248,16 @@ class CKYParser extends StandardParser{
 		val scored:Array[(Head.Value,Any,Double)] = trees.map{ _.evaluate(sent) }
 		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
 		//(debug)
-		logG("Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
+		val str = 
+			"Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
 			U.join(
 				scored.slice(0,3).map{ case (tag,parse,score) => 
-					""+parse+"["+G.df.format(score)+"]"}, " or "))
+					""+parse+"["+G.df.format(score)+"]"}, " or ")
+		if(O.printAllParses) {
+			logG(str)
+		} else {
+			log(str)
+		}
 		//(check: algorithm0 consistency)
 		if(O.paranoid){
 			val saveAlg = O.kbestCKYAlgorithm
