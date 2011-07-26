@@ -249,6 +249,9 @@ trait DataStore {
 				}
 				//(accumulate output)
 				val exactMatch:Boolean = U.sumDiff(diff) < O.exactMatchThreshold
+				assert(!(parse.value.toString.equals(gold.toString) && !exactMatch),
+					"parses are string-wise equal, but not marked as same: " + 
+					U.sumDiff(diff) + " :: " + diff + " [" +gold.toString+"]")
 				(i,exactMatch,diff)
 			}
 		//--Get Best Index
@@ -300,7 +303,7 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		//--Iterate
 		timexes.foreach{ (t:Timex) =>
 			//(variables)
-			val sent = Sentence(t.words,t.pos,t.nums)
+			val sent = Sentence(t.tid,t.words,t.pos,t.nums)
 			//(parse)
 			val (parses,feedback) = fn(sent, t.tid)
 			//(score)
@@ -340,6 +343,7 @@ object ToyData {
 				//(variables)
 				val words = sent.split(" ").map{ (str:String) => U.str2wTest(str) }
 				val s = Sentence(
+					-1,
 					words, 
 					words.map{ (w:Int) => U.str2posTest("UNK") },
 					sent.split(" ").map{ (str:String) =>
@@ -349,7 +353,7 @@ object ToyData {
 				//(parse)
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
-				handleParse(parses,gold.value,TODAY,score,s,feedback)
+				handleParse(parses,gold.value,todaysDate,score,s,feedback)
 			}
 			score
 		}
@@ -530,6 +534,8 @@ object Entry {
 					case "console" => Time.interactive
 					//(case: test the CRF)
 					case "crf" => CKYParser.CRFTagger.debugSequence
+					//(case: read the gold tag file)
+					case "goldtagread" => Const.goldTag; logG("OK")
 					//(case: don't run a debug sequence)
 					case "none" => {
 						(new Entry).init.run

@@ -57,6 +57,15 @@ def ensureStatement(stmt,*args)
 	end
 end
 puts "create database {"
+puts "  drop tables"
+query(db,'
+	DROP TABLE timebank_doc CASCADE; 
+	DROP TABLE timebank_sent CASCADE; 
+	DROP TABLE timebank_tag CASCADE; 
+	DROP TABLE timebank_timex CASCADE; 
+	DROP TABLE timebank_tlink CASCADE;')
+puts "  remove source"
+query(db,"DELETE FROM source WHERE did='#{SOURCE_ID}'")
 #--Document
 query(db,"CREATE TABLE #{DOCUMENT} (
 		fid SERIAL PRIMARY KEY,
@@ -194,7 +203,7 @@ class Sent
 	def setText(text)
 		#--Tokenize
 		@text = text
-		text = text.strip.gsub(/\//,' / ').gsub(/\s+/,' ')#.gsub(/\-/,' - ')
+		text = text.strip.gsub(/\//,' / ').gsub(/\s+/,' ').gsub(/\-/,' - ')
 		File.open("tmp", 'w') {|f| f.write(text) }
 		@tokens = `tokenize tmp`.split(/\s+/)
 		#--Tag
@@ -290,7 +299,7 @@ class Timex
 	end
 	def to_db(doc,sent)
 		#(inefficient index match)
-		text = @text.strip.gsub(/\//,' / ').gsub(/\s+/,' ')#.gsub(/\-/,' - ').
+		text = @text.strip.gsub(/\//,' / ').gsub(/\s+/,' ').gsub(/\-/,' - ')
 		File.open("tmp", 'w') {|f| f.write(text) }
 		tokens = `tokenize tmp`.split(/\s+/)
 		startI = nil
@@ -361,7 +370,7 @@ end
 docs = []
 puts "Reading XML {"
 #(read)
-for file in `find #{DIR} -name "*.tml.xml"` do
+for file in `find #{DIR} -name "*.tml.xml" | sort` do
 	Runtime.getRuntime.gc
 	file = file.chomp
 	puts "  #{file} {"

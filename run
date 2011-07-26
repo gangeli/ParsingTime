@@ -42,7 +42,8 @@ env!(
 		selo(0,'initMethod','uniform','random'),
 		selo(0,'lexTagMethod',
 			'PCFG',
-			'CRF'),
+			'CRF',
+			'GOLD'),
 #		o('hardEM'),
 		# <training>
 		o('beam', 1000),
@@ -68,25 +69,27 @@ env!(
 
 		# -- DATA --
 		o('collapseNumbers'),
-		o('train', '1-11'),
-		o('dev', '101-111'),
+		o('train', '1-9'),
+		o('dev', '9-10'),
 		o('test', '101-111'),
-#		o('train', '1-101'),
-#		o('dev', '101-151'),
+		o('train', '1-101'),
+		o('dev', '101-151'),
 #		o('test', '151-187'),
 		o('devTest', true),
 
 		# -- DEBUG --
 		#(general)
-		o('paranoid'),
+#		o('paranoid'),
 #		o('toy'),
 		o('useSeed'),
 		o('seed','42'),
+		o('goldTagFile', 'aux/sentences-100-tagged'),
 		#(debug programs)
 		selo(0,'runDebug',
 			'none',
 			'console',
-			'crf'),
+			'crf',
+			'goldTagRead'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)

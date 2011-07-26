@@ -76,24 +76,56 @@ case class Range(begin:Time, end:Time) {
 	def typeTag:Symbol = 'Range
 
 	def norm:Duration = {
-		if(begin.offset == null){
-			if(end.offset == null){
-				//(case: zero)
-				Seconds.ZERO.toPeriod
-			}else{
-				//(case: second offset)
-				end.offset
+		if(begin.isGrounded){
+			if(end.isGrounded){
+				//(case: both grounded)
+				end-begin
+			} else {
+				//(case: begin grounded only)
+				Duration.INFINITE
 			}
 		} else {
-			if(end.offset == null){
-				//(case: first offset)
-				Seconds.ZERO.toPeriod - begin.offset
-			}else{
-				//(case: both offset)
-				end-begin //TODO more elegant norm
+			if(end.isGrounded){
+				//(case: end grounded only)
+				Duration.INFINITE
+			} else if(begin.offset == null){
+				if(end.offset == null){
+					//(case: ungrounded, no offsets)
+					Duration.ZERO
+				} else {
+					//(case: ungrounded, end offset)
+					end.offset
+				}
+			} else {
+				if(end.offset == null){
+					//(case: ungrounded, begin offset)
+					Duration.ZERO - begin.offset
+				} else {
+					//(case: ungrounded, both offset)
+					end.offset - begin.offset
+				}
 			}
 		}
 	}
+//	def norm:Duration = {
+//		if(begin.offset == null){
+//			if(end.offset == null){
+//				//(case: zero)
+//				Seconds.ZERO.toPeriod
+//			}else{
+//				//(case: second offset)
+//				end.offset
+//			}
+//		} else {
+//			if(end.offset == null){
+//				//(case: first offset)
+//				Seconds.ZERO.toPeriod - begin.offset
+//			}else{
+//				//(case: both offset)
+//				end-begin //TODO more elegant norm
+//			} //WRONG I THINK!
+//		}
+//	}
 	def ~(o:Any):Boolean = {
 		if(o.isInstanceOf[Range]){
 			val other:Range = o.asInstanceOf[Range]
@@ -296,13 +328,33 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 		}
 		if(this.isGrounded){
 			//(case: subtracting grounded times)
-			val millis:Long = this.ground.getMillis - other.ground.getMillis
-			if(millis > Int.MaxValue){
+			assert(this.equals(Time.DAWN_OF) || this != Time.DAWN_OF, "eq check")
+			assert(this.equals(Time.END_OF) || this != Time.END_OF, "eq check")
+			val tM:Long = this.ground.getMillis
+			val oM:Long = other.ground.getMillis
+			if(this == Time.DAWN_OF){
+				//(case: subtracting from neg_infinity)
+				if(other == Time.DAWN_OF){ Duration.ZERO }
+				else { Duration.NEG_INFINITE }
+			} else if(this == Time.END_OF){
+				//(case: subtracting from pos_infinity)
+				if(other == Time.END_OF){ Duration.ZERO }
+				else { Duration.INFINITE }
+			} else if(oM < 0 && Long.MaxValue + oM < tM){
+				//(case: overflowing a Long)
 				Duration.INFINITE
-			} else if(millis < Int.MinValue) {
+			} else if(oM > 0 && Long.MinValue + oM > tM){
+				//(case: underflowing a Long)
 				Duration.NEG_INFINITE
 			} else {
-				new Period(millis)
+				//(case: normal subtraction)
+				try {
+					new Period(tM-oM)
+				} catch {
+					//(case: overflowed precise fields)
+					case (e:ArithmeticException) => 
+						new Period(new Period(tM-oM,PeriodType.years),PeriodType.standard)
+				}
 			}
 		} else {
 			//(case: approximating subtraction)
@@ -495,7 +547,13 @@ object Lex {
 	//--Misc
 	val ZERO:Period = Seconds.ZERO.toPeriod
 	val NOW:Time = new Time(null,null)
-	val NOTIME:Range = Range(NOW,NOW+DAY)
+	val TODAY:Range = {
+		val begin:Time = Time(null,null,List[Time=>Time]( (t:Time) => {
+			assert(t.isGrounded, "grounding today with ungrounded time")
+			Time(t.base.withMillisOfDay(0),t.offset,t.modifiers)
+		}) )
+		Range(begin,begin+DAY)
+	}
 	val NODUR:Duration = DAY
 	//--Day of Week
 	val MON:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,1))
@@ -534,8 +592,7 @@ object Lex {
 	val intersect:(Range,Range)=>Range = _ ^ _
 	val cons:(Range,Range)=>Range = _.cons(_)
 
-	//--Dynamic
-	def TODAY:Time = Time((new DateTime).withMillisOfDay(0))
+	def todaysDate:Time = Time((new DateTime).withMillisOfDay(0))
 }
 
 object Range {
@@ -545,11 +602,12 @@ object Duration {
 	def apply(millis:Long):Duration = new Period(millis)
 	val INFINITE:Duration = Period.years(Int.MaxValue)
 	val NEG_INFINITE:Duration = Period.years(Int.MinValue)
+	val ZERO:Duration = new Period(0L)
 }
 
 object Time {
-	val DAWN_OF = new Time(new DateTime(java.lang.Long.MIN_VALUE), null, null)
-	val END_OF = new Time(new DateTime(java.lang.Long.MAX_VALUE), null, null)
+	val DAWN_OF = new Time(new DateTime(Long.MinValue), null, null)
+	val END_OF = new Time(new DateTime(Long.MaxValue), null, null)
 
 	def apply(base:DateTime) = new Time(base, null, null)
 	def apply(base:DateTime, offset:Duration) = new Time(base, offset, null)
@@ -627,21 +685,6 @@ object Time {
 		}
 	}
 
-	def test = {
-		println
-		println("     -------START------")
-
-		val tomorrow = catRight(NOTIME,NODUR)
-		val until = cons
-		val target = (r:Range) => Range(r.begin,NOW+DAY)
-		val ground = Range(Time(2011,4,25),Time(2011,4,26))
-		println(target(ground))
-		val guess = until(_:Range,tomorrow)
-		println(guess(ground))
-		assert( Time.probablyEqualRange(target,until(_:Range,tomorrow)) )
-		
-		println
-	}
 
 	def main(args:Array[String]):Unit = {
 		interactive

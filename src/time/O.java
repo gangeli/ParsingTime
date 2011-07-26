@@ -48,7 +48,7 @@ public class O {
 	public static int maxSearchTime = 1000000;
 	@Option(name="crfTag", gloss="Use a CRF (versus PCFG) tagger")
 	public static boolean crfTag = false;
-	public static enum TagMethod { PCFG, CRF }
+	public static enum TagMethod { PCFG, CRF, GOLD }
 	@Option(name="lexTagMethod", gloss="Method to tag pre-terminals")
 	public static TagMethod lexTagMethod = TagMethod.PCFG;
 	//(crf)
@@ -79,6 +79,8 @@ public class O {
 	public static boolean useSeed = false;
 	@Option(name="seed", gloss="The random seed to use")
 	public static int seed = 42;
+	@Option(name="goldTagFile", gloss="File to read Gold lex tags from")
+	public static String goldTagFile = "goldTags";
 	@Option(name="runDebug", gloss="Run a debug program")
 	public static String runDebug = "none";
 }

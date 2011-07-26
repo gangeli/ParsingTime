@@ -196,7 +196,8 @@ import scala.collection.JavaConversions._
 			//(annotate)
 			sent.init
 			println("-----")
-			val glossText = sent.gloss.replaceAll("/"," / ").replaceAll("""\s+"""," ")
+			val glossText = sent.gloss.replaceAll("/"," / ")
+				.replaceAll("""-"""," - ").replaceAll("""\s+"""," ")
 			println(glossText)
 			val input:Annotation = new Annotation(glossText)
 			pipeline.annotate(input)

@@ -161,7 +161,7 @@ object Grammar {
 		rtn = rtn ::: times.map{ case (t:Time,s:String) => 
 			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
 		//(ranges)
-		val ranges = List[(Range,String)]((Range(NOW,NOW+DAY),"REF:R"))
+		val ranges = List[(Range,String)]((TODAY,"REF:R"))
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
 			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
 		//(durations)
@@ -473,6 +473,9 @@ object Grammar {
 
 	val CLOSURES:Array[Closure] = computeClosures(RULES)
 	val CLOSURES_INDEX:Array[(Closure,Int)] = CLOSURES.zipWithIndex
+
+	val str2rid:scala.collection.immutable.Map[String,Int]
+		= RULES_STR.zipWithIndex.toMap
 	
 }
 
@@ -492,7 +495,7 @@ object ParseConversions {
 //-----
 // Input / Output
 //-----
-case class Sentence(words:Array[Int],pos:Array[Int],nums:Array[Int]) {
+case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	def apply(i:Int) = words(i)
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
 	def length:Int = words.length
@@ -590,6 +593,8 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 		val shouldGround = !a.isGrounded || !b.isGrounded
 		val grndA = if(shouldGround && !a.isGrounded){ a(ground) } else { a }
 		val grndB = if(shouldGround && !b.isGrounded){ b(ground) } else { b }
+//		println("  grounded? " + a.isGrounded + "  " + b.isGrounded)
+//		println("  diff " + (grndB-grndA))
 		grndB-grndA
 	}
 	def value:Any = {
@@ -624,17 +629,25 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	def unkDiff(gold:UNK):(Duration,Duration) = {
 		(Duration.INFINITE, Duration.INFINITE)
 	}
-	def rangeDiff(gold:Range, guess:Range, ground:Time):(Duration,Duration) = {
+	private def rangeDiff(gold:Range, guess:Range, ground:Time)
+			:(Duration,Duration) = {
+//		println("Range Diff: " + guess + "  " + gold)
 		//(asserts)
 		assert(gold != null, "gold is null")
 		assert(guess != null, "guess is null")
 		//(modifications)
 		val modGold:Range = if(O.instantAsDay && gold.norm.seconds == 0){
-				gold |> DAY
+				Range(gold.begin, gold.end+DAY)
 			} else {
 				gold
 			}
 		//(score)
+//		println("  guess: " + guess)
+//		println("    begin: " + guess.begin)
+//		println("    end:   " + guess.end)
+//		println("  new gold: " + modGold)
+//		println("    begin: " + modGold.begin)
+//		println("    end:   " + modGold.end)
 		( diff(modGold.begin, guess.begin, ground),
 			diff(modGold.end, guess.end, ground) )
 	}
@@ -642,7 +655,7 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 		if(range != null){
 			rangeDiff(gold, range, ground)
 		} else if(fn != null){
-			val grounding = Range(Time.DAWN_OF, Time.DAWN_OF)
+			val grounding = Range(Time.DAWN_OF, Time.END_OF)
 			rangeDiff(gold, fn(grounding), ground)
 		} else if(duration != null){
 			(Duration.INFINITE, Duration.INFINITE)
@@ -965,22 +978,21 @@ object CKYParser {
 	private var guesses = List[GuessInfo]()
 
 	//(rules)
-	private val CKY_UNARY:Array[CkyRule] = CLOSURES.map{ (closure:Closure) =>
+	val CKY_UNARY:Array[CkyRule] = CLOSURES.map{ (closure:Closure) =>
 			CkyRule(1,closure.head,closure.child,closure.rules)
 		}
-	private val CKY_LEX:Array[CkyRule] = UNARIES
+	val CKY_LEX:Array[CkyRule] = UNARIES
 		.filter{ case (rule,rid) => rule.isLex }
 		.map{ case (rule,rid) =>
 			assert(rule.arity == 1, "unary rule is not unary")	
-			println(">>" + rid + " " + RULES_STR(rid))
 			CkyRule(rule.arity,rule.head,rule.child,Array[Int](rid))
 		}
-	private val CKY_BINARY:Array[CkyRule] = BINARIES.map{ case (rule,rid) => 
+	val CKY_BINARY:Array[CkyRule] = BINARIES.map{ case (rule,rid) => 
 			assert(rule.arity == 2, "binary rules computed wrong")
 			CkyRule(rule.arity,rule.head,null,Array[Int](rid))
 		}
 	//(utilities)
-	private val rid2lexI:Array[Int] = (0 until RULES.length).map{ (rid:Int) =>
+	val rid2lexI:Array[Int] = (0 until RULES.length).map{ (rid:Int) =>
 			val matches = 
 				CKY_LEX.zipWithIndex.filter{ case (r:CkyRule,i:Int) => r.rid == rid }
 			assert(matches.length <= 1, "multiple cky rules for rid " + rid)
@@ -1133,6 +1145,7 @@ object CKYParser {
 			val (length,(tag,value)) = evaluateHelper(sent,0)
 			assert(length == sent.length, 
 				"missed words in evaluation: " + length + " " + sent.length)
+			assert(this.logScore <= 0.0, ">1.0 probability: logScore="+this.logScore)
 			(tag,value,this.logScore)
 		}
 		private def traverseHelper(i:Int,
@@ -1828,12 +1841,15 @@ class CKYParser extends StandardParser{
 				case O.TagMethod.CRF  => 
 					if(tagger == null) CKYParser.klex(_,_)
 					else tagger.klex(_,O.crfKBest,_)
+				case O.TagMethod.GOLD =>
+					Const.goldTag
 			}
 		//(fill chart)
 		val lastScore:Array[Double] = (0 until sent.length).map{ 
 			(i:Int) => Double.PositiveInfinity }.toArray
 		lexLogProb(sent, (term:CkyRule,elem:Int,score:Double) => {
 			//(add terms)
+			assert(score <= 0.0, "Lex probability of >0: " + score)
 			lex(chart,elem,term.head.id).suggest(score,term)
 			assert(score <= lastScore(elem),
 				"KLex out of order: "+lastScore(elem)+"->"+score);
@@ -2232,7 +2248,7 @@ class CKYParser extends StandardParser{
 		val scored:Array[(Head.Value,Any,Double)] = trees.map{ _.evaluate(sent) }
 		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
 		//(debug)
-		log("Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
+		logG("Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
 			U.join(
 				scored.slice(0,3).map{ case (tag,parse,score) => 
 					""+parse+"["+G.df.format(score)+"]"}, " or "))
@@ -2272,7 +2288,7 @@ class CKYParser extends StandardParser{
 				//(update)
 				def update(index:Int) = {
 					val incr:Double = if(O.hardEM) 1.0 else math.exp(scored(index)._3)
-					assert(incr >= 0.0 && incr <= 1.0, "invalid increment")
+					assert(incr >= 0.0 && incr <= 1.0, "invalid increment: " + incr)
 					//(count rules)
 					trees(index).traverse( 
 							{(rid:Int) => rulesCounted(rid) += incr},
