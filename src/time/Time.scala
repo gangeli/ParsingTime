@@ -68,44 +68,10 @@ case class Range(begin:Time, end:Time) {
 			//(make range)
 			val begin:Time = mkBegin(groundedAbstr.begin, grounded.begin)
 			val end:Time = mkEnd(groundedAbstr.end, grounded.end)
-//			val begin:Time = Time(null,null,List[Time=>Time]( (ground:Time) => {
-//					assert(ground.isGrounded, "Modifying with ungrounded time")
-//					mkBegin(grounded.begin,abstr.begin(ground))
-//				}))
-//			val end:Time = Time(null,null,List[Time=>Time]( (ground:Time) => {
-//					assert(ground.isGrounded, "Modifying with ungrounded time")
-//					mkEnd(grounded.end,abstr.end(ground))
-//				}))
 			//(make range)
 			Range(begin,end)
 		}
 	}
-//	def ^(r:Range):Range = {
-//		if( (!isGrounded && r.isGrounded) || (isGrounded && !r.isGrounded) ){
-//			//--Case: grounded and abstract
-//			val grounded = if(isGrounded) this else r
-//			val abstr = if(isGrounded) r else this
-//			abstr(grounded.begin)
-//		} else if(isGrounded){
-//			//--Case: grounded and grounded
-//			val begin 
-//				=if(this.begin.base.compareTo(r.begin.base) > 0) this.begin else r.begin
-//			val end 
-//				=if(this.end.base.compareTo(r.end.base) < 0) this.end else r.end
-//			Range(begin,end)
-//		} else {
-//			//--Case: abstract and abstract
-//			//(identify larger and smaller)
-//			val larger = if(this.norm > r.norm) this else r
-//			val smaller = if(this.norm > r.norm) r else this
-//			//(take begin from the larger)
-//			val newBegin = larger.begin.alsoMod(smaller.begin)
-//			//(take end from larger.begin+smaller.norm)
-//			val newEnd = newBegin+smaller.norm
-//			//(return)
-//			Range(newBegin, newEnd)
-//		}
-//	}
 	def cons(other:Range):Range = Range(this.begin, other.end)
 	def apply(ground:Time):Range = {
 		assert(ground.isGrounded, "grounding range with ungrounded time")

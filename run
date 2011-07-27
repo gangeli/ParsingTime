@@ -41,7 +41,7 @@ env!(
 			'bestRandom',
 			'bestShallow'),
 		selo(0,'initMethod','uniform','random'),
-		selo(2,'lexTagMethod',
+		selo(1,'lexTagMethod',
 			'PCFG',
 			'CRF',
 			'GOLD'),
@@ -72,8 +72,8 @@ env!(
 		o('train', '1-9'),
 		o('dev', '9-10'),
 		o('test', '101-111'),
-#		o('train', '1-101'),
-#		o('dev', '101-151'),
+		o('train', '1-101'),
+		o('dev', '101-151'),
 #		o('test', '151-187'),
 		o('devTest', true),
 
@@ -84,7 +84,7 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
-		o('printAllParses'),
+#		o('printAllParses'),
 		#(debug programs)
 		selo(0,'runDebug',
 			'none',
