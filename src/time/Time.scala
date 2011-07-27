@@ -38,31 +38,74 @@ case class Range(begin:Time, end:Time) {
 	def |<(diff:Duration) = new Range(begin, begin+diff)
 	def >|(diff:Duration) = new Range(end-diff, end)
 	def ^(r:Range):Range = {
-		if( (!isGrounded && r.isGrounded) || (isGrounded && !r.isGrounded) ){
-			//--Case: grounded and abstract
-			val grounded = if(isGrounded) this else r
-			val abstr = if(isGrounded) r else this
-			abstr(grounded.begin)
-		} else if(isGrounded){
+		def mkBegin(a:Time,b:Time)
+			= if(a.base.compareTo(b.base) > 0) a else b
+		def mkEnd(a:Time,b:Time)
+			= if(a.base.compareTo(b.base) < 0) a else b
+		if(this.isGrounded && r.isGrounded){
 			//--Case: grounded and grounded
-			val begin 
-				=if(this.begin.base.compareTo(r.begin.base) > 0) this.begin else r.begin
-			val end 
-				=if(this.end.base.compareTo(r.end.base) < 0) this.end else r.end
+			Range(mkBegin(this.begin,r.begin),mkEnd(this.end,r.end))
+		} else if(!this.isGrounded && !r.isGrounded){
+			//--Case: abstract and abstract
+			//(grounded begin time)
+			val begin:Time = Time(null,null,List[Time=>Time]( (ground:Time) => {
+					assert(ground.isGrounded, "Modifying with ungrounded time")
+					mkBegin(this.begin(ground),r.begin(ground))
+				}))
+			//(grounded end time)
+			val end:Time = Time(null,null,List[Time=>Time]( (ground:Time) => {
+					assert(ground.isGrounded, "Modifying with ungrounded time")
+					mkEnd(this.end(ground),r.end(ground))
+				}))
+			//(make range)
 			Range(begin,end)
 		} else {
-			//--Case: abstract and abstract
-			//(identify larger and smaller)
-			val larger = if(this.norm > r.norm) this else r
-			val smaller = if(this.norm > r.norm) r else this
-			//(take begin from the larger)
-			val newBegin = larger.begin.alsoMod(smaller.begin)
-			//(take end from larger.begin+smaller.norm)
-			val newEnd = newBegin+smaller.norm
-			//(return)
-			Range(newBegin, newEnd)
+			//--Case: grounded and abstract
+			//(find grounded and ungrounded)
+			val grounded = if(isGrounded) this else r
+			val abstr = if(isGrounded) r else this
+			val groundedAbstr:Range = abstr(grounded.begin)
+			//(make range)
+			val begin:Time = mkBegin(groundedAbstr.begin, grounded.begin)
+			val end:Time = mkEnd(groundedAbstr.end, grounded.end)
+//			val begin:Time = Time(null,null,List[Time=>Time]( (ground:Time) => {
+//					assert(ground.isGrounded, "Modifying with ungrounded time")
+//					mkBegin(grounded.begin,abstr.begin(ground))
+//				}))
+//			val end:Time = Time(null,null,List[Time=>Time]( (ground:Time) => {
+//					assert(ground.isGrounded, "Modifying with ungrounded time")
+//					mkEnd(grounded.end,abstr.end(ground))
+//				}))
+			//(make range)
+			Range(begin,end)
 		}
 	}
+//	def ^(r:Range):Range = {
+//		if( (!isGrounded && r.isGrounded) || (isGrounded && !r.isGrounded) ){
+//			//--Case: grounded and abstract
+//			val grounded = if(isGrounded) this else r
+//			val abstr = if(isGrounded) r else this
+//			abstr(grounded.begin)
+//		} else if(isGrounded){
+//			//--Case: grounded and grounded
+//			val begin 
+//				=if(this.begin.base.compareTo(r.begin.base) > 0) this.begin else r.begin
+//			val end 
+//				=if(this.end.base.compareTo(r.end.base) < 0) this.end else r.end
+//			Range(begin,end)
+//		} else {
+//			//--Case: abstract and abstract
+//			//(identify larger and smaller)
+//			val larger = if(this.norm > r.norm) this else r
+//			val smaller = if(this.norm > r.norm) r else this
+//			//(take begin from the larger)
+//			val newBegin = larger.begin.alsoMod(smaller.begin)
+//			//(take end from larger.begin+smaller.norm)
+//			val newEnd = newBegin+smaller.norm
+//			//(return)
+//			Range(newBegin, newEnd)
+//		}
+//	}
 	def cons(other:Range):Range = Range(this.begin, other.end)
 	def apply(ground:Time):Range = {
 		assert(ground.isGrounded, "grounding range with ungrounded time")
@@ -111,25 +154,6 @@ case class Range(begin:Time, end:Time) {
 			}
 		}
 	}
-//	def norm:Duration = {
-//		if(begin.offset == null){
-//			if(end.offset == null){
-//				//(case: zero)
-//				Seconds.ZERO.toPeriod
-//			}else{
-//				//(case: second offset)
-//				end.offset
-//			}
-//		} else {
-//			if(end.offset == null){
-//				//(case: first offset)
-//				Seconds.ZERO.toPeriod - begin.offset
-//			}else{
-//				//(case: both offset)
-//				end-begin //TODO more elegant norm
-//			} //WRONG I THINK!
-//		}
-//	}
 	def ~(o:Any):Boolean = {
 		if(o.isInstanceOf[Range]){
 			val other:Range = o.asInstanceOf[Range]
@@ -317,7 +341,12 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 				new Time(new DateTime(Long.MinValue),offset,modifiers)
 			} else {
 				//((normal))
-				new Time(base.plus(diff),offset,modifiers)
+				try{
+					new Time(base.plus(diff),offset,modifiers)
+				} catch {
+					case (e:ArithmeticException) => 
+						new Time(base.plus(diffMillis),offset,modifiers) //catch-all
+				}
 			}
 		}else if(offset != null){
 			//(case: adding to existing offset)
@@ -563,10 +592,22 @@ object Lex {
 	val TODAY:Range = {
 		val begin:Time = Time(null,null,List[Time=>Time]( (t:Time) => {
 			assert(t.isGrounded, "grounding today with ungrounded time")
-			Time(t.base.withMillisOfDay(0),t.offset,t.modifiers)
+			assert(t.equals(Time.DAWN_OF) || t != Time.DAWN_OF, "eq check")
+			assert(t.equals(Time.END_OF) || t != Time.END_OF, "eq check")
+			if(t == Time.DAWN_OF){
+				//(case: negative infinity)
+				t
+			} else if(t == Time.END_OF){
+				//(case: positive infinity)
+				t-DAY
+			} else {
+				//(case: floor to date)
+				Time(t.base.withMillisOfDay(0),t.offset,t.modifiers)
+			}
 		}) )
 		Range(begin,begin+DAY)
 	}
+	val ALL_TIME:Range = Range(Time.DAWN_OF,Time.END_OF)
 	val NODUR:Duration = DAY
 	//--Day of Week
 	val MON:Duration = new Duration(Weeks.ONE, LexUtil.dow(_,1))
@@ -688,6 +729,9 @@ object Time {
 			interpreter.interpret("import time.Lex._")
 			interpreter.interpret("import time.Conversions._")
 			interpreter.interpret("val ground = Time(2011,4,26)")
+			interpreter.interpret(
+				"org.joda.time.DateTimeZone.setDefault(org.joda.time.DateTimeZone.UTC);"
+			)
 			reader = new JLineReader(new JLineCompletion(interpreter))
 		}
 		//--Loop

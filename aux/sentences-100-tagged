@@ -2,7 +2,7 @@
 	Week:D
 
 2 :: the last twenty four hours :: [PERIOD,0,0,0,1,0,0,0]
-	FAIL
+	nil nil NUM Hour:D
 
 3 :: five year :: [PERIOD,5,0,0,0,0,0,0]
 	NUM Year:D
@@ -35,7 +35,7 @@
 	FAIL
 
 13 :: a minute and a half :: [PERIOD,0,0,0,0,0,1,30]
-	FAIL
+	nil Min:D nil nil NUM
 
 14 :: nearly forty years :: [PERIOD,40,0,0,0,0,0,0]
 	nil NUM Year:D
@@ -89,7 +89,7 @@
 	NUM nil Year:D
 
 31 :: Aug. 2 :: [INSTANT,1990-08-02T00:00:00+00:00]
-	Aug:D NUM
+	Aug:D dom(n):D
 
 32 :: up to 180 days :: [PERIOD,0,0,0,180,0,0,0]
 	nil nil NUM Day:D
@@ -149,7 +149,7 @@
 	REF:R
 
 51 :: eighth day :: [INSTANT,1990-08-15T00:00:00+00:00]
-	NUM REF:R
+	dom(n):D nil
 
 52 :: now :: [INSTANT,NOW]
 	REF:R
@@ -164,7 +164,7 @@
 	NUM nil Week:D
 
 56 :: two - hour :: [PERIOD,0,0,0,0,2,0,0]
-	FAIL
+	NUM nil Hour:D
 	
 57 :: Thursday :: [INSTANT,1990-08-16T00:00:00+00:00]
 	Thu:D

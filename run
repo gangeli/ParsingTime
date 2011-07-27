@@ -51,8 +51,7 @@ env!(
 		o('iters', 10),
 		o('maxSearchTime', 10000),
 		#<params>
-#		o('weightedUpdate'),
-#		o('usetime'),
+		o('usetime'),
 
 		#--AUX PARAMS--
 		#(crf)
@@ -66,7 +65,7 @@ env!(
 		o('scoreGranularity', 60*60*24), # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
-#		o('instantAsDay'),
+		o('instantAsDay'),
 
 		# -- DATA --
 		o('collapseNumbers'),

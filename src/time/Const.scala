@@ -55,7 +55,7 @@ slide!('Datum """+id+""" ("""+
 nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
 """
 
-def AUTO_MISS(id:Int) = 
+def AUTO_MISS(id:Int,sent:Sentence,gold:Any) = 
 """
 ################################################################################
 # Datum """+id+"""
@@ -63,7 +63,8 @@ def AUTO_MISS(id:Int) =
 slide!('Datum """+id+""" \red{(no parses)}',
 	'',
 	center,
-	_('TODO debug information'),
+	_('Sentence: """+sent.toString+"""'),
+	_('Gold: """+{if(gold != null) gold else "???"}+"""'),
 nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
 """
 

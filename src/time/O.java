@@ -18,8 +18,6 @@ public class O {
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
 	public static int beam = 100000;
-	@Option(name="weightedUpdate", gloss="Counts weighted by score")
-	public static boolean weightedUpdate = false;
 	public static enum SmoothingType{ none, addOne }
 	@Option(name="smoothing", gloss="Smoothing type for grammar")
 	public static SmoothingType smoothing = SmoothingType.none;

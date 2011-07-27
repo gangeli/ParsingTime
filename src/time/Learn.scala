@@ -167,7 +167,7 @@ object Grammar {
 		//(durations)
 		val durations = 
 			{if(O.useTime) List[(Duration,String)]((SEC,"Sec:D"),(MIN,"Min:D"),
-				(HOUR,"Hour")) else List[(Duration,String)]()} :::
+				(HOUR,"Hour:D")) else List[(Duration,String)]()} :::
 			List[(Duration,String)](
 				(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
 				(YEAR,"Year:D"))
@@ -217,69 +217,51 @@ object Grammar {
 			(shiftLeft,"shiftLeft",true),(shiftRight,"shiftRight",true),
 			(catLeft,"catLeft",false),(catRight,"catRight",false),
 			(shrinkBegin,"shrinkBegin",false),(shrinkEnd,"shrinkEnd",false) )
-		def expandFnRD(
-				fn:(Range,Duration)=>Range,
-				str:String,
-				seqAlso:Boolean=true
-				):List[(Rule,String)] ={
-			var rtn = List[(Rule,String)]()
-			//(intro)
-			rtn = (UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
-				)),str+"$(-:R,-:D):R$") :: rtn
-			//(right apply)
-			rtn = (BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
-				(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-				)),str+"$(-:R,d:D):R$") :: rtn
-			if(seqAlso){
-				rtn = (BinaryRule(Head.F_R, Head.F_RD, Head.Sequence, hack2(
-					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-					)),str+"$(-:R,d:S):R$") :: rtn
-			}
-			//(left apply)
-			rtn = (BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
-				(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-				)), str+"$(-:R,d:D):R$") :: rtn
-			if(seqAlso){
-				rtn = (BinaryRule(Head.F_R, Head.Sequence, Head.F_RD, hack2(
-					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-					)), str+"$(-:R,d:S):R$") :: rtn
-			}
-			//(return)
-			rtn
-		}
 		rtn = rtn ::: rangeDurationFn.foldLeft(List[(Rule,String)]()){ case 
-				(soFar:List[(Rule,String)],
-					(fn:((Range,Duration)=>Range),
-					 str:String,
-					 seqAlso:Boolean)) =>
-			soFar ::: expandFnRD(fn,str,seqAlso)
-		}
+					(soFar:List[(Rule,String)],
+						(fn:((Range,Duration)=>Range),
+						 str:String,
+						 seqAlso:Boolean)) =>
+				//(intro)
+				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
+					)),str+"$(-:R,-:D):R$") :: soFar
+			}  ::: {
+				//(right apply)
+				(BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
+					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+					)),"$f(-:R,d:D):R$") ::
+				(BinaryRule(Head.F_R, Head.F_RD, Head.Sequence, hack2(
+					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+					)),"$f(-:R,d:S):R$") ::
+				//(left apply)
+				(BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
+					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+					)), "$f(-:R,d:D):R$") :: 
+				(BinaryRule(Head.F_R, Head.Sequence, Head.F_RD, hack2(
+					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+					)), "$f(-:R,d:S):R$") :: Nil
+			}
 		
 		//--F[ Range, Range ]
-		def expandFnRR(fn:(Range,Range)=>Range,str:String):List[(Rule,String)] = {
-			var rtn = List[(Rule,String)]()
-			//(intro)
-			rtn = (UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
-				)),str+"$(-:R,-:R):R$") :: rtn
-			//(right apply)
-			rtn = (BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
-				(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
-				)),str+"$(-:R,r:R):R$") :: rtn
-			//(left apply)
-			rtn = (BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
-				(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
-				)), str+"$(-:R,r:R):R$") :: rtn
-			//(return)
-			rtn
-		}
 		val rangeRangeFn = List[((Range,Range)=>Range,String)](
 			(intersect,"intersect"),(cons,"cons"))
 		rtn = rtn ::: rangeRangeFn.foldLeft(List[(Rule,String)]()){ case 
-				(soFar:List[(Rule,String)],
-					(fn:((Range,Range)=>Range),
-					 str:String)) =>
-			soFar ::: expandFnRR(fn,str)
-		}
+					(soFar:List[(Rule,String)],
+						(fn:((Range,Range)=>Range),
+						 str:String)) =>
+				//(intro)
+				(UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
+					)),str+"$(-:R,-:R):R$") :: soFar
+			} ::: {
+				//(right apply)
+				(BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
+					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
+					)),"$f(-:R,r:R):R$") ::
+				//(left apply)
+				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
+					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
+					)), "$f(-:R,r:R):R$") :: Nil
+			}
 		
 		//--F[ Duration, Number ]
 		rtn = rtn ::: List[(Rule,String)](
@@ -296,11 +278,11 @@ object Grammar {
 			//(right apply)
 			(BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
 				(fn:Range=>Range,r:Range) => fn(r)
-				)), "r$_{r,r}$:R"),
+				)), "$f_{r,r}:R$"),
 			//(left apply)
 			(BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
 				(r:Range,fn:Range=>Range) => fn(r)
-				)), "r$_{l,r}$:R")
+				)), "$f_{r,r}:R$")
 			)
 		
 		//--F[ Duration ]
@@ -308,17 +290,17 @@ object Grammar {
 			//(right apply)
 			(BinaryRule(Head.Range, Head.F_D, Head.Duration, hack2(
 				(fn:Duration=>Range,d:Duration) => fn(d)
-				)), "$f_{d}$:R"),
+				)), "$f_{d}:R$"),
 			(BinaryRule(Head.Range, Head.F_D, Head.Sequence, hack2(
 				(fn:Duration=>Range,d:Duration) => fn(d)
-				)), "$f_{s}$:R"),
+				)), "$f_{s}:R$"),
 			//(left apply)
 			(BinaryRule(Head.Range, Head.Duration, Head.F_D, hack2(
 				(d:Duration,fn:Duration=>Range) => fn(d)
-				)), "$f_{d}$:R"),
+				)), "$f_{d}:R$"),
 			(BinaryRule(Head.Range, Head.Sequence, Head.F_D, hack2(
 				(d:Duration,fn:Duration=>Range) => fn(d)
-				)), "$f_{s}$:R")
+				)), "$f_{s}:R$")
 			)
 		
 		//--Type Raises
@@ -326,15 +308,21 @@ object Grammar {
 			//(now augmentation (arity 2))
 			(UnaryRule(Head.F_D, Head.F_RD, hack( 
 				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
-				)),"f(ref:R,-:D):R"),
+				)),"$f(ref:R,-:D):R$"),
+			(UnaryRule(Head.F_R, Head.F_RR, hack( 
+				(f:(Range,Range)=>Range) => f(Range(NOW,NOW),_:Range) 
+				)),"$f(ref:R,-:R):R$"),
+			(UnaryRule(Head.F_R, Head.F_RR, hack( 
+				(f:(Range,Range)=>Range) => f(_:Range,Range(NOW,NOW)) 
+				)),"$f(-:R,ref:R):R$"),
 			//(implicit intersect)
 			(UnaryRule(Head.F_R, Head.Range, hack(
 				(r:Range) => intersect(r,_:Range)
-				)),"intersect(ref:R,-:R):R"),
+				)),"intersect$(ref:R,-:R):R$"),
 			//(sequence grounding)
 			(UnaryRule(Head.Range, Head.Sequence, hack( 
 				(d:Duration) => d(NOW)
-				)),"d:R")
+				)),"$d:R$")
 			)
 
 		//--NIL Identities
@@ -342,24 +330,24 @@ object Grammar {
 			//(range)
 			(BinaryRule(Head.Range, Head.Range, Head.NIL, hack2( 
 				(r:Range,n:NIL) => r
-				)),"r:R"),
+				)),"$r:R$"),
 			(BinaryRule(Head.Range, Head.NIL, Head.Range, hack2( 
 				(n:NIL,r:Range) => r
-				)),"r:R"),
+				)),"$r:R$"),
 			//(duration)
 			(BinaryRule(Head.Duration, Head.Duration, Head.NIL, hack2( 
 				(d:Duration,n:NIL) => d
-				)),"d:D"),
+				)),"$d:D$"),
 			(BinaryRule(Head.Duration, Head.NIL, Head.Duration, hack2( 
 				(n:NIL,d:Duration) => d
-				)),"d:D"),
+				)),"$d:D$"),
 			//(sequence)
 			(BinaryRule(Head.Sequence, Head.Sequence, Head.NIL, hack2( 
 				(d:Duration,n:NIL) => d
-				)),"s:D"),
+				)),"$s:D$"),
 			(BinaryRule(Head.Sequence, Head.NIL, Head.Sequence, hack2( 
 				(n:NIL,d:Duration) => d
-				)),"s:D"),
+				)),"$s:D$"),
 			//(f_range)
 			(BinaryRule(Head.F_R, Head.F_R, Head.NIL, hack2( 
 				(f:Range=>Range,n:NIL) => f
@@ -496,7 +484,13 @@ object ParseConversions {
 // Input / Output
 //-----
 case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
-	def apply(i:Int) = words(i)
+	def apply(i:Int):String = {
+		if(words(i) == G.NUM){
+			nums(i).toString
+		} else {
+			U.w2str(words(i))
+		}
+	}
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
 	def length:Int = words.length
 	override def toString:String = U.sent2str(words)
@@ -577,7 +571,7 @@ trait ParseTree extends Tree[Head.Value] {
 	}
 	//<<Possible Overrides>>
 	def headString:String = head.toString
-	def leafString(sent:Sentence,index:Int):String = U.w2str(sent(index))
+	def leafString(sent:Sentence,index:Int):String = sent(index)
 	def maxDepth:Int = throw fail() //TODO implement something reasonable here
 	//<<Overrides>>
 	override def children:Array[ParseTree]
@@ -589,13 +583,10 @@ trait ParseTree extends Tree[Head.Value] {
 // Parse
 //-----
 case class Parse(range:Range,duration:Duration,fn:Range=>Range){
-	private def diff(a:Time, b:Time, ground:Time) = {
-		val shouldGround = !a.isGrounded || !b.isGrounded
-		val grndA = if(shouldGround && !a.isGrounded){ a(ground) } else { a }
-		val grndB = if(shouldGround && !b.isGrounded){ b(ground) } else { b }
-//		println("  grounded? " + a.isGrounded + "  " + b.isGrounded)
-//		println("  diff " + (grndB-grndA))
-		grndB-grndA
+	private def diff(a:Time, b:Time) = {
+		assert(a.isGrounded, "Time is not grounded: " + a)
+		assert(b.isGrounded, "Time is not grounded: " + b)
+		b - a
 	}
 	def value:Any = {
 		if(range != null){
@@ -610,7 +601,7 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	}
 	def ground(ground:Time) = {
 		if(fn != null) {
-			fn(Range(ground,ground))
+			fn(ALL_TIME)
 		} else if(duration != null) {
 			if(duration.isGroundable){
 				assert(duration(ground) != null, "Returning null grounding")
@@ -621,42 +612,59 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 			}
 		} else if(range != null) {
 			assert(range(ground) != null, "Returning null grounding")
-			range(ground)
+			if(range.isGrounded){
+				range
+			} else {
+				range(ground)
+			}
 		} else {
 			throw new IllegalStateException("Bad parse")
+		}
+	}
+	def groundToRange(ground:Time):Range = {
+		this.ground(ground) match {
+			case (r:Range) => r
+			case _ => 
+				throw new IllegalStateException("Not groundable to range: " + value)
 		}
 	}
 	def unkDiff(gold:UNK):(Duration,Duration) = {
 		(Duration.INFINITE, Duration.INFINITE)
 	}
-	private def rangeDiff(gold:Range, guess:Range, ground:Time)
+	private def rangeDiff(goldArg:Range, guessArg:Range, ground:Time)
 			:(Duration,Duration) = {
-//		println("Range Diff: " + guess + "  " + gold)
 		//(asserts)
-		assert(gold != null, "gold is null")
-		assert(guess != null, "guess is null")
+		assert(goldArg != null, "gold is null")
+		assert(guessArg != null, "guess is null")
+		//(ground)
+		val goldGrnd:Range = goldArg(ground)
+		val guessGrnd:Range = guessArg(ground)
+		assert(goldGrnd.isGrounded, "Gold did not ground properly")
+		assert(guessGrnd.isGrounded, "Guess did not ground properly")
 		//(modifications)
-		val modGold:Range = if(O.instantAsDay && gold.norm.seconds == 0){
-				Range(gold.begin, gold.end+DAY)
-			} else {
-				gold
-			}
+		val guess:Range = guessGrnd
+		val gold:Range 
+			= if(O.instantAsDay && goldGrnd.norm.seconds == 0 && guess.norm != 0){
+					val begin:Time = new Time(goldGrnd.begin.base.withMillisOfDay(0))
+					Range(begin, begin+DAY)
+				} else {
+					goldGrnd
+				}
+		//(check for invalid ranges)
+		assert(gold.begin.base.compareTo(gold.end.base) <= 0,
+			"Gold ends before it begins")
+		if(guess.begin.base.compareTo(guess.end.base) > 0){
+			(Duration.INFINITE, Duration.INFINITE) //malformed range
+		}
 		//(score)
-//		println("  guess: " + guess)
-//		println("    begin: " + guess.begin)
-//		println("    end:   " + guess.end)
-//		println("  new gold: " + modGold)
-//		println("    begin: " + modGold.begin)
-//		println("    end:   " + modGold.end)
-		( diff(modGold.begin, guess.begin, ground),
-			diff(modGold.end, guess.end, ground) )
+		( diff(gold.begin, guess.begin),
+			diff(gold.end, guess.end) )
 	}
 	def rangeDiff(gold:Range, ground:Time):(Duration,Duration) = {
 		if(range != null){
-			rangeDiff(gold, range, ground)
+			rangeDiff(gold,this.groundToRange(ground),ground)
 		} else if(fn != null){
-			val grounding = Range(Time.DAWN_OF, Time.END_OF)
-			rangeDiff(gold, fn(grounding), ground)
+			rangeDiff(gold,this.groundToRange(ground),ground)
 		} else if(duration != null){
 			(Duration.INFINITE, Duration.INFINITE)
 		} else {
@@ -667,12 +675,11 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 		rangeDiff(Range(gold,gold), ground)
 	}
 	def fnDiff(gold:Range=>Range, ground:Time):(Duration,Duration) = {
-		val grounding = Range(Time.DAWN_OF, Time.END_OF)
-		val groundedGold:Range = gold(grounding)
+		val groundedGold = Parse(gold).groundToRange(ground)
 		if(range != null){
 			rangeDiff(groundedGold, range, ground)
 		} else if(fn != null){
-			rangeDiff(groundedGold, fn(grounding), ground)
+			rangeDiff(groundedGold, this.groundToRange(ground), ground)
 		} else if(duration != null){
 			(Duration.INFINITE, Duration.INFINITE)
 		} else {
@@ -682,8 +689,6 @@ case class Parse(range:Range,duration:Duration,fn:Range=>Range){
 	def durationDiff(gold:Duration, ground:Time):(Duration,Duration) = {
 		if(duration != null){
 			(Duration(0),Duration((duration-gold).seconds))
-//			rangeDiff(Range(NOW, NOW+gold.flatten), //April and Year are same
-//				Range(NOW, NOW+duration.flatten), ground)
 		} else if(range != null){
 			(Duration.INFINITE, Duration.INFINITE)
 		} else if(fn != null){
@@ -973,6 +978,7 @@ object CKYParser {
 		var feedback:Feedback=null
 		def feedback(f:Feedback):GuessInfo = { feedback=f; this }
 		def parseVal:Parse = Parse(Head.ROOT,parse.evaluate(sent)._2)
+		def isFailedParse:Boolean = { parse == null }
 	}
 	private var corrects = List[GuessInfo]()
 	private var guesses = List[GuessInfo]()
@@ -1190,7 +1196,7 @@ object CKYParser {
 				},
 				(rid:Int,w:Int) => {
 					b.append("( ").append(clean(Grammar.RULES_STR(rid))).append(" ").
-						append(clean(U.w2str(sent.words(w)))).append(" ) ")
+						append(clean(sent(w))).append(" ) ")
 				},
 				() => {
 					b.append(") ")
@@ -2005,18 +2011,26 @@ class CKYParser extends StandardParser{
 			val b = new StringBuilder
 			b.append(Const.START_PRESENTATION("Results"))
 			guesses.sortBy( _.sid ).foreach{ (g:GuessInfo) =>
-				assert(g.feedback != null, "No feedback stored with " + g)
-				assert(g.feedback.grounding != null, "No grounding stored with " + g)
-				if(Parse(Head.ROOT,g.feedback.ref) != null){
-					b.append(Const.SLIDE(
-							id=g.sid, correct=g.correct, tree=g.parse.asParseString(g.sent),
-							guess=g.parseVal.ground(g.feedback.grounding).toString,
-							gold=Parse(Head.ROOT,g.feedback.ref)
-								.ground(g.feedback.grounding).toString,
-							ground=g.feedback.grounding.toString
-						))
+				val ref = if(g.feedback == null) null else g.feedback.ref
+				if(g.isFailedParse){
+					//(case: no parses for sentence)
+					b.append(Const.AUTO_MISS(g.sid,g.sent,ref))
 				} else {
-					b.append(Const.AUTO_MISS(g.sid))
+					if(Parse(Head.ROOT,g.feedback.ref) != null){
+						assert(g.feedback != null, "No feedback stored with " + g)
+						assert(g.feedback.grounding != null, "No grounding stored with "+g)
+						//(case: parsed sentence)
+						b.append(Const.SLIDE(
+								id=g.sid, correct=g.correct, tree=g.parse.asParseString(g.sent),
+								guess=g.parseVal.ground(g.feedback.grounding).toString,
+								gold=Parse(Head.ROOT,g.feedback.ref)
+									.ground(g.feedback.grounding).toString,
+								ground=g.feedback.grounding.toString
+							))
+					} else {
+						//(case: sentence is UNK)
+						b.append(Const.AUTO_MISS(g.sid,g.sent,ref))
+					}
 				}
 			}
 			b.append(Const.END_PRESENTATION)
@@ -2285,12 +2299,16 @@ class CKYParser extends StandardParser{
 		val b = new StringBuilder //debug start
 		b.append(Const.START_PRESENTATION("Correct Parses, sid " + identifier))
 		//--Return / Feedback
+		//(add 'no result' guess)
+		guesses = GuessInfo(identifier,null,Double.NaN,sent).wrong :: guesses
+		//(return)
 		val rtn = (	parses, 
 			(feedback:Feedback) => {
 				//(best guess)
 				val (head,parse,score) = scored(0)
 				val guess = GuessInfo(identifier,trees(0),score,sent).feedback(feedback)
-				guesses = {if(feedback.isCorrect) guess else guess.wrong} :: guesses
+				guesses = {if(feedback.isCorrect) guess else guess.wrong} ::
+					guesses.tail //note: tail to remove 'no result' guess
 				//(update)
 				def update(index:Int) = {
 					val incr:Double = if(O.hardEM) 1.0 else math.exp(scored(index)._3)
