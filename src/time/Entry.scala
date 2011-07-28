@@ -108,6 +108,7 @@ object U {
 	}
 
 	def rand:Double = G.random.nextDouble
+	def randInt(begin:Int,end:Int):Int = G.random.nextInt(end-begin)+begin
 
 	private val isInt = """^(\-?[0-9]+)$""".r
 	private val canInt = """^(\-?[0-9]+\.0+)$""".r

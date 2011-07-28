@@ -121,11 +121,10 @@ case class Range(begin:Time, end:Time) {
 		}
 	}
 	def ~(o:Any):Boolean = {
-		if(o.isInstanceOf[Range]){
-			val other:Range = o.asInstanceOf[Range]
-			return (this.begin ~ other.begin) && (this.end ~ other.end)
+		o match {
+			case (r:Range) => (this.begin ~ r.begin) && (this.end ~ r.end)
+			case _ => false
 		}
-		return false
 	}
 	override def equals(o:Any):Boolean = {
 		if(o.isInstanceOf[Range]){
@@ -200,17 +199,10 @@ class Duration(val p:ReadablePeriod,private val groundFn:Time=>Range) {
 	def <(other:Duration) = this.seconds < other.seconds
 	def >(other:Duration) = this.seconds > other.seconds
 	def ~(o:Any):Boolean = {
-		val other:Duration = if(o.isInstanceOf[ReadablePeriod]){
-				new Duration(o.asInstanceOf[ReadablePeriod])
-			} else if(o.isInstanceOf[Duration]){
-				o.asInstanceOf[Duration]
-			} else{
-				null
-			}
-		if(other == null){ 
-			return false;
-		} else{
-			return this.p.seconds == other.p.seconds
+		o match {
+			case (rp:ReadablePeriod) => rp.seconds == this.p.seconds
+			case (d:Duration) => d.p.seconds == this.p.seconds
+			case _ => false
 		}
 	}
 	override def equals(o:Any):Boolean = {
@@ -422,22 +414,20 @@ case class Time(base:DateTime, offset:Duration, modifiers:List[Time=>Time]) {
 	def typeTag:Symbol = 'Time
 
 	def ~(o:Any):Boolean = {
-		if(o.isInstanceOf[Time] || o.isInstanceOf[DateTime]){
-			val other:Time = o.asInstanceOf[Time]
-			if(this.isGrounded && other.isGrounded) {
-				//(case: both grounded)
-				return this.ground.getMillis == other.ground.getMillis
-			} else if(!this.isGrounded && !other.isGrounded) {
-				//(case: both ungrounded)
-				val thisOffset:Duration 
-					= if(this.offset==null) Period.ZERO else this.offset
-				val otherOffset:Duration 
-					= if(other.offset==null) Period.ZERO else other.offset
-				return (thisOffset-otherOffset).seconds == 0 &&
-					Time.probablyEqual(this.modifiers,other.modifiers)
-			}
+		o match {
+			case (dt:DateTime) => this ~ new Time(dt)
+			case (t:Time) =>
+				if(this.isGrounded && t.isGrounded){
+					//(case: both grounded)
+					this.ground.getMillis == t.ground.getMillis
+				} else {
+					//(case: something ungrounded)
+					(0 until 100).map{ i => Time.RANDOM }.forall{ (ground:Time) =>
+						this(ground).ground.getMillis == t(ground).ground.getMillis
+					}
+				}
+			case _ => false
 		}
-		return false
 	}
 	override def equals(o:Any):Boolean = {
 		if(o.isInstanceOf[Time] || o.isInstanceOf[DateTime]){
@@ -628,6 +618,15 @@ object Duration {
 object Time {
 	val DAWN_OF = new Time(new DateTime(Long.MinValue), null, null)
 	val END_OF = new Time(new DateTime(Long.MaxValue), null, null)
+	def RANDOM = Time(
+		U.randInt(1990,2012),
+		U.randInt(1,13),
+		U.randInt(1,27),
+		U.randInt(0,24),
+		U.randInt(0,60),
+		U.randInt(0,60))
+
+
 
 	def apply(base:DateTime) = new Time(base, null, null)
 	def apply(base:DateTime, offset:Duration) = new Time(base, offset, null)
