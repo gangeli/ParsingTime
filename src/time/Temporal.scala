@@ -2,19 +2,87 @@ package time
 
 import org.joda.time._
 
+//------------------------------------------------------------------------------
+// TEMPORAL
+//------------------------------------------------------------------------------
 trait Temporal {
-	def distribution(ground:Time):Iterable[(Temporal,Double)]
+	def apply(offset:Int):Time=>Temporal
+	def prob(offset:Int):Double
+	def exists(offset:Int):Boolean = (offset == 0)
 
-	def apply(ground:Time):Temporal = {
-		val arr = distribution(ground).map{ _._1 }.toArray
-		if(arr.length > 0){ arr(0) } else { new NoTime }
+
+	final def forwardIterator(ground:Time):BufferedIterator[Temporal] = {
+		var rightPointer:Int = 0;
+		new Iterator[Temporal]{
+			def hasNext:Boolean = Temporal.this.exists(rightPointer)
+			def next:Temporal = {
+				val rtn = apply(rightPointer)(ground); rightPointer += 1; rtn
+			}
+		}.buffered
 	}
+	final def backwardIterator(ground:Time):BufferedIterator[Temporal] = {
+		var leftPointer:Int = -1;
+		new Iterator[Temporal]{
+			def hasNext:Boolean = Temporal.this.exists(leftPointer)
+			def next:Temporal = {
+				val rtn = apply(leftPointer)(ground); leftPointer -= 1; rtn
+			}
+		}.buffered
+	}
+	final def distribution(ground:Time):Iterable[(Temporal,Double)] = {
+		var leftPointer = 0;
+		var rightPointer = 0;
+		new Iterable[(Temporal,Double)]{
+			def iterator:Iterator[(Temporal,Double)]=new Iterator[(Temporal,Double)]{
+				def hasNext:Boolean= prob(leftPointer) > 0.0 || prob(rightPointer) > 0.0
+				def next:(Temporal,Double) = {
+					val pLeft = prob(leftPointer)
+					val pRight = prob(rightPointer)
+					if(pLeft > pRight){
+						val rtn = apply(leftPointer)(ground);leftPointer -= 1;(rtn,pLeft)
+					} else {
+						val rtn = apply(rightPointer)(ground);rightPointer += 1;(rtn,pRight)
+					}
+				}
+			}
+		}
+	}
+	final def apply(ground:Time):Temporal = apply(0)(ground)
+
 }
 
-class NoTime extends Temporal {
-	def distribution(ground:Time):Iterable[(Temporal,Double)]
-		= Array[(Temporal,Double)]()
+object Temporal {
+	var reader:scala.tools.nsc.interpreter.JLineReader = null
+	var interpreter:scala.tools.nsc.interpreter.IMain = null
+	def interactive = {
+		import scala.tools.nsc.interpreter.{IMain,JLineReader,JLineCompletion}
+		import scala.tools.nsc.Settings
+		//--Create Interpreter
+		println("Loading interpreter...")
+		if(reader == null){
+			//(objects)
+			val settings = new Settings
+			settings.usejavacp.value = true
+			interpreter = new IMain(settings)
+			//(initialize)
+			interpreter.interpret("import time._")
+			interpreter.interpret("import time.Lex._")
+			interpreter.interpret("val ground = Time(2011,4,26)")
+			interpreter.interpret(
+				"org.joda.time.DateTimeZone.setDefault(org.joda.time.DateTimeZone.UTC);"
+			)
+			reader = new JLineReader(new JLineCompletion(interpreter))
+		}
+		//--Loop
+		var cond = true
+		while(cond){
+			val str = reader.readLine("scala> ")
+			interpreter.interpret(str)
+		}
+	}
+
 }
+
 
 //------------------------------------------------------------------------------
 // RANGE
@@ -27,108 +95,106 @@ trait Range extends Temporal{
 	def >|(diff:Duration):Range //shirnk to right
 	def |<(diff:Duration):Range //shrink to left
 
-	private def cross(
-			iterableA:Iterable[(Temporal,Double)],
-			iterableB:Iterable[(Temporal,Double)],
-			fn:(GroundedRange,GroundedRange)=>(Boolean,GroundedRange) 
-			):Iterable[(GroundedRange,Double)] = {
-		//(to list)
-		def iter2lst(iter:Iterator[(Temporal,Double)]):List[(Temporal,Double)] = {
-			var cont = true
-			var lst = List[(Temporal,Double)]()
-			while(iter.hasNext && cont){ 
-				val term = iter.next
-				if(term._2 == 0.0){ 
-					cont = false
-				} else {
-					lst = term :: lst
-				}
-			}
-			lst.reverse
-		}
-		val lstA = iter2lst(iterableA.iterator)
-		val lstB = iter2lst(iterableB.iterator)
-		//(cross proudct)
-		lstA.foldLeft(List[(GroundedRange,Double)]()){ 
-					(soFar:List[(GroundedRange,Double)],termA:(Temporal,Double)) =>
-			lstB.map{ (termB:(Temporal,Double)) => 
-				(termA,termB) match {
-					case ((a:GroundedRange,aS:Double),(b:GroundedRange,bS:Double)) => 
-						(fn(a,b),aS*bS)
-					case _ => throw new TimeException("Type error: "+termA+" and "+termB)
-				}
-			}.filter{ case ((ok:Boolean,r:GroundedRange),s:Double) => ok 
-			}.map{ case ((ok:Boolean,r:GroundedRange),s:Double) => (r,s) 
-			} ::: soFar
-		}.toArray.sortBy( - _._2 )
+//	private def cross(
+//			iterableA:Iterable[(Temporal,Double)],
+//			iterableB:Iterable[(Temporal,Double)],
+//			fn:(GroundedRange,GroundedRange)=>(Boolean,GroundedRange) 
+//			):Iterable[(GroundedRange,Double)] = {
+//		//(to list)
+//		def iter2lst(iter:Iterator[(Temporal,Double)]):List[(Temporal,Double)] = {
+//			var cont = true
+//			var lst = List[(Temporal,Double)]()
+//			while(iter.hasNext && cont){ 
+//				val term = iter.next
+//				if(term._2 == 0.0){ 
+//					cont = false
+//				} else {
+//					lst = term :: lst
+//				}
+//			}
+//			lst.reverse
+//		}
+//		val lstA = iter2lst(iterableA.iterator)
+//		val lstB = iter2lst(iterableB.iterator)
+//		//(cross proudct)
+//		lstA.foldLeft(List[(GroundedRange,Double)]()){ 
+//					(soFar:List[(GroundedRange,Double)],termA:(Temporal,Double)) =>
+//			lstB.map{ (termB:(Temporal,Double)) => 
+//				(termA,termB) match {
+//					case ((a:GroundedRange,aS:Double),(b:GroundedRange,bS:Double)) => 
+//						(fn(a,b),aS*bS)
+//					case _ => throw new TimeException("Type error: "+termA+" and "+termB)
+//				}
+//			}.filter{ case ((ok:Boolean,r:GroundedRange),s:Double) => ok 
+//			}.map{ case ((ok:Boolean,r:GroundedRange),s:Double) => (r,s) 
+//			} ::: soFar
+//		}.toArray.sortBy( - _._2 )
+//	}
+//
+//	def cons(other:Range):Range = {
+//		new CompositeRange( (ground:Time) => {
+//			val left:Iterable[(Temporal,Double)] = this.distribution(ground)
+//			val right:Iterable[(Temporal,Double)] = other.distribution(ground)
+//			cross(left,right, (t1:GroundedRange,t2:GroundedRange) => {
+//					( !(t2.end < t1.begin), new GroundedRange(t1.begin,t2.end) )
+//				})
+//		} )
+//	}
+//	def ^(other:Range):Range = {
+//		def mkBegin(a:Time,b:Time) = if(a.base.compareTo(b.base) > 0) a else b
+//		def mkEnd(a:Time,b:Time) = if(a.base.compareTo(b.base) < 0) a else b
+//		new CompositeRange( (ground:Time) => {
+//			val left:Iterable[(Temporal,Double)] = this.distribution(ground)
+//			val right:Iterable[(Temporal,Double)] = other.distribution(ground)
+//			cross(left,right, (t1:GroundedRange,t2:GroundedRange) => {
+//					val cand:GroundedRange = new GroundedRange(
+//						mkBegin(t1.begin,t2.begin),
+//						mkEnd(t1.end,t2.end) )
+//					( !(cand.end < cand.begin), cand )
+//				})
+//		} )
+//	}
+	def ^(other:Range):Range = {
+		
 	}
 
-	def cons(other:Range):Range = {
-		new CompositeRange( (ground:Time) => {
-			val left:Iterable[(Temporal,Double)] = this.distribution(ground)
-			val right:Iterable[(Temporal,Double)] = other.distribution(ground)
-			cross(left,right, (t1:GroundedRange,t2:GroundedRange) => {
-					( !(t2.end < t1.begin), new GroundedRange(t1.begin,t2.end) )
-				})
-		} )
-	}
-	def ^(other:Range):Range = { //TODO naive and wrong
-		def mkBegin(a:Time,b:Time) = if(a.base.compareTo(b.base) > 0) a else b
-		def mkEnd(a:Time,b:Time) = if(a.base.compareTo(b.base) < 0) a else b
-		new CompositeRange( (ground:Time) => {
-			val left:Iterable[(Temporal,Double)] = this.distribution(ground)
-			val right:Iterable[(Temporal,Double)] = other.distribution(ground)
-			cross(left,right, (t1:GroundedRange,t2:GroundedRange) => {
-					val cand:GroundedRange = new GroundedRange(
-						mkBegin(t1.begin,t2.begin),
-						mkEnd(t1.end,t2.end) )
-					( !(cand.end < cand.begin), cand )
-				})
-		} )
-	}
-
-	def ground(t:Time):Range = {
-		distribution(t).head match {
-			case (r:Range,score:Double) => 
-				assert(score == 1.0, "Range is not a singleton")
-				r
-			case _ => throw new TimeException("Not groundable: " + this)
-		}
-	}
 }
 
-class CompositeRange( groundFn:Time=>Iterable[(GroundedRange,Double)] 
-		) extends Range {
-	
-	override def distribution(ground:Time):Iterable[(Temporal,Double)] 
-		= groundFn(ground)
-
-	override def >>(diff:Duration):Range = extend( _ >> diff )
-	override def <<(diff:Duration):Range = extend( _ << diff )
-	override def |>(diff:Duration):Range = extend( _ |> diff )
-	override def <|(diff:Duration):Range = extend( _ <| diff )
-	override def >|(diff:Duration):Range = extend( _ >| diff )
-	override def |<(diff:Duration):Range = extend( _ |< diff )
-
-	private def extend(fn:Range=>Range) = {
-		new CompositeRange( (ground:Time) => {
-			groundFn(ground).map{ case (t:GroundedRange,s:Double) => 
-				fn(t) match {
-					case (r:GroundedRange) => (r,s)
-					case _ => throw new TimeException("Should be grounded range: "+fn(t))
-				}
-			}
-		})
-	}
-	
-	override def equals(o:Any):Boolean = this == o
-	override def toString:String = "CompositeRange"
-	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
-}
+//class CompositeRange( groundFn:Time=>Iterable[(GroundedRange,Double)] 
+//		) extends Range {
+//	
+//	override def distribution(ground:Time):Iterable[(Temporal,Double)] 
+//		= groundFn(ground)
+//
+//	override def >>(diff:Duration):Range = extend( _ >> diff )
+//	override def <<(diff:Duration):Range = extend( _ << diff )
+//	override def |>(diff:Duration):Range = extend( _ |> diff )
+//	override def <|(diff:Duration):Range = extend( _ <| diff )
+//	override def >|(diff:Duration):Range = extend( _ >| diff )
+//	override def |<(diff:Duration):Range = extend( _ |< diff )
+//
+//	private def extend(fn:Range=>Range) = {
+//		new CompositeRange( (ground:Time) => {
+//			groundFn(ground).map{ case (t:GroundedRange,s:Double) => 
+//				fn(t) match {
+//					case (r:GroundedRange) => (r,s)
+//					case _ => throw new TimeException("Should be grounded range: "+fn(t))
+//				}
+//			}
+//		})
+//	}
+//	
+//	override def equals(o:Any):Boolean = this == o
+//	override def toString:String = "CompositeRange"
+//	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
+//}
 
 class GroundedRange(val begin:Time,val end:Time) extends Range {
-	override def distribution(ground:Time):Iterable[(Temporal,Double)]
-		= Array[(Temporal,Double)]( (this,1.0) )
+	override def apply(offset:Int):Time=>Temporal = {
+		if(offset == 0){ (t:Time) => this }
+		else{throw new TimeException("GroundedRange given nonzero offset: "+offset)}
+	}
+	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
 
 	
 	override def >>(diff:Duration):Range = new GroundedRange(begin+diff,end+diff)
@@ -153,11 +219,16 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 
 class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 		) extends Range{
-	override def distribution(ground:Time):Iterable[(Temporal,Double)] = {
-		Array[(Temporal,Double)]( 
-			(new GroundedRange(ground+beginOffset,ground+beginOffset+normVal),1.0) 
-		)
+	override def apply(offset:Int) = {
+		if(offset == 0){ 
+			(ground:Time) =>
+				new GroundedRange(ground+beginOffset,ground+beginOffset+normVal)
+		} else{
+			throw new TimeException("UngroundedRange given nonzero offset: "+offset)
+		}
 	}
+	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
+
 	override def >>(diff:Duration):Range 
 		= new UngroundedRange(normVal,beginOffset+diff)
 
@@ -194,15 +265,75 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 object Range {
 	def apply(begin:Time,end:Time) = new GroundedRange(begin,end)
 	def apply(norm:Duration) = new UngroundedRange(norm,Duration.ZERO)
+	
+	def intersect(a:Iterable[GroundedRange],b:Iterable[GroundedRange]
+			):Iterable[GroundedRange] = {
+		def mkBegin(a:Time,b:Time) = if(a < b) b else a
+	  def mkEnd(a:Time,b:Time) = if(a < b) a else b
+		def mkNext(
+				vA:GroundedRange,a:BufferedIterator[GroundedRange],
+				vB:GroundedRange,b:BufferedIterator[GroundedRange]
+				):(GroundedRange,(GroundedRange,GroundedRange)) = {
+			if(vA==null || vB==null){
+				//(case: an iterator is empty)
+				null
+			} else if(vA.end < vB.begin) {
+				//(case: A is behind)
+				if(a.hasNext){ mkNext(a.next,a,vB,b) } else { null }
+			} else if(vB.end < vA.begin){
+				//(case: B is behind)
+				if(b.hasNext){ mkNext(vA,a,b.next,b) } else { null }
+			} else {
+				//(case: overlap)
+				val rtn = new GroundedRange(
+						mkBegin(vA.begin,vB.begin),
+						mkEnd(vA.end,vB.end)
+					)
+				//(update iterator)
+				if(a.hasNext && !(a.head.begin > vB.end)){
+					//(case: A can jump again)
+					(rtn,(a.next,vB))
+				} else {
+					//(case: B can either jump, or we jump it anyways)
+					(rtn,(vA,b.next))
+				}
+			}
+		}
+		new Iterable[GroundedRange]{
+			def iterator:Iterator[GroundedRange] = {
+				new Iterator[GroundedRange]{
+					private val iterA = a.iterator.buffered
+					private val iterB = b.iterator.buffered
+					private var (theNext,(headA,headB))
+						:(GroundedRange,(GroundedRange,GroundedRange))
+						= if(iterA.hasNext && iterB.hasNext){
+								mkNext(iterA.next,iterA,iterB.next,iterB)
+							} else {
+								(null,(null,null))
+							}
+					override def hasNext:Boolean = theNext != null
+					override def next:GroundedRange = {
+						if(theNext == null){ throw new NoSuchElementException }
+						val rtn=theNext 
+						val (n,(vA,vB)) = mkNext(headA,iterA,headB,iterB)
+						theNext = n; headA = vA; headB = vB;
+						rtn
+					}
+				}
+			}
+		}
+	}
 }
 
 //------------------------------------------------------------------------------
 // DURATION
 //------------------------------------------------------------------------------
 trait Duration extends Temporal {
-	override def distribution(ground:Time):Iterable[(Temporal,Double)] = {
-		Array[(Temporal,Double)]( (this,1.0) )
+	override def apply(offset:Int):Time=>Temporal = {
+		if(offset == 0){ (t:Time) => this }
+		else{ throw new TimeException("Duration given nonzero offset: "+offset) }
 	}
+	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
 
 	def interval:GroundedDuration
 	def seconds:Long
@@ -269,18 +400,26 @@ object Duration {
 // SEQUENCE
 //------------------------------------------------------------------------------
 trait Sequence extends Range with Duration {
+	override def exists(offset:Int) = true
 }
 
 class RepeatedRange(snapFn:Time=>Time,base:Range,interv:Duration
 		) extends Sequence {
 	
-	override def distribution(ground:Time):Iterable[(Temporal,Double)] = {
-		val snap:Time = snapFn(ground)
-		val cannonical:Range = base match {
-			case (r:{def norm:Duration}) => new GroundedRange(snap,snap+r.norm)
+	override def apply(offset:Int):Time=>Temporal = (ground:Time) => {
+		val begin:Time = snapFn(ground)+interv*offset
+		base match {
+			case (r:{def norm:Duration}) => 
+				new GroundedRange(begin,begin+r.norm)
 			case _ => throw new TimeException("Not normable: " + base)
 		}
-		Array[(Temporal,Double)]( (cannonical,1.0) ) //TODO non-cannonical versions
+	}
+	override def prob(offset:Int):Double = {
+		offset match {
+			case 0 => 0.8
+			case -1 => 0.2
+			case _ => 0.0
+		}
 	}
 
 	def >>(diff:Duration):Range = new RepeatedRange(snapFn, base >> diff,interv)
@@ -416,7 +555,7 @@ object Time {
 
 
 //------------------------------------------------------------------------------
-// GLOBAL
+// MISC
 //------------------------------------------------------------------------------
 class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
 	def this() = this("",null)
@@ -424,7 +563,16 @@ class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
 	def this(e:Throwable) = this(null,e)
 }
 
+class NoTime extends Temporal {
+	def apply(offset:Int) = (ground:Time) => this
+	def prob(offset:Int) = 0.0
+}
 
+
+
+//------------------------------------------------------------------------------
+// LEX
+//------------------------------------------------------------------------------
 object Lex {
 	object LexUtil {
 		def dow(iArg:Int):Time=>Time = (t:Time) => {
@@ -527,40 +675,9 @@ object Lex {
 	val catRight:(Range,Duration)=>Range = _ |> _
 	val shrinkBegin:(Range,Duration)=>Range = _ |< _
 	val shrinkEnd:(Range,Duration)=>Range = _ >| _
-	val intersect:(Range,Range)=>Range = _ ^ _
-	val cons:(Range,Range)=>Range = _.cons(_)
+//	val intersect:(Range,Range)=>Range = _ ^ _ //TODO
+//	val cons:(Range,Range)=>Range = _.cons(_)
 
 	def todaysDate:Time = Time((new DateTime).withMillisOfDay(0))
 }
 
-object Temporal {
-	var reader:scala.tools.nsc.interpreter.JLineReader = null
-	var interpreter:scala.tools.nsc.interpreter.IMain = null
-	def interactive = {
-		import scala.tools.nsc.interpreter.{IMain,JLineReader,JLineCompletion}
-		import scala.tools.nsc.Settings
-		//--Create Interpreter
-		println("Loading interpreter...")
-		if(reader == null){
-			//(objects)
-			val settings = new Settings
-			settings.usejavacp.value = true
-			interpreter = new IMain(settings)
-			//(initialize)
-			interpreter.interpret("import time._")
-			interpreter.interpret("import time.Lex._")
-			interpreter.interpret("val ground = Time(2011,4,26)")
-			interpreter.interpret(
-				"org.joda.time.DateTimeZone.setDefault(org.joda.time.DateTimeZone.UTC);"
-			)
-			reader = new JLineReader(new JLineCompletion(interpreter))
-		}
-		//--Loop
-		var cond = true
-		while(cond){
-			val str = reader.readLine("scala> ")
-			interpreter.interpret(str)
-		}
-	}
-
-}
