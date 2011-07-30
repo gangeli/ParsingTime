@@ -9,8 +9,6 @@ import org.joda.time.DateTimeZone
 import org.goobs.database._
 import org.goobs.exec.Log._
 
-import Conversions._
-
 object Timebank {
 	
 }
@@ -29,7 +27,7 @@ class TimebankDocument extends org.goobs.testing.Datum{
 	var sentences:Array[TimebankSentence] = null
 	
 	def init:Unit = { refreshLinks; quickSort(sentences); }
-	def grounding:Time = new Time(new DateTime(pubTime.trim),null,null)
+	def grounding:Time = Time(new DateTime(pubTime.trim))
 
 	override def getID = fid
 	override def toString:String = filename
@@ -194,9 +192,9 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 					//(case: instant time)
 					assert(timeVal.length == 2, "Instant has one element")
 					if(timeVal(1).trim == "NOW"){
-						new Time(null,null,null)
+						Range(Duration.ZERO)
 					} else {
-						new Time(new DateTime(timeVal(1).trim),null,null)
+						Range(new DateTime(timeVal(1).trim))
 					}
 				}
 				case "RANGE" => {
@@ -209,25 +207,21 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 						if(begin == "x") assert(end == "NOW", "assumption")
 						if(end == "x") assert(begin == "NOW", "assumption")
 						if(begin == "x"){
-							(r:Range) => Range(r.begin,Time(null,null,null))
+							(r:Range) => r cons Lex.REF
 						} else if(end == "x"){
-							(r:Range) => Range(Time(null,null,null), r.end)
+							(r:Range) => Lex.REF cons r
 						} else {
 							throw fail("Should not reach here")
 						}
 					} else {
 						//(case: normal range)
-						Range(
-							{if(begin == "NOW") new Time(null,null,null) 
-								else new Time(new DateTime(begin),null,null)},
-							{if(end == "NOW") new Time(null,null,null) 
-								else new Time(new DateTime(end),null,null)} )
+						Range( new DateTime(begin), new DateTime(end) )
 					}
 				}
 				case "PERIOD" => {
 					assert(timeVal.length == 8, "Period has 4 elements")
 					//(case: duration)
-					new Duration(new Period(
+					Duration(new Period(
 						Integer.parseInt(timeVal(1)),
 						Integer.parseInt(timeVal(2)),
 						Integer.parseInt(timeVal(3)),

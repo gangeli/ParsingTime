@@ -301,7 +301,14 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 // ----- OBJECT RANGE -----
 object Range {
 	def apply(begin:Time,end:Time) = new GroundedRange(begin,end)
+	def apply(begin:Time) = new GroundedRange(begin,begin)
+	def apply(begin:DateTime,end:DateTime) 
+		= new GroundedRange(Time(begin),Time(end))
+	def apply(begin:DateTime) 
+		= new GroundedRange(Time(begin),Time(begin))
+	def apply(begin:Range,end:Range) = begin cons end
 	def apply(norm:Duration) = new UngroundedRange(norm,Duration.ZERO)
+	def apply(norm:Period) = new UngroundedRange(Duration(norm),Duration.ZERO)
 
 	def iter2apply(iter:Iterator[(GroundedRange,Int,Int)]
 			):(Int=>GroundedRange,Int=>(Int,Int),Int=>Boolean) = {
@@ -754,9 +761,10 @@ object Lex {
 	val WEEK:Duration = new GroundedDuration(Weeks.ONE)
 	val MONTH:Duration = new GroundedDuration(Months.ONE)
 	val QUARTER:Duration = new GroundedDuration(Months.THREE)
-	val YEAR:Duration = new GroundedDuration(Years.ONE)
+	val AYEAR:Duration = new GroundedDuration(Years.ONE)
 	//--Misc
 	val TODAY:Range = Range(DAY)
+	val REF:Range = Range(Duration.ZERO)
 	val ALL_Time:Range = Range(Time.DAWN_OF,Time.END_OF)
 	//--Day of Week
 	private def mkDOW(i:Int) = new RepeatedRange(
@@ -795,7 +803,7 @@ object Lex {
 		LexUtil.yoc(i), 
 		Range(Duration(Years.ONE)), 
 		Duration(Years.years(100)))
-	def YEAR(i:Int) = Range(Time(i),Time(i+1))
+	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
 	

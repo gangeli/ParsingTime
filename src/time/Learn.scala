@@ -5,7 +5,6 @@ import scala.collection.mutable.PriorityQueue
 import scala.collection.mutable.HashSet
 
 import Lex._
-import Conversions._
 import ParseConversions._
 
 import org.goobs.exec.Log._
@@ -157,8 +156,8 @@ object Grammar {
 		var rtn = List[(Rule,String)]()
 		//--Lex
 		//(times)
-		val times = List[(Time,String)]((NOW,"REF:T"))
-		rtn = rtn ::: times.map{ case (t:Time,s:String) => 
+		val times = List[(Range,String)]((REF,"REF:T"))
+		rtn = rtn ::: times.map{ case (t:Range,s:String) => 
 			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
 		//(ranges)
 		val ranges = List[(Range,String)]((TODAY,"REF:R"))
@@ -170,7 +169,7 @@ object Grammar {
 				(HOUR,"Hour:D")) else List[(Duration,String)]()} :::
 			List[(Duration,String)](
 				(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
-				(YEAR,"Year:D"))
+				(AYEAR,"Year:D"))
 		val sequences = 
 			(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
 			(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
@@ -204,7 +203,7 @@ object Grammar {
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  YOC(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w <= 99 ),
 				"yoc(n):D"),
-			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  YEAR(num) )),
+			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  THEYEAR(num) )),
 				"year(n):R"),
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  DECADE(num) )),
 				"decade(n):R"),
@@ -307,13 +306,13 @@ object Grammar {
 		rtn = rtn ::: List[(Rule,String)]( 
 			//(now augmentation (arity 2))
 			(UnaryRule(Head.F_D, Head.F_RD, hack( 
-				(f:(Range,Duration)=>Range) => f(Range(NOW,NOW),_:Duration) 
+				(f:(Range,Duration)=>Range) => f(Range(REF,REF),_:Duration) 
 				)),"$f(ref:R,-:D):R$"),
 			(UnaryRule(Head.F_R, Head.F_RR, hack( 
-				(f:(Range,Range)=>Range) => f(Range(NOW,NOW),_:Range) 
+				(f:(Range,Range)=>Range) => f(Range(REF,REF),_:Range) 
 				)),"$f(ref:R,-:R):R$"),
 			(UnaryRule(Head.F_R, Head.F_RR, hack( 
-				(f:(Range,Range)=>Range) => f(_:Range,Range(NOW,NOW)) 
+				(f:(Range,Range)=>Range) => f(_:Range,Range(REF,REF)) 
 				)),"$f(-:R,ref:R):R$"),
 			//(implicit intersect)
 			(UnaryRule(Head.F_R, Head.Range, hack(
@@ -321,7 +320,7 @@ object Grammar {
 				)),"intersect$(ref:R,-:R):R$"),
 			//(sequence grounding)
 			(UnaryRule(Head.Range, Head.Sequence, hack( 
-				(d:Duration) => d(NOW)
+				(s:Sequence) => s
 				)),"$d:R$")
 			)
 
@@ -582,148 +581,26 @@ trait ParseTree extends Tree[Head.Value] {
 //-----
 // Parse
 //-----
-case class Parse(range:Range,duration:Duration,fn:Range=>Range){
-	private def diff(a:Time, b:Time) = {
-		assert(a.isGrounded, "Time is not grounded: " + a)
-		assert(b.isGrounded, "Time is not grounded: " + b)
-		b - a
-	}
-	def value:Any = {
-		if(range != null){
-			range
-		} else if(duration != null){
-			duration
-		} else if(fn != null){
-			fn
-		} else {
-			throw new IllegalStateException()
+case class Parse(value:Temporal){
+	def scoreFrom(gold:Parse,ground:Time):Iterator[((Duration,Duration),Double)]={
+		//--Fix Gold
+		val fixed:Temporal = gold.value(ground)
+		//--Diff Function
+		def diff(a:Temporal,b:Temporal):(Duration,Duration) = (a,b) match {
+			case (a:Duration,b:Duration) => (b-a,Duration.ZERO)
+			case (a:GroundedRange,b:GroundedRange) => (b.begin-a.begin,b.end-a.end)
+			case (a:Range,b:Range) => throw fail("Iter returned ungrounded range")
+			case (a:Sequence,b:Any) => throw fail("Iter returned sequence")
+			case (a:Any,b:Sequence) => throw fail("Iter returned sequence")
+			case _ => (Duration.INFINITE,Duration.INFINITE)
+		}
+		//--Map Iterator
+		value.distribution(ground).iterator.map{case (guess:Temporal,score:Double)=>
+			(diff(fixed,guess),score)
 		}
 	}
-	def ground(ground:Time) = {
-		if(fn != null) {
-			fn(ALL_TIME)
-		} else if(duration != null) {
-			if(duration.isGroundable){
-				assert(duration(ground) != null, "Returning null grounding")
-				duration(ground)
-			} else {
-				assert(duration != null, "trivial")
-				duration
-			}
-		} else if(range != null) {
-			assert(range(ground) != null, "Returning null grounding")
-			if(range.isGrounded){
-				range
-			} else {
-				range(ground)
-			}
-		} else {
-			throw new IllegalStateException("Bad parse")
-		}
-	}
-	def groundToRange(ground:Time):Range = {
-		this.ground(ground) match {
-			case (r:Range) => r
-			case _ => 
-				throw new IllegalStateException("Not groundable to range: " + value)
-		}
-	}
-	def unkDiff(gold:UNK):(Duration,Duration) = {
-		(Duration.INFINITE, Duration.INFINITE)
-	}
-	private def rangeDiff(goldArg:Range, guessArg:Range, ground:Time)
-			:(Duration,Duration) = {
-		//(asserts)
-		assert(goldArg != null, "gold is null")
-		assert(guessArg != null, "guess is null")
-		//(ground)
-		val goldGrnd:Range = goldArg(ground)
-		val guessGrnd:Range = guessArg(ground)
-		assert(goldGrnd.isGrounded, "Gold did not ground properly")
-		assert(guessGrnd.isGrounded, "Guess did not ground properly")
-		//(modifications)
-		val guess:Range = guessGrnd
-		val gold:Range 
-			= if(O.instantAsDay && goldGrnd.norm.seconds == 0 && guess.norm != 0){
-					val begin:Time = new Time(goldGrnd.begin.base.withMillisOfDay(0))
-					Range(begin, begin+DAY)
-				} else {
-					goldGrnd
-				}
-		//(check for invalid ranges)
-		assert(gold.begin.base.compareTo(gold.end.base) <= 0,
-			"Gold ends before it begins")
-		if(guess.begin.base.compareTo(guess.end.base) > 0){
-			(Duration.INFINITE, Duration.INFINITE) //malformed range
-		}
-		//(score)
-		( diff(gold.begin, guess.begin),
-			diff(gold.end, guess.end) )
-	}
-	def rangeDiff(gold:Range, ground:Time):(Duration,Duration) = {
-		if(range != null){
-			rangeDiff(gold,this.groundToRange(ground),ground)
-		} else if(fn != null){
-			rangeDiff(gold,this.groundToRange(ground),ground)
-		} else if(duration != null){
-			(Duration.INFINITE, Duration.INFINITE)
-		} else {
-			throw fail("Parse is null")
-		}
-	}
-	def timeDiff(gold:Time, ground:Time):(Duration,Duration) = {
-		rangeDiff(Range(gold,gold), ground)
-	}
-	def fnDiff(gold:Range=>Range, ground:Time):(Duration,Duration) = {
-		val groundedGold = Parse(gold).groundToRange(ground)
-		if(range != null){
-			rangeDiff(groundedGold, range, ground)
-		} else if(fn != null){
-			rangeDiff(groundedGold, this.groundToRange(ground), ground)
-		} else if(duration != null){
-			(Duration.INFINITE, Duration.INFINITE)
-		} else {
-			throw fail("Parse is null")
-		}
-	}
-	def durationDiff(gold:Duration, ground:Time):(Duration,Duration) = {
-		if(duration != null){
-			(Duration(0),Duration((duration-gold).seconds))
-		} else if(range != null){
-			(Duration.INFINITE, Duration.INFINITE)
-		} else if(fn != null){
-			(Duration.INFINITE, Duration.INFINITE)
-		} else {
-			throw fail("Parse is null")
-		}
-	}
-	override def toString:String = {
-		if(range != null){ 
-			range.toString
-		} else if(duration != null){
-			duration.toString
-		} else if(fn != null){
-			"<<function>>"
-		} else {
-			"<<no parse>>"
-		}
-	}
-	override def equals(o:Any):Boolean = {
-		o match {
-			case (p:Parse) => {
-				if(range != null){
-					p.range != null && (range ~ p.range)
-				} else if(duration != null){
-					p.duration != null && (duration ~ p.duration)
-				} else if(fn != null){
-					p.fn != null && Time.probablyEqualRange(fn,p.fn)
-				} else {
-					throw new IllegalStateException("Equality on invalid parse")
-				}
-			}
-			case _ => false
-		}
-	}
+
+	def ground(ground:Time) = value(ground)
 }
 
 object Parse {

@@ -321,20 +321,20 @@ object ToyData {
 
 	private val NONE = ToyStore(Array[(String,Parse)]())
 	private def store(args:(String,Parse)*):ToyStore = ToyStore(args.toArray)
-	private val today = ("today",Parse(Range(NOW,NOW+DAY)))
+	private val today = ("today",Parse(TODAY))
 	private val week = ("week",Parse(WEEK))
-	private val lastWeekToday = ("last week today",Parse(Range(NOW-WEEK,NOW)))
-	private val lastWeekNow = ("last week now",Parse(Range(NOW-WEEK,NOW)))
-	private val lastWeek = ("last week",Parse(Range(NOW-WEEK,NOW)))
+	private val lastWeekToday = ("last week today",Parse(REF <| WEEK))
+	private val lastWeekNow = ("last week now",Parse(REF <| WEEK))
+	private val lastWeek = ("last week",Parse(REF <| WEEK))
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(MONTH))
-	private val lastMonth = ("last month",Parse(Range(NOW-MONTH,NOW)))
-	private val y1776 = ("1776",Parse(YEAR(1776)))
-	private val y17sp76 = ("17 76",Parse(YEAR(1776)))
+	private val lastMonth = ("last month",Parse(REF <| MONTH))
+	private val y1776 = ("1776",Parse(THEYEAR(1776)))
+	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(MONTH*2))
-	private val years2 = ("2 years",Parse(YEAR*2))
-	private val april = ("april",Parse(MOY(4)(NOW)))
-	private val ayear = ("a year",Parse(YEAR))
+	private val years2 = ("2 years",Parse(AYEAR*2))
+	private val april = ("april",Parse(MOY(4)))
+	private val ayear = ("a year",Parse(AYEAR))
 
 	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
 		override def eachExample( 
@@ -532,7 +532,7 @@ object Entry {
 			override def run:Unit = {
 				O.runDebug.toLowerCase match {
 					//(case: time expression console)
-					case "console" => Time.interactive
+					case "console" => Temporal.interactive
 					//(case: test the CRF)
 					case "crf" => CKYParser.CRFTagger.debugSequence
 					//(case: read the gold tag file)
