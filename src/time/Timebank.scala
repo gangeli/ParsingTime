@@ -167,7 +167,7 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	@Key(name="gloss")
 	private var gloss:String = null
 
-	private var timeCache:Any = null
+	private var timeCache:Temporal = null
 	var grounding:Time = null
 	private var wordArray:Array[Int] = null
 	private var numArray:Array[Int] = null
@@ -183,7 +183,7 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	def pos:Array[Int] = posArray
 	def nums:Array[Int] = numArray
 	def ground(t:Time):Timex = { grounding = t; this }
-	def gold:Any = {
+	def gold:Temporal = {
 		if(timeCache == null){
 			assert(timeVal.length > 0, "No time value for timex " + tid + "!")
 			val inType:String = timeVal(0).trim
@@ -207,9 +207,9 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 						if(begin == "x") assert(end == "NOW", "assumption")
 						if(end == "x") assert(begin == "NOW", "assumption")
 						if(begin == "x"){
-							(r:Range) => r cons Lex.REF
+							new PartialTime( (r:Range) => r cons Lex.REF )
 						} else if(end == "x"){
-							(r:Range) => Lex.REF cons r
+							new PartialTime( (r:Range) => Lex.REF cons r )
 						} else {
 							throw fail("Should not reach here")
 						}
@@ -233,7 +233,7 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 						))
 				}
 				case "UNK" => {
-					new UNK
+					new UnkTime
 				}
 				case _ => throw new IllegalStateException("Unknown time: " + 
 					inType + " for timex: " + this)

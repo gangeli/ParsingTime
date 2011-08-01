@@ -226,71 +226,66 @@ trait DataStore {
 	def eachExample(fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score
 	def handleParse(
 			parses:Array[Parse], 
-			gold:Any, 
+			gold:Temporal, 
 			grounding:Time,
 			score:Score,
 			sent:Sentence,
 			feedback:(Feedback=>Any)) = {
-		//--Score Parses
+		//--Util
+		case class ScoreElem(index:Int,offset:Int,exact:Boolean,
+				diff:(Duration,Duration))
+		def isExact(diff:(Duration,Duration)):Boolean
+			= { U.sumDiff(diff) < O.exactMatchThreshold }
 		val placeOneParse = 
 			if(parses != null && parses.length > 0) parses(0) else null
-		val scored:Array[(Int,Boolean,(Duration,Duration))] 
-			= parses.zipWithIndex.map{ case (parse,i) =>
-				//(score candidates)
-				val diff:(Duration,Duration) = gold match{
-					case r:Range => {parse.rangeDiff(r, grounding)}
-					case tm:Time => {parse.timeDiff(tm, grounding)}
-					case (fn:(Range=>Range)) => {parse.fnDiff(fn, grounding)}
-					case d:Duration => {parse.durationDiff(d, grounding)}
-					case unk:UNK => {parse.unkDiff(unk)}
-					case _:Any => {
-						throw fail("Cannot score example; gold= " + gold)
-					}
-				}
-				//(accumulate output)
-				val exactMatch:Boolean = U.sumDiff(diff) < O.exactMatchThreshold
-				assert(gold.toString.equals("<function1>") ||
-					!(parse.value.toString.equals(gold.toString) && !exactMatch),
-					"parses are string-wise equal, but not marked as same: " + 
-					U.sumDiff(diff) + " :: " + diff + " [" +gold.toString+"]")
-				(i,exactMatch,diff)
-			}
-		//--Get Best Index
-		if(scored.length > 0){
-			val (topIndex,topExact,topRange) = scored(0)
-			//(sort)
-			quickSort(scored)( Ordering.fromLessThan(
-					( a:(Int,Boolean,(Duration,Duration)),
-					  b:(Int,Boolean,(Duration,Duration))   ) => {
-				val (aIndex,aExact,aDiff) = a
-				val (bIndex,bExact,bDiff) = b
-				val aSumSec:Int = U.sumDiff(aDiff)
-				val bSumSec:Int = U.sumDiff(bDiff)
-				if(aExact && !bExact){
-					true              //order by exact match
-				} else if(aSumSec != bSumSec){
-					aSumSec < bSumSec //then by difference
+		//--Score Parses
+		val scores:Array[ScoreElem] 
+			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
+			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
+				parse.scoreFrom(gold,grounding).slice(0,O.scoreBeam)
+					.map{ case (diff:(Duration,Duration),score:Double,offset:Int) =>
+						ScoreElem(i,offset,isExact(diff),diff)
+					}.toList ::: soFar
+		}.sortWith{ case (a:ScoreElem,b:ScoreElem) =>
+				if(a.exact && !b.exact){
+					true                                    //order by exact match
+				} else if(b.exact && !a.exact){
+					false                                   //...
+				} else if(U.sumDiff(a.diff) != U.sumDiff(b.diff)){
+					U.sumDiff(a.diff) < U.sumDiff(b.diff)   //then by difference
+				} else if(a.index != b.index){
+					a.index < b.index                       //tiebreak by index
+				} else if(a.offset != b.offset) {
+					math.abs(a.offset) < math.abs(b.offset) //then by offset
 				} else {
-					aIndex < bIndex   //tiebreak by index
+					a.offset > b.offset                     //then by positive offset
 				}
-			}))
-			val (bestIndex,bestExact,bestRange) = scored(0)
-			//--Record Score
-			score.enter(topExact,topRange, if(bestExact) bestIndex else -1)
-			score.store(sent,placeOneParse,gold,topExact)
-			//--Feedback
+		}.toArray
+		//--Process Score
+		if(scores.length > 0){
+			//(get guess)
+			val bestGuess:ScoreElem = scores.min(	Ordering.fromLessThan(
+				(a:ScoreElem,b:ScoreElem) =>
+					if(a.index != b.index){ a.index < b.index }
+					else{ math.abs(a.offset) < math.abs(b.offset) }
+			))
+			//(record)
+			score.enter(bestGuess.exact,bestGuess.diff, 
+				if(bestGuess.exact) bestGuess.index else -1)
+			score.store(sent,placeOneParse,gold,bestGuess.exact)
+			//(feedback)
 			feedback(Feedback(
 				gold, 
 				grounding,
-				scored.
-					filter( triple => triple._2 ).
-					map( triple => (triple._1,Score.score(triple._3)) ),
-				scored.
-					filter( triple => !triple._2 ).
-					map( triple => (triple._1,Score.score(triple._3)) )
+				scores.
+					filter( elem => elem.exact ).
+					map( elem => (elem.index,Score.score(elem.diff)) ),
+				scores.
+					filter( elem => !elem.exact ).
+					map( elem => (elem.index,Score.score(elem.diff)) )
 				))
 		} else {
-			//--Record Miss
+			//(miss)
 			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
 			score.store(sent,placeOneParse,gold,false)
 		}

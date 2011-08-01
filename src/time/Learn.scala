@@ -379,7 +379,7 @@ object Grammar {
 
 		//-ROOT
 		rtn = rtn ::: List[UnaryRule](
-			UnaryRule(Head.ROOT, Head.Time, hack((t:Time) => t)),
+			UnaryRule(Head.ROOT, Head.Time, hack((t:Range) => t)),
 			UnaryRule(Head.ROOT, Head.Range, hack((r:Range) => r)),
 			UnaryRule(Head.ROOT, Head.Duration, hack((d:Duration) => d)),
 			UnaryRule(Head.ROOT, Head.F_R, hack((fn:Range=>Range) => fn))
@@ -473,10 +473,10 @@ object Grammar {
 // Utilities
 //-----
 object ParseConversions {
-	implicit def time2parse(t:Time):Parse = Parse(Range(t,t),null,null)
-	implicit def range2parse(r:Range):Parse = Parse(r,null,null)
-	implicit def duration2parse(d:Duration):Parse = Parse(null,d,null)
-	implicit def fn2parse(fn:Range=>Range):Parse = Parse(null,null,fn)
+	implicit def time2parse(t:Time):Parse = Parse(Range(t,t))
+	implicit def range2parse(r:Range):Parse = Parse(r)
+	implicit def duration2parse(d:Duration):Parse = Parse(d)
+	implicit def fn2parse(fn:Range=>Range):Parse = Parse(new PartialTime(fn))
 }
 
 //-----
@@ -494,7 +494,7 @@ case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	def length:Int = words.length
 	override def toString:String = U.sent2str(words)
 }
-case class Feedback(ref:Any,grounding:Time,
+case class Feedback(ref:Temporal,grounding:Time,
 		correct:Array[(Int,Double)],incorrect:Array[(Int,Double)]) {
 	def bestScore = correct(0)._2
 	def hasCorrect:Boolean = correct.length > 0
@@ -574,7 +574,7 @@ trait ParseTree extends Tree[Head.Value] {
 	def maxDepth:Int = throw fail() //TODO implement something reasonable here
 	//<<Overrides>>
 	override def children:Array[ParseTree]
-	def evaluate(sent:Sentence):(Head.Value,Any,Double)
+	def evaluate(sent:Sentence):(Head.Value,Temporal,Double)
 	def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit //lexFn: (rid,w)=>Any
 }
 
@@ -582,21 +582,41 @@ trait ParseTree extends Tree[Head.Value] {
 // Parse
 //-----
 case class Parse(value:Temporal){
-	def scoreFrom(gold:Parse,ground:Time):Iterator[((Duration,Duration),Double)]={
-		//--Fix Gold
-		val fixed:Temporal = gold.value(ground)
-		//--Diff Function
-		def diff(a:Temporal,b:Temporal):(Duration,Duration) = (a,b) match {
-			case (a:Duration,b:Duration) => (b-a,Duration.ZERO)
-			case (a:GroundedRange,b:GroundedRange) => (b.begin-a.begin,b.end-a.end)
-			case (a:Range,b:Range) => throw fail("Iter returned ungrounded range")
-			case (a:Sequence,b:Any) => throw fail("Iter returned sequence")
-			case (a:Any,b:Sequence) => throw fail("Iter returned sequence")
-			case _ => (Duration.INFINITE,Duration.INFINITE)
+	def scoreFrom(gold:Temporal,ground:Time
+			):Iterator[((Duration,Duration),Double,Int)]={
+		val INF = (Duration.INFINITE,Duration.INFINITE)
+		def diff(gold:Temporal,guess:Temporal):(Duration,Duration) 
+				= (gold,guess) match {
+			//--Valid
+			//(case: durations)
+			case (gold:Duration,guess:Duration) => (guess-gold,Duration.ZERO)
+			//(case: grounded ranges)
+			case (gold:GroundedRange,guess:GroundedRange) => 
+				(guess.begin-gold.begin,guess.end-gold.end)
+			//(case: functions)
+			case (gold:PartialTime,guess:PartialTime) =>  
+				val tA = gold.ground(Range(Time.DAWN_OF,Time.END_OF))
+				val tB = guess.ground(Range(Time.DAWN_OF,Time.END_OF))
+				(tB.begin-tA.begin,tB.end-tA.end)
+			//--Possibly Valid
+			//(case: backoffs)
+			case (gold:Range,guess:GroundedRange) => 
+				diff(gold(ground),guess)
+			//--Type Problems
+			//(case: unks)
+			case (gold:UnkTime,guess:Temporal) => INF
+			case (gold:Temporal,guess:NoTime) => INF
+			//(case: types)
+			case (gold:Duration,guess:Temporal) => INF
+			case (gold:Range,guess:Temporal) => INF
+			case (gold:PartialTime,guess:Temporal) => INF
+			//(case: default)
+			case _ => throw fail("Unknown case: gold " + gold + " guess " + guess)
 		}
 		//--Map Iterator
-		value.distribution(ground).iterator.map{case (guess:Temporal,score:Double)=>
-			(diff(fixed,guess),score)
+		value.distribution(ground).iterator.map{
+				case (guess:Temporal,score:Double,i:Int) =>
+			(diff(gold,guess),score,i)
 		}
 	}
 
@@ -604,21 +624,9 @@ case class Parse(value:Temporal){
 }
 
 object Parse {
-	def apply(parseValue:Any):Parse = apply(Head.ROOT,parseValue)
-	def apply(parse:(Head.Value,Any)):Parse = {
-		val (parseType, parseValue) = parse
-		apply(parseType,parseValue)
-	}
-	def apply(parseType:Head.Value,parseValue:Any):Parse = {
+	def apply(parseType:Head.Value,parseValue:Temporal):Parse = {
 		assert(parseType == Head.ROOT, "No parse for non-root node")
-		parseValue match{
-			case (t:Time) => Parse(Range(t,t),null,null)
-			case (r:Range) => Parse(r,null,null)
-			case (d:Duration) => Parse(null,d,null)
-			case (fn:(Range=>Range)) => Parse(null,null,fn)
-			case (unk:UNK) => null
-			case _ => throw fail("Unknown parse output: " + parseValue)
-		}
+		new Parse(parseValue)
 	}
 }
 
@@ -1024,12 +1032,16 @@ object CKYParser {
 				throw new IllegalStateException("Invalid cky term")
 			}
 		}
-		override def evaluate(sent:Sentence):(Head.Value,Any,Double) = {
+		override def evaluate(sent:Sentence):(Head.Value,Temporal,Double) = {
 			val (length,(tag,value)) = evaluateHelper(sent,0)
 			assert(length == sent.length, 
 				"missed words in evaluation: " + length + " " + sent.length)
 			assert(this.logScore <= 0.0, ">1.0 probability: logScore="+this.logScore)
-			(tag,value,this.logScore)
+			val temporalVal:Temporal = value match {
+				case (t:Temporal) => t
+				case (fn:(Range=>Range)) => new PartialTime(fn)
+			}
+			(tag,temporalVal,this.logScore)
 		}
 		private def traverseHelper(i:Int,
 				ruleFn:Int=>Any,lexFn:(Int,Int)=>Any,up:()=>Any):Int = {
@@ -1921,8 +1933,8 @@ class CKYParser extends StandardParser{
 	override def report = reportInternal(true)
 
 	private def isEquivalentOutput(
-			guess:Array[(Head.Value,Any,Double)],
-			gold:Array[(Head.Value,Any,Double)]   ):(Boolean,String) = {
+			guess:Array[(Head.Value,Temporal,Double)],
+			gold:Array[(Head.Value,Temporal,Double)]   ):(Boolean,String) = {
 		if(guess.length != gold.length){ return (false,"different lengths") }
 		//--Set Equality
 		def setEquality(begin:Int,end:Int):(Boolean,String) = {
@@ -2136,7 +2148,7 @@ class CKYParser extends StandardParser{
 			assert(trees(0).equals(singleBest(0)), "parse doesn't match single-best")
 		}
 		//(convert to parses)
-		val scored:Array[(Head.Value,Any,Double)] = trees.map{ _.evaluate(sent) }
+		val scored:Array[(Head.Value,Temporal,Double)]=trees.map{ _.evaluate(sent) }
 		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
 		//(debug)
 		val str = 

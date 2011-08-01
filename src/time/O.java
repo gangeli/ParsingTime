@@ -49,6 +49,8 @@ public class O {
 	public static enum TagMethod { PCFG, CRF, GOLD }
 	@Option(name="lexTagMethod", gloss="Method to tag pre-terminals")
 	public static TagMethod lexTagMethod = TagMethod.PCFG;
+	@Option(name="scoreBeam", gloss="Maximum possible groundings to check")
+	public static int scoreBeam = 1;
 	//(crf)
 	@Option(name="crfKBest", gloss="Number of tags to use to approx. word dist.")
 	public static int crfKBest = 1000;
