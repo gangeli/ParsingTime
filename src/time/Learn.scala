@@ -587,31 +587,31 @@ case class Parse(value:Temporal){
 		val INF = (Duration.INFINITE,Duration.INFINITE)
 		def diff(gold:Temporal,guess:Temporal):(Duration,Duration) 
 				= (gold,guess) match {
+			//--Immediate Invalids
+			//(case: unks)
+			case (gold:UnkTime,guess:Temporal) => INF
+			case (gold:Temporal,guess:NoTime) => INF
 			//--Valid
 			//(case: durations)
 			case (gold:Duration,guess:Duration) => (guess-gold,Duration.ZERO)
 			//(case: grounded ranges)
 			case (gold:GroundedRange,guess:GroundedRange) => 
-				(guess.begin-gold.begin,guess.end-gold.end)
-			//(case: functions)
-			case (gold:PartialTime,guess:PartialTime) =>  
-				val tA = gold.ground(Range(Time.DAWN_OF,Time.END_OF))
-				val tB = guess.ground(Range(Time.DAWN_OF,Time.END_OF))
-				(tB.begin-tA.begin,tB.end-tA.end)
+				if(O.instantAsDay && gold.norm.seconds == 0 && guess.norm.seconds != 0){
+					(guess.begin-gold.begin,guess.end-(gold.end+DAY))
+				} else {
+					(guess.begin-gold.begin,guess.end-gold.end)
+				}
 			//--Possibly Valid
 			//(case: backoffs)
 			case (gold:Range,guess:GroundedRange) => 
 				diff(gold(ground),guess)
 			//--Type Problems
-			//(case: unks)
-			case (gold:UnkTime,guess:Temporal) => INF
-			case (gold:Temporal,guess:NoTime) => INF
 			//(case: types)
-			case (gold:Duration,guess:Temporal) => INF
+			case (gold:Duration,guess:Temporal) =>  INF
 			case (gold:Range,guess:Temporal) => INF
 			case (gold:PartialTime,guess:Temporal) => INF
 			//(case: default)
-			case _ => throw fail("Unknown case: gold " + gold + " guess " + guess)
+			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}
 		//--Map Iterator
 		value.distribution(ground).iterator.map{
@@ -620,7 +620,8 @@ case class Parse(value:Temporal){
 		}
 	}
 
-	def ground(ground:Time) = value(ground)
+	def ground(ground:Time):Temporal
+		= if(value.exists(0)(ground)) value(0)(ground) else new NoTime
 }
 
 object Parse {

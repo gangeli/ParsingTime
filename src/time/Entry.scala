@@ -242,33 +242,15 @@ trait DataStore {
 		val scores:Array[ScoreElem] 
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
 			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
-				parse.scoreFrom(gold,grounding).slice(0,O.scoreBeam)
+				soFar ::: parse.scoreFrom(gold,grounding).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),score:Double,offset:Int) =>
 						ScoreElem(i,offset,isExact(diff),diff)
-					}.toList ::: soFar
-		}.sortWith{ case (a:ScoreElem,b:ScoreElem) =>
-				if(a.exact && !b.exact){
-					true                                    //order by exact match
-				} else if(b.exact && !a.exact){
-					false                                   //...
-				} else if(U.sumDiff(a.diff) != U.sumDiff(b.diff)){
-					U.sumDiff(a.diff) < U.sumDiff(b.diff)   //then by difference
-				} else if(a.index != b.index){
-					a.index < b.index                       //tiebreak by index
-				} else if(a.offset != b.offset) {
-					math.abs(a.offset) < math.abs(b.offset) //then by offset
-				} else {
-					a.offset > b.offset                     //then by positive offset
-				}
+					}.toList
 		}.toArray
 		//--Process Score
 		if(scores.length > 0){
 			//(get guess)
-			val bestGuess:ScoreElem = scores.min(	Ordering.fromLessThan(
-				(a:ScoreElem,b:ScoreElem) =>
-					if(a.index != b.index){ a.index < b.index }
-					else{ math.abs(a.offset) < math.abs(b.offset) }
-			))
+			val bestGuess = scores(0)
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(bestGuess.exact) bestGuess.index else -1)

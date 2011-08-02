@@ -17,7 +17,9 @@ trait Temporal {
 		new Iterator[E]{
 			def hasNext:Boolean = Temporal.this.exists(rightPointer)(ground)
 			def next:E = {
-				val rtn = apply[E](rightPointer)(ground); rightPointer += 1; rtn
+				val rtn = apply[E](rightPointer)(ground)
+				rightPointer += 1
+				rtn
 			}
 		}.buffered
 	}
@@ -26,7 +28,9 @@ trait Temporal {
 		new Iterator[E]{
 			def hasNext:Boolean = Temporal.this.exists(leftPointer)(ground)
 			def next:E = {
-				val rtn = apply[E](leftPointer)(ground); leftPointer -= 1; rtn
+				val rtn = apply[E](leftPointer)(ground)
+				leftPointer -= 1
+				rtn
 			}
 		}.buffered
 	}
@@ -135,29 +139,44 @@ trait Range extends Temporal{
 	def |<(diff:Duration):Range //shrink to left
 
 	private def composite[E <: Temporal](
+			str:String,
 			other:Range,
 			fn:(Iterable[E],Iterable[E])=>Iterable[(GroundedRange,Int,Int)]
 				):CompositeRange = {
-		new CompositeRange(
-			//(new apply)
-			(offset:Int) => { (ground:Time) => {
-				val (applyForward,indexForward,existsForward) = 
-					Range.iter2apply(Range.cons(
+		var cacheBackward:(Int=>GroundedRange,Int=>(Int,Int),Int=>Boolean) = null
+		var cacheForward:(Int=>GroundedRange,Int=>(Int,Int),Int=>Boolean) = null
+		var cacheCond:Time = null
+		def ensureCache(ground:Time) = {
+			if(cacheForward == null  || ground != cacheCond){
+				cacheCond = ground
+				cacheForward = Range.iter2apply(Range.cons(
 						this.forwardIterable(ground),
 						other.forwardIterable(ground)
 					).iterator)
-				val (applyBackward,indexBackward,existsBackward) = 
+				cacheBackward = 
 					Range.iter2apply(fn(
 						this.forwardIterable(ground),
 						other.forwardIterable(ground)
 					).iterator)
+			}
+			(cacheForward,cacheBackward)
+		}
+		new CompositeRange(
+			//(new apply)
+			(offset:Int) => { (ground:Time) => {
+				val ((applyForward,indexForward,existsForward),
+				     (applyBackward,indexBackward,existsBackward)) = ensureCache(ground)
 				if(offset < 0) {
 					assert(this.exists(offset)(ground),"no such offset: " + offset)
 					assert(existsBackward(-offset),"no such offset (sub): " + offset)
+					assert(applyBackward(-offset).isInstanceOf[GroundedRange], 
+						applyBackward(-offset))
 					applyBackward(-offset)
 				} else {
 					assert(this.exists(offset)(ground),"no such offset: " + offset)
 					assert(existsForward(offset),"no such offset (sub): " + offset)
+					assert(applyForward(offset).isInstanceOf[GroundedRange], 
+						applyForward(offset))
 					applyForward(offset)
 				}
 			}},
@@ -165,23 +184,15 @@ trait Range extends Temporal{
 			(offset:Int) => this.prob(offset),
 			//(new offset)
 			(offset:Int) => { (ground:Time) => {
-				val (applyForward,indexForward,existsForward) = 
-					Range.iter2apply(Range.cons(
-						this.forwardIterable(ground),
-						other.forwardIterable(ground)
-					).iterator)
-				val (applyBackward,indexBackward,existsBackward) = 
-					Range.iter2apply(fn(
-						this.forwardIterable(ground),
-						other.forwardIterable(ground)
-					).iterator)
+				val ((applyForward,indexForward,existsForward),
+				     (applyBackward,indexBackward,existsBackward)) = ensureCache(ground)
 				if(offset < 0) {
 					existsBackward(-offset)
 				} else {
 					existsForward(offset)
 				}
 			}},
-			List[String](this + " cons " + other)
+			List[String]("("+this + ") "+str+" (" + other+")")
 		)
 	}
 
@@ -190,7 +201,7 @@ trait Range extends Temporal{
 			case (a:GroundedRange,b:GroundedRange) => 
 				if(a.begin < b.end){ new GroundedRange(a.begin,b.end) }
 				else { new NoTime }
-			case _ => composite(other,
+			case _ => composite("cons",other,
 				Range.cons(_:Iterable[GroundedRange],_:Iterable[GroundedRange]))
 		}
 	}
@@ -201,7 +212,7 @@ trait Range extends Temporal{
 					Range.mkBegin(a.begin,b.begin),
 					Range.mkEnd(a.end,b.end)
 				)
-			case _ => composite(other,
+			case _ => composite("^",other,
 				Range.cons(_:Iterable[GroundedRange],_:Iterable[GroundedRange]))
 		}
 	}
@@ -217,7 +228,10 @@ class CompositeRange(
 	
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
 		applyFn(offset) match {
-			case (e:(Time=>E)) => e
+			case (fn:(Time=>E)) => (ground:Time) => {
+				assert(fn(ground).isInstanceOf[GroundedRange], "Composite ungrounded")
+				fn(ground)
+			}
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	}
@@ -250,7 +264,7 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
 		if(offset == 0){ (t:Time) => 
 			this match{ 
-				case (e:E) => e; 
+				case (e:E) => e
 				case _ => throw new IllegalArgumentException("Runtime Type Error")
 			}
 		}
@@ -286,7 +300,7 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 		if(offset == 0){ 
 			(ground:Time) =>
 				new GroundedRange(ground+beginOffset,ground+beginOffset+normVal) match {
-					case (e:E) => e; 
+					case (e:E) => e
 					case _ => throw new IllegalArgumentException("Runtime Type Error")
 				}
 		} else{
@@ -475,7 +489,9 @@ object Range {
 trait Duration extends Temporal {
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
 		if(offset == 0){ (t:Time) => this match {
-				case (e:E) => e; 
+				case (e:E) => 
+					assert(e.isInstanceOf[GroundedDuration], "Duration not grounded")
+					e
 				case _ => throw new IllegalArgumentException("Runtime Type Error")
 			}
 		}
@@ -558,15 +574,27 @@ trait Sequence extends Range with Duration {
 class RepeatedRange(snapFn:Time=>Time,base:Range,interv:Duration
 		) extends Sequence {
 	
-	override def apply[E <: Temporal](offset:Int):Time=>E = (ground:Time) => {
-		val begin:Time = snapFn(ground)+interv*offset
-		base match {
-			case (r:{def norm:Duration}) => 
-				new GroundedRange(begin,begin+r.norm) match {
-					case (e:E) => e; 
-					case _ => throw new IllegalArgumentException("Runtime Type Error")
+	override def apply[E <: Temporal](offset:Int):Time=>E = {
+		var cache:Temporal = null; var cacheCond:Time = null
+		(ground:Time) => {
+			if(cache == null || ground != cacheCond) cache = { //cache
+				//(update cache condition)
+				cacheCond = ground
+				//(snap beginning)
+				val begin:Time = snapFn(ground)+interv*offset
+				//(ground the time)
+				base match {
+					case (r:{def norm:Duration}) => new GroundedRange(begin,begin+r.norm)
+					case _ => throw new TimeException("Not normable: " + base)
 				}
-			case _ => throw new TimeException("Not normable: " + base)
+			}
+			//(return cache)
+			cache match {
+				case (e:E) => 
+					assert(e.isInstanceOf[GroundedRange], "Range not grounded")
+					e
+				case _ => throw new IllegalArgumentException("Runtime Type Error")
+			}
 		}
 	}
 	override def prob(offset:Int):Double = {
@@ -744,28 +772,26 @@ class NoTime extends Sequence {
 	def <|(diff:Duration):Range = this
 	def >|(diff:Duration):Range = this
 	def |<(diff:Duration):Range = this
+
+	override def toString = "NOTIME"
 }
 
-class UnkTime extends NoTime
+class UnkTime extends NoTime {
+	override def toString = "UNKTIME"
+}
 
 class PartialTime(fn:Range=>Range) extends Temporal {
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
-		if(offset == 0) { 
-			(ground:Time) => fn(Range(ground,ground)) match {
-				case (e:E) => e
-				case _ => throw new IllegalArgumentException("Runtime Type Error")
-			}
-		} else { 
-			throw new IllegalArgumentException("Nonzero offset for PartialTime") 
+		(ground:Time) =>  {
+			val resolved:Range = fn(Range(Time.DAWN_OF,Time.END_OF))
+			val grounded:E = resolved(offset)(ground)
+			assert(grounded.isInstanceOf[GroundedRange], "Ungrounded PartialTime")
+			grounded
 		}
 	}
 	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
-	def ground(r:Range):GroundedRange = {
-		fn(r) match {
-			case (gr:GroundedRange) => gr
-			case _ => throw new IllegalArgumentException("Runtime Type Error")
-		}
-	}
+	override def exists(offset:Int):Time=>Boolean
+		= fn(Range(Time.DAWN_OF,Time.END_OF)).exists(offset)
 }
 
 
