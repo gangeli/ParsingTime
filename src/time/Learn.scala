@@ -585,7 +585,7 @@ case class Parse(value:Temporal){
 	def scoreFrom(gold:Temporal,ground:Time
 			):Iterator[((Duration,Duration),Double,Int)]={
 		val INF = (Duration.INFINITE,Duration.INFINITE)
-		def diff(gold:Temporal,guess:Temporal):(Duration,Duration) 
+		def diff(gold:Temporal,guess:Temporal,second:Boolean):(Duration,Duration) 
 				= (gold,guess) match {
 			//--Immediate Invalids
 			//(case: unks)
@@ -604,9 +604,11 @@ case class Parse(value:Temporal){
 			//--Possibly Valid
 			//(case: backoffs)
 			case (gold:Range,guess:GroundedRange) => 
-				diff(gold(ground),guess)
+				if(second){ INF}
+				else { diff(gold(ground),guess,true) }
 			case (gold:PartialTime,guess:Temporal) =>
-				diff(gold(ground),guess)
+				if(second){ INF}
+				else { diff(gold(ground),guess,true) }
 			//--Type Problems
 			//(case: types)
 			case (gold:Duration,guess:Temporal) =>  INF
@@ -617,7 +619,7 @@ case class Parse(value:Temporal){
 		//--Map Iterator
 		value.distribution(ground).iterator.map{
 				case (guess:Temporal,score:Double,i:Int) =>
-			(diff(gold,guess),score,i)
+			(diff(gold,guess,false),score,i)
 		}
 	}
 
@@ -1034,16 +1036,21 @@ object CKYParser {
 				throw new IllegalStateException("Invalid cky term")
 			}
 		}
+		private var evalCache:(Head.Value,Temporal,Double) = null
 		override def evaluate(sent:Sentence):(Head.Value,Temporal,Double) = {
-			val (length,(tag,value)) = evaluateHelper(sent,0)
-			assert(length == sent.length, 
-				"missed words in evaluation: " + length + " " + sent.length)
-			assert(this.logScore <= 0.0, ">1.0 probability: logScore="+this.logScore)
-			val temporalVal:Temporal = value match {
-				case (t:Temporal) => t
-				case (fn:(Range=>Range)) => new PartialTime(fn)
+			if(evalCache == null){
+				val (length,(tag,value)) = evaluateHelper(sent,0)
+				assert(length == sent.length, 
+					"missed words in evaluation: " + length + " " + sent.length)
+				assert(this.logScore <= 0.0, 
+					">1.0 probability: logScore=" + this.logScore)
+				val temporalVal:Temporal = value match {
+					case (t:Temporal) => t
+					case (fn:(Range=>Range)) => new PartialTime(fn)
+				}
+				evalCache = (tag,temporalVal,this.logScore)
 			}
-			(tag,temporalVal,this.logScore)
+			evalCache
 		}
 		private def traverseHelper(i:Int,
 				ruleFn:Int=>Any,lexFn:(Int,Int)=>Any,up:()=>Any):Int = {

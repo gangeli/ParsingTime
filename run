@@ -15,7 +15,7 @@ env!(
 		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
 	o('Xrunhprof:cpu=samples,depth=10'),
 	o('server'),
-	o('Xmx500M'),
+	o('Xmx5000M'),
 	o('ea'),
 	'time.Entry',
 
@@ -41,7 +41,7 @@ env!(
 			'bestRandom',
 			'bestShallow'),
 		selo(0,'initMethod','uniform','random'),
-		selo(2,'lexTagMethod',
+		selo(0,'lexTagMethod',
 			'PCFG',
 			'CRF',
 			'GOLD'),

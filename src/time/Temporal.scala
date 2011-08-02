@@ -56,7 +56,8 @@ trait Temporal {
 				def next:(Temporal,Double,Int) = {
 					val pLeft = prob(leftPointer)
 					val pRight = prob(rightPointer)
-					if(Temporal.this.exists(leftPointer)(ground) && pLeft > pRight){
+					if(Temporal.this.exists(leftPointer)(ground) && 
+							(pLeft > pRight || !Temporal.this.exists(rightPointer)(ground))) {
 						val rtn:Temporal = apply(leftPointer)(ground)
 						leftPointer -= 1
 						(rtn,pLeft,leftPointer)
@@ -65,6 +66,7 @@ trait Temporal {
 						rightPointer += 1
 						(rtn,pRight,rightPointer)
 					} else {
+						assert(!hasNext, "Inconsistent iterator")
 						throw new NoSuchElementException()
 					}
 				}
@@ -223,6 +225,8 @@ trait Range extends Temporal{
 					Range.mkBegin(a.begin,b.begin),
 					Range.mkEnd(a.end,b.end)
 				)
+			case (a:GroundedRange,b:RepeatedRange) => b.intersect(a) //shortcut
+			case (a:RepeatedRange,b:GroundedRange) => a.intersect(b) //.
 			case _ => composite("^",other,
 				Range.intersect(_:Boolean,
 					_:Iterable[GroundedRange],_:Iterable[GroundedRange]))
@@ -459,8 +463,7 @@ object Range {
 
 	def intersect(back:Boolean,a:Iterable[GroundedRange],b:Iterable[GroundedRange]
 			):Iterable[(GroundedRange,Int,Int)] = {
-		var aBehindDiff:Duration = Duration.INFINITE
-		var bBehindDiff:Duration = Duration.INFINITE
+		var diff:Duration = Duration.INFINITE
 		def mkNext(
 				iA:Int, vA:GroundedRange,a:BufferedIterator[GroundedRange],
 				iB:Int, vB:GroundedRange,b:BufferedIterator[GroundedRange]
@@ -472,10 +475,9 @@ object Range {
 			} else if(!(vA.end > vB.begin)) { //note: virtual <= 
 				//(case: A is before)
 				//((overhead for divergence))
-				bBehindDiff = Duration.INFINITE
-				val lastDiff = aBehindDiff
-				aBehindDiff = (vB.begin-vA.end)
-				if(aBehindDiff > lastDiff){ nullVal } //case: diverging
+				val lastDiff = diff
+				diff = (vB.begin-vA.end)
+				if(!(diff < lastDiff)){ nullVal } //case: not converging
 				//((movement))
 				else if(!back && a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } 
 				else if(back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
@@ -483,16 +485,16 @@ object Range {
 			} else if(!(vB.end > vA.begin)){ //note: virtual <=
 				//(case: B is before)
 				//((overhead for divergence))
-				aBehindDiff = Duration.INFINITE
-				val lastDiff = bBehindDiff
-				bBehindDiff = vA.begin-vB.end
-				if(bBehindDiff > lastDiff){ nullVal } //case: diverging
+				val lastDiff = diff
+				diff = vA.begin-vB.end
+				if(!(diff < lastDiff)){ nullVal } //case: not converging
 				//((movement))
 				else if(!back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
 				else if(back && a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } 
 				else { nullVal } //case: relevant iterator is empty
 			} else {
 				//(case: overlap)
+				diff = Duration.INFINITE //reset convergence criteria
 				val rtn = new GroundedRange(
 						mkBegin(vA.begin,vB.begin),
 						mkEnd(vA.end,vB.end)
@@ -603,8 +605,27 @@ trait Sequence extends Range with Duration {
 }
 
 // ----- REPEATED RANGE -----
-class RepeatedRange(snapFn:Time=>Time,base:Range,interv:Duration
-		) extends Sequence {
+class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
+		bound:GroundedRange) extends Sequence {
+
+	def this(snapFn:Time=>Time,base:UngroundedRange,interv:Duration) 
+		= this(snapFn,base,interv,null)
+	def this(snapFn:Time=>Time,base:Range,interv:Duration)
+		= this(
+			snapFn,
+			base match {
+				case (b:UngroundedRange) => b
+				case _ => throw new IllegalArgumentException("Runtime Type Error")
+			},
+			interv)
+	
+	override def exists(offset:Int) = (ground:Time) => {
+		if(bound == null){ true }
+		else{
+			val guess:GroundedRange = apply(offset)(ground)
+			(guess.begin >= bound.begin && guess.end <= bound.end)
+		}
+	}
 	
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
 		var cache:Temporal = null; var cacheCond:Time = null
@@ -613,12 +634,13 @@ class RepeatedRange(snapFn:Time=>Time,base:Range,interv:Duration
 				//(update cache condition)
 				cacheCond = ground
 				//(snap beginning)
-				val begin:Time = snapFn(ground+interv*offset) //interv before snap
+				val begin:Time = 
+					if(bound == null){ snapFn(ground+interv*offset) } //interv before snap
+					else{ snapFn(bound.begin+interv*offset) } //^ note above
 				//(ground the time)
-				base match {
-					case (r:{def norm:Duration}) => new GroundedRange(begin,begin+r.norm)
-					case _ => throw new TimeException("Not normable: " + base)
-				}
+				new GroundedRange(
+					begin+base.beginOffset,
+					begin+base.beginOffset+base.norm)
 			}
 			//(return cache)
 			cache match {
@@ -629,11 +651,28 @@ class RepeatedRange(snapFn:Time=>Time,base:Range,interv:Duration
 			}
 		}
 	}
+
 	override def prob(offset:Int):Double = {
-		offset match {
-			case 0 => 0.8
-			case -1 => 0.2
-			case _ => 0.0
+		if(bound == null){
+			offset match {
+				case 0 => 0.8
+				case -1 => 0.2
+				case _ => 0.0
+			}
+		} else {
+			offset match {
+				case 0 => 1.0
+				case _ => 0.0
+			}
+		}
+	}
+	
+	def intersect(range:GroundedRange) = {
+		if(this.bound == null){
+			new RepeatedRange(snapFn,base,interv,range)
+		} else {
+			val newBound:GroundedRange = (range ^ bound).asInstanceOf[GroundedRange]
+			new RepeatedRange(snapFn,base,interv,newBound)
 		}
 	}
 
@@ -672,7 +711,9 @@ object Sequence {
 // ----- TIME -----
 case class Time(base:DateTime) {
 	def >(t:Time):Boolean = this.base.getMillis > t.base.getMillis
+	def >=(t:Time):Boolean = !(this.base.getMillis < t.base.getMillis)
 	def <(t:Time):Boolean = this.base.getMillis < t.base.getMillis
+	def <=(t:Time):Boolean = !(this.base.getMillis > t.base.getMillis)
 
 	def +(diff:Duration):Time = {
 		val diffMillis = diff.seconds*1000
