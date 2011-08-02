@@ -688,7 +688,7 @@ case class Time(base:DateTime) {
 			try{
 				new Time(base.plus(diff.interval.base))
 			} catch {
-				case (e:ArithmeticException) => 
+				case (e:org.joda.time.IllegalFieldValueException) =>
 					new Time(base.plus(diffMillis)) //catch-all
 			}
 		}
@@ -708,7 +708,7 @@ case class Time(base:DateTime) {
 			try{
 				new Time(base.minus(diff.interval.base))
 			} catch {
-				case (e:ArithmeticException) => 
+				case (e:org.joda.time.IllegalFieldValueException) =>
 					new Time(base.minus(diffMillis)) //catch-all
 			}
 		}
