@@ -252,17 +252,17 @@ trait DataStore {
 		if(scores.length > 0){
 			//(get guess)
 			val bestGuess = scores(0)
+			//(is in beam?)
+			val correct = scores.filter{ (elem:ScoreElem) => elem.exact }
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
-				if(bestGuess.exact) bestGuess.index else -1)
+				if(correct.length > 0) correct(0).index else -1)
 			score.store(sent,placeOneParse,gold,bestGuess.exact)
 			//(feedback)
 			feedback(Feedback(
 				gold, 
 				grounding,
-				scores.
-					filter( elem => elem.exact ).
-					map( elem => (elem.index,Score.score(elem.diff)) ),
+				correct.map( elem => (elem.index,Score.score(elem.diff)) ),
 				scores.
 					filter( elem => !elem.exact ).
 					map( elem => (elem.index,Score.score(elem.diff)) )
