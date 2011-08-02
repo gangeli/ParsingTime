@@ -236,7 +236,7 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 		it("works for yesterday"){
 			val yesterday = catLeft
 			val target = Range(NOW-DAY,NOW)
-			assert( yesterday(NOTIME,NODUR) ~ target )
+			assert( yesterday(TODAY,DAY) ~ target )
 		}
 	}
 	describe("Cat Right") {
@@ -336,26 +336,26 @@ class ExamplesSpec extends Spec with ShouldMatchers{
 			assert( Time.probablyEqualRange(target,since(may32010,_:Range)) )
 		}
 		it("works for Since yesterday"){
-			val yesterday = catLeft(NOTIME,NODUR)
+			val yesterday = catLeft(TODAY,DAY)
 			val since = cons
 			val target = (r:Range) => Range(NOW-DAY, r.end)
 			assert( Time.probablyEqualRange(target,since(yesterday,_:Range)) )
 		}
 		it("works for Until tomorrow"){
-			val tomorrow = catRight(NOTIME,NODUR)
+			val tomorrow = catRight(TODAY,DAY)
 			val until = cons
 			val target = (r:Range) => Range(r.begin,NOW+DAY*2)
 			assert( Time.probablyEqualRange(target,until(_:Range,tomorrow)) )
 		}
 		it("works for Before tomorrow"){
-			val tomorrow = catRight(NOTIME,NODUR)
+			val tomorrow = catRight(TODAY,DAY)
 			val before = cons
 			val target = (r:Range) => Range(r.begin,NOW+DAY*2)
 			assert( Time.probablyEqualRange(target,before(_:Range,tomorrow)) )
 		}
 		it("works for yesterday until tomorrow"){
-			val yesterday = catLeft(NOTIME,NODUR)
-			val tomorrow = catRight(NOTIME,NODUR)
+			val yesterday = catLeft(TODAY,DAY)
+			val tomorrow = catRight(TODAY,DAY)
 			val until = cons
 			val target = Range(NOW-DAY,NOW+DAY*2)
 			assert( until(yesterday,tomorrow) ~ target )

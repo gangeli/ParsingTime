@@ -61,5 +61,5 @@ function r {
 	make $@ && ./run
 }
 function cmd {
-	java -cp bin:etc/joda-time.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar time.Time
+	java -cp bin:etc/joda-time.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar time.Time
 }
