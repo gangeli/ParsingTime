@@ -605,11 +605,12 @@ case class Parse(value:Temporal){
 			//(case: backoffs)
 			case (gold:Range,guess:GroundedRange) => 
 				diff(gold(ground),guess)
+			case (gold:PartialTime,guess:Temporal) =>
+				diff(gold(ground),guess)
 			//--Type Problems
 			//(case: types)
 			case (gold:Duration,guess:Temporal) =>  INF
 			case (gold:Range,guess:Temporal) => INF
-			case (gold:PartialTime,guess:Temporal) => INF
 			//(case: default)
 			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}

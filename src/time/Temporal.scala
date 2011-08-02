@@ -24,7 +24,7 @@ trait Temporal {
 		}.buffered
 	}
 	final def backwardIterator[E <: Temporal](ground:Time):BufferedIterator[E] = {
-		var leftPointer:Int = -1;
+		var leftPointer:Int = 0; //NOTE: will both hit zero
 		new Iterator[E]{
 			def hasNext:Boolean = Temporal.this.exists(leftPointer)(ground)
 			def next:E = {
@@ -79,6 +79,9 @@ trait Temporal {
 		}
 	}
 
+	final def all(ground:Time):Array[Temporal] = {
+		distribution(ground).map( _._1 ).toArray
+	}
 }
 
 object Temporal {
@@ -141,7 +144,7 @@ trait Range extends Temporal{
 	private def composite[E <: Temporal](
 			str:String,
 			other:Range,
-			fn:(Iterable[E],Iterable[E])=>Iterable[(GroundedRange,Int,Int)]
+			fn:(Boolean,Iterable[E],Iterable[E])=>Iterable[(GroundedRange,Int,Int)]
 				):CompositeRange = {
 		var cacheBackward:(Int=>GroundedRange,Int=>(Int,Int),Int=>Boolean) = null
 		var cacheForward:(Int=>GroundedRange,Int=>(Int,Int),Int=>Boolean) = null
@@ -149,14 +152,16 @@ trait Range extends Temporal{
 		def ensureCache(ground:Time) = {
 			if(cacheForward == null  || ground != cacheCond){
 				cacheCond = ground
-				cacheForward = Range.iter2apply(Range.cons(
+				cacheForward = Range.iter2apply(fn(
+						false, //forwards search
 						this.forwardIterable(ground),
 						other.forwardIterable(ground)
 					).iterator)
 				cacheBackward = 
 					Range.iter2apply(fn(
-						this.forwardIterable(ground),
-						other.forwardIterable(ground)
+						true, //backwards search
+						this.backwardIterable(ground),
+						other.backwardIterable(ground)
 					).iterator)
 			}
 			(cacheForward,cacheBackward)
@@ -166,18 +171,16 @@ trait Range extends Temporal{
 			(offset:Int) => { (ground:Time) => {
 				val ((applyForward,indexForward,existsForward),
 				     (applyBackward,indexBackward,existsBackward)) = ensureCache(ground)
-				if(offset < 0) {
-					assert(this.exists(offset)(ground),"no such offset: " + offset)
-					assert(existsBackward(-offset),"no such offset (sub): " + offset)
-					assert(applyBackward(-offset).isInstanceOf[GroundedRange], 
-						applyBackward(-offset))
-					applyBackward(-offset)
-				} else {
-					assert(this.exists(offset)(ground),"no such offset: " + offset)
-					assert(existsForward(offset),"no such offset (sub): " + offset)
-					assert(applyForward(offset).isInstanceOf[GroundedRange], 
-						applyForward(offset))
+				if(offset == 0) {
+					if(existsForward(0)){
+						applyForward(0)
+					} else {
+						applyBackward(0)
+					}
+				} else if(offset > 0){
 					applyForward(offset)
+				} else {
+					applyBackward(-offset)
 				}
 			}},
 			//(new prob)
@@ -186,10 +189,17 @@ trait Range extends Temporal{
 			(offset:Int) => { (ground:Time) => {
 				val ((applyForward,indexForward,existsForward),
 				     (applyBackward,indexBackward,existsBackward)) = ensureCache(ground)
-				if(offset < 0) {
-					existsBackward(-offset)
-				} else {
+				if(offset == 0) {
+					val forward = existsForward(0)
+					if(forward){
+						forward
+					} else {
+						existsBackward(0)
+					}
+				} else if(offset > 0){
 					existsForward(offset)
+				} else {
+					existsBackward(-offset)
 				}
 			}},
 			List[String]("("+this + ") "+str+" (" + other+")")
@@ -202,7 +212,8 @@ trait Range extends Temporal{
 				if(a.begin < b.end){ new GroundedRange(a.begin,b.end) }
 				else { new NoTime }
 			case _ => composite("cons",other,
-				Range.cons(_:Iterable[GroundedRange],_:Iterable[GroundedRange]))
+				Range.cons(_:Boolean,
+					_:Iterable[GroundedRange],_:Iterable[GroundedRange]))
 		}
 	}
 
@@ -213,7 +224,8 @@ trait Range extends Temporal{
 					Range.mkEnd(a.end,b.end)
 				)
 			case _ => composite("^",other,
-				Range.cons(_:Iterable[GroundedRange],_:Iterable[GroundedRange]))
+				Range.intersect(_:Boolean,
+					_:Iterable[GroundedRange],_:Iterable[GroundedRange]))
 		}
 	}
 }
@@ -382,9 +394,8 @@ object Range {
 
 	def mknext2iterable( 
 			a:Iterable[GroundedRange], b:Iterable[GroundedRange],
-			mkNext:(Int,
-			        GroundedRange,BufferedIterator[GroundedRange],Int,
-							GroundedRange,BufferedIterator[GroundedRange])
+			mkNext:(Int,GroundedRange,BufferedIterator[GroundedRange],
+			        Int,GroundedRange,BufferedIterator[GroundedRange])
 							=>
 							(GroundedRange,
 							((GroundedRange,Int),(GroundedRange,Int)),
@@ -416,7 +427,7 @@ object Range {
 		
 	}
 
-	def cons(a:Iterable[GroundedRange],b:Iterable[GroundedRange]
+	def cons(back:Boolean,a:Iterable[GroundedRange],b:Iterable[GroundedRange]
 			):Iterable[(GroundedRange,Int,Int)] = {
 		def mkNext(
 				iA:Int, vA:GroundedRange,a:BufferedIterator[GroundedRange],
@@ -426,9 +437,11 @@ object Range {
 			if(vA==null || vB==null){
 				//(case: an iterator is empty)
 				nullVal
-			} else if(vB.end < vA.end){
+			} else if(vB.end < vA.begin){
 				//(case: B is behind)
-				if(b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } else { nullVal }
+				if(!back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
+				else if(back && a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } 
+				else { nullVal }
 			} else {
 				//(case: overlap)
 				val rtn = new GroundedRange(vA.begin,vB.end)
@@ -444,8 +457,10 @@ object Range {
 		mknext2iterable(a,b,mkNext(_,_,_,_,_,_))
 	}
 
-	def intersect(a:Iterable[GroundedRange],b:Iterable[GroundedRange]
+	def intersect(back:Boolean,a:Iterable[GroundedRange],b:Iterable[GroundedRange]
 			):Iterable[(GroundedRange,Int,Int)] = {
+		var aBehindDiff:Duration = Duration.INFINITE
+		var bBehindDiff:Duration = Duration.INFINITE
 		def mkNext(
 				iA:Int, vA:GroundedRange,a:BufferedIterator[GroundedRange],
 				iB:Int, vB:GroundedRange,b:BufferedIterator[GroundedRange]
@@ -454,12 +469,28 @@ object Range {
 			if(vA==null || vB==null){
 				//(case: an iterator is empty)
 				nullVal
-			} else if(vA.end < vB.begin) {
-				//(case: A is behind)
-				if(a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } else { nullVal }
-			} else if(vB.end < vA.begin){
-				//(case: B is behind)
-				if(b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } else { nullVal }
+			} else if(!(vA.end > vB.begin)) { //note: virtual <= 
+				//(case: A is before)
+				//((overhead for divergence))
+				bBehindDiff = Duration.INFINITE
+				val lastDiff = aBehindDiff
+				aBehindDiff = (vB.begin-vA.end)
+				if(aBehindDiff > lastDiff){ nullVal } //case: diverging
+				//((movement))
+				else if(!back && a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } 
+				else if(back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
+				else { nullVal } //case: relevant iterator is empty
+			} else if(!(vB.end > vA.begin)){ //note: virtual <=
+				//(case: B is before)
+				//((overhead for divergence))
+				aBehindDiff = Duration.INFINITE
+				val lastDiff = bBehindDiff
+				bBehindDiff = vA.begin-vB.end
+				if(bBehindDiff > lastDiff){ nullVal } //case: diverging
+				//((movement))
+				else if(!back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
+				else if(back && a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } 
+				else { nullVal } //case: relevant iterator is empty
 			} else {
 				//(case: overlap)
 				val rtn = new GroundedRange(
@@ -478,6 +509,7 @@ object Range {
 				}
 			}
 		}
+		//(call the bloody function)
 		mknext2iterable(a,b,mkNext(_,_,_,_,_,_))
 	}
 }
@@ -581,7 +613,7 @@ class RepeatedRange(snapFn:Time=>Time,base:Range,interv:Duration
 				//(update cache condition)
 				cacheCond = ground
 				//(snap beginning)
-				val begin:Time = snapFn(ground)+interv*offset
+				val begin:Time = snapFn(ground+interv*offset) //interv before snap
 				//(ground the time)
 				base match {
 					case (r:{def norm:Duration}) => new GroundedRange(begin,begin+r.norm)
