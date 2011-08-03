@@ -58,14 +58,14 @@ def ensureStatement(stmt,*args)
 end
 puts "create database {"
 puts "  drop tables"
-query(db,'
-	DROP TABLE timebank_doc CASCADE; 
-	DROP TABLE timebank_sent CASCADE; 
-	DROP TABLE timebank_tag CASCADE; 
-	DROP TABLE timebank_timex CASCADE; 
-	DROP TABLE timebank_tlink CASCADE;')
+query(db,'DROP TABLE timebank_doc CASCADE')
+query(db,'DROP TABLE timebank_sent CASCADE')
+query(db,'DROP TABLE timebank_tag CASCADE')
+query(db,'DROP TABLE timebank_timex CASCADE')
+query(db,'DROP TABLE timebank_tlink CASCADE')
 puts "  remove source"
 query(db,"DELETE FROM source WHERE did='#{SOURCE_ID}'")
+
 #--Document
 query(db,"CREATE TABLE #{DOCUMENT} (
 		fid SERIAL PRIMARY KEY,
