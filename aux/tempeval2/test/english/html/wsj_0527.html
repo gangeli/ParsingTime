@@ -1,0 +1,216 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>wsj_0527</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>Crossland Savings Bank 's stock <etag>[plummeted]</etag><sup>e1</sup> after management <etag>[recommended]</etag><sup>e2</sup> a <etag>[suspension]</etag><sup>e3</sup> of dividend payments on both its common and preferred stock because Crossland may not <etag>[meet]</etag><sup>e5</sup> the new government capital criteria effective <ttag>[Dec. 7]<sup>t85</sup></ttag> . In composite trading on the New York Stock Exchange <ttag>[Friday]</ttag><sup>t86</sup> , Crossland <etag>[closed]</etag><sup>e7</sup> at $5.25 , down $1.875 , a 26% decline .</p></table>
+<p class=attributes>e5 { polarity:NEG modality:may pos:VERB tense:NONE aspect:NONE class:I_STATE }</p>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t85 { value:1989-12-07 type:DATE }</p>
+<p class=attributes>t86 { value:1989-10-27 type:DATE }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task C: e7 OVERLAP t86</p>
+<p class=relation>Task D: e7 BEFORE t0</p>
+<p class=relation>Task E: e1 BEFORE e7</p>
+<p class=relation>Task E: e7 BEFORE e9</p>
+<p class=relation>Task F: e2 BEFORE e3</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>A spokesman <etag>[said]</etag><sup>e9</sup> the savings bank may not <etag>[qualify]</etag><sup>e10</sup> for the capital requirements because , under the proposed guidelines , its $380 million of preferred stock does n 't <etag>[meet]</etag><sup>e11</sup> the " core capital " criteria outlined under the new Financial Institutions Reform , Recovery and Enforcement Act of <ttag>[1989]</ttag><sup>t89</sup> .</p></table>
+<p class=attributes>e10 { polarity:NEG modality:may pos:VERB tense:NONE aspect:NONE class:I_STATE }</p>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e11 { polarity:NEG modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>t89 { type:DATE value:1989 }</p>
+<p/>
+<p class=relation>Task C: e9 AFTER t89</p>
+<p class=relation>Task D: e9 BEFORE t0</p>
+<p class=relation>Task E: e9 OVERLAP e13</p>
+<p class=relation>Task F: e9 OVERLAP e10</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>He <etag>[added]</etag><sup>e13</sup> that final guidelines to be <etag>[published]</etag><sup>e14</sup> in <ttag>[early November]<sup>t191</sup></ttag> will <etag>[determine]</etag><sup>e15</sup> whether the bank is in compliance .</p></table>
+<p class=attributes>e13 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>t191 { value:1989-11 type:DATE }</p>
+<p class=attributes>e15 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e14 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e13 BEFORE t191</p>
+<p class=relation>Task D: e13 BEFORE t0</p>
+<p class=relation>Task E: e13 OVERLAP e17</p>
+<p class=relation>Task F: e13 BEFORE e15</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>Crossland <etag>[said]</etag><sup>e17</sup> it <etag>[retained]</etag><sup>e18</sup> three investment bankers to <etag>[assist]</etag><sup>e19</sup> it in <etag>[developing]</etag><sup>e20</sup> and <etag>[implementing]</etag><sup>e21</sup> a financial restructuring plan .</p></table>
+<p class=attributes>e17 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e19 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e18 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e21 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e20 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task D: e17 BEFORE t0</p>
+<p class=relation>Task E: e17 OVERLAP e22</p>
+<p class=relation>Task F: e17 OVERLAP-OR-AFTER e18</p>
+<p class=relation>Task F: e19 OVERLAP e21</p>
+<p class=relation>Task F: e18 BEFORE-OR-OVERLAP e19</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>It would n 't <etag>[identify]</etag><sup>e22</sup> the bankers .</p></table>
+<p class=attributes>e22 { polarity:NEG modality:would pos:VERB tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e22 VAGUE e23</p>
+</div>
+
+<div id=s5 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>5
+  <td><p class=line>Additionally , Crossland <etag>[reported]</etag><sup>e23</sup> a <ttag>[third-quarter]</ttag><sup>t92</sup> <etag>[loss]</etag><sup>e24</sup> of $175.5 million , or $13.44 a share , compared with net income of $27.1 million , or $1.16 a share , <ttag>[a year ago]<sup>t95</sup></ttag> .</p></table>
+<p class=attributes>t95 { value:1988-Q3 type:DATE }</p>
+<p class=attributes>e23 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>t92 { value:1989-Q3 type:DATE }</p>
+<p class=attributes>e24 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:STATE }</p>
+<p/>
+<p class=relation>Task C: e23 AFTER t92</p>
+<p class=relation>Task C: e24 OVERLAP t92</p>
+<p class=relation>Task D: e23 BEFORE t0</p>
+<p class=relation>Task D: e24 OVERLAP t0</p>
+<p class=relation>Task F: e23 AFTER e24</p>
+</div>
+
+<div id=s6 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>6
+  <td><p class=line>A major factor in the <ttag>[third-quarter]</ttag><sup>t98</sup> <etag>[loss]</etag><sup>e26</sup> was the write-down of $143.6 million of goodwill .</p></table>
+<p class=attributes>t98 { value:1989-Q3 type:DATE }</p>
+<p class=attributes>e26 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:STATE }</p>
+<p/>
+<p class=relation>Task C: e26 OVERLAP t98</p>
+<p class=relation>Task D: e26 BEFORE t0</p>
+</div>
+
+<div id=s7 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>7
+  <td><p class=line>The spokesman <etag>[said]</etag><sup>e28</sup> that the proposed guidelines <etag>[caused]</etag><sup>e29</sup> Crossland to <etag>[revise]</etag><sup>e30</sup> its business objectives and , consequently , to <etag>[write]</etag><sup>e31</sup> down the asset value of some previous acquisitions .</p></table>
+<p class=attributes>e31 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e30 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e28 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e29 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e28 BEFORE t0</p>
+<p class=relation>Task E: e28 AFTER e33</p>
+<p class=relation>Task F: e28 AFTER e29</p>
+</div>
+
+<div id=s8 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>8
+  <td><p class=line>Crossland <etag>[recorded]</etag><sup>e33</sup> an additional $20 million in loan loss reserves in <ttag>[the third quarter]<sup>t105</sup></ttag> .</p></table>
+<p class=attributes>e33 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p class=attributes>t105 { value:1989-Q3 type:DATE }</p>
+<p/>
+</div>
+
+<div id=s9 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>9
+  <td><p class=line>Net interest income for <ttag>[the third quarter]<sup>t104</sup></ttag> declined to $35.6 million from $70.1 million <ttag>[a year ago]<sup>t111</sup></ttag> .</p></table>
+<p class=attributes>t111 { value:1988-Q3 type:DATE }</p>
+<p class=attributes>t104 { value:1989-Q3 type:DATE }</p>
+<p/>
+</div>
+
+<div id=s10 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>10
+  <td><p class=line>However , non-interest income <etag>[rose]</etag><sup>e35</sup> to $23.5 million from $22 million .</p></table>
+<p class=attributes>e35 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e35 BEFORE t0</p>
+<p class=relation>Task E: e35 OVERLAP e37</p>
+</div>
+
+<div id=s11 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>11
+  <td><p class=line><ttag>[Third-quarter]</ttag><sup>t116</sup> loan originations <etag>[dropped]</etag><sup>e37</sup> sharply to $663 million from $1 billion <ttag>[a year ago]<sup>t122</sup></ttag> .</p></table>
+<p class=attributes>t122 { value:1988-Q3 type:DATE }</p>
+<p class=attributes>t116 { value:1989-Q3 type:DATE }</p>
+<p class=attributes>e37 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e37 AFTER t122</p>
+<p class=relation>Task D: e37 BEFORE t0</p>
+<p class=relation>Task E: e37 BEFORE e38</p>
+</div>
+
+<div id=s12 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>12
+  <td><p class=line>Standard amp Poor 's Corp. <etag>[lowered]</etag><sup>e38</sup> the rating on Crossland 's preferred stock to double-C from single-B-minus and <etag>[placed]</etag><sup>e39</sup> it on CreditWatch for possible further downgrade .</p></table>
+<p class=attributes>e39 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e38 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e38 OVERLAP e41</p>
+</div>
+
+<div id=s13 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>13
+  <td><p class=line>It also <etag>[placed]</etag><sup>e41</sup> on CreditWatch for possible downgrade other securities , including the double-B-minus/B rating of Crossland 's certificates of deposit and the single-B rating of its senior subordinated capital notes .</p></table>
+<p class=attributes>e41 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+</div>
+
+<div id=s14 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>14
+  <td><p class=line>About $518 million of debt is affected .</p></table>
+<p/>
+</div>
+</body>
+</html>

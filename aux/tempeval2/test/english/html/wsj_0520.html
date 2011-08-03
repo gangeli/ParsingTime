@@ -1,0 +1,236 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>wsj_0520</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>Nashua Corp. , <etag>[rumored]</etag><sup>e1</sup> a potential takeover target for <ttag>[six months]<sup>t77</sup></ttag> , <etag>[said]</etag><sup>e2</sup> that a Dutch company has <etag>[sought]</etag><sup>e3</sup> U.S. <etag>[approval]</etag><sup>e4</sup> to <etag>[buy]</etag><sup>e5</sup> up to 25% of Nashua 's shares .</p></table>
+<p class=attributes>t77 { type:DURATION value:P6M }</p>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e4 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:I_STATE }</p>
+<p class=attributes>e5 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:I_ACTION }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:STATE }</p>
+<p/>
+<p class=relation>Task C: e2 OVERLAP t77</p>
+<p class=relation>Task C: e5 NON-RELATED t77</p>
+<p class=relation>Task C: e3 OVERLAP t77</p>
+<p class=relation>Task D: e2 BEFORE t0</p>
+<p class=relation>Task D: e5 AFTER t0</p>
+<p class=relation>Task D: e3 BEFORE t0</p>
+<p class=relation>Task E: e2 AFTER e6</p>
+<p class=relation>Task F: e2 AFTER e3</p>
+<p class=relation>Task F: e4 BEFORE e5</p>
+<p class=relation>Task F: e3 BEFORE e4</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Nashua immediately <etag>[responded]</etag><sup>e6</sup> by <etag>[strengthening]</etag><sup>e7</sup> a poison-pill plan and <etag>[saying]</etag><sup>e8</sup> it will <etag>[buy]</etag><sup>e9</sup> back up to one million of its shares , or 10.4% of the 9.6 million outstanding .</p></table>
+<p class=attributes>e8 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:REPORTING }</p>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e6 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e8 BEFORE t0</p>
+<p class=relation>Task D: e9 AFTER t0</p>
+<p class=relation>Task E: e6 BEFORE e11</p>
+<p class=relation>Task F: e8 BEFORE e9</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>Nashua , whose major business is selling copiers , facsimile machines and related supplies , <etag>[said]</etag><sup>e11</sup> Reiss amp Co. B.V. of the Netherlands <etag>[filed]</etag><sup>e12</sup> a request with the Federal Trade Commission under the Hart-Scott-Rodino Act for permission to <etag>[buy]</etag><sup>e13</sup> more than $15 million of Nashua 's stock but less than 25% .</p></table>
+<p class=attributes>e13 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e11 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e12 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e13 AFTER t0</p>
+<p class=relation>Task D: e11 BEFORE t0</p>
+<p class=relation>Task E: e11 AFTER e14</p>
+<p class=relation>Task F: e11 AFTER e12</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>Previously , an affiliate of Unicorp Canada <etag>[disclosed]</etag><sup>e14</sup> a stake of less than 5% in Nashua , <etag>[according]</etag><sup>e15</sup> to Daniel M. Junius , Nashua 's treasurer .</p></table>
+<p class=attributes>e15 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:REPORTING }</p>
+<p class=attributes>e14 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e15 BEFORE t0</p>
+<p class=relation>Task E: e14 VAGUE e16</p>
+<p class=relation>Task F: e15 AFTER e14</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>Nashua 's stock has <etag>[fluctuated]</etag><sup>e16</sup> sharply on takeover speculation , <etag>[rising]</etag><sup>e17</sup> to a high for <ttag>[the year]<sup>t88</sup></ttag> of $42.875 a share in <ttag>[June]</ttag><sup>t89</sup> from $29.75 in <ttag>[March]</ttag><sup>t90</sup> .</p></table>
+<p class=attributes>e17 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t90 { value:1989-03 type:DATE }</p>
+<p class=attributes>t88 { value:1989 type:DATE }</p>
+<p class=attributes>t89 { value:1989-06 type:DATE }</p>
+<p class=attributes>e16 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e17 OVERLAP t89</p>
+<p class=relation>Task D: e17 BEFORE t0</p>
+<p class=relation>Task E: e16 OVERLAP e18</p>
+</div>
+
+<div id=s5 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>5
+  <td><p class=line>But the company has <etag>[had]</etag><sup>e18</sup> weak results so far <ttag>[this year]<sup>t92</sup></ttag> , with earnings <etag>[declining]</etag><sup>e19</sup> 43% to $13.7 million , or $1.43 a share , on a 4% decline in revenue to $713.5 million through the <ttag>[first nine months]<sup>t100</sup></ttag> of <ttag>[the year]<sup>t1000</sup></ttag> .</p></table>
+<p class=attributes>t92 { value:1989-10-30 type:DATE }</p>
+<p class=attributes>t100 { type:DURATION value:P9M }</p>
+<p class=attributes>e19 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t1000 { type:DATE value:1989 }</p>
+<p class=attributes>e18 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:STATE }</p>
+<p/>
+<p class=relation>Task C: e19 OVERLAP t1000</p>
+<p class=relation>Task C: e18 OVERLAP t1000</p>
+<p class=relation>Task D: e19 BEFORE t0</p>
+<p class=relation>Task D: e18 BEFORE t0</p>
+<p class=relation>Task E: e18 BEFORE-OR-OVERLAP e21</p>
+</div>
+
+<div id=s6 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>6
+  <td><p class=line>Its stock has <etag>[slumped]</etag><sup>e21</sup> <ttag>[recently]</ttag><sup>t101</sup> , <etag>[closing]</etag><sup>e22</sup> unchanged <ttag>[Friday]</ttag><sup>t103</sup> at $29 a share in composite trading on the New York Stock Exchange ; at that price , the company has a market value of about $278.4 million .</p></table>
+<p class=attributes>t103 { value:1989-10-27 type:DATE }</p>
+<p class=attributes>e21 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p class=attributes>t101 { value:PAST_REF type:DATE }</p>
+<p class=attributes>e22 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e22 OVERLAP t101</p>
+<p class=relation>Task D: e22 BEFORE t0</p>
+<p class=relation>Task E: e21 BEFORE-OR-OVERLAP e25</p>
+</div>
+
+<div id=s7 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>7
+  <td><p class=line>Nashua <etag>[announced]</etag><sup>e25</sup> the Reiss <etag>[request]</etag><sup>e26</sup> after the market <etag>[closed]</etag><sup>e27</sup> .</p></table>
+<p class=attributes>e25 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e27 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:ASPECTUAL }</p>
+<p class=attributes>e26 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e25 BEFORE t0</p>
+<p class=relation>Task D: e27 BEFORE t0</p>
+<p class=relation>Task E: e25 OVERLAP e28</p>
+<p class=relation>Task F: e25 AFTER e26</p>
+</div>
+
+<div id=s8 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>8
+  <td><p class=line>Mr. Junius <etag>[said]</etag><sup>e28</sup> Nashua 's " intention is to <etag>[remain]</etag><sup>e29</sup> an independent public company . "</p></table>
+<p class=attributes>e29 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:STATE }</p>
+<p class=attributes>e28 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p/>
+<p class=relation>Task D: e29 OVERLAP t0</p>
+<p class=relation>Task D: e28 BEFORE t0</p>
+<p class=relation>Task E: e28 OVERLAP e30</p>
+</div>
+
+<div id=s9 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>9
+  <td><p class=line>The company <etag>[said]</etag><sup>e30</sup> it <etag>[amended]</etag><sup>e31</sup> its shareholder rights plan by <etag>[reducing]</etag><sup>e32</sup> to 10% from 20% the level of ownership by an outsider that would trigger the issuance to other holders of rights to buy additional shares of Nashua common at half price .</p></table>
+<p class=attributes>e32 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e30 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e31 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e30 BEFORE t0</p>
+<p class=relation>Task E: e30 OVERLAP e36</p>
+<p class=relation>Task F: e30 AFTER e31</p>
+</div>
+
+<div id=s10 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>10
+  <td><p class=line>In addition , the company 's board <etag>[authorized]</etag><sup>e36</sup> the <etag>[purchase]</etag><sup>e37</sup> of up to an additional one million shares .</p></table>
+<p class=attributes>e37 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e36 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task D: e37 AFTER t0</p>
+<p class=relation>Task E: e36 AFTER e40</p>
+<p class=relation>Task F: e36 BEFORE e37</p>
+</div>
+
+<div id=s11 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>11
+  <td><p class=line>Under a program <etag>[approved]</etag><sup>e38</sup> by the company in <ttag>[1987]</ttag><sup>t109</sup> that did n 't specify a share amount , Nashua had <etag>[purchased]</etag><sup>e40</sup> 481,000 shares through <ttag>[Sept. 29]<sup>t111</sup></ttag> .</p></table>
+<p class=attributes>t111 { value:1989-09-29 type:DATE }</p>
+<p class=attributes>t109 { type:DATE value:1987 }</p>
+<p class=attributes>e38 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e40 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e40 AFTER t109</p>
+<p class=relation>Task D: e40 BEFORE t0</p>
+<p class=relation>Task E: e40 BEFORE e41</p>
+</div>
+
+<div id=s12 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>12
+  <td><p class=line>Alex Henderson , an analyst at Prudential-Bache Securities , <etag>[said]</etag><sup>e41</sup> that while Nashua 's performance <ttag>[this year]<sup>t112</sup></ttag> has been " atrocious , " the company nonetheless is attractive as a " classic breakup candidate because there 's no similarity between its { four } businesses . "</p></table>
+<p class=attributes>e41 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>t112 { value:1989 type:DATE }</p>
+<p/>
+<p class=relation>Task C: e41 OVERLAP t112</p>
+<p class=relation>Task D: e41 BEFORE t0</p>
+<p class=relation>Task E: e41 OVERLAP e45</p>
+</div>
+
+<div id=s13 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>13
+  <td><p class=line>He <etag>[estimated]</etag><sup>e45</sup> the breakup value at $55 a share .</p></table>
+<p class=attributes>e45 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p/>
+</div>
+
+<div id=s14 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>14
+  <td><p class=line>In addition to selling Japanese-made photocopiers and facsimile machines in Europe and copier supplies in the U.S. , Nashua has three other major businesses : labels and tapes , data storage disks for computers and mail-order photofinishing .</p></table>
+<p/>
+</div>
+</body>
+</html>

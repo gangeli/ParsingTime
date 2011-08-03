@@ -1,0 +1,83 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>ea980120.1830.0456</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>The Pentagon <etag>[said]</etag><sup>e1</sup> <ttag>[today]</ttag><sup>t14</sup> it will <etag>[re-examine]</etag><sup>e2</sup> the question are the remains inside the Tomb of the Unknown from the Vietnam War , in fact , <etag>[known]</etag><sup>e4</sup> ?</p></table>
+<p class=attributes>e4 { polarity:POS modality:NONE pos:ADJECTIVE tense:PRESENT aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>t14 { value:1998-01-20 type:DATE }</p>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task C: e1 OVERLAP t14</p>
+<p class=relation>Task D: e1 BEFORE t0</p>
+<p class=relation>Task E: e1 AFTER e5</p>
+<p class=relation>Task F: e1 BEFORE e2</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>CBS News first <etag>[reported]</etag><sup>e5</sup> <ttag>[last night]<sup>t15</sup></ttag> that the tomb may <etag>[contain]</etag><sup>e6</sup> the remains of Air Force pilot Michael Blassie .</p></table>
+<p class=attributes>e6 { polarity:POS modality:may pos:VERB tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e5 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>t15 { value:1998-01-19TNI type:TIME }</p>
+<p/>
+<p class=relation>Task C: e5 OVERLAP t15</p>
+<p class=relation>Task D: e5 BEFORE t0</p>
+<p class=relation>Task F: e5 OVERLAP e6</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>There was a suspicion the body <etag>[was]</etag><sup>e7</sup> Blassie because his uniform and ID card were <etag>[found]</etag><sup>e8</sup> near the body in Vietnam .</p></table>
+<p class=attributes>e8 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:OTHER tense:PAST aspect:NONE class:STATE }</p>
+<p/>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>But subsequently , they were <etag>[lost]</etag><sup>e9</sup> .</p></table>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e9 BEFORE e10</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>Blassie 's mother <ttag>[now]</ttag><sup>t16</sup> <etag>[wants]</etag><sup>e10</sup> the remains in the tomb <etag>[tested]</etag><sup>e11</sup> for DNA .</p></table>
+<p class=attributes>e11 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t16 { value:PRESENT_REF type:DATE }</p>
+<p class=attributes>e10 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p/>
+<p class=relation>Task C: e10 OVERLAP t16</p>
+<p class=relation>Task D: e10 OVERLAP t0</p>
+<p class=relation>Task F: e10 BEFORE e11</p>
+</div>
+</body>
+</html>

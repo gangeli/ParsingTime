@@ -1,0 +1,16 @@
+8
+
+dir
+15
+svn+ssh://marc@chalciope.cs.brandeis.edu/home/j/corpuswork/.svn/tempeval/tempeval2/trunk/create_timeml_2/release/skeleton/korean/html
+svn+ssh://marc@chalciope.cs.brandeis.edu/home/j/corpuswork/.svn/tempeval
+
+
+
+2010-03-20T03:58:11.963281Z
+15
+marc
+
+
+svn:special svn:externals svn:needs-lock
+

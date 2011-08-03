@@ -1,0 +1,376 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>APW19980306.1001</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>BAGHDAD , Iraq ( AP ) _ An American leader of a U.N. weapons inspection team <etag>[resumed]</etag><sup>e1</sup> <etag>[work]</etag><sup>e2</sup> in Iraq <ttag>[Friday]</ttag><sup>t138</sup> , <ttag>[nearly two months]<sup>t139</sup></ttag> after his team was effectively <etag>[blocked]</etag><sup>e3</sup> .</p></table>
+<p class=attributes>t139 { value:P2M type:DURATION }</p>
+<p class=attributes>t138 { value:1998-03-06 type:DATE }</p>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:ASPECTUAL }</p>
+<p/>
+<p class=relation>Task E: e1 BEFORE e7</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Scott Ritter <etag>[led]</etag><sup>e4</sup> his team on a <ttag>[10-hour]</ttag><sup>t140</sup> <etag>[tour]</etag><sup>e5</sup> of three suspected weapons sites classified as ` ` sensitive ' ' by the Iraqi authorities , U.N. spokesman Alan Dacey <etag>[said]</etag><sup>e7</sup> .</p></table>
+<p class=attributes>e5 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e4 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t140 { type:DURATION value:PT10H }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p/>
+<p class=relation>Task C: e7 AFTER t140</p>
+<p class=relation>Task D: e7 BEFORE t0</p>
+<p class=relation>Task E: e7 OVERLAP e9</p>
+<p class=relation>Task F: e7 AFTER e5</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>` ` All sites were <etag>[inspected]</etag><sup>e8</sup> to the satisfaction of the inspection team and with full cooperation of Iraqi authorities , ' ' Dacey <etag>[said]</etag><sup>e9</sup> .</p></table>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e8 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e9 BEFORE t0</p>
+<p class=relation>Task F: e9 AFTER e8</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>At least one of the sensitive sites was a barracks of the elite Republican Guard , a well-placed source told The Associated Press .</p></table>
+<p/>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line><ttag>[Previously]</ttag><sup>t1191</sup> the Iraqis have <etag>[resisted]</etag><sup>e12</sup> <etag>[attempts]</etag><sup>e13</sup> to <etag>[inspect]</etag><sup>e14</sup> such quarters .</p></table>
+<p class=attributes>t1191 { value:PAST_REF type:DATE }</p>
+<p class=attributes>e13 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e12 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:I_ACTION }</p>
+<p class=attributes>e14 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e12 BEFORE-OR-OVERLAP e15</p>
+<p class=relation>Task F: e13 BEFORE-OR-OVERLAP e14</p>
+<p class=relation>Task F: e12 OVERLAP e13</p>
+</div>
+
+<div id=s5 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>5
+  <td><p class=line>The U.N. Security Council has <etag>[charged]</etag><sup>e15</sup> the inspectors with <etag>[verifying]</etag><sup>e16</sup> that Iraq has <etag>[destroyed]</etag><sup>e17</sup> its long-range missiles and weapons of mass destruction .</p></table>
+<p class=attributes>e16 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e17 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p class=attributes>e15 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task D: e15 BEFORE t0</p>
+<p class=relation>Task E: e15 BEFORE-OR-OVERLAP e21</p>
+<p class=relation>Task F: e16 AFTER e17</p>
+<p class=relation>Task F: e15 BEFORE-OR-OVERLAP e16</p>
+</div>
+
+<div id=s6 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>6
+  <td><p class=line>It was the first time that Ritter , who <etag>[arrived]</etag><sup>e18</sup> <ttag>[Thursday]</ttag><sup>t141</sup> with some 50 inspectors for a <etag>[tour]</etag><sup>e19</sup> likely to <etag>[last]</etag><sup>e20</sup> <ttag>[over a week]<sup>t143</sup></ttag> , had been <etag>[allowed]</etag><sup>e21</sup> to <etag>[carry]</etag><sup>e22</sup> out an <etag>[inspection]</etag><sup>e23</sup> since <ttag>[Jan. 13]<sup>t1192</sup></ttag> .</p></table>
+<p class=attributes>t141 { value:1998-03-05 type:DATE }</p>
+<p class=attributes>e21 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:PERFECTIVE class:I_STATE }</p>
+<p class=attributes>e20 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t143 { value:P1W type:DURATION }</p>
+<p class=attributes>e19 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e23 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e22 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t1192 { value:1998-01-13 type:DATE }</p>
+<p class=attributes>e18 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e21 AFTER e24</p>
+<p class=relation>Task F: e21 OVERLAP e22</p>
+</div>
+
+<div id=s7 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>7
+  <td><p class=line>Then the Baghdad government <etag>[stopped]</etag><sup>e24</sup> <etag>[providing]</etag><sup>e25</sup> Ritter 's team with escorts , <etag>[making]</etag><sup>e26</sup> it impossible for him to <etag>[enter]</etag><sup>e27</sup> any site .</p></table>
+<p class=attributes>e27 { polarity:NEG modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e26 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e25 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e24 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:ASPECTUAL }</p>
+<p/>
+<p class=relation>Task D: e26 BEFORE t0</p>
+<p class=relation>Task E: e24 OVERLAP e28</p>
+<p class=relation>Task F: e26 BEFORE e27</p>
+</div>
+
+<div id=s8 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>8
+  <td><p class=line>Iraq <etag>[alleged]</etag><sup>e28</sup> Ritter was an American spy whose team had a disproportionately high number of Americans and Britons .</p></table>
+<p class=attributes>e28 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task E: e28 BEFORE e34</p>
+</div>
+
+<div id=s9 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>9
+  <td><p class=line>The official Iraqi News Agency , which gives the daily tally of inspections , did not <etag>[mention]</etag><sup>e34</sup> Ritter by name , but <etag>[said]</etag><sup>e35</sup> <ttag>[Friday]</ttag><sup>t144</sup> that team no .</p></table>
+<p class=attributes>t144 { value:1998-03-06 type:DATE }</p>
+<p class=attributes>e35 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e34 { polarity:NEG modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e35 OVERLAP t144</p>
+<p class=relation>Task D: e35 BEFORE t0</p>
+<p class=relation>Task E: e34 OVERLAP e41</p>
+<p class=relation>Task F: e35 AFTER e38</p>
+</div>
+
+<div id=s10 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>10
+  <td><p class=line>225 _ which Ritter heads _ <etag>[made]</etag><sup>e37</sup> surprise <etag>[visits]</etag><sup>e38</sup> to a number of sites and was <etag>[assisted]</etag><sup>e39</sup> by aerial surveillance .</p></table>
+<p class=attributes>e38 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e39 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e37 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e37 BEFORE t144</p>
+<p class=relation>Task D: e37 BEFORE t0</p>
+</div>
+
+<div id=s11 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>11
+  <td><p class=line>Five other U.N. inspection teams <etag>[visited]</etag><sup>e40</sup> a total of nine other sites , the agency <etag>[reported]</etag><sup>e41</sup> .</p></table>
+<p class=attributes>e41 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e40 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e41 BEFORE t0</p>
+<p class=relation>Task E: e41 VAGUE e43</p>
+<p class=relation>Task F: e41 AFTER e40</p>
+</div>
+
+<div id=s12 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>12
+  <td><p class=line>An Iraqi official , <etag>[speaking]</etag><sup>e42</sup> on customary condition of anonymity , <etag>[said]</etag><sup>e43</sup> Ritter would not <etag>[try]</etag><sup>e44</sup> to <etag>[visit]</etag><sup>e45</sup> any of the eight presidential sites that Baghdad had <etag>[placed]</etag><sup>e46</sup> off-limits to U.N. weapons inspectors .</p></table>
+<p class=attributes>e43 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e46 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p class=attributes>e44 { polarity:NEG modality:would pos:VERB tense:NONE aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e42 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e45 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e43 BEFORE t0</p>
+<p class=relation>Task D: e44 AFTER t0</p>
+<p class=relation>Task E: e43 OVERLAP e47</p>
+<p class=relation>Task F: e43 BEFORE e44</p>
+<p class=relation>Task F: e44 BEFORE-OR-OVERLAP e45</p>
+</div>
+
+<div id=s13 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>13
+  <td><p class=line>The official <etag>[said]</etag><sup>e47</sup> these sites could only be <etag>[visited]</etag><sup>e48</sup> by a special team of U.N. monitors and diplomats as <etag>[laid]</etag><sup>e49</sup> down by the <ttag>[Feb. 23]<sup>t1193</sup></ttag> accord <etag>[signed]</etag><sup>e50</sup> by U.N. Secretary-General Kofi Annan and Iraqi Deputy Prime Minister Tariq Aziz .</p></table>
+<p class=attributes>t1193 { value:1998-02-23 type:DATE }</p>
+<p class=attributes>e50 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e49 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e47 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e48 { polarity:POS modality:could pos:VERB tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e47 AFTER t1193</p>
+<p class=relation>Task D: e47 BEFORE t0</p>
+<p class=relation>Task E: e47 OVERLAP e52</p>
+<p class=relation>Task F: e47 OVERLAP e48</p>
+</div>
+
+<div id=s14 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>14
+  <td><p class=line>Ritter 's <etag>[return]</etag><sup>e51</sup> is <etag>[seen]</etag><sup>e52</sup> as something of a <etag>[test]</etag><sup>e53</sup> of that agreement , under which Iraq <etag>[agreed]</etag><sup>e54</sup> to <etag>[give]</etag><sup>e55</sup> inspectors full access to eight of Saddam Hussein 's presidential palaces .</p></table>
+<p class=attributes>e53 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e55 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e51 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e52 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>e54 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task D: e55 OVERLAP t0</p>
+<p class=relation>Task D: e52 OVERLAP t0</p>
+<p class=relation>Task D: e54 BEFORE t0</p>
+<p class=relation>Task E: e52 AFTER e56</p>
+<p class=relation>Task F: e52 OVERLAP e51</p>
+<p class=relation>Task F: e54 BEFORE e55</p>
+</div>
+
+<div id=s15 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>15
+  <td><p class=line>The United States had <etag>[moved]</etag><sup>e56</sup> additional troops and a naval armada into the Gulf and <etag>[said]</etag><sup>e57</sup> it would <etag>[strike]</etag><sup>e58</sup> Iraq unless it gave the U.N. arms inspectors unfettered access to all potential weapons sites , including Saddam 's palaces .</p></table>
+<p class=attributes>e58 { polarity:POS modality:would pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e57 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e56 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e57 BEFORE t0</p>
+<p class=relation>Task D: e56 BEFORE t0</p>
+<p class=relation>Task E: e56 OVERLAP e60</p>
+<p class=relation>Task F: e57 BEFORE e58</p>
+</div>
+
+<div id=s16 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>16
+  <td><p class=line>Iraq had <etag>[argued]</etag><sup>e60</sup> the presidential sites should be off limits as symbols of sovereignty .</p></table>
+<p class=attributes>e60 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:PERFECTIVE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task E: e60 BEFORE e62</p>
+</div>
+
+<div id=s17 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>17
+  <td><p class=line>A Pentagon spokesman <etag>[said]</etag><sup>e62</sup> <ttag>[Thursday]</ttag><sup>t146</sup> that the 38,000 U.S. troops in the Gulf will <etag>[remain]</etag><sup>e63</sup> until Iraq <etag>[complies]</etag><sup>e64</sup> with the U.N. Security Council agreement over weapons inspections .</p></table>
+<p class=attributes>e62 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e63 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:STATE }</p>
+<p class=attributes>e64 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t146 { value:1998-03-05 type:DATE }</p>
+<p/>
+<p class=relation>Task C: e62 OVERLAP t146</p>
+<p class=relation>Task C: e63 OVERLAP t146</p>
+<p class=relation>Task D: e62 BEFORE t0</p>
+<p class=relation>Task D: e63 OVERLAP t0</p>
+<p class=relation>Task E: e62 OVERLAP e66</p>
+<p class=relation>Task F: e62 BEFORE e63</p>
+</div>
+
+<div id=s18 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>18
+  <td><p class=line>` ` We are going to <etag>[maintain]</etag><sup>e65</sup> our forces in the region for the foreseeable future , ' ' <etag>[said]</etag><sup>e66</sup> spokesman Kenneth Bacon .</p></table>
+<p class=attributes>e66 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e65 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:STATE }</p>
+<p/>
+<p class=relation>Task D: e66 BEFORE t0</p>
+<p class=relation>Task E: e66 AFTER e67</p>
+<p class=relation>Task F: e66 BEFORE e65</p>
+</div>
+
+<div id=s19 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>19
+  <td><p class=line>The U.N.-Iraq accord was <etag>[worked]</etag><sup>e67</sup> out by U.N. Secretary-General Kofi Annan , who <etag>[appointed]</etag><sup>e68</sup> a retired Indian diplomat on <ttag>[Thursday]</ttag><sup>t1194</sup> as his special representative to Iraq .</p></table>
+<p class=attributes>t1194 { value:1998-03-05 type:DATE }</p>
+<p class=attributes>e68 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e67 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e67 OVERLAP e70</p>
+</div>
+
+<div id=s20 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>20
+  <td><p class=line>Prakash Shah , 58 , a former Indian ambassador to the United Nations , is part of an <etag>[effort]</etag><sup>e70</sup> by Annan to <etag>[expand]</etag><sup>e71</sup> contacts with the Iraqi leadership .</p></table>
+<p class=attributes>e70 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e71 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e70 OVERLAP e73</p>
+<p class=relation>Task F: e70 BEFORE-OR-OVERLAP e71</p>
+</div>
+
+<div id=s21 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>21
+  <td><p class=line>Palace <etag>[inspections]</etag><sup>e72</sup> are not <etag>[expected]</etag><sup>e73</sup> to <etag>[start]</etag><sup>e74</sup> until the new agreement 's procedures are in place .</p></table>
+<p class=attributes>e72 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e73 { polarity:NEG modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>e74 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:ASPECTUAL }</p>
+<p/>
+<p class=relation>Task D: e73 OVERLAP t0</p>
+<p class=relation>Task E: e73 OVERLAP e76</p>
+<p class=relation>Task F: e73 BEFORE e72</p>
+</div>
+
+<div id=s22 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>22
+  <td><p class=line>U.N. officials in New York on <ttag>[Friday]</ttag><sup>t148</sup> <etag>[finished]</etag><sup>e76</sup> <etag>[drafting]</etag><sup>e77</sup> the rules , in consultation with Iraqi diplomats .</p></table>
+<p class=attributes>e77 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e76 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:ASPECTUAL }</p>
+<p class=attributes>t148 { value:1998-03-06 type:DATE }</p>
+<p/>
+<p class=relation>Task E: e76 BEFORE e80</p>
+</div>
+
+<div id=s23 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>23
+  <td><p class=line>The procedures are due to <etag>[go]</etag><sup>e80</sup> before the Security Council <ttag>[next week]<sup>t150</sup></ttag> .</p></table>
+<p class=attributes>t150 { value:1998-W11 type:DATE }</p>
+<p class=attributes>e80 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e80 OVERLAP t150</p>
+<p class=relation>Task D: e80 AFTER t0</p>
+<p class=relation>Task E: e80 AFTER e81</p>
+</div>
+
+<div id=s24 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>24
+  <td><p class=line>The Security Council has <etag>[said]</etag><sup>e81</sup> it will not <etag>[lift]</etag><sup>e82</sup> the sweeping sanctions <etag>[imposed]</etag><sup>e84</sup> on Iraq after its <ttag>[1990]</ttag><sup>t151</sup> <etag>[invasion]</etag><sup>e85</sup> of Kuwait until the U.N. inspectors <etag>[certify]</etag><sup>e86</sup> that Baghdad has <etag>[eliminated]</etag><sup>e87</sup> its weapons of mass destruction .</p></table>
+<p class=attributes>e86 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e84 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t151 { type:DATE value:1990 }</p>
+<p class=attributes>e85 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e87 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p class=attributes>e81 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:REPORTING }</p>
+<p class=attributes>e82 { polarity:NEG modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e81 AFTER t151</p>
+<p class=relation>Task D: e81 BEFORE t0</p>
+<p class=relation>Task F: e86 AFTER e87</p>
+<p class=relation>Task F: e81 BEFORE e82</p>
+</div>
+</body>
+</html>

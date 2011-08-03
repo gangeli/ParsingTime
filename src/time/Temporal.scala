@@ -8,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
 //------------------------------------------------------------------------------
 trait Temporal {
 	def apply[E <: Temporal](offset:Int):Time=>E
-	def prob(offset:Int):Double
+	def prob(offset:Int):Time=>Double
 	def exists(offset:Int):Time=>Boolean = (ground:Time) => (offset == 0)
 
 
@@ -54,17 +54,18 @@ trait Temporal {
 					= Temporal.this.exists(leftPointer)(ground) || 
 					  Temporal.this.exists(rightPointer)(ground)
 				def next:(Temporal,Double,Int) = {
-					val pLeft = prob(leftPointer)
-					val pRight = prob(rightPointer)
+					assert(hasNext, "Calling next when there is no next")
+					val pLeft = prob(leftPointer)(ground)
+					val pRight = prob(rightPointer)(ground)
 					if(Temporal.this.exists(leftPointer)(ground) && 
 							(pLeft > pRight || !Temporal.this.exists(rightPointer)(ground))) {
 						val rtn:Temporal = apply(leftPointer)(ground)
 						leftPointer -= 1
-						(rtn,pLeft,leftPointer)
+						(rtn,pLeft,leftPointer+1)
 					} else if(Temporal.this.exists(rightPointer)(ground)){
 						val rtn:Temporal = apply(rightPointer)(ground)
 						rightPointer += 1
-						(rtn,pRight,rightPointer)
+						(rtn,pRight,rightPointer-1)
 					} else {
 						assert(!hasNext, "Inconsistent iterator")
 						throw new NoSuchElementException()
@@ -237,7 +238,7 @@ trait Range extends Temporal{
 // ----- COMPOSITE RANGE -----
 class CompositeRange( 
 			applyFn:Int=>(Time=>Range),
-			probFn:Int=>Double,
+			probFn:Int=>(Time=>Double),
 			existsFn:Int=>(Time=>Boolean),
 			ops:List[String]
 		) extends Range {
@@ -251,7 +252,7 @@ class CompositeRange(
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	}
-	override def prob(offset:Int):Double = probFn(offset)
+	override def prob(offset:Int):Time=>Double = probFn(offset)
 	override def exists(offset:Int):Time=>Boolean = existsFn(offset)
 
 	override def >>(diff:Duration):Range = extend( _ >> diff, ">>" )
@@ -286,7 +287,8 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 		}
 		else{throw new TimeException("GroundedRange given nonzero offset: "+offset)}
 	}
-	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
+	override def prob(offset:Int):Time=>Double = (t:Time) =>
+		if(offset == 0){ 1.0 } else{ 0.0 }
 
 	
 	override def >>(diff:Duration):Range = new GroundedRange(begin+diff,end+diff)
@@ -297,7 +299,7 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 	override def >|(diff:Duration):Range = new GroundedRange(end-diff,end)
 
 	
-	def norm:Duration = (begin - end)
+	def norm:Duration = (end - begin)
 
 	override def equals(o:Any):Boolean = o match {
 		case (gr:GroundedRange) => 
@@ -323,7 +325,8 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 			throw new TimeException("UngroundedRange given nonzero offset: "+offset)
 		}
 	}
-	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
+	override def prob(offset:Int):Time=>Double = (t:Time) =>
+		if(offset == 0){ 1.0 } else{ 0.0 }
 
 	override def >>(diff:Duration):Range 
 		= new UngroundedRange(normVal,beginOffset+diff)
@@ -531,7 +534,8 @@ trait Duration extends Temporal {
 		}
 		else{ throw new TimeException("Duration given nonzero offset: "+offset) }
 	}
-	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
+	override def prob(offset:Int):Time=>Double = (t:Time) =>
+		if(offset == 0){ 1.0 } else{ 0.0 }
 
 	def interval:GroundedDuration
 	def seconds:Long
@@ -540,6 +544,8 @@ trait Duration extends Temporal {
 	def -(diff:Duration):Duration
 	def *(n:Int):Duration
 	
+	def /(other:Duration):Double 
+		= this.seconds.asInstanceOf[Double] / other.seconds.asInstanceOf[Double]
 	def <(other:Duration) = this.seconds < other.seconds
 	def >(other:Duration) = this.seconds > other.seconds
 }
@@ -633,10 +639,18 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 			if(cache == null || ground != cacheCond) cache = { //cache
 				//(update cache condition)
 				cacheCond = ground
+				//(get start)
+				val beginT:Time = 
+					if(bound == null) {
+						ground
+					} else {
+						if(ground > bound.begin && ground < bound.end){ ground }
+						else { bound.begin }
+					}
 				//(snap beginning)
 				val begin:Time = 
-					if(bound == null){ snapFn(ground+interv*offset) } //interv before snap
-					else{ snapFn(bound.begin+interv*offset) } //^ note above
+					if(bound == null){ snapFn(beginT+interv*offset) } //interv before snap
+					else{ snapFn(beginT+interv*offset) } //^ note above
 				//(ground the time)
 				new GroundedRange(
 					begin+base.beginOffset,
@@ -652,19 +666,49 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		}
 	}
 
-	override def prob(offset:Int):Double = {
-		if(bound == null){
-			offset match {
-				case 0 => 0.8
-				case -1 => 0.2
-				case _ => 0.0
-			}
-		} else {
-			offset match {
-				case 0 => 1.0
-				case _ => 0.0
-			}
+	override def prob(offset:Int):Time=>Double = {
+		import Sequence._
+		val groundFn:Time=>GroundedRange = this.apply(offset)
+		def diff(offset:Int,ground:Time):Double = {
+			val grounded:GroundedRange = groundFn(ground)
+			math.abs((ground - grounded.begin)/interv)
 		}
+		(ground:Time) =>
+			//(distribution)
+			if(!this.exists(offset)(ground)){
+				0.0
+			} else if(bound == null){
+				//(calculate norm)
+				val expNorm2Dir:Double = (-4 until 5).foldLeft(0.0){ 
+					case (soFar:Double,o:Int) =>
+					if(exists(o)(ground)) { 
+						soFar + expLambda*math.exp(expLambda*diff(o,ground)) 
+					} else { 
+						soFar 
+					} }
+				//(take probability)
+				if(math.abs(offset) < 5){
+					expLambda*math.exp(expLambda*diff(offset,ground)) / expNorm2Dir
+				} else {
+					0.0
+				}
+			} else {
+				//(calculate norm)
+				val expNorm1Dir:Double = (0 until 5).foldLeft(0.0){ 
+					case (soFar:Double,o:Int) =>
+					if(exists(o)(ground)) { 
+						soFar + expLambda*math.exp(expLambda*diff(o,ground)) 
+					} else { 
+						soFar 
+					} }
+				//(take probability)
+				if(offset >= 0 && offset < 5){
+					expLambda*math.exp(expLambda*diff(offset,ground)) / expNorm1Dir
+				} else {
+					0.0
+				}
+				math.pow((1.0-geomP),math.abs(offset)) * geomP
+			}
 	}
 	
 	def intersect(range:GroundedRange) = {
@@ -701,6 +745,10 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 object Sequence {
 	def apply(snapFn:Time=>Time,norm:Duration,interval:Duration)
 		= new RepeatedRange(snapFn,Range(norm),interval)
+	val geomP:Double = 0.5
+	val expLambda:Double = 1.0
+
+	
 }
 
 
@@ -729,6 +777,8 @@ case class Time(base:DateTime) {
 			try{
 				new Time(base.plus(diff.interval.base))
 			} catch {
+				case (e:ArithmeticException) =>
+					new Time(base.plus(diffMillis)) //catch-all
 				case (e:org.joda.time.IllegalFieldValueException) =>
 					new Time(base.plus(diffMillis)) //catch-all
 			}
@@ -738,10 +788,10 @@ case class Time(base:DateTime) {
 	def -(diff:Duration):Time = {
 		val diffMillis = diff.seconds*1000
 		val baseMillis = base.getMillis
-		if( diffMillis > 0 && baseMillis < Long.MinValue+diffMillis ){
+		if( diffMillis > 0 && baseMillis < Long.MinValue+diffMillis ) {
 			//(underflow)
 			new Time(new DateTime(Long.MinValue))
-		} else if(diffMillis < 0 && baseMillis > Long.MaxValue+diffMillis){
+		} else if(diffMillis < 0 && baseMillis > Long.MaxValue+diffMillis) {
 			//(overflow)
 			new Time(new DateTime(Long.MaxValue))
 		} else {
@@ -749,6 +799,8 @@ case class Time(base:DateTime) {
 			try{
 				new Time(base.minus(diff.interval.base))
 			} catch {
+				case (e:ArithmeticException) =>
+					new Time(base.plus(diffMillis)) //catch-all
 				case (e:org.joda.time.IllegalFieldValueException) =>
 					new Time(base.minus(diffMillis)) //catch-all
 			}
@@ -830,7 +882,7 @@ class NoTime extends Sequence {
 			case (e:E) => e
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
-	override def prob(offset:Int) = 0.0
+	override def prob(offset:Int):Time=>Double = (t:Time) => 0.0
 
 	def interval:GroundedDuration = new GroundedDuration(Seconds.ZERO)
 	def seconds:Long = 0L
@@ -862,7 +914,8 @@ class PartialTime(fn:Range=>Range) extends Temporal {
 			grounded
 		}
 	}
-	override def prob(offset:Int):Double = if(offset == 0){ 1.0 } else{ 0.0 }
+	override def prob(offset:Int):Time=>Double
+		= fn(Range(Time.DAWN_OF,Time.END_OF)).prob(offset)
 	override def exists(offset:Int):Time=>Boolean
 		= fn(Range(Time.DAWN_OF,Time.END_OF)).exists(offset)
 }
@@ -925,7 +978,7 @@ object Lex {
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
-	val ALL_Time:Range = Range(Time.DAWN_OF,Time.END_OF)
+	val ALL_TIME:Range = Range(Time.DAWN_OF,Time.END_OF)
 	//--Day of Week
 	private def mkDOW(i:Int) = new RepeatedRange(
 		LexUtil.dow(i), 

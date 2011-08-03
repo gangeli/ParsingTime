@@ -1,0 +1,95 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>10_20010103.txt</h2>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Una nueva <etag>[borrasca]</etag><sup>e1</sup> <etag>[cruzará]</etag><sup>e2</sup> España a partir de <ttag>[hoy]</ttag><sup>t1</sup> y <etag>[afectará]</etag><sup>e3</sup> principalmente a Galicia y el oeste de la Península , aunque la <etag>[mejoría]</etag><sup>e4</sup> del <etag>[tiempo]</etag><sup>e5</sup> generalizado de <ttag>[ayer]</ttag><sup>t2</sup> en la mayor parte del país <etag>[permitió]</etag><sup>e6</sup> a Protección Civil <etag>[retirar]</etag><sup>e7</sup> todos los <etag>[avisos]</etag><sup>e8</sup> de <etag>[emergencia]</etag><sup>e9</sup> .</p></table>
+<p class=attributes>e3 { aspect:IMPERFECTIVE class:STATE mood:INDICATIVE polarity:POS tense:FUTURE vform:NONE }</p>
+<p class=attributes>e4 { aspect:NONE class:I_STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e5 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e9 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e6 { aspect:PERFECTIVE class:I_ACTION mood:INDICATIVE polarity:POS tense:PAST vform:NONE }</p>
+<p class=attributes>e7 { aspect:IMPERFECTIVE class:I_ACTION mood:NONE polarity:POS tense:NONE vform:INFINITIVE }</p>
+<p class=attributes>e8 { aspect:NONE class:I_ACTION mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e1 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e2 { aspect:IMPERFECTIVE class:OCCURRENCE mood:INDICATIVE polarity:POS tense:FUTURE vform:NONE }</p>
+<p class=attributes>t1 { type:DATE val:2001-01-03 }</p>
+<p class=attributes>t2 { type:DATE val:2001-01-02 }</p>
+<p/>
+<p class=relation>Task C: e4 overlap t2</p>
+<p class=relation>Task C: e2 overlap-or-after t1</p>
+<p class=relation>Task D: e3 overlap-or-after t0</p>
+<p class=relation>Task D: e4 before t0</p>
+<p class=relation>Task D: e5 before t0</p>
+<p class=relation>Task D: e9 before t0</p>
+<p class=relation>Task D: e6 before t0</p>
+<p class=relation>Task D: e7 before t0</p>
+<p class=relation>Task D: e8 before t0</p>
+<p class=relation>Task D: e1 overlap-or-after t0</p>
+<p class=relation>Task D: e2 overlap-or-after t0</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>La <etag>[situación]</etag><sup>e10</sup> en las carreteras y las montañas se <etag>[normalizó]</etag><sup>e11</sup> en todas las autonomías <etag>[afectadas]</etag><sup>e12</sup> .</p></table>
+<p class=attributes>e11 { aspect:PERFECTIVE class:STATE mood:INDICATIVE polarity:POS tense:PAST vform:NONE }</p>
+<p class=attributes>e10 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e12 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:PARTICIPLE }</p>
+<p/>
+<p class=relation>Task D: e11 before t0</p>
+<p class=relation>Task D: e10 before t0</p>
+<p class=relation>Task D: e12 before t0</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>La <etag>[entrada]</etag><sup>e13</sup> del nuevo <etag>[frente]</etag><sup>e14</sup> atlántico , que <etag>[conlleva]</etag><sup>e15</sup> fuertes <etag>[vientos]</etag><sup>e16</sup> y <etag>[lluvias]</etag><sup>e17</sup> abundantes , se <etag>[encuadra]</etag><sup>e18</sup> dentro de un <etag>[paso]</etag><sup>e19</sup> de sucesivas <etag>[borrascas]</etag><sup>e20</sup> que <etag>[comenzó]</etag><sup>e21</sup> <ttag>[hace 10 días]<sup>t3</sup></ttag> y que <etag>[continuará]</etag><sup>e22</sup> hasta <ttag>[la próxima semana]<sup>t4</sup></ttag> .</p></table>
+<p class=attributes>e16 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e20 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e17 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>t3 { type:DURATION val:P10D }</p>
+<p class=attributes>e19 { aspect:NONE class:I_ACTION mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e18 { aspect:IMPERFECTIVE class:I_STATE mood:INDICATIVE polarity:POS tense:PRESENT vform:NONE }</p>
+<p class=attributes>e22 { aspect:IMPERFECTIVE class:ASPECTUAL mood:INDICATIVE polarity:POS tense:FUTURE vform:NONE }</p>
+<p class=attributes>e21 { aspect:PERFECTIVE class:ASPECTUAL mood:INDICATIVE polarity:POS tense:PAST vform:NONE }</p>
+<p class=attributes>t4 { type:DATE val:2001-W02 }</p>
+<p class=attributes>e13 { aspect:NONE class:I_ACTION mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e14 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e15 { aspect:IMPERFECTIVE class:I_STATE mood:INDICATIVE polarity:POS tense:PRESENT vform:NONE }</p>
+<p/>
+<p class=relation>Task C: e22 before-or-overlap t4</p>
+<p class=relation>Task C: e21 before t3</p>
+<p class=relation>Task D: e16 overlap-or-after t0</p>
+<p class=relation>Task D: e20 overlap t0</p>
+<p class=relation>Task D: e17 overlap-or-after t0</p>
+<p class=relation>Task D: e19 overlap t0</p>
+<p class=relation>Task D: e18 overlap t0</p>
+<p class=relation>Task D: e22 overlap-or-after t0</p>
+<p class=relation>Task D: e21 before-or-overlap t0</p>
+<p class=relation>Task D: e13 overlap-or-after t0</p>
+<p class=relation>Task D: e14 overlap t0</p>
+<p class=relation>Task D: e15 overlap t0</p>
+</div>
+</body>
+</html>

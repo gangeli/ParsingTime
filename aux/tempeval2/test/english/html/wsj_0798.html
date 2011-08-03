@@ -1,0 +1,159 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>wsj_0798</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>Hudson 's Bay Co. <etag>[announced]</etag><sup>e1</sup> terms of a previously proposed rights issue that is <etag>[expected]</etag><sup>e2</sup> to <etag>[raise]</etag><sup>e3</sup> about 396 million Canadian dollars ( US$337 million ) net of expenses .</p></table>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p/>
+<p class=relation>Task D: e1 BEFORE t0</p>
+<p class=relation>Task D: e2 BEFORE-OR-OVERLAP t0</p>
+<p class=relation>Task E: e1 OVERLAP e8</p>
+<p class=relation>Task F: e2 BEFORE e3</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Proceeds of the offering will be <etag>[used]</etag><sup>e5</sup> to <etag>[redeem]</etag><sup>e6</sup> C$264 million of preferred shares and to <etag>[reduce]</etag><sup>e7</sup> short-term debt , the company <etag>[said]</etag><sup>e8</sup> .</p></table>
+<p class=attributes>e6 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e8 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e5 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e8 BEFORE t0</p>
+<p class=relation>Task D: e5 AFTER t0</p>
+<p class=relation>Task E: e8 OVERLAP e9</p>
+<p class=relation>Task F: e8 BEFORE e5</p>
+<p class=relation>Task F: e5 BEFORE-OR-OVERLAP e6</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>Canada 's largest department store operator <etag>[said]</etag><sup>e9</sup> the rights offering will <etag>[entitle]</etag><sup>e10</sup> holders of its ordinary shares , except residents in the U.S. and Britain , to <etag>[subscribe]</etag><sup>e11</sup> for two additional shares for every five shares held at a price of C$31.25 a share .</p></table>
+<p class=attributes>e10 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:I_STATE }</p>
+<p class=attributes>e11 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p/>
+<p class=relation>Task D: e9 BEFORE t0</p>
+<p class=relation>Task F: e10 BEFORE-OR-OVERLAP e11</p>
+<p class=relation>Task F: e9 BEFORE e10</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>The record date is <ttag>[Nov. 9]<sup>t50</sup></ttag> . The company <etag>[has]</etag><sup>e14</sup> about 31 million ordinary shares outstanding .</p></table>
+<p class=attributes>e14 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:STATE }</p>
+<p class=attributes>t50 { value:1989-11-09 type:DATE }</p>
+<p/>
+<p class=relation>Task D: e14 OVERLAP t0</p>
+<p class=relation>Task E: e14 OVERLAP-OR-AFTER e15</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>On the Toronto Stock Exchange , Hudson 's Bay shares <etag>[closed]</etag><sup>e15</sup> at C$35 , up 12.5 cents .</p></table>
+<p class=attributes>e15 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e15 BEFORE t0</p>
+<p class=relation>Task E: e15 VAGUE e16</p>
+</div>
+
+<div id=s5 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>5
+  <td><p class=line>Hudson 's Bay <etag>[said]</etag><sup>e16</sup> that Woodbridge Co. , which <ttag>[currently]</ttag><sup>t51</sup> <etag>[holds]</etag><sup>e17</sup> about 77% of the ordinary shares , will <etag>[subscribe]</etag><sup>e18</sup> for all the shares to which it is entitled and for any shares that are n 't otherwise taken up .</p></table>
+<p class=attributes>e18 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e17 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:STATE }</p>
+<p class=attributes>e16 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>t51 { value:PRESENT_REF type:DATE }</p>
+<p/>
+<p class=relation>Task C: e17 OVERLAP t51</p>
+<p class=relation>Task C: e16 OVERLAP t51</p>
+<p class=relation>Task D: e17 OVERLAP t0</p>
+<p class=relation>Task D: e16 BEFORE t0</p>
+<p class=relation>Task F: e16 BEFORE e18</p>
+</div>
+
+<div id=s6 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>6
+  <td><p class=line>Woodbridge is a holding company owned by Toronto 's Thomson family .</p></table>
+<p/>
+</div>
+
+<div id=s7 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>7
+  <td><p class=line>Hudson 's Bay <etag>[said]</etag><sup>e23</sup> it will <etag>[redeem]</etag><sup>e24</sup> 9.5 million Series H preferred shares on <ttag>[Oct. 31]<sup>t52</sup></ttag> at a price of C$27.75 each .</p></table>
+<p class=attributes>e23 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>t52 { value:1989-10-31 type:DATE }</p>
+<p class=attributes>e24 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e23 BEFORE t52</p>
+<p class=relation>Task D: e23 BEFORE t0</p>
+<p class=relation>Task E: e23 AFTER e26</p>
+<p class=relation>Task F: e23 BEFORE e24</p>
+</div>
+
+<div id=s8 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>8
+  <td><p class=line>The <etag>[move]</etag><sup>e25</sup> was <etag>[approved]</etag><sup>e26</sup> at a special shareholders ' <etag>[meeting]</etag><sup>e27</sup> <ttag>[yesterday]</ttag><sup>t53</sup> .</p></table>
+<p class=attributes>e25 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e27 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e26 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p class=attributes>t53 { value:1989-10-26 type:DATE }</p>
+<p/>
+<p class=relation>Task C: e25 BEFORE t53</p>
+<p class=relation>Task D: e25 BEFORE t0</p>
+<p class=relation>Task E: e26 BEFORE e28</p>
+<p class=relation>Task F: e26 BEFORE e25</p>
+</div>
+
+<div id=s9 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>9
+  <td><p class=line>Gary Lukassen , chief financial officer , <etag>[said]</etag><sup>e28</sup> <etag>[redemption]</etag><sup>e29</sup> of the preferred shares , originally <etag>[issued]</etag><sup>e30</sup> at C$25 each , will <etag>[eliminate]</etag><sup>e31</sup> dividend <etag>[payments]</etag><sup>e32</sup> of C$17.9 million annually .</p></table>
+<p class=attributes>e29 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e30 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e31 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:ASPECTUAL }</p>
+<p class=attributes>e28 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e32 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e28 BEFORE t0</p>
+<p class=relation>Task F: e28 BEFORE e31</p>
+</div>
+</body>
+</html>

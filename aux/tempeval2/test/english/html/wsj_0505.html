@@ -1,0 +1,155 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>wsj_0505</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>Ratners Group PLC 's U.S. subsidiary has <etag>[agreed]</etag><sup>e1</sup> to <etag>[acquire]</etag><sup>e2</sup> jewelry retailer Weisfield 's Inc. for $50 a share , or about $55 million .</p></table>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:I_ACTION }</p>
+<p/>
+<p class=relation>Task D: e2 BEFORE t0</p>
+<p class=relation>Task D: e1 OVERLAP t0</p>
+<p class=relation>Task E: e1 BEFORE e3</p>
+<p class=relation>Task F: e1 BEFORE e2</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Weisfield 's shares <etag>[soared]</etag><sup>e3</sup> on the <etag>[announcement]</etag><sup>e4</sup> <ttag>[yesterday]</ttag><sup>t42</sup> , closing up $11 to <etag>[close]</etag><sup>e6</sup> at $50 in national over-the-counter <etag>[trading]</etag><sup>e7</sup> .</p></table>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e6 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t42 { value:1989-10-30 type:DATE }</p>
+<p class=attributes>e4 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e7 AFTER t42</p>
+<p class=relation>Task C: e6 AFTER t42</p>
+<p class=relation>Task D: e7 AFTER t0</p>
+<p class=relation>Task D: e6 AFTER t0</p>
+<p class=relation>Task E: e3 AFTER e8</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>Ratners and Weisfield 's <etag>[said]</etag><sup>e8</sup> they <etag>[reached]</etag><sup>e9</sup> an <etag>[agreement]</etag><sup>e10</sup> in principle for the <etag>[acquisition]</etag><sup>e11</sup> of Weisfield 's by Sterling Inc. The companies <etag>[said]</etag><sup>e12</sup> the <etag>[acquisition]</etag><sup>e13</sup> is <etag>[subject]</etag><sup>e15</sup> to a definitive <etag>[agreement]</etag><sup>e16</sup> .</p></table>
+<p class=attributes>e13 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e11 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e12 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e16 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:I_STATE }</p>
+<p class=attributes>e15 { polarity:POS modality:NONE pos:ADJECTIVE tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>e8 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:ASPECTUAL }</p>
+<p class=attributes>e10 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:I_STATE }</p>
+<p/>
+<p class=relation>Task D: e13 AFTER t0</p>
+<p class=relation>Task D: e11 AFTER t0</p>
+<p class=relation>Task D: e12 BEFORE t0</p>
+<p class=relation>Task D: e16 OVERLAP t0</p>
+<p class=relation>Task D: e8 BEFORE t0</p>
+<p class=relation>Task D: e10 BEFORE-OR-OVERLAP t0</p>
+<p class=relation>Task E: e8 OVERLAP e17</p>
+<p class=relation>Task F: e12 OVERLAP e15</p>
+<p class=relation>Task F: e16 OVERLAP e13</p>
+<p class=relation>Task F: e15 BEFORE-OR-OVERLAP e16</p>
+<p class=relation>Task F: e8 AFTER e9</p>
+<p class=relation>Task F: e9 BEFORE-OR-OVERLAP e10</p>
+<p class=relation>Task F: e10 OVERLAP e11</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>They <etag>[said]</etag><sup>e17</sup> they <etag>[expect]</etag><sup>e18</sup> the <etag>[transaction]</etag><sup>e19</sup> to be <etag>[completed]</etag><sup>e20</sup> by <ttag>[Dec. 15]<sup>t45</sup></ttag> .</p></table>
+<p class=attributes>t45 { value:1989-12-15 type:DATE }</p>
+<p class=attributes>e17 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e18 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>e19 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e20 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:ASPECTUAL }</p>
+<p/>
+<p class=relation>Task C: e17 BEFORE t45</p>
+<p class=relation>Task C: e18 BEFORE t45</p>
+<p class=relation>Task D: e17 BEFORE t0</p>
+<p class=relation>Task D: e18 OVERLAP t0</p>
+<p class=relation>Task F: e17 OVERLAP e18</p>
+<p class=relation>Task F: e18 BEFORE e20</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>Weisfield 's , based in Seattle , Wash. , currently operates 87 specialty jewelry stores in nine states .</p></table>
+<p/>
+</div>
+
+<div id=s5 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>5
+  <td><p class=line>In <ttag>[the fiscal year]<sup>t47</sup></ttag> ended <ttag>[Jan. 31]<sup>t48</sup></ttag> , the company <etag>[reported]</etag><sup>e22</sup> <etag>[sales]</etag><sup>e23</sup> of $59.5 million and pretax <etag>[profit]</etag><sup>e24</sup> of $2.9 million .</p></table>
+<p class=attributes>e23 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e22 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e24 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:STATE }</p>
+<p class=attributes>t47 { value:P1Y type:DURATION }</p>
+<p class=attributes>t48 { value:1989-01-31 type:DATE }</p>
+<p/>
+<p class=relation>Task C: e23 OVERLAP t47</p>
+<p class=relation>Task C: e22 OVERLAP t47</p>
+<p class=relation>Task D: e23 BEFORE t0</p>
+<p class=relation>Task D: e22 BEFORE t0</p>
+<p class=relation>Task E: e22 BEFORE e26</p>
+<p class=relation>Task F: e22 AFTER e23</p>
+</div>
+
+<div id=s6 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>6
+  <td><p class=line>Ratners , which controls 25% of the British jewelry market , would <etag>[increase]</etag><sup>e26</sup> the number of its U.S. stores to about 450 stores from 360 .</p></table>
+<p class=attributes>e26 { polarity:POS modality:would pos:VERB tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e26 AFTER t0</p>
+<p class=relation>Task E: e26 AFTER e27</p>
+</div>
+
+<div id=s7 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>7
+  <td><p class=line>It has <etag>[said]</etag><sup>e27</sup> it <etag>[hopes]</etag><sup>e28</sup> to <etag>[control]</etag><sup>e29</sup> 5% of jewelry business in the U.S. by <ttag>[1992]</ttag><sup>t60</sup> ; <ttag>[currently]</ttag><sup>t62</sup> it <etag>[controls]</etag><sup>e30</sup> about 2% .</p></table>
+<p class=attributes>t60 { type:DATE value:1992 }</p>
+<p class=attributes>t62 { value:PRESENT_REF type:DATE }</p>
+<p class=attributes>e30 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>e27 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:REPORTING }</p>
+<p class=attributes>e28 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>e29 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:I_STATE }</p>
+<p/>
+<p class=relation>Task C: e27 BEFORE t60</p>
+<p class=relation>Task D: e27 BEFORE t0</p>
+<p class=relation>Task F: e27 OVERLAP e28</p>
+<p class=relation>Task F: e28 BEFORE e29</p>
+</div>
+</body>
+</html>

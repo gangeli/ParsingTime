@@ -1,0 +1,93 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>wsj_0106</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>ROGERS COMMUNICATIONS Inc. <etag>[said]</etag><sup>e1</sup> it <etag>[plans]</etag><sup>e2</sup> to <etag>[raise]</etag><sup>e3</sup> 175 million to 180 million Canadian dollars ( US$148.9 million to $153.3 million ) through a private <etag>[placement]</etag><sup>e4</sup> of perpetual preferred shares .</p></table>
+<p class=attributes>e4 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e1 BEFORE t0</p>
+<p class=relation>Task D: e2 OVERLAP t0</p>
+<p class=relation>Task E: e1 OVERLAP e6</p>
+<p class=relation>Task F: e1 OVERLAP e2</p>
+<p class=relation>Task F: e2 BEFORE e3</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Perpetual preferred shares aren 't retractable by the holders , the company <etag>[said]</etag><sup>e6</sup> .</p></table>
+<p class=attributes>e6 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p/>
+<p class=relation>Task D: e6 BEFORE t0</p>
+<p class=relation>Task E: e6 OVERLAP e7</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>Rogers <etag>[said]</etag><sup>e7</sup> the shares will be <etag>[convertible]</etag><sup>e9</sup> into Class B shares , but that the company <etag>[has]</etag><sup>e10</sup> the option to <etag>[redeem]</etag><sup>e11</sup> the shares before a <etag>[conversion]</etag><sup>e12</sup> <etag>[takes]</etag><sup>e13</sup> place .</p></table>
+<p class=attributes>e12 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e13 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e11 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e10 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:STATE }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:ADJECTIVE tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e13 AFTER t0</p>
+<p class=relation>Task D: e10 OVERLAP t0</p>
+<p class=relation>Task D: e7 BEFORE t0</p>
+<p class=relation>Task E: e7 OVERLAP e14</p>
+<p class=relation>Task F: e7 BEFORE e9</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>A spokesman for the Toronto cable television and telecommunications concern <etag>[said]</etag><sup>e14</sup> the coupon rate has n 't yet been <etag>[fixed]</etag><sup>e15</sup> , but will probably be <etag>[set]</etag><sup>e16</sup> at around 8% .</p></table>
+<p class=attributes>e15 { polarity:NEG modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p class=attributes>e14 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e16 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e14 BEFORE t0</p>
+<p class=relation>Task D: e16 AFTER t0</p>
+<p class=relation>Task E: e14 OVERLAP e17</p>
+<p class=relation>Task F: e14 BEFORE e16</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>He <etag>[declined]</etag><sup>e17</sup> to <etag>[discuss]</etag><sup>e18</sup> other terms of the issue .</p></table>
+<p class=attributes>e17 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e18 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e17 BEFORE t0</p>
+<p class=relation>Task F: e17 BEFORE-OR-OVERLAP e18</p>
+</div>
+</body>
+</html>

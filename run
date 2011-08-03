@@ -50,7 +50,7 @@ env!(
 		o('beam', 1000),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
-		o('scoreBeam', 1),
+		o('scoreBeam', 5),
 		#<params>
 		o('usetime'),
 
@@ -73,8 +73,8 @@ env!(
 		o('train', '1-9'),
 		o('dev', '9-10'),
 		o('test', '101-111'),
-#		o('train', '1-101'),
-#		o('dev', '101-151'),
+		o('train', '1-101'),
+		o('dev', '101-151'),
 #		o('test', '151-187'),
 		o('devTest', true),
 
