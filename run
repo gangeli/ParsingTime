@@ -50,7 +50,7 @@ env!(
 		o('beam', 1000),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
-		o('scoreBeam', 1),
+		o('scoreBeam', 5),
 		#<params>
 		o('usetime'),
 

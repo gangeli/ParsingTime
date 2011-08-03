@@ -1,0 +1,15 @@
+The DCT in the Italian test data for relations is included in the timex-extents file with id t1. The DCTs for the files in the entities data are: 
+
+cs.morph001 DCT 1995/08/07 
+cs.morph008 DCT 1995/08/07 
+cs.morph011 DCT 1995/08/07 
+sole.morph.002 DCT 1995/05/25 
+sole.morph003 DCT 1995/05/25 
+sole.morph.016 DCT 1995/05/25 
+sole.morph.017 DCT 1995/05/25 
+sole.morph.041 DCT 1995/05/25 
+sole.morph.042 DCT 1995/05/25 
+sole.morph.043 DCT 1995/05/25 
+els.morph015 DCT 1986/03/28 
+els.morph019 DCT 1986/10/03 
+els.morph020 DCT 1986/10/03 

@@ -495,12 +495,15 @@ case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	override def toString:String = U.sent2str(words)
 }
 case class Feedback(ref:Temporal,grounding:Time,
-		correct:Array[(Int,Double)],incorrect:Array[(Int,Double)]) {
-	def bestScore = correct(0)._2
+		correct:Array[(Int,Int,Double)],
+		incorrect:Array[(Int,Int,Double)]) {
+	def bestScore = correct(0)._3
 	def hasCorrect:Boolean = correct.length > 0
 	def bestIndex:Int = correct(0)._1
-	def tiedBest:Array[Int] = {
-		correct.filter{ case (index,score) => score == bestScore }.map{ _._1 }
+	def bestOffset:Int = correct(0)._2
+	def tiedBest:Array[(Int,Int)] = {
+		correct.filter{ case (index,offset,score) => score == bestScore }.map{ 
+			case (index:Int,offset:Int,score:Double) => (index,offset) }
 	}
 	def isCorrect:Boolean = hasCorrect &&  bestIndex == 0
 	def wasWrong:Boolean = (!hasCorrect || bestIndex != 0)
@@ -596,7 +599,9 @@ case class Parse(value:Temporal){
 			case (gold:Duration,guess:Duration) => (guess-gold,Duration.ZERO)
 			//(case: grounded ranges)
 			case (gold:GroundedRange,guess:GroundedRange) => 
-				if(O.instantAsDay && gold.norm.seconds == 0 && guess.norm.seconds != 0){
+				if(guess.norm.seconds == 0 && gold.norm.seconds == 0){
+					(Duration.ZERO,guess.begin-gold.begin) //case: instant
+				} else if(O.instantAsDay && gold.norm.seconds == 0){
 					(guess.begin-gold.begin,guess.end-(gold.end+DAY))
 				} else {
 					(guess.begin-gold.begin,guess.end-gold.end)
@@ -604,10 +609,10 @@ case class Parse(value:Temporal){
 			//--Possibly Valid
 			//(case: backoffs)
 			case (gold:Range,guess:GroundedRange) => 
-				if(second){ INF}
+				if(second){ INF }
 				else { diff(gold(ground),guess,true) }
 			case (gold:PartialTime,guess:Temporal) =>
-				if(second){ INF}
+				if(second){ INF }
 				else { diff(gold(ground),guess,true) }
 			//--Type Problems
 			//(case: types)
@@ -618,8 +623,8 @@ case class Parse(value:Temporal){
 		}
 		//--Map Iterator
 		value.distribution(ground).iterator.map{
-				case (guess:Temporal,score:Double,i:Int) =>
-			(diff(gold,guess,false),score,i)
+				case (guess:Temporal,score:Double,offset:Int) =>
+			(diff(gold,guess,false),score,offset)
 		}
 	}
 
@@ -2208,8 +2213,11 @@ class CKYParser extends StandardParser{
 				guesses = {if(feedback.isCorrect) guess else guess.wrong} ::
 					guesses.tail //note: tail to remove 'no result' guess
 				//(update)
-				def update(index:Int) = {
-					val incr:Double = if(O.hardEM) 1.0 else math.exp(scored(index)._3)
+				def update(index:Int,offset:Int) = {
+					val incr:Double = 
+						if(O.hardEM) 1.0
+						else math.exp(scored(index)._3) *
+						     scored(index)._2.prob(offset)(feedback.grounding)
 					assert(incr >= 0.0 && incr <= 1.0, "invalid increment: " + incr)
 					//(count rules)
 					trees(index).traverse( 
@@ -2235,23 +2243,26 @@ class CKYParser extends StandardParser{
 				O.ckyCountType match {
 					case O.CkyCountType.all => 
 						//(update every correct parse)
-						feedback.correct.foreach{ case (index,score) => update(index) }
+						feedback.correct.foreach{ 
+							case (index,offset,score) => update(index,offset) }
 					case O.CkyCountType.bestAll =>
 						//(update every tied-for-best parse)
-						feedback.tiedBest.foreach{ (index:Int) => update(index) }
+						feedback.tiedBest.foreach{ case (index:Int,offset:Int) => 
+							update(index,offset) }
 					case O.CkyCountType.bestRandom =>
 						//(update the 'first' tied-for-best parse)
-						if(feedback.hasCorrect){update(feedback.bestIndex) }
+						if(feedback.hasCorrect){
+							update(feedback.bestIndex,feedback.bestOffset) }
 					case O.CkyCountType.bestShallow =>
 						//(update the shallowest tied-for-best parse)
-						val (best,depth) =
-							feedback.tiedBest.foldLeft((-1,Int.MaxValue)){
-								case ((argmin,min),cand) =>
-									val candMin = trees(cand).maxDepth
-									if(candMin < min) (cand,candMin) else (argmin,min)
+						val ((bestI,bestOffset),depth) =
+							feedback.tiedBest.foldLeft(((-1,-1),Int.MaxValue)){
+								case ((argmin,min),(index,offset)) =>
+									val candMin = trees(index).maxDepth
+									if(candMin < min) ((index,offset),candMin) else (argmin,min)
 								}
-						assert(!feedback.hasCorrect || best >= 0, "Bad shallow computation")
-						if(best >= 0){ update(best) }
+						assert(!feedback.hasCorrect || bestI >= 0,"Bad shallow computation")
+						if(bestI >= 0){ update(bestI,bestOffset) }
 					case _ => throw fail("Unknown case")
 				}
 			}

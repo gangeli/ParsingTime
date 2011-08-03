@@ -1,0 +1,63 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>109_19990502.txt</h2>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Con la <etag>[adquisición]</etag><sup>e1</sup> de YPF , Repsol <etag>[conseguirá]</etag><sup>e2</sup> <etag>[equilibrar]</etag><sup>e3</sup> sus áreas de negocio , al <etag>[aumentar]</etag><sup>e4</sup> la <etag>[actividad]</etag><sup>e5</sup> de <etag>[extracción]</etag><sup>e6</sup> .</p></table>
+<p class=attributes>e6 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e4 { aspect:IMPERFECTIVE class:I_STATE mood:NONE polarity:POS tense:NONE vform:INFINITIVE }</p>
+<p class=attributes>e5 { aspect:NONE class:I_ACTION mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e1 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e3 { aspect:IMPERFECTIVE class:STATE mood:NONE polarity:POS tense:NONE vform:INFINITIVE }</p>
+<p class=attributes>e2 { aspect:IMPERFECTIVE class:I_ACTION mood:INDICATIVE polarity:POS tense:FUTURE vform:NONE }</p>
+<p/>
+<p class=relation>Task D: e6 overlap t0</p>
+<p class=relation>Task D: e4 after t0</p>
+<p class=relation>Task D: e5 overlap t0</p>
+<p class=relation>Task D: e1 overlap-or-after t0</p>
+<p class=relation>Task D: e3 after t0</p>
+<p class=relation>Task D: e2 after t0</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>El mercado ha <etag>[valorado]</etag><sup>e7</sup> positivamente la noticia y las <etag>[acciones]</etag><sup>e8</sup> <etag>[ascendieron]</etag><sup>e9</sup> un 4,9% <ttag>[el viernes]<sup>t1</sup></ttag> , después de que la <etag>[cotización]</etag><sup>e10</sup> <etag>[quedara]</etag><sup>e11</sup> <etag>[suspendida]</etag><sup>e12</sup> por <ttag>[la mañana]<sup>t2</sup></ttag> .</p></table>
+<p class=attributes>e9 { aspect:PERFECTIVE class:STATE mood:INDICATIVE polarity:POS tense:PAST vform:NONE }</p>
+<p class=attributes>e8 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>t2 { type:TIME val:1999-04-30TMO }</p>
+<p class=attributes>t1 { type:DATE val:1999-04-30 }</p>
+<p class=attributes>e10 { aspect:NONE class:OCCURRENCE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e11 { aspect:IMPERFECTIVE class:I_STATE mood:SUBJUNCTIVE polarity:POS tense:PAST vform:NONE }</p>
+<p class=attributes>e12 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:PARTICIPLE }</p>
+<p class=attributes>e7 { aspect:PERFECTIVE class:STATE mood:INDICATIVE polarity:POS tense:PRESENT vform:NONE }</p>
+<p/>
+<p class=relation>Task C: e9 overlap t1</p>
+<p class=relation>Task C: e11 overlap t2</p>
+<p class=relation>Task D: e9 before t0</p>
+<p class=relation>Task D: e8 before t0</p>
+<p class=relation>Task D: e10 overlap t0</p>
+<p class=relation>Task D: e11 before t0</p>
+<p class=relation>Task D: e12 before t0</p>
+<p class=relation>Task D: e7 before t0</p>
+</div>
+</body>
+</html>

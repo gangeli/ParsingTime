@@ -90,11 +90,12 @@ object U {
 	def sumDiff(diff:(Duration,Duration)):Int = {
 		val secA:Long = diff._1.seconds.abs
 		val secB:Long = diff._2.seconds.abs
-		if(secA > Integer.MAX_VALUE-secB){
+		if(secA >= Int.MaxValue-secB){
 			Int.MaxValue
-		} else if(secB > Integer.MAX_VALUE-secA){
+		} else if(secB >= Int.MaxValue-secA){
 			Int.MaxValue
 		} else {
+			assert( (secA+secB).intValue == secA+secB, "Integer overflow error" )
 			(secA+secB).intValue
 		}
 	}
@@ -262,10 +263,10 @@ trait DataStore {
 			feedback(Feedback(
 				gold, 
 				grounding,
-				correct.map( elem => (elem.index,Score.score(elem.diff)) ),
+				correct.map( elem => (elem.index,elem.offset,Score.score(elem.diff)) ),
 				scores.
 					filter( elem => !elem.exact ).
-					map( elem => (elem.index,Score.score(elem.diff)) )
+					map( elem => (elem.index,elem.offset,Score.score(elem.diff)) )
 				))
 		} else {
 			//(miss)
