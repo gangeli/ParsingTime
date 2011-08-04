@@ -17,7 +17,7 @@ abstract class TimeDocument[A <: TimeSentence] extends org.goobs.testing.Datum{
 	@PrimaryKey(name="fid")
 	private var fid:Int = 0
 	@Key(name="filename")
-	private var filename:String = null
+	var filename:String = null
 	@Key(name="pub_time")
 	private var pubTime:String = null
 	@Key(name="test")
@@ -58,6 +58,7 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 	private var pos:Array[Int] = null
 	private var nums:Array[Int] = null
 	private var indexMap:Array[Int] = null
+	private var origIndexMap:Array[Int] = null
 
 	def wordSlice(begin:Int,end:Int):Array[Int] 
 		= words.slice(indexMap(begin),indexMap(end))
@@ -65,12 +66,22 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 		= pos.slice(indexMap(begin),indexMap(end))
 	def numSlice(begin:Int,end:Int):Array[Int]
 		= nums.slice(indexMap(begin),indexMap(end))
+	def origIndex(i:Int):Int
+		= origIndexMap(indexMap(i)) //TODO all this indexing is a godawful mess
+
+	def indexInDocument:Int = {
+		document.sentences.zipWithIndex.foreach{ case (s:TimeSentence,i:Int) =>
+			if(s == this){ return i }
+		}
+		throw new IllegalStateException("Could not find sentence in doc")
+	}
 	
 	def init(doc:TimeDocument[_<:TimeSentence],	
 			str2w:String=>Int,str2pos:String=>Int):Unit = { 
 		refreshLinks; 
 //		quickSort(timexes);  //TODO type hell breaks loose if uncommented
 		indexMap = (0 to length).toArray
+		origIndexMap = (0 to length).toArray
 		this.document = doc
 		//(tag variables)
 		val words = new Array[String](length)
@@ -94,6 +105,8 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 						case _ => numbers(tags(i).wid-1) = tags(i).value.toDouble
 					}
 				}
+				case "orig" =>
+					origIndexMap(tags(i).wid-1) = tags(i).value.toInt
 				case "num_length" => 
 					num_len(tags(i).wid-1) = tags(i).value.toInt
 				case _ => 
@@ -176,7 +189,7 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	@Key(name="scope_begin")
 	var scopeBegin:Int = 0
 	@Key(name="scope_end")
-	private var scopeEnd:Int = 0
+	var scopeEnd:Int = 0
 	@Key(name="type")
 	private var timeType:String = null
 	@Key(name="value")
@@ -193,6 +206,16 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var posArray:Array[Int] = null
 
 	var sentence:TimeSentence = null
+	
+	def indexInDocument:Int = {
+		var i = 0
+		sentence.document.sentences.foreach{ case (s:TimeSentence) =>
+			s.timexes.foreach{ case (t:Timex) =>
+				if(t == this){ return i } else { i += 1 }
+			}
+		}
+		throw new IllegalStateException("Could not find timex in sentence")
+	}
 
 	def setWords(s:TimeSentence):Timex = {
 		sentence = s

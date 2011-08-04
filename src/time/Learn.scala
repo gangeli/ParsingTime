@@ -1739,6 +1739,7 @@ class CKYParser extends StandardParser{
 	// CKY
 	//-----
 	def cky[T](sent:Sentence,beam:Int):Array[ParseTree] = {
+		assert(sent.length > 0, "Sentence of length 0 cannot be parsed")
 		//--Create Chart
 		val chart = makeChart(sent.length,beam)
 		assert(chart.length >= sent.length, "Chart is too small")

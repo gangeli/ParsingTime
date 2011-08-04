@@ -163,7 +163,8 @@ object Score {
 }
 
 class Score {
-	case class Result(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean) {
+	case class Result(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean,
+			timex:Timex,ground:Time) {
 		override def toString:String = {
 			"" + {if(exact) "HIT  " else if(guess != null) "MISS " else "FAIL "} +
 			sent + " as " + 
@@ -191,8 +192,9 @@ class Score {
 			totalWithPos += 1
 		}
 	}
-	def store(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean) = {
-		resultList = Result(sent,guess,gold,exact) :: resultList
+	def store(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean,t:Timex,
+			ground:Time)={
+		resultList = Result(sent,guess,gold,exact,t,ground) :: resultList
 	}
 	def accuracy:Double 
 		= exactRight.asInstanceOf[Double]/total.asInstanceOf[Double]
@@ -212,6 +214,40 @@ class Score {
 		sum / goldMinusGuess.length.asInstanceOf[Double]
 	}
 	def results:Array[Result] = resultList.reverse.toArray
+
+	def tempeval(suffix:String):Unit = {
+		import java.io.FileWriter
+		//--Write Files
+		val attrFile = new FileWriter(Execution.touch("attributes-"+suffix+".tab"))
+		val extFile = new FileWriter(Execution.touch("extents-"+suffix+".tab"))
+		results.sortBy( _.timex.tid ).foreach{ (r:Result) => 
+			//(variables)
+			val file:String = r.timex.sentence.document.filename
+			val sent:Int = r.timex.sentence.indexInDocument
+			val beginOffset:Int = r.timex.sentence.origIndex(r.timex.scopeBegin)+1
+			val endOffset:Int = r.timex.sentence.origIndex(r.timex.scopeEnd)+1
+			val timex3:String = "timex3"
+			val tNum:String = "t"+(r.timex.indexInDocument+1)
+			val one:String = "1"
+			val typ:String = r.guess.timex3Type(r.ground)
+			val value:String = if(typ.equals("UNK")){ "UNK" }
+			                   else{ r.guess.timex3Value(r.ground) }
+			
+			def prefix(offset:Int):String
+				= ""+file+"\t"+sent+"\t"+offset+"\t"+timex3+"\t"+tNum
+
+			//(attributes)
+			attrFile.write(prefix(beginOffset)+"\ttype\t"+typ+"\n")
+			attrFile.write(prefix(beginOffset)+"\tvalue\t"+value+"\n")
+			//(extents)
+			(beginOffset until endOffset).foreach{ (offset:Int) =>
+				extFile.write(prefix(offset)+"\t1\n")
+			}
+		}
+		attrFile.close
+		extFile.close
+	}
+
 	override def toString:String = {
 		"accuracy: "+G.df.format(accuracy)+"; average pos: "+G.df.format(avePos)+
 			" (in " + G.pf.format((percentParsable*100)) + "%); score: "+
@@ -232,7 +268,8 @@ trait DataStore {
 			grounding:Time,
 			score:Score,
 			sent:Sentence,
-			feedback:(Feedback=>Any)):Temporal = {
+			feedback:(Feedback=>Any),
+			timex:Timex):Temporal = {
 		//--Util
 		case class ScoreElem(index:Int,offset:Int,exact:Boolean,
 				diff:(Duration,Duration))
@@ -262,7 +299,7 @@ trait DataStore {
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)
-			score.store(sent,vitterbi,gold,bestGuess.exact)
+			score.store(sent,vitterbi,gold,bestGuess.exact,timex,grounding)
 			//(feedback)
 			feedback(Feedback(
 				gold, 
@@ -275,7 +312,7 @@ trait DataStore {
 		} else {
 			//(miss)
 			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
-			score.store(sent,vitterbi,gold,false)
+			score.store(sent,vitterbi,gold,false,timex,grounding)
 		}
 		vitterbi
 	}
@@ -287,12 +324,16 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		val score:Score = new Score
 		//--Iterate
 		timexes.foreach{ (t:Timex) =>
-			//(variables)
-			val sent = Sentence(t.tid,t.words,t.pos,t.nums)
-			//(parse)
-			val (parses,feedback) = fn(sent, t.tid)
-			//(score)
-			handleParse(parses,t.gold,t.grounding,score,sent,feedback)
+			if(t.words.length > 0){ //TODO this should not be here
+				assert(t.words.length > 0, "Timex has no words: " + t)
+				//(variables)
+				val sent = Sentence(t.tid,t.words,t.pos,t.nums)
+				//(parse)
+				val (parses,feedback) = fn(sent, t.tid)
+				//(score)
+				val best:Temporal
+					= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
+			}
 		}
 		//--Return
 		score
@@ -329,9 +370,6 @@ object SimpleTimexStore {
 	}
 
 	def apply[E <: TimeSentence,D<:TimeDocument[E]](dataset:Dataset[D]):Data = {
-		//--Get Dataset
-		val dataset 
-			= Execution.getDataset(classOf[TimebankDocument])
 		//--Process Timexes
 		start_track("Loading Timexes")
 		logG("* train: " + O.train)
@@ -340,20 +378,17 @@ object SimpleTimexStore {
 		val data = Data(
 			new SimpleTimexStore(
 				U.accum(
-					timexes[TimebankSentence,TimebankDocument]
-						(dataset,O.train.minInclusive,O.train.maxExclusive,
+					timexes[E,D](dataset,O.train.minInclusive,O.train.maxExclusive,
 						_:Timex=>Unit,true), 
 					(x:Timex) => log("[train] " + x) ).toArray),
 			new SimpleTimexStore(
 				U.accum(
-					timexes[TimebankSentence,TimebankDocument]
-						(dataset,O.dev.minInclusive,O.dev.maxExclusive,
+					timexes[E,D](dataset,O.dev.minInclusive,O.dev.maxExclusive,
 						_:Timex=>Unit,false), 
 					(x:Timex) => log("[dev] " + x) ).toArray),
 			new SimpleTimexStore(
 				U.accum(
-					timexes[TimebankSentence,TimebankDocument]
-						(dataset,O.test.minInclusive,O.test.maxExclusive,
+					timexes[E,D](dataset,O.test.minInclusive,O.test.maxExclusive,
 						_:Timex=>Unit,false), 
 					(x:Timex) => log("[test] " + x) ).toArray)
 			)
@@ -401,7 +436,7 @@ object ToyData {
 				//(parse)
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
-				handleParse(parses,gold.value,todaysDate,score,s,feedback)
+				handleParse(parses,gold.value,todaysDate,score,s,feedback,null)
 			}
 			score
 		}
@@ -497,6 +532,7 @@ class Entry {
 		logG("train.averank: " +	trainScores(trainScores.length-1).avePos)
 		logG("train.inbeam: " + trainScores(trainScores.length-1).percentParsable)
 		logG("train.score: " + trainScores(trainScores.length-1).aveScore())
+		trainScores(trainScores.length-1).tempeval("train")
 		end_track
 		//(test)
 		val s = if(O.devTest) "dev" else "test"
@@ -509,6 +545,7 @@ class Entry {
 		logG(s+".averank: "+ testScore.avePos)
 		logG(s+".inbeam: "+ testScore.percentParsable)
 		logG(s+".score: "+ testScore.aveScore())
+		testScore.tempeval(s)
 		end_track
 		end_track
 		//--Debug dump

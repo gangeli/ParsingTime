@@ -1,6 +1,36 @@
 #!/bin/bash
 
 #-----
+# Evaluate
+#-----
+function score {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	attr_len=`wc out/$last/attributes-train.tab | awk '{ print $1 }'`
+	ext_len=`wc out/$last/extents-train.tab | awk '{ print $1 }'`
+	if [ "$2" == "trim" ]; then
+		head -$attr_len aux/tempeval2/training/english/data/timex-attributes.tab > /tmp/attr.tab
+		head -$ext_len aux/tempeval2/training/english/data/timex-extents.tab > /tmp/ext.tab
+		python aux/tempeval2/scorer/score_entities.py\
+			aux/tempeval2/training/english/data/base-segmentation.tab\
+			/tmp/attr.tab\
+			out/$last/attributes-train.tab\
+			/tmp/ext.tab\
+			out/$last/extents-train.tab
+	else
+		python aux/tempeval2/scorer/score_entities.py\
+			aux/tempeval2/training/english/data/base-segmentation.tab\
+			/tmp/attr.tab\
+			aux/tempeval2/training/english/data/timex-attributes.tab\
+			out/$last/attributes-train.tab\
+			aux/tempeval2/training/english/data/timex-extents.tab\
+			out/$last/extents-train.tab
+	fi
+}
+
+#-----
 # Manage Runs
 #-----
 function v {

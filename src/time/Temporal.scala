@@ -7,6 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 // TEMPORAL
 //------------------------------------------------------------------------------
 trait Temporal {
+	import Temporal.isInt
 	def apply[E <: Temporal](offset:Int):Time=>E
 	def prob(offset:Int):Time=>Double
 	def exists(offset:Int):Time=>Boolean = (ground:Time) => (offset == 0)
@@ -85,6 +86,74 @@ trait Temporal {
 	final def all(ground:Time):Array[Temporal] = {
 		distribution(ground).map( _._1 ).toArray
 	}
+
+	final def timex3Type(ground:Time):String = this match {
+//		case (s:Sequence) => "SET"
+		case (r:Range) =>
+			def getType(r:Range):String = {
+				r match {
+					case (gr:GroundedRange) => 
+						if(gr.norm < Lex.DAY){ "TIME" } else { "DATE" }
+					case _ => 
+						r(ground) match {
+							case (gr:GroundedRange) => getType(gr)
+							case (nt:NoTime) => "UNK"
+							case _ => 
+								throw new IllegalArgumentException("Unk grounding: "+r(ground))
+						}
+				}
+			}
+			getType(r)
+		case (d:Duration) => "DURATION"
+		case (pt:PartialTime) => "DATE"
+		case _ => "UNK"
+	}
+
+	final def timex3Value(ground:Time):String = {
+		import Lex._
+		import Temporal.{df2,df4}
+		def getValue(r:Range):String = {
+			r match {
+				case (gr:GroundedRange) => 
+					if(gr.begin == ground && gr.norm <= DAY){
+						"PRESENT_REF"
+					} else if(gr.begin == Time.DAWN_OF && gr.end != Time.END_OF){
+						"FUTURE_REF"
+					} else if(gr.end == Time.END_OF && gr.begin != Time.DAWN_OF){
+						"PAST_REF"
+					} else {
+						val norm = gr.norm
+						val year:String = df4.format(gr.begin.year)
+						if( isInt(norm / AYEAR) ){
+							"" + gr.begin.year
+						} else if( isInt(norm / QUARTER) ){
+							"" + year + "-Q" + gr.begin.quarter
+						} else if( gr.begin.day == 1 && gr.end.day == 1 && 
+								gr.end.month > gr.begin.month ){
+							"" + year + "-" + df2.format(gr.begin.month)
+						} else if( isInt(norm / WEEK) ){
+							"" + year + "-W" + df2.format(gr.begin.week)
+						} else if( isInt(norm / DAY) ){
+							"" + year + "-" + df2.format(gr.begin.month) + "-" + 
+								df2.format(gr.begin.day)
+						} else if( isInt(norm / HOUR) ){
+							"" + year + "-" + df2.format(gr.begin.month) + "-" + 
+								df2.format(gr.begin.day) + "T"+df2.format(gr.begin.hour)
+						} else {
+							gr.toString
+						}
+					}
+				case _ => getValue(r(ground).asInstanceOf[GroundedRange])
+			}
+		}
+		this match {
+			case (r:Range) =>
+				getValue(r)
+			case (pt:PartialTime) => getValue(pt(ground).asInstanceOf[GroundedRange])
+			case (d:Duration) => d.toString
+			case _ => "UNK"
+		}
+	}
 }
 
 object Temporal {
@@ -99,6 +168,12 @@ object Temporal {
 			sb.substring(0, sb.length - str.length)
 		}
 	}
+	def isInt(d:Double):Boolean = {
+		val d2 = d.toInt.toDouble
+		d2 == d
+	}
+	val df2:java.text.DecimalFormat = new java.text.DecimalFormat("00")
+	val df4:java.text.DecimalFormat = new java.text.DecimalFormat("0000")
 
 	var reader:scala.tools.nsc.interpreter.JLineReader = null
 	var interpreter:scala.tools.nsc.interpreter.IMain = null
@@ -547,7 +622,14 @@ trait Duration extends Temporal {
 	def /(other:Duration):Double 
 		= this.seconds.asInstanceOf[Double] / other.seconds.asInstanceOf[Double]
 	def <(other:Duration) = this.seconds < other.seconds
-	def >(other:Duration) = this.seconds > other.seconds
+	def <=(other:Duration) = this.seconds <= other.seconds
+	def >=(other:Duration) = this.seconds >= other.seconds
+
+	override def equals(o:Any):Boolean = o match{
+		case (s:Sequence) => false
+		case (d:Duration) => this.seconds == d.seconds
+		case _ => false
+	}
 }
 
 // ----- GROUNDED DURATION -----
@@ -585,10 +667,6 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 		}
 	}
 	
-	override def equals(o:Any):Boolean = o match {
-		case (gd:GroundedDuration) => gd.base.equals(this.base)
-		case _ => false
-	}
 	override def toString:String = this.base.toString
 	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
@@ -608,6 +686,7 @@ object Duration {
 // ----- SEQUENCE -----
 trait Sequence extends Range with Duration {
 	override def exists(offset:Int) = (ground:Time) => true
+	override def equals(o:Any):Boolean = this == o
 }
 
 // ----- REPEATED RANGE -----
@@ -763,6 +842,15 @@ case class Time(base:DateTime) {
 	def <(t:Time):Boolean = this.base.getMillis < t.base.getMillis
 	def <=(t:Time):Boolean = !(this.base.getMillis > t.base.getMillis)
 
+	def year:Int    = base.getYear
+	def quarter:Int = (base.getMonthOfYear / 3).toInt + 1
+	def week:Int    = base.getWeekOfWeekyear
+	def month:Int   = base.getMonthOfYear
+	def day:Int     = base.getDayOfMonth
+	def hour:Int    = base.getHourOfDay
+	def minute:Int  = base.getMinuteOfHour
+	def second:Int  = base.getSecondOfMinute
+
 	def +(diff:Duration):Time = {
 		val diffMillis = diff.seconds*1000
 		val baseMillis = base.getMillis
@@ -847,7 +935,12 @@ object Time {
 	val END_OF:Time  = new Time(new DateTime(Long.MaxValue))
 	
 	def apply(year:Int, month:Int, day:Int, hour:Int, min:Int, sec:Int):Time = {
-		apply(new DateTime(year,month,day,hour,min,sec,0))
+		try{
+			apply(new DateTime(year,month,day,hour,min,sec,0))
+		} catch {
+			case (e:org.joda.time.IllegalFieldValueException) =>
+				if(year > 0){ Time.END_OF }else{ Time.DAWN_OF }
+		}
 	}
 	def apply(year:Int, month:Int, day:Int, hour:Int, min:Int):Time = {
 		apply(year, month, day, hour, min, 0)
