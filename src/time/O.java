@@ -14,6 +14,10 @@ public class O {
 	public static boolean devTest = false;
 	@Option(name="collapseNumbers", gloss="Pre-parse numeric expressions")
 	public static boolean collapseNumbers = false;
+	public static enum DataSource{ 
+		Toy, Timebank, English }
+	@Option(name="data", gloss="Data source to use")
+	public static DataSource data = DataSource.Timebank;
 
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
@@ -73,8 +77,6 @@ public class O {
 	//--DEBUG
 	@Option(name="paranoid", gloss="Paranoid correctness checks")
 	public static boolean paranoid = false;
-	@Option(name="toy", gloss="Use the toy corpus")
-	public static boolean toy = false;
 	@Option(name="useSeed", gloss="Use the same random seed")
 	public static boolean useSeed = false;
 	@Option(name="seed", gloss="The random seed to use")

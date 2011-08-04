@@ -69,19 +69,25 @@ env!(
 		o('instantAsDay'),
 
 		# -- DATA --
-		o('collapseNumbers'),
-		o('train', '1-9'),
-		o('dev', '9-10'),
-		o('test', '101-111'),
-		o('train', '1-101'),
-		o('dev', '101-151'),
-#		o('test', '151-187'),
+		selo(2,'data',
+			'Toy',
+			'Timebank',
+			'English'),
+#		o('collapseNumbers'),
+
+		o('train', '1-8'),
+		o('dev', '8-9'),
+
+#		o('train', '1-101'), # ENGLISH
+#		o('dev', '143-163'), # ENGLISH
+
+
+		o('test', '163-183'),
 		o('devTest', true),
 
 		# -- DEBUG --
 		#(general)
 #		o('paranoid'),
-#		o('toy'),
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),

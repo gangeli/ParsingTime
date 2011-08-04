@@ -71,6 +71,7 @@ query(db,"CREATE TABLE #{DOCUMENT} (
 		fid SERIAL PRIMARY KEY,
 		filename VARCHAR(127),
 		pub_time VARCHAR(31),
+		test BOOLEAN,
 		notes VARCHAR(1023)
 		);")
 #--Sentence
@@ -97,8 +98,6 @@ query(db,"CREATE TABLE #{TIMEX} (
 		type VARCHAR(31),
 		value VARCHAR(127),
 		original_value VARCHAR(127),
-		temporal_function BOOLEAN,
-		mod VARCHAR(15),
 		gloss VARCHAR(63)
 		);")
 #--TLink
@@ -111,8 +110,8 @@ query(db,"CREATE TABLE #{TLINK} (
 		);")
 puts "  create statements"
 DOC_STMT = db.prepare("INSERT INTO #{DOCUMENT}
-	(fid,filename,pub_time,notes)
-  VALUES(?, ?, ?, ?)")
+	(fid,filename,pub_time,test,notes)
+  VALUES(?, ?, ?, false, ?)")
 SENT_STMT = db.prepare("INSERT INTO #{SENTENCE} 
 	(sid,fid,length,gloss)
   VALUES(?, ?, ?, ?)")
@@ -120,9 +119,8 @@ TAG_STMT = db.prepare("INSERT INTO #{TAG}
 	(wid, sid, did, key, value)
   VALUES(?, ?, ?, ?, ?)")
 TIMEX_STMT = db.prepare("INSERT INTO #{TIMEX} 
-	(tid, sid, scope_begin, scope_end, type, value, original_value, 
-		temporal_function, mod, gloss)
-  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	(tid, sid, scope_begin, scope_end, type, value, original_value, gloss)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
 TLINK_STMT = db.prepare("INSERT INTO #{TLINK} 
 	(lid, fid, source, target, type)
   VALUES(?, ?, ?, ?, ?)")
@@ -318,8 +316,8 @@ class Timex
 			@type,
 			value,
 			@original_value,
-			@temporalFn,
-			@mod ? @mod : "NONE",
+#			@temporalFn,
+#			@mod ? @mod : "NONE",
 			text.chomp)
 		#(finish)
 		@dbId = @@tid
@@ -482,7 +480,6 @@ index(db,TAG,"key")
 index(db,TIMEX,"type")
 index(db,TIMEX,"scope_begin")
 index(db,TIMEX,"scope_end")
-index(db,TIMEX,"temporal_function")
 index(db,TLINK,"type")
 fk(db,SENTENCE,DOCUMENT,"fid")
 fk(db,TAG,SENTENCE,"sid")

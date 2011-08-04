@@ -163,7 +163,7 @@ object Score {
 }
 
 class Score {
-	case class Result(sent:Sentence,guess:Parse,gold:Any,exact:Boolean) {
+	case class Result(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean) {
 		override def toString:String = {
 			"" + {if(exact) "HIT  " else if(guess != null) "MISS " else "FAIL "} +
 			sent + " as " + 
@@ -191,7 +191,7 @@ class Score {
 			totalWithPos += 1
 		}
 	}
-	def store(sent:Sentence,guess:Parse,gold:Any,exact:Boolean) = {
+	def store(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean) = {
 		resultList = Result(sent,guess,gold,exact) :: resultList
 	}
 	def accuracy:Double 
@@ -232,14 +232,18 @@ trait DataStore {
 			grounding:Time,
 			score:Score,
 			sent:Sentence,
-			feedback:(Feedback=>Any)) = {
+			feedback:(Feedback=>Any)):Temporal = {
 		//--Util
 		case class ScoreElem(index:Int,offset:Int,exact:Boolean,
 				diff:(Duration,Duration))
 		def isExact(diff:(Duration,Duration)):Boolean
 			= { U.sumDiff(diff) < O.exactMatchThreshold }
-		val placeOneParse = 
-			if(parses != null && parses.length > 0) parses(0) else null
+		val vitterbi:Temporal = 
+			if(parses != null && parses.length > 0) {
+				parses(0).ground(grounding) 
+			} else {
+				null
+			}
 		//--Score Parses
 		val scores:Array[ScoreElem] 
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
@@ -258,7 +262,7 @@ trait DataStore {
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)
-			score.store(sent,placeOneParse,gold,bestGuess.exact)
+			score.store(sent,vitterbi,gold,bestGuess.exact)
 			//(feedback)
 			feedback(Feedback(
 				gold, 
@@ -271,8 +275,9 @@ trait DataStore {
 		} else {
 			//(miss)
 			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
-			score.store(sent,placeOneParse,gold,false)
+			score.store(sent,vitterbi,gold,false)
 		}
+		vitterbi
 	}
 }
 
@@ -291,6 +296,69 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		}
 		//--Return
 		score
+	}
+}
+
+object SimpleTimexStore {
+	def docs[S<:TimeSentence,E <: TimeDocument[S]](dataset:Dataset[E],
+			begin:Int,end:Int,fn:E=>Unit):Unit = {
+		val iter = dataset.slice(begin,end).iterator
+		while(iter.hasNext){
+			val doc = iter.next
+			doc.init
+			fn(doc)
+		}
+	}
+	def timexes[S<:TimeSentence,E <: TimeDocument[S]](dataset:Dataset[E],
+			begin:Int,end:Int,fn:Timex=>Unit,collectWords:Boolean):Unit = {
+		docs[S,E](dataset,begin,end, (doc:E) => {
+			val siter = doc.sentences.iterator
+			while(siter.hasNext){
+				val sent:S = siter.next
+				sent.init(
+					doc,
+					if(collectWords) U.str2w(_) else U.str2wTest(_),
+					if(collectWords) U.str2pos(_) else U.str2posTest(_)
+					)
+				val titer = sent.timexes.iterator
+				while(titer.hasNext){
+					fn(titer.next.ground(doc.grounding).setWords(sent))
+				}
+			}
+		})
+	}
+
+	def apply[E <: TimeSentence,D<:TimeDocument[E]](dataset:Dataset[D]):Data = {
+		//--Get Dataset
+		val dataset 
+			= Execution.getDataset(classOf[TimebankDocument])
+		//--Process Timexes
+		start_track("Loading Timexes")
+		logG("* train: " + O.train)
+		logG({if(O.devTest) "*" else " "} + "   dev: " + O.dev)
+		logG({if(!O.devTest) "*" else " "} + "  test: " + O.test)
+		val data = Data(
+			new SimpleTimexStore(
+				U.accum(
+					timexes[TimebankSentence,TimebankDocument]
+						(dataset,O.train.minInclusive,O.train.maxExclusive,
+						_:Timex=>Unit,true), 
+					(x:Timex) => log("[train] " + x) ).toArray),
+			new SimpleTimexStore(
+				U.accum(
+					timexes[TimebankSentence,TimebankDocument]
+						(dataset,O.dev.minInclusive,O.dev.maxExclusive,
+						_:Timex=>Unit,false), 
+					(x:Timex) => log("[dev] " + x) ).toArray),
+			new SimpleTimexStore(
+				U.accum(
+					timexes[TimebankSentence,TimebankDocument]
+						(dataset,O.test.minInclusive,O.test.maxExclusive,
+						_:Timex=>Unit,false), 
+					(x:Timex) => log("[test] " + x) ).toArray)
+			)
+		end_track
+		data
 	}
 }
 
@@ -363,7 +431,6 @@ object ToyData {
 // ENTRY
 //------------------------------------------------------------------------------
 class Entry {
-	private var dataset:Dataset[TimebankDocument] = null
 	private var data:Data = null
 	private var parser:Parser = null
 
@@ -378,63 +445,21 @@ class Entry {
 		//--Load Data
 		//(dataset)
 		log("loading dataset")
-		dataset = Execution.getDataset(classOf[TimebankDocument])
-		def docs(begin:Int,end:Int,fn:TimebankDocument=>Unit):Unit = {
-			val iter = dataset.slice(begin,end).iterator
-			while(iter.hasNext){
-				val doc = iter.next
-				doc.init
-				fn(doc)
-			}
-		}
-		def timexes(begin:Int,end:Int,fn:Timex=>Unit,collectWords:Boolean):Unit = {
-			docs(begin,end, (doc:TimebankDocument) => {
-				val siter = doc.sentences.iterator
-				while(siter.hasNext){
-					val sent:TimebankSentence = siter.next
-					sent.init(
-						if(collectWords) U.str2w(_) else U.str2wTest(_),
-						if(collectWords) U.str2pos(_) else U.str2posTest(_)
-						)
-					val titer = sent.timexes.iterator
-					while(titer.hasNext){
-						fn(titer.next.ground(doc.grounding).setWords(sent))
-					}
-				}
-			})
-		}
 		//(timexes)
-		this.data =  
-			if(O.toy){
+		this.data = O.data match {
+			case O.DataSource.Toy => 
 				start_track("Toy Data")
 				val data = ToyData.STANDARD
 				end_track
 				data
-			} else {
-				start_track("Loading Timexes")
-				logG("* train: " + O.train)
-				logG({if(O.devTest) "*" else " "} + "   dev: " + O.dev)
-				logG({if(!O.devTest) "*" else " "} + "  test: " + O.test)
-				val data = Data(
-					new SimpleTimexStore(
-						U.accum(
-							timexes(O.train.minInclusive,O.train.maxExclusive,
-								_:Timex=>Unit,true), 
-							(x:Timex) => log("[train] " + x) ).toArray),
-					new SimpleTimexStore(
-						U.accum(
-							timexes(O.dev.minInclusive,O.dev.maxExclusive,
-								_:Timex=>Unit,false), 
-							(x:Timex) => log("[dev] " + x) ).toArray),
-					new SimpleTimexStore(
-						U.accum(
-							timexes(O.test.minInclusive,O.test.maxExclusive,
-								_:Timex=>Unit,false), 
-							(x:Timex) => log("[test] " + x) ).toArray)
-					)
-					end_track
-					data
-				}
+			case O.DataSource.Timebank =>
+				SimpleTimexStore[TimebankSentence,TimebankDocument](
+					Execution.getDataset(classOf[TimebankDocument]))
+			case O.DataSource.English => 
+				SimpleTimexStore[EnglishSentence,EnglishDocument](
+					Execution.getDataset(classOf[EnglishDocument]))
+			case _ => throw fail("Data source not implemented: " + this.data)
+		}
 		//--Create Parser
 		start_track("Creating Parser")
 		assert(G.W > 0, "Words have not been interned yet!")

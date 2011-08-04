@@ -4,8 +4,14 @@ require 'date'
 require 'time'
 require 'dbi'
 
+require 'rubygems'
+require 'rjb'
+
 require "#{File.dirname(__FILE__)}/../timeutil.rb"
 
+#-------------------------------------------------------------------------------
+# PARAMETERS
+#-------------------------------------------------------------------------------
 #--Arguments
 LANG=ARGV[0]
 SCHEMA_DATA=ARGV[1]
@@ -25,6 +31,15 @@ TAG="tempeval_#{LANG}_tag"
 TIMEX="tempeval_#{LANG}_timex"
 SOURCE="source"
 SOURCE_ID="tempeval_#{LANG}".hash
+
+#--Java Bridge
+ENV['JAVA_HOME'] = ENV['JDK_HOME']
+Rjb::load(classpath = "#{ENV["JAVANLP_HOME"]}/projects/core/classes", ['-Xmx3000m'])
+Runtime = Rjb::import('java.lang.Runtime')
+MaxentTagger = Rjb::import('edu.stanford.nlp.tagger.maxent.MaxentTagger')
+Word = Rjb::import('edu.stanford.nlp.ling.Word')
+ArrayList = Rjb::import('java.util.ArrayList')
+TAGGER = MaxentTagger.new('/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger')
 
 #-------------------------------------------------------------------------------
 # CREATE DATABASE
@@ -143,15 +158,67 @@ end
 class Sent
 	@@sid = 1
 	def self.fid; @@fid; end
-	attr_accessor :sid, :fid, :words
+	attr_accessor :sid, :fid, :words, :pos
 	def initialize(fid)
 		@fid = fid
 		@sid = @@sid
 		@@sid += 1
 		@words = []
 	end
+
+	def process
+		#--Tokenize
+		text = @words.join(' ')
+		text = text.strip.gsub(/\//,' / ').gsub(/\s+/,' ').gsub(/\-/,' - ')
+		File.open("tmp", 'w') {|f| f.write(text) }
+		@original = @words
+		@words = `tokenize tmp`.split(/\s+/)
+		#--Mapping
+#		raise "bad tokenization\n#{@words.join('')}\n#{@original.join('')}\n"\
+#			if @words.join('').length != @original.join('').length TODO mapping is bad
+		#(compute offsets)
+		origCharOffset = []
+		counter = 0
+		@original.each_with_index do |w,i|
+			origCharOffset[i] = counter
+			counter += w.length
+		end
+		tokCharOffset = []
+		counter = 0
+		@words.each_with_index do |w,i|
+			tokCharOffset[i] = counter
+			counter += w.length
+		end
+		#(reverse mapping)
+		tokOffset2origIndex = (0...@words.join('').length).map do |offset|
+			cand = 1
+			while cand < origCharOffset.length and origCharOffset[cand] < offset do
+				cand += 1
+			end
+			cand - 1
+		end
+		#(create map)
+		@indexMap = tokCharOffset.map do |offset| tokOffset2origIndex[offset]; end
+		#--Tag
+		@pos = []
+	  #(input) 
+	  sent = ArrayList.new
+		@words.each do |w|
+			sent.add(Word.new(w))
+		end
+	  #(tag) 
+	  tagged = TAGGER.tagSentence(sent)
+	  iter = tagged.iterator 
+	  while(iter.hasNext) do
+	    @pos << iter.next.tag 
+	  end 	
+		#(cleanup)
+		raise "Incorrect tags #{@pos.length} #{@words.length}"\
+			if @pos.length != @words.length
+	end
 	
 	def to_db
+		process
 		#(save self)
 		ensureStatement(SENT_STMT,
 			sid,
@@ -166,6 +233,24 @@ class Sent
 				SOURCE_ID,
 				'form',
 				word.strip)
+		end
+		#(save POS)
+		pos.each_with_index do |pos,i|
+			ensureStatement(TAG_STMT,
+				i+1,
+				sid,
+				SOURCE_ID,
+				'pos',
+				pos.strip)
+		end
+		#(save index map)
+		@indexMap.each_with_index do |origIndex,newIndex|
+			ensureStatement(TAG_STMT,
+				newIndex+1,
+				sid,
+				SOURCE_ID,
+				'orig',
+				origIndex)
 		end
 	end
 end
@@ -268,7 +353,8 @@ def attr_proc(timexes,sents,docs,file)
 		if type and value then
 			timexes[doc] = {} if not timexes[doc]
 			timexes[doc][sent] = {} if not timexes[doc][sent]
-			timexes[doc][sent][tid] = Timex.new(sents[doc][sent].sid,start,type,value)
+			timexes[doc][sent][tid] =\
+				Timex.new(sents[doc][sent].sid,start-1,type,value)
 			type = nil; value = nil
 		end
 	end

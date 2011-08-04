@@ -13,40 +13,46 @@ object Timebank {
 	
 }
 
-@Table(name="timebank_doc")
-class TimebankDocument extends org.goobs.testing.Datum{
+abstract class TimeDocument[A <: TimeSentence] extends org.goobs.testing.Datum{
 	@PrimaryKey(name="fid")
 	private var fid:Int = 0
 	@Key(name="filename")
 	private var filename:String = null
 	@Key(name="pub_time")
 	private var pubTime:String = null
+	@Key(name="test")
+	private var test:Boolean = false
 	@Key(name="notes")
 	private var notes:String = null
-	@Child(localField="fid", childField="fid")
-	var sentences:Array[TimebankSentence] = null
+	def sentences:Array[A]
 	
-	def init:Unit = { refreshLinks; quickSort(sentences); }
+	def init:Unit = { 
+		refreshLinks; 
+		quickSort(sentences)( new Ordering[A] {
+			def compare(a:A,b:A) = a.compare(b)
+		}); 
+	}
 	def grounding:Time = Time(new DateTime(pubTime.trim))
 
 	override def getID = fid
 	override def toString:String = filename
 }
 
-@Table(name="timebank_sent")
-class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
+
+abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 	@PrimaryKey(name="sid")
-	private var sid:Int = 0
+	var sid:Int = 0
 	@Key(name="fid")
-	private var fid:Int = 0
+	var fid:Int = 0
 	@Key(name="length")
-	private var length:Int = 0
+	var length:Int = 0
 	@Key(name="gloss")
-	private var gloss:String = null
-	@Child(localField="sid", childField="sid")
-	private var tags:Array[TimebankTag] = null
-	@Child(localField="sid", childField="sid")
-	var timexes:Array[Timex] = null
+	var gloss:String = null
+
+	var document:TimeDocument[_<:TimeSentence] = null
+	
+	def tags:Array[_<:TimeTag]
+	def timexes:Array[_<:Timex]
 
 	private var words:Array[Int] = null
 	private var pos:Array[Int] = null
@@ -60,10 +66,12 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 	def numSlice(begin:Int,end:Int):Array[Int]
 		= nums.slice(indexMap(begin),indexMap(end))
 	
-	def init(str2w:String=>Int,str2pos:String=>Int):Unit = { 
+	def init(doc:TimeDocument[_<:TimeSentence],	
+			str2w:String=>Int,str2pos:String=>Int):Unit = { 
 		refreshLinks; 
-		quickSort(timexes);
+//		quickSort(timexes);  //TODO type hell breaks loose if uncommented
 		indexMap = (0 to length).toArray
+		this.document = doc
 		//(tag variables)
 		val words = new Array[String](length)
 		val pos = new Array[String](length)
@@ -122,20 +130,36 @@ class TimebankSentence extends DatabaseObject with Ordered[TimebankSentence]{
 		} else {
 			this.words = words.map( str2w(_) )
 			this.pos   = pos.map( str2pos(_) )
-			this.nums  = words.map{ U.str2int(_) }.toArray
+			this.nums  = words.map{ w => -1 }.toArray
 		}
 	}
+	
+	def bootstrap:(Array[String],Array[String]) = { 
+		refreshLinks; 
+		val words = new Array[String](length)
+		val pos = new Array[String](length)
+		for( i <- 0 until tags.length ){
+			tags(i).key match {
+				case "form" =>
+					words(tags(i).wid-1) = tags(i).value
+				case "pos" =>
+					pos(tags(i).wid-1) = tags(i).value
+				case _ => 
+					//do nothing
+			}
+		}
+		(words,pos)
+	}
 
-	override def compare(t:TimebankSentence):Int = this.sid - t.sid
+	override def compare(t:TimeSentence):Int = this.sid - t.sid
 	override def toString:String = gloss
 }
 
-@Table(name="timebank_tag")
-class TimebankTag extends DatabaseObject{
+class TimeTag extends DatabaseObject{
 	@Key(name="wid")
 	var wid:Int = 0
 	@Key(name="sid")
-	private var sid:Int = 0
+	var sid:Int = 0
 	@Key(name="did")
 	var did:Int = 0
 	@Key(name="key")
@@ -144,14 +168,13 @@ class TimebankTag extends DatabaseObject{
 	var value:String = null
 }
 
-@Table(name="timebank_timex")
 class Timex extends DatabaseObject with Ordered[Timex]{
 	@PrimaryKey(name="tid")
 	var tid:Int = 0
 	@Key(name="sid")
 	private var sid:Int = 0
 	@Key(name="scope_begin")
-	private var scopeBegin:Int = 0
+	var scopeBegin:Int = 0
 	@Key(name="scope_end")
 	private var scopeEnd:Int = 0
 	@Key(name="type")
@@ -160,10 +183,6 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var timeVal:Array[String] = null
 	@Key(name="original_value")
 	private var originalValue:String = null
-	@Key(name="temporal_function")
-	private var temporalFunction:Boolean = false
-	@Key(name="mod")
-	private var mod:String = null
 	@Key(name="gloss")
 	private var gloss:String = null
 
@@ -173,7 +192,10 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var numArray:Array[Int] = null
 	private var posArray:Array[Int] = null
 
-	def setWords(s:TimebankSentence):Timex = {
+	var sentence:TimeSentence = null
+
+	def setWords(s:TimeSentence):Timex = {
+		sentence = s
 		wordArray = s.wordSlice(scopeBegin,scopeEnd)
 		numArray = s.numSlice(scopeBegin,scopeEnd)
 		posArray = s.posSlice(scopeBegin,scopeEnd)
@@ -279,6 +301,48 @@ class TLink extends DatabaseObject with Ordered[TLink]{
 	}
 	override def hashCode:Int = lid
 }
+
+//-- TIMEBANK --
+@Table(name="timebank_doc")
+class TimebankDocument extends TimeDocument[TimebankSentence] {
+	@Child(localField="fid", childField="fid")
+	var sentencesVal:Array[TimebankSentence] = null
+	override def sentences = sentencesVal
+}
+@Table(name="timebank_sent")
+class TimebankSentence extends TimeSentence {
+	@Child(localField="sid", childField="sid")
+	private var tagsVal:Array[TimebankTag] = null
+	@Child(localField="sid", childField="sid")
+	var timexesVal:Array[TimebankTimex] = null
+	override def tags = tagsVal
+	override def timexes = timexesVal
+}
+@Table(name="timebank_tag")
+class TimebankTag extends TimeTag
+@Table(name="timebank_timex")
+class TimebankTimex extends Timex
+
+//-- TEMPEVAL ENGLISH --
+@Table(name="tempeval_english_doc")
+class EnglishDocument extends TimeDocument[EnglishSentence] {
+	@Child(localField="fid", childField="fid")
+	var sentencesVal:Array[EnglishSentence] = null
+	override def sentences = sentencesVal
+}
+@Table(name="tempeval_english_sent")
+class EnglishSentence extends TimeSentence {
+	@Child(localField="sid", childField="sid")
+	private var tagsVal:Array[EnglishTag] = null
+	@Child(localField="sid", childField="sid")
+	var timexesVal:Array[EnglishTimex] = null
+	override def tags = tagsVal
+	override def timexes = timexesVal
+}
+@Table(name="tempeval_english_tag")
+class EnglishTag extends TimeTag
+@Table(name="tempeval_english_timex")
+class EnglishTimex extends Timex
 
 
 

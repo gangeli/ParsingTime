@@ -9,7 +9,7 @@ object Numbers {
 import org.goobs.database._
 import scala.util.Sorting.quickSort
 @Table(name="timebank_doc")
-class TimebankDocument extends org.goobs.testing.Datum{
+class TimebankDocument extends org.goobs.testing.Datum {
 	@PrimaryKey(name="fid")
 	private var fid:Int = 0
 	@Key(name="filename")
@@ -95,10 +95,6 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var timeVal:Array[String] = null
 	@Key(name="original_value")
 	private var originalValue:String = null
-	@Key(name="temporal_function")
-	private var temporalFunction:Boolean = false
-	@Key(name="mod")
-	private var mod:String = null
 	@Key(name="gloss")
 	private var gloss:String = null
 
