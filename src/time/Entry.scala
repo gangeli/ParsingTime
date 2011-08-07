@@ -324,16 +324,14 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		val score:Score = new Score
 		//--Iterate
 		timexes.foreach{ (t:Timex) =>
-			if(t.words.length > 0){ //TODO this should not be here
-				assert(t.words.length > 0, "Timex has no words: " + t)
-				//(variables)
-				val sent = Sentence(t.tid,t.words,t.pos,t.nums)
-				//(parse)
-				val (parses,feedback) = fn(sent, t.tid)
-				//(score)
-				val best:Temporal
-					= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
-			}
+			assert(t.words.length > 0, "Timex has no words: " + t)
+			//(variables)
+			val sent = Sentence(t.tid,t.words,t.pos,t.nums)
+			//(parse)
+			val (parses,feedback) = fn(sent, t.tid)
+			//(score)
+			val best:Temporal
+				= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
 		}
 		//--Return
 		score

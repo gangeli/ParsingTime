@@ -1711,8 +1711,8 @@ object CKYParser {
 			//(get candidate parses)
 			val candidates = CKY_LEX
 				.filter{ (term:CkyRule) =>
-					(  term.child == Head.Word ||
-					   (term.child == Head.Number && word == G.NUM) ) &&  //is valid rule
+					(  (term.child == Head.Word && word != G.NUM) ||      //is word rule
+					   (term.child == Head.Number && word == G.NUM) ) &&  //is number rule
 					term.validInput( if(word == G.NUM) num else word ) }  //is in range
 				.map{ (term:CkyRule) => (term, lexLogProb(word,pos,term)) }
 			//(yield)

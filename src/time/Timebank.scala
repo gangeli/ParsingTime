@@ -219,9 +219,9 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 
 	def setWords(s:TimeSentence):Timex = {
 		sentence = s
-		wordArray = s.wordSlice(scopeBegin,scopeEnd)
-		numArray = s.numSlice(scopeBegin,scopeEnd)
-		posArray = s.posSlice(scopeBegin,scopeEnd)
+		wordArray = s.wordSlice(scopeBegin-1,scopeEnd-1)
+		numArray = s.numSlice(scopeBegin-1,scopeEnd-1)
+		posArray = s.posSlice(scopeBegin-1,scopeEnd-1)
 		this
 	}
 	def words:Array[Int] = wordArray

@@ -1,3 +1,19 @@
+require 'rubygems'
+require 'rjb'
+
+# -- JAVA --
+ENV['JAVA_HOME'] = ENV['JDK_HOME']
+Rjb::load(classpath = "#{ENV["JAVANLP_HOME"]}/projects/core/classes", ['-Xmx3000m'])
+Runtime = Rjb::import('java.lang.Runtime')
+MaxentTagger = Rjb::import('edu.stanford.nlp.tagger.maxent.MaxentTagger')
+DocumentPreprocessor = Rjb::import('edu.stanford.nlp.process.DocumentPreprocessor')
+Word = Rjb::import('edu.stanford.nlp.ling.Word')
+HasWord = Rjb::import('edu.stanford.nlp.ling.HasWord')
+List = Rjb::import('java.util.List')
+ArrayList = Rjb::import('java.util.ArrayList')
+
+TAGGER = MaxentTagger.new('/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger')
+
 def parse(str,ground)
 	str = str.chomp
 	# -- TIME --
@@ -185,7 +201,147 @@ def sameTime(time1, time2, grounding)
 end
 
 
+def tokenize(text)
+	#(process)
+	if text.is_a? Array then
+		text = text.map do |sent|
+			sent.join(' ') if sent.is_a? Array
+		end
+		text = text.join('
+')
+	end
+	#(write to file)
+	tmp = `mktemp`
+	File.open(tmp, 'w') {|f| f.write(text) }
+	#(tokenize)
+	sents = []
+	tokenizer = DocumentPreprocessor.new(tmp)
+  iter = tokenizer.iterator 
+  while(iter.hasNext) do
+		lst = iter.next
+		iterSent = lst.iterator
+		sent = []
+		while iterSent.hasNext do
+			w = iterSent.next
+			sent << w.word
+		end
+		sents << sent
+  end 	
+	sents
+end
 
+def tokenizeSentence(sent)
+	sent = sent.join(' ') if sent.is_a? Array
+	tokenize(sent).flatten
+end
+
+def tagSentence(words)
+	words = words.split(/\s+/) if words.is_a? String
+	pos = []
+  #(input) 
+  sent = ArrayList.new
+	words.each do |w|
+		sent.add(Word.new(w))
+	end
+  #(tag) 
+  tagged = TAGGER.tagSentence(sent)
+  iter = tagged.iterator 
+  while(iter.hasNext) do
+    pos << iter.next.tag 
+  end 	
+	pos
+end
+
+
+def offsetMap(orig,retoken,greedy=true)
+	#(simple maps)
+	orig = orig.map do |word| word == '"' ? "''" : word; end
+	orig = orig.map do |word| word == '(' ? "-LXB-" : word; end
+	orig = orig.map do |word| word == ')' ? "-RXB-" : word; end
+	orig = orig.map do |word| word == '{' ? "-LXB-" : word; end
+	orig = orig.map do |word| word == '}' ? "-RXB-" : word; end
+	orig = orig.map do |word| word == '[' ? "-LXB-" : word; end
+	orig = orig.map do |word| word == ']' ? "-RXB-" : word; end
+	retoken = retoken.map do |word| word == '-LRB-' ? "-LXB-" : word; end
+	retoken = retoken.map do |word| word == '-RRB-' ? "-RXB-" : word; end
+	retoken = retoken.map do |word| word == '-LCB-' ? "-LXB-" : word; end
+	retoken = retoken.map do |word| word == '-RCB-' ? "-RXB-" : word; end
+	retoken = retoken.map do |word| word == '-LSB-' ? "-LXB-" : word; end
+	retoken = retoken.map do |word| word == '-RSB-' ? "-RXB-" : word; end
+	#(bloody brits)
+	orig = orig.map do |word| word == 'theatre' ? 'theater' : word; end
+	#--Util
+	#(variables)
+	infoOrig = [0,0]
+	infoRetoken = [0,0]
+	#(iterator)
+	def nextChar(array,info)
+		w,offset = info
+		info[1] += 1
+		if info[0] < array.length and info[1] >= array[info[0]].length then
+			info[0] += 1
+			info[1] = 0
+		end
+		if w >= array.length then
+			nil
+		else
+			array[w][offset].chr
+		end
+	end
+	#--Setup
+	mapping = retoken.map do |i| -42; end
+	#--Map
+	chOrig = nextChar(orig,infoOrig)
+	chRetok = nextChar(retoken,infoRetoken)
+	while chOrig and chRetok do
+		#(fixes)
+		chRetok = 's' if chRetok == 'z' and chOrig == 's'\
+			if "#{chRetok}".strip != "#{chOrig}".strip #bloody brits
+		#(align)
+		if "#{chRetok}".strip != "#{chOrig}".strip then
+			sav = chRetok
+			mapping[infoRetoken[0]-1] = -1\
+				if greedy or mapping[infoRetoken[0]-1] == -42
+			chRetok = nextChar(retoken,infoRetoken)
+			puts orig.join(' ') if not chOrig == chRetok
+			puts retoken.join(' ') if not chOrig == chRetok
+			raise "not same #{chOrig} #{chRetok} [ #{sav} ]" if not chOrig == chRetok
+		else
+			#(save)
+			mapping[infoRetoken[0]] = infoOrig[0]\
+				if infoOrig[0] < orig.length and\
+				(greedy or mapping[infoRetoken[0]] == -42)
+		end
+		#(iter)
+		chOrig = nextChar(orig,infoOrig)
+		chRetok = nextChar(retoken,infoRetoken)
+	end
+	#--Clean Up
+	#(end)
+	while nextChar(retoken,infoRetoken) do
+			mapping[infoRetoken[0]] = orig.length-1
+	end
+	#(skipped terms)
+	mapping.each_with_index do |term,i|
+		if term == -42 then
+			if i == 0 then
+				mapping[i] = 0
+			else
+				mapping[i] = mapping[i-1]
+			end
+		end
+	end
+	#--Return
+	mapping
+end
+
+
+
+#orig = 'It\'s a sentence Inc. New sentence for $50'.split /\s+/
+#retok = 'It \'s a sentence Inc. . New sentence for $ 50'.split /\s+/
+#offsetMap(orig,retok).each_with_index do |o,r|
+#	puts "#{r} #{o}: #{retok[r]} -> #{orig[o]}"
+#end
 
 
 

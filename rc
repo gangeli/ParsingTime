@@ -22,7 +22,6 @@ function score {
 	else
 		python aux/tempeval2/scorer/score_entities.py\
 			aux/tempeval2/training/english/data/base-segmentation.tab\
-			/tmp/attr.tab\
 			aux/tempeval2/training/english/data/timex-attributes.tab\
 			out/$last/attributes-train.tab\
 			aux/tempeval2/training/english/data/timex-extents.tab\

@@ -32,15 +32,6 @@ TIMEX="tempeval_#{LANG}_timex"
 SOURCE="source"
 SOURCE_ID="tempeval_#{LANG}".hash
 
-#--Java Bridge
-ENV['JAVA_HOME'] = ENV['JDK_HOME']
-Rjb::load(classpath = "#{ENV["JAVANLP_HOME"]}/projects/core/classes", ['-Xmx3000m'])
-Runtime = Rjb::import('java.lang.Runtime')
-MaxentTagger = Rjb::import('edu.stanford.nlp.tagger.maxent.MaxentTagger')
-Word = Rjb::import('edu.stanford.nlp.ling.Word')
-ArrayList = Rjb::import('java.util.ArrayList')
-TAGGER = MaxentTagger.new('/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger')
-
 #-------------------------------------------------------------------------------
 # CREATE DATABASE
 #-------------------------------------------------------------------------------
@@ -158,7 +149,7 @@ end
 class Sent
 	@@sid = 1
 	def self.fid; @@fid; end
-	attr_accessor :sid, :fid, :words, :pos
+	attr_accessor :sid, :fid, :words, :pos, :original, :orig2retok
 	def initialize(fid)
 		@fid = fid
 		@sid = @@sid
@@ -170,55 +161,46 @@ class Sent
 		#--Tokenize
 		text = @words.join(' ')
 		text = text.strip.gsub(/\//,' / ').gsub(/\s+/,' ').gsub(/\-/,' - ')
-		File.open("tmp", 'w') {|f| f.write(text) }
 		@original = @words
-		@words = `tokenize tmp`.split(/\s+/)
+		@words = tokenizeSentence(text)
 		#--Mapping
-#		raise "bad tokenization\n#{@words.join('')}\n#{@original.join('')}\n"\
-#			if @words.join('').length != @original.join('').length TODO mapping is bad
-		#(compute offsets)
-		origCharOffset = []
-		counter = 0
-		@original.each_with_index do |w,i|
-			origCharOffset[i] = counter
-			counter += w.length
-		end
-		tokCharOffset = []
-		counter = 0
-		@words.each_with_index do |w,i|
-			tokCharOffset[i] = counter
-			counter += w.length
-		end
-		#(reverse mapping)
-		tokOffset2origIndex = (0...@words.join('').length).map do |offset|
-			cand = 1
-			while cand < origCharOffset.length and origCharOffset[cand] < offset do
-				cand += 1
-			end
-			cand - 1
-		end
 		#(create map)
-		@indexMap = tokCharOffset.map do |offset| tokOffset2origIndex[offset]; end
-		#--Tag
-		@pos = []
-	  #(input) 
-	  sent = ArrayList.new
-		@words.each do |w|
-			sent.add(Word.new(w))
+		@retok2orig = offsetMap(@original,@words)
+		@orig2retok = @original.map do |w| -42; end
+		(0 ... @original.length).each do |origI|
+			retokI = 0
+			while @retok2orig[retokI] != origI and retokI < @words.length do
+				retokI += 1
+			end
+			@orig2retok[origI] = retokI < @words.length ? retokI : -43
 		end
-	  #(tag) 
-	  tagged = TAGGER.tagSentence(sent)
-	  iter = tagged.iterator 
-	  while(iter.hasNext) do
-	    @pos << iter.next.tag 
-	  end 	
+		#(clean up)
+		@orig2retok.each_with_index do |v,i|
+			@orig2retok[i] = @orig2retok[i-1] if v == -43 and i > 0
+		end
+		@orig2retok[@original.length] = @words.length
+		#(print)
+		puts @retok2orig.join(' ')
+		puts @orig2retok.join(' ')
+		puts '-------------------'
+		#(check map)
+		@retok2orig.each_with_index do |foreign,local|
+			raise "retok2orig not sorted"\
+				if local>0 and foreign < @retok2orig[local-1]\
+				and @retok2orig[local-1] >= 0 and foreign >= 0
+		end
+		@orig2retok.each_with_index do |v,i|
+			raise "invalid value" if v == -42
+			raise "orig2retok not sorted" if i > 0 and @orig2retok[i-1] > v
+		end
+		#--Tag
+		@pos = tagSentence(@words)
 		#(cleanup)
 		raise "Incorrect tags #{@pos.length} #{@words.length}"\
 			if @pos.length != @words.length
 	end
 	
 	def to_db
-		process
 		#(save self)
 		ensureStatement(SENT_STMT,
 			sid,
@@ -244,20 +226,20 @@ class Sent
 				pos.strip)
 		end
 		#(save index map)
-		@indexMap.each_with_index do |origIndex,newIndex|
+		@retok2orig.each_with_index do |origIndex,newIndex|
 			ensureStatement(TAG_STMT,
 				newIndex+1,
 				sid,
 				SOURCE_ID,
 				'orig',
-				origIndex)
+				@retok2orig[newIndex])
 		end
 	end
 end
 
 class Timex
 	@@tid = 1
-	attr_accessor :tid, :sid, :scope_begin, :scope_end, :type, :value, :original_value, :gloss
+	attr_accessor :tid, :sid, :scope_begin, :scope_end, :type, :value, :original_value, :gloss, :orig_start
 	def initialize(sid,start,type,origValue)
 		@tid = @@tid
 		@sid = sid
@@ -267,11 +249,12 @@ class Timex
 		@value = parse(origValue,nil)
 		@@tid += 1
 	end
-	def setLength(len)
-		raise "zero length" if len == 0
-		@scope_end = @scope_begin+len.to_i
+	def setEnd(e)
+		raise "non-positive length: #{@scope_begin} to #{e}" if e < @scope_begin
+		@scope_end = e+1
 	end
 	def to_db(gloss)
+		raise "Bad scope: #{scope_begin} to #{scope_end}" if scope_end-scope_begin<1
 		#(clean value)
 		value = "[#{@value.join(",")}]"
 		#(save self)
@@ -337,6 +320,8 @@ puts "    sentences (train)"
 File.new(base_train).each_line do |line| base_proc(sents,docs,line); end
 puts "    sentences (test)"
 File.new(base_test).each_line do |line| base_proc(sents,docs,line); end
+puts "    process sentences"
+sents.each do |doc,sentLst| sentLst.each do |sent| sent.process; end; end
 #(timex values)
 def attr_proc(timexes,sents,docs,file)
 	type = nil
@@ -351,10 +336,15 @@ def attr_proc(timexes,sents,docs,file)
 			value = val
 		end
 		if type and value then
+			newStart = sents[doc][sent].orig2retok[start]
 			timexes[doc] = {} if not timexes[doc]
 			timexes[doc][sent] = {} if not timexes[doc][sent]
 			timexes[doc][sent][tid] =\
-				Timex.new(sents[doc][sent].sid,start-1,type,value)
+				Timex.new(sents[doc][sent].sid,newStart,type,value)
+			timex = timexes[doc][sent][tid]
+			timex.orig_start = start
+			raise "start longer than length"\
+				if timex.orig_start >= sents[doc][sent].original.length
 			type = nil; value = nil
 		end
 	end
@@ -366,14 +356,24 @@ attr_proc(timexes,sents,docs,File.new(attr_test))
 
 #(timex spans)
 def ext_proc(timexes,sents,docs,file)
+	def updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count)
+		timex = timexes[lastDoc][lastSent][lastTid]
+		beginVal = sents[lastDoc][lastSent].orig2retok[timex.orig_start]
+		endVal = sents[lastDoc][lastSent].orig2retok[timex.orig_start+count+1]-1
+		raise "bad count" if count <= 0
+		raise "bad map #{beginVal} to #{endVal}" if endVal <= beginVal
+		raise "no end val #{count}" if not endVal
+		timex.setEnd( endVal )
+	end
 	last = nil
 	count = 0
 	file.each_line do |line|
 		doc,sent,start,timex3,tid,junk = line.split(/\s+/)
 		sent = sent.to_i
 		if [doc,sent,tid] != last and last != nil then
+			#(update timex)
 			lastDoc,lastSent,lastTid = last
-			timexes[lastDoc][lastSent][lastTid].setLength(count)
+			updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count)
 			last = [doc,sent,tid]
 			count = 0
 		elsif last == nil then
@@ -381,9 +381,9 @@ def ext_proc(timexes,sents,docs,file)
 		end
 		count += 1
 	end
-	#(add last)
+	#(update last)
 	lastDoc,lastSent,lastTid = last
-	timexes[lastDoc][lastSent][lastTid].setLength(count)
+	updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count)
 end
 puts "    timex extents (train)"
 ext_proc(timexes,sents,docs,File.new(ext_train))
@@ -415,7 +415,7 @@ timexes.each do |doc,sentLst|
 		timexes.each do |timex_tag,timex| 
 			words = sents[doc][sent].words
 			segment = words.slice(
-				timex.scope_begin-1,
+				timex.scope_begin-1, #compensate for +1 in Timex class
 				timex.scope_end-timex.scope_begin)
 			gloss = segment.join(' ')
 			timex.to_db(gloss)
