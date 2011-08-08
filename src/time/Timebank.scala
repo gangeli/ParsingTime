@@ -71,9 +71,12 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 
 	def indexInDocument:Int = {
 		document.sentences.zipWithIndex.foreach{ case (s:TimeSentence,i:Int) =>
-			if(s == this){ return i }
+			if(s.sid == this.sid){ return i }
 		}
-		throw new IllegalStateException("Could not find sentence in doc")
+		throw new IllegalStateException(
+			"Could not find sentence in doc: "+
+				this.sid + ": " + this+
+				" ("+document.sentences.length+")")
 	}
 	
 	def init(doc:TimeDocument[_<:TimeSentence],	
@@ -211,7 +214,7 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 		var i = 0
 		sentence.document.sentences.foreach{ case (s:TimeSentence) =>
 			s.timexes.foreach{ case (t:Timex) =>
-				if(t == this){ return i } else { i += 1 }
+				if(t.tid == this.tid){ return i } else { i += 1 }
 			}
 		}
 		throw new IllegalStateException("Could not find timex in sentence")

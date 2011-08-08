@@ -418,6 +418,8 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 				( new Time(begin.base.withSecondOfMinute(0).withMillisOfSecond(0)), MIN)
 			case DurationUnit.SECOND => 
 				( new Time(begin.base.withMillisOfSecond(0)), SEC)
+			case DurationUnit.ZERO =>
+				( begin, Duration.ZERO )
 		}
 		new GroundedRange(base,base+diff)
 	}
