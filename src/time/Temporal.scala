@@ -19,6 +19,8 @@ trait Temporal {
 			def hasNext:Boolean = Temporal.this.exists(rightPointer)(ground)
 			def next:E = {
 				val rtn = apply[E](rightPointer)(ground)
+				assert(!rtn.isInstanceOf[NoTime], 
+					"NoTime in iterator (hasNext: "+hasNext+")")
 				rightPointer += 1
 				rtn
 			}
@@ -30,6 +32,8 @@ trait Temporal {
 			def hasNext:Boolean = Temporal.this.exists(leftPointer)(ground)
 			def next:E = {
 				val rtn = apply[E](leftPointer)(ground)
+				assert(!rtn.isInstanceOf[NoTime], 
+					"NoTime in iterator (hasNext: "+hasNext+")")
 				leftPointer -= 1
 				rtn
 			}
@@ -61,10 +65,14 @@ trait Temporal {
 					if(Temporal.this.exists(leftPointer)(ground) && 
 							(pLeft > pRight || !Temporal.this.exists(rightPointer)(ground))) {
 						val rtn:Temporal = apply(leftPointer)(ground)
+						assert(!rtn.isInstanceOf[NoTime], 
+							"NoTime in distribution (hasNext: "+hasNext+")")
 						leftPointer -= 1
 						(rtn,pLeft,leftPointer+1)
 					} else if(Temporal.this.exists(rightPointer)(ground)){
 						val rtn:Temporal = apply(rightPointer)(ground)
+						assert(!rtn.isInstanceOf[NoTime], 
+							"NoTime in distribution (hasNext: "+hasNext+")")
 						rightPointer += 1
 						(rtn,pRight,rightPointer-1)
 					} else {
@@ -218,6 +226,7 @@ trait Range extends Temporal{
 	def <|(diff:Duration):Range //extend left
 	def >|(diff:Duration):Range //shirnk to right
 	def |<(diff:Duration):Range //shrink to left
+	def !(durr:Duration):Range  //canonicalize
 
 	private def composite[E <: Temporal](
 			str:String,
@@ -263,7 +272,7 @@ trait Range extends Temporal{
 			}},
 			//(new prob)
 			(offset:Int) => this.prob(offset),
-			//(new offset)
+			//(new exists)
 			(offset:Int) => { (ground:Time) => {
 				val ((applyForward,indexForward,existsForward),
 				     (applyBackward,indexBackward,existsBackward)) = ensureCache(ground)
@@ -286,6 +295,7 @@ trait Range extends Temporal{
 
 	def cons(other:Range):Range = {
 		(this, other) match {
+			case (a:Range,b:NoTime) => new NoTime
 			case (a:GroundedRange,b:GroundedRange) => 
 				if(a.begin < b.end){ new GroundedRange(a.begin,b.end) }
 				else { new NoTime }
@@ -297,6 +307,7 @@ trait Range extends Temporal{
 
 	def ^(other:Range):Range = {
 		(this, other) match {
+			case (a:Range,b:NoTime) => new NoTime
 			case (a:GroundedRange,b:GroundedRange) => new GroundedRange(
 					Range.mkBegin(a.begin,b.begin),
 					Range.mkEnd(a.end,b.end)
@@ -336,6 +347,7 @@ class CompositeRange(
 	override def <|(diff:Duration):Range = extend( _ <| diff, "<|" )
 	override def >|(diff:Duration):Range = extend( _ >| diff, ">|" )
 	override def |<(diff:Duration):Range = extend( _ |< diff, "|<" )
+	override def !(diff:Duration):Range = extend( _ ! diff, "!" )
 
 	private def extend(fn:Range=>Range, op:String) = {
 		new CompositeRange( 
@@ -372,6 +384,43 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 	override def |>(diff:Duration):Range = new GroundedRange(end,end+diff)
 	override def |<(diff:Duration):Range = new GroundedRange(begin,begin+diff)
 	override def >|(diff:Duration):Range = new GroundedRange(end-diff,end)
+
+	override def !(dur:Duration):Range = {
+		import Lex.{AYEAR,MONTH,WEEK,DAY,HOUR,MIN,SEC}
+		def yr(t:DateTime):Time = {
+			new Time(t.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0))
+		}
+		def hr(t:Time):Time = {
+			new Time(t.base.withMinuteOfHour(0).withSecondOfMinute(0)
+				.withMillisOfSecond(0))
+		}
+		val (base,diff) = dur.smallestUnit match {
+			case DurationUnit.MILLENIUM => 
+				val b = begin.base
+				( yr(b.withYear(b.getYear-(b.getYear%1000))), AYEAR*1000 )
+			case DurationUnit.CENTURY => 
+				val b = begin.base
+				( yr(b.withYear(b.getYear-(b.getYear%100))),AYEAR*100)
+			case DurationUnit.DECADE => 
+				val b = begin.base
+				( yr(b.withYear(b.getYear-(b.getYear%10))), AYEAR*10)
+			case DurationUnit.YEAR => 
+				( yr(begin.base), AYEAR)
+			case DurationUnit.MONTH => 
+				( new Time(begin.base.withDayOfMonth(1).withMillisOfDay(0)), MONTH)
+			case DurationUnit.WEEK => 
+				( new Time(begin.base.withDayOfWeek(1).withMillisOfDay(0)), WEEK)
+			case DurationUnit.DAY => 
+				( new Time(begin.base.withMillisOfDay(0)), DAY)
+			case DurationUnit.HOUR => 
+				( hr(begin), HOUR)
+			case DurationUnit.MINUTE => 
+				( new Time(begin.base.withSecondOfMinute(0).withMillisOfSecond(0)), MIN)
+			case DurationUnit.SECOND => 
+				( new Time(begin.base.withMillisOfSecond(0)), SEC)
+		}
+		new GroundedRange(base,base+diff)
+	}
 
 	
 	def norm:Duration = (end - begin)
@@ -422,6 +471,18 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 		= new UngroundedRange(diff,beginOffset+normVal-diff)
 	
 	def norm:Duration = normVal
+	
+	override def !(dur:Duration):Range = {
+		new CompositeRange(
+				(offset:Int) => (t:Time) => {
+					val gr:GroundedRange = this.apply(offset)(t)
+					gr ! dur
+				},
+				this.prob(_),
+				this.exists(_),
+				List[String](this + " ! " + dur)
+			)
+	}
 	
 	override def equals(o:Any):Boolean = o match {
 		case (ur:UngroundedRange) => 
@@ -494,7 +555,8 @@ object Range {
 							} else {
 								(null,((null,0),(null,0)),(0,0))
 							}
-					override def hasNext:Boolean = theNext != null
+					override def hasNext:Boolean 
+						= theNext != null
 					override def next:(GroundedRange,Int,Int) = {
 						if(theNext == null){ throw new NoSuchElementException }
 						val rtn=(theNext,indexA,indexB)
@@ -511,6 +573,7 @@ object Range {
 
 	def cons(back:Boolean,a:Iterable[GroundedRange],b:Iterable[GroundedRange]
 			):Iterable[(GroundedRange,Int,Int)] = {
+		var diff:Duration = Duration.INFINITE
 		def mkNext(
 				iA:Int, vA:GroundedRange,a:BufferedIterator[GroundedRange],
 				iB:Int, vB:GroundedRange,b:BufferedIterator[GroundedRange]
@@ -521,7 +584,12 @@ object Range {
 				nullVal
 			} else if(vB.end < vA.begin){
 				//(case: B is behind)
-				if(!back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
+				//((convergence check))
+				val lastDiff = diff
+				diff = (vA.begin-vB.end)
+				if(!(diff < lastDiff)){ nullVal } //case: not converging
+				//((movement))
+				else if(!back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
 				else if(back && a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } 
 				else { nullVal }
 			} else {
@@ -625,6 +693,16 @@ trait Duration extends Temporal {
 	def <=(other:Duration) = this.seconds <= other.seconds
 	def >=(other:Duration) = this.seconds >= other.seconds
 
+	def units:Array[DurationUnit.Value]
+	def smallestUnit:DurationUnit.Value = {
+		val arr:Array[DurationUnit.Value] = units
+		if(arr.length == 0){ DurationUnit.ZERO } else { arr(arr.length-1) }
+	}
+	def largestUnit:DurationUnit.Value = {
+		val arr:Array[DurationUnit.Value] = units
+		if(arr.length == 0){ DurationUnit.ZERO } else { arr(0) }
+	}
+
 	override def equals(o:Any):Boolean = o match{
 		case (s:Sequence) => false
 		case (d:Duration) => this.seconds == d.seconds
@@ -648,23 +726,38 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 	override def -(diff:Duration):Duration 
 		= new GroundedDuration(base.toPeriod.minus(diff.interval.base))
 	override def *(n:Int):Duration = {
-		if(base.isInstanceOf[Seconds]){
-			new GroundedDuration(base.asInstanceOf[Seconds].multipliedBy(n))
-		} else if(base.isInstanceOf[Minutes]){
-			new GroundedDuration(base.asInstanceOf[Minutes].multipliedBy(n))
-		} else if(base.isInstanceOf[Hours]){
-			new GroundedDuration(base.asInstanceOf[Hours].multipliedBy(n))
-		} else if(base.isInstanceOf[Days]){
-			new GroundedDuration(base.asInstanceOf[Days].multipliedBy(n))
-		} else if(base.isInstanceOf[Weeks]){
-			new GroundedDuration(base.asInstanceOf[Weeks].multipliedBy(n))
-		} else if(base.isInstanceOf[Months]){
-			new GroundedDuration(base.asInstanceOf[Months].multipliedBy(n))
-		} else if(base.isInstanceOf[Years]){
-			new GroundedDuration(base.asInstanceOf[Years].multipliedBy(n))
-		} else {
-			throw new IllegalStateException("Cannot multiply Duration")
-		}
+		import DurationUnit._
+		var p = base.toPeriod
+		new GroundedDuration( units.foldLeft(Period.ZERO){ 
+			case (soFar:Period,term:DurationUnit.Value) => term match {
+				case MILLENIUM => soFar.plusYears((p.getYears/1000)*n)
+				case CENTURY => soFar.plusYears((p.getYears%1000)*n)
+				case DECADE => soFar.plusYears((p.getYears%100)*n)
+				case YEAR => soFar.plusYears((p.getYears%10)*n)
+				case MONTH => soFar.plusYears(p.getMonths*n)
+				case WEEK => soFar.plusYears(p.getWeeks*n)
+				case DAY => soFar.plusYears(p.getDays*n)
+				case HOUR => soFar.plusYears(p.getHours*n)
+				case MINUTE => soFar.plusYears(p.getMinutes*n)
+				case SECOND => soFar.plusYears(p.getSeconds*n)
+			}
+		} )
+	}
+
+	override def units:Array[DurationUnit.Value] = {
+		val period = base.toPeriod
+		var unitsAsc = List[DurationUnit.Value]()
+		if(period.getYears > 1000){ unitsAsc = DurationUnit.MILLENIUM :: unitsAsc }
+		if(period.getYears%1000 > 100){unitsAsc = DurationUnit.CENTURY :: unitsAsc}
+		if(period.getYears%100 > 10){unitsAsc = DurationUnit.DECADE :: unitsAsc}
+		if(period.getYears > 0){unitsAsc = DurationUnit.YEAR :: unitsAsc}
+		if(period.getMonths > 0){unitsAsc = DurationUnit.MONTH :: unitsAsc}
+		if(period.getWeeks > 0){unitsAsc = DurationUnit.WEEK :: unitsAsc}
+		if(period.getDays > 0){unitsAsc = DurationUnit.DAY :: unitsAsc}
+		if(period.getHours > 0){unitsAsc = DurationUnit.HOUR :: unitsAsc}
+		if(period.getMinutes > 0){unitsAsc = DurationUnit.MINUTE :: unitsAsc}
+		if(period.getSeconds > 0){unitsAsc = DurationUnit.SECOND :: unitsAsc}
+		unitsAsc.reverse.toArray
 	}
 	
 	override def toString:String = this.base.toString
@@ -799,20 +892,32 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		}
 	}
 
-	def >>(diff:Duration):Range = new RepeatedRange(snapFn, base >> diff,interv)
-	def <<(diff:Duration):Range = new RepeatedRange(snapFn, base << diff,interv)
-	def <|(diff:Duration):Range = new RepeatedRange(snapFn, base <| diff, interv)
-	def |>(diff:Duration):Range = new RepeatedRange(snapFn, base |> diff, interv)
-	def |<(diff:Duration):Range = new RepeatedRange(snapFn, base |< diff, interv)
-	def >|(diff:Duration):Range = new RepeatedRange(snapFn, base >| diff, interv)
+	override def >>(diff:Duration):Range 
+		= new RepeatedRange(snapFn, base >> diff,interv)
+	override def <<(diff:Duration):Range 
+		= new RepeatedRange(snapFn, base << diff,interv)
+	override def <|(diff:Duration):Range 
+		= new RepeatedRange(snapFn, base <| diff, interv)
+	override def |>(diff:Duration):Range 
+		= new RepeatedRange(snapFn, base |> diff, interv)
+	override def |<(diff:Duration):Range 
+		= new RepeatedRange(snapFn, base |< diff, interv)
+	override def >|(diff:Duration):Range 
+		= new RepeatedRange(snapFn, base >| diff, interv)
+
+	override def !(dur:Duration):Range = this
 	
-	def interval:GroundedDuration = interv.interval
-	def seconds:Long = interv.seconds
+	override def interval:GroundedDuration = interv.interval
+	override def seconds:Long = interv.seconds
 
+	override def units:Array[DurationUnit.Value] = base.norm.units
 
-	def +(diff:Duration):Duration = new RepeatedRange(snapFn, base, interv + diff)
-	def -(diff:Duration):Duration = new RepeatedRange(snapFn, base, interv - diff)
-	def *(n:Int):Duration = new RepeatedRange(snapFn, base, interv * n)
+	override def +(diff:Duration):Duration 
+		= new RepeatedRange(snapFn, base, interv + diff)
+	override def -(diff:Duration):Duration 
+		= new RepeatedRange(snapFn, base, interv - diff)
+	override def *(n:Int):Duration 
+		= new RepeatedRange(snapFn, base, interv * n)
 	
 	override def equals(o:Any):Boolean = this == o
 	override def toString:String 
@@ -976,6 +1081,7 @@ class NoTime extends Sequence {
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	override def prob(offset:Int):Time=>Double = (t:Time) => 0.0
+	override def exists(offset:Int):Time=>Boolean = (t:Time) => false
 
 	def interval:GroundedDuration = new GroundedDuration(Seconds.ZERO)
 	def seconds:Long = 0L
@@ -991,13 +1097,18 @@ class NoTime extends Sequence {
 	def >|(diff:Duration):Range = this
 	def |<(diff:Duration):Range = this
 
+	def !(dur:Duration):Range = this
+	def units:Array[DurationUnit.Value] = Array[DurationUnit.Value]()
+
 	override def toString = "NOTIME"
 }
 
+// ----- UNKNOWN TIME -----
 class UnkTime extends NoTime {
 	override def toString = "UNKTIME"
 }
 
+// ----- PARTIAL TIME -----
 class PartialTime(fn:Range=>Range) extends Temporal {
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
 		(ground:Time) =>  {
@@ -1013,6 +1124,12 @@ class PartialTime(fn:Range=>Range) extends Temporal {
 		= fn(Range(Time.DAWN_OF,Time.END_OF)).exists(offset)
 }
 
+// ----- DURATION UNIT -----
+object DurationUnit extends Enumeration {
+	val MILLENIUM, CENTURY, DECADE, YEAR, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND,
+		ZERO
+			= Value
+}
 
 //------------------------------------------------------------------------------
 // LEX
@@ -1113,15 +1230,29 @@ object Lex {
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
 	
-	//--Shifts
+	//--Functions
+	//(move a range by a duration)
 	val shiftLeft:(Range,Duration)=>Range = _ << _
 	val shiftRight:(Range,Duration)=>Range = _ >> _
+	//(cannonicalize a range)
+	val canonicalize:(Range,Duration)=>Range = _ ! _
+	//(move a range and canonicalize)
+	val cannonicalLeft:(Range,Duration)=>Range 
+		= (r:Range,d:Duration) => { (r << d) ! d }
+	val cannonicalRight:(Range,Duration)=>Range 
+		= (r:Range,d:Duration) => { (r << d) ! d }
+	//(create a range on boundary -- outward)
 	val catLeft:(Range,Duration)=>Range = _ <| _
 	val catRight:(Range,Duration)=>Range = _ |> _
+	//(create a range on boundary -- inward)
 	val shrinkBegin:(Range,Duration)=>Range = _ |< _
 	val shrinkEnd:(Range,Duration)=>Range = _ >| _
-	val intersect:(Range,Range)=>Range = _ ^ _ //TODO
+	//(intersect two ranges)
+	val intersect:(Range,Range)=>Range = _ ^ _
+	//(concatenate two ranges -- outer)
 	val cons:(Range,Range)=>Range = _.cons(_)
+	//(concatenate two ranges -- inner)
+	//TODO
 
 	def todaysDate:Time = Time((new DateTime).withMillisOfDay(0))
 }

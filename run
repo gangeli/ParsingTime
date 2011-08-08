@@ -15,7 +15,7 @@ env!(
 		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
 	o('Xrunhprof:cpu=samples,depth=10'),
 	o('server'),
-	o('Xmx5000M'),
+	o('Xmx6000M'),
 	o('ea'),
 	'time.Entry',
 
@@ -73,7 +73,7 @@ env!(
 			'Toy',
 			'Timebank',
 			'English'),
-#		o('collapseNumbers'),
+		o('collapseNumbers'),
 
 #		o('train', '1-8'),
 #		o('dev', '8-9'),

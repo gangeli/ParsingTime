@@ -214,8 +214,11 @@ object Grammar {
 		//--F[ Range, Duration ]
 		val rangeDurationFn = List[((Range,Duration)=>Range,String,Boolean)](
 			(shiftLeft,"shiftLeft",true),(shiftRight,"shiftRight",true),
+			(cannonicalLeft,"shiftLeft!",true),(cannonicalRight,"shiftRight!",true),
+			(canonicalize,"canon.",false),
 			(catLeft,"catLeft",false),(catRight,"catRight",false),
-			(shrinkBegin,"shrinkBegin",false),(shrinkEnd,"shrinkEnd",false) )
+			(shrinkBegin,"shrinkBegin",false),(shrinkEnd,"shrinkEnd",false)
+			)
 		rtn = rtn ::: rangeDurationFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
 						(fn:((Range,Duration)=>Range),
