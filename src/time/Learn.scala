@@ -300,7 +300,7 @@ object Grammar {
 				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
 					(a:Sequence,b:Range) => a ^ b
 					)), "inter$(a:S,b:R):R$") ::
-				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
+				(BinaryRule(Head.Range, Head.Sequence, Head.Sequence, hack2(
 					(a:Sequence,b:Sequence) => a ^ b
 					)), "inter$(a:S,b:S):S$") ::
 				//(intersect reverse)
@@ -313,7 +313,7 @@ object Grammar {
 				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
 					(a:Sequence,b:Range) => b ^ a
 					)), "inter$(b:S,a:R):R$") ::
-				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
+				(BinaryRule(Head.Range, Head.Sequence, Head.Sequence, hack2(
 					(a:Sequence,b:Sequence) => b ^ a
 					)), "inter$(b:S,a:S):S$") :: Nil
 			}
@@ -398,11 +398,11 @@ object Grammar {
 				)),"$d:D$"),
 			//(sequence)
 			(BinaryRule(Head.Sequence, Head.Sequence, Head.NIL, hack2( 
-				(d:Duration,n:NIL) => d
-				)),"$s:D$"),
+				(s:Sequence,n:NIL) => s
+				)),"$s:S$"),
 			(BinaryRule(Head.Sequence, Head.NIL, Head.Sequence, hack2( 
-				(n:NIL,d:Duration) => d
-				)),"$s:D$"),
+				(n:NIL,s:Sequence) => s
+				)),"$s:S$"),
 			//(f_range)
 			(BinaryRule(Head.F_R, Head.F_R, Head.NIL, hack2( 
 				(f:Range=>Range,n:NIL) => f
