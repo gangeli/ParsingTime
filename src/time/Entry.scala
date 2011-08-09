@@ -119,6 +119,8 @@ object U {
 	}
 
 	def safeLn(d:Double) = {
+		assert(!d.isNaN, "Taking the log of NaN")
+		assert(d >= 0, "Taking the log of a negative number")
 		if(d == 0.0){ 
 			Double.NegativeInfinity
 		} else { 
@@ -281,6 +283,7 @@ class Score {
 case class Data(train:DataStore,dev:DataStore,test:DataStore)
 
 trait DataStore {
+
 	def eachExample(fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score
 	def handleParse(
 			parses:Array[Parse], 
@@ -304,11 +307,12 @@ trait DataStore {
 		//--Score Parses
 		val scores:Array[ScoreElem] 
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
-			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
+			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => {
 				soFar ::: parse.scoreFrom(gold,grounding).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),score:Double,offset:Int) =>
 						ScoreElem(i,offset,isExact(diff),diff)
 					}.toList
+			}
 		}.toArray
 		//--Process Score
 		if(scores.length > 0){

@@ -636,7 +636,7 @@ object Range {
 			if(vA==null || vB==null){
 				//(case: an iterator is empty)
 				nullVal
-			} else if(!(vA.end > vB.begin)) { //note: virtual <= 
+			} else if(vA.end <= vB.begin) {
 				//(case: A is before)
 				//((overhead for divergence))
 				val lastDiff = diff
@@ -646,7 +646,7 @@ object Range {
 				else if(!back && a.hasNext){ mkNext(iA+1,a.next,a,iB,vB,b) } 
 				else if(back && b.hasNext){ mkNext(iA,vA,a,iB+1,b.next,b) } 
 				else { nullVal } //case: relevant iterator is empty
-			} else if(!(vB.end > vA.begin)){ //note: virtual <=
+			} else if(vB.end <= vA.begin){
 				//(case: B is before)
 				//((overhead for divergence))
 				val lastDiff = diff
@@ -873,7 +873,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		import Sequence._
 		val groundFn:Time=>GroundedRange = this.apply(offset)
 		def diff(offset:Int,ground:Time):Double = {
-			val grounded:GroundedRange = groundFn(ground)
+			val grounded:GroundedRange = this.apply(offset)(ground)
 			math.abs((ground - grounded.begin)/interv)
 		}
 		(ground:Time) =>
@@ -885,13 +885,13 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 				val expNorm2Dir:Double = (-4 until 5).foldLeft(0.0){ 
 					case (soFar:Double,o:Int) =>
 					if(exists(o)(ground)) { 
-						soFar + expLambda*math.exp(expLambda*diff(o,ground)) 
+						soFar + expLambda*math.exp(-expLambda*diff(o,ground)) 
 					} else { 
 						soFar 
 					} }
 				//(take probability)
 				if(math.abs(offset) < 5){
-					expLambda*math.exp(expLambda*diff(offset,ground)) / expNorm2Dir
+					expLambda*math.exp(-expLambda*diff(offset,ground)) / expNorm2Dir
 				} else {
 					0.0
 				}
@@ -900,7 +900,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 				val expNorm1Dir:Double = (0 until 5).foldLeft(0.0){ 
 					case (soFar:Double,o:Int) =>
 					if(exists(o)(ground)) { 
-						soFar + expLambda*math.exp(expLambda*diff(o,ground)) 
+						soFar + expLambda*math.exp(-expLambda*diff(o,ground)) 
 					} else { 
 						soFar 
 					} }
@@ -1158,6 +1158,9 @@ class PartialTime(fn:Range=>Range) extends Temporal {
 	override def exists(offset:Int):Time=>Boolean
 		= fn(Range(Time.DAWN_OF,Time.END_OF)).exists(offset)
 }
+object PartialTime {
+	def apply(fn:Range=>Range) = new PartialTime(fn)
+}
 
 // ----- DURATION UNIT -----
 object DurationUnit extends Enumeration {
@@ -1263,8 +1266,8 @@ object Lex {
 		Duration(Years.years(100)))
 	def DOC(i:Int) = new RepeatedRange(
 		LexUtil.yoc(i*10), 
-		Range(Duration(Years.ONE)), 
-		Duration(Years.ONE)*10)
+		Range(Duration(Years.years(10))), 
+		Duration(Years.years(100)))
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))

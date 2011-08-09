@@ -82,6 +82,8 @@ public class O {
 	public static boolean instantAsDay = false;
 	
 	//--DEBUG
+	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")
+	public static boolean todoHacks = false;
 	@Option(name="paranoid", gloss="Paranoid correctness checks")
 	public static boolean paranoid = false;
 	@Option(name="useSeed", gloss="Use the same random seed")

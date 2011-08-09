@@ -201,20 +201,22 @@ object Grammar {
 				.ensureValidity( (w:Int) => w >= 1 && w <= 4 ),
 				"qoy(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  YOC(num) ))
-				.ensureValidity( (w:Int) => w >= 0 && w <= 99 ),
+				.ensureValidity( (w:Int) => w >= 0 && w < 100 ),
 				"yoc(n):S"),
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOC(num) ))
+				.ensureValidity( (w:Int) => w >= 0 && w < 10 ),
+				"doc(n):S"),
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  THEYEAR(num) )),
 				"year(n):R"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOC(num) )),
-				"decade(n):S"),
-			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  CENTURY(num) )),
+			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  CENTURY(num) ))
+				.ensureValidity( (w:Int) => w > -100 && w < 100 ),
 				"century(n):R")
 			)
 
 		//--F[ Range, Duration ]
 		val rangeDurationFn = List[((Range,Duration)=>Range,String,Boolean)](
 			(shiftLeft,"shiftLeft",true),(shiftRight,"shiftRight",true),
-			(cannonicalLeft,"shiftLeft!",true),(cannonicalRight,"shiftRight!",true), //TODO falses here
+			(cannonicalLeft,"shiftLeft!",false),(cannonicalRight,"shiftRight!",false),
 			(canonicalize,"canon.",false),
 			(catLeft,"catLeft",false),(catRight,"catRight",false),
 			(shrinkBegin,"shrinkBegin",false),(shrinkEnd,"shrinkEnd",false)
@@ -542,6 +544,8 @@ object ParseConversions {
 case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	def apply(i:Int):String = {
 		if(U.isNum(words(i))){
+			assert(nums(i) != Int.MinValue, 
+				"Returning number that was not set: " + U.w2str(words(i)))
 			nums(i).toString
 		} else {
 			U.w2str(words(i))
@@ -642,6 +646,7 @@ trait ParseTree extends Tree[Head.Value] {
 // Parse
 //-----
 case class Parse(value:Temporal){
+	var tree:String = ""
 	def scoreFrom(gold:Temporal,ground:Time
 			):Iterator[((Duration,Duration),Double,Int)]={
 		val INF = (Duration.INFINITE,Duration.INFINITE)
@@ -1037,6 +1042,7 @@ object CKYParser {
 		def this(logScore:Double,term:CkyRule) = this(logScore,term,null,null)
 		def apply(logScore:Double,term:CkyRule,left:ChartElem,right:ChartElem
 				):ChartElem = {
+			assert(logScore <= 0.0, "Setting ChartElem with bad log score: "+logScore)
 			this.logScore = logScore
 			this.term = term
 			this.left = left
@@ -1594,8 +1600,10 @@ object CKYParser {
 					val lI = datum.leftI
 					val rI = datum.rightI
 					if(rule.arity == 1){
+						assert(datum.score <= 0, "Log probability > 0: " + datum.score)
 						values(length)(datum.score,rule,left(lI))
 					} else {
+						assert(datum.score <= 0, "Log probability > 0: " + datum.score)
 						values(length)(datum.score,rule,left(lI),right(rI))
 					}
 					length += 1
@@ -1829,7 +1837,7 @@ class CKYParser extends StandardParser{
 			(i:Int) => Double.PositiveInfinity }.toArray
 		lexLogProb(sent, (term:CkyRule,elem:Int,score:Double) => {
 			//(add terms)
-			assert(score <= 0.0, "Lex probability of >0: " + score)
+			assert(score <= 0.0, "Lex log probability of >0: " + score)
 			lex(chart,elem,term.head.id).suggest(score,term)
 			assert(score <= lastScore(elem),
 				"KLex out of order: "+lastScore(elem)+"->"+score);
@@ -1855,6 +1863,7 @@ class CKYParser extends StandardParser{
 				//(update chart)
 				CKY_BINARY.foreach{ (term:CkyRule) =>              // rules [binary]
 					val ruleLProb:Double = ruleLogProb(term)
+					assert(ruleLProb <= 0.0, "Log probability of >0: " + ruleLProb)
 					assert(term.arity == 2, "Binary rule should be binary")
 					val r = term.rule
 					for(split <- (begin+1) to (end-1)){              // splits
@@ -1873,6 +1882,7 @@ class CKYParser extends StandardParser{
 				}
 				CKY_UNARY.foreach{ (term:CkyRule) =>               // rules [unary]
 					val ruleLProb = ruleLogProb(term)
+					assert(ruleLProb <= 0.0, "Log probability of >0: " + ruleLProb)
 					assert(term.arity == 1, "Unary rule should be unary")
 					val child:BestList = gram(chart,begin,end,term.child.id,BINARY)
 					gram(chart,begin,end,term.head.id,UNARY).combine(term,child,
@@ -1926,6 +1936,7 @@ class CKYParser extends StandardParser{
 			//(rules)
 			(0 until ruleScores.length).foreach{ (rid:Int) => ruleScores(rid) = 0.0 }
 			rulesCounted.zipWithIndex.foreach{ case (count,rid) =>
+				assert(!count.isNaN, "Rule count is NaN")
 				ruleScores(rid) += count
 			}
 			//(lex)
@@ -2238,6 +2249,9 @@ class CKYParser extends StandardParser{
 		//(convert to parses)
 		val scored:Array[(Head.Value,Temporal,Double)]=trees.map{ _.evaluate(sent) }
 		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
+		parses.zipWithIndex.foreach{ case (p:Parse,i:Int) =>
+			p.tree = trees(i).asParseString(sent)
+		}
 		//(debug)
 		val str = 
 			"Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
@@ -2289,6 +2303,7 @@ class CKYParser extends StandardParser{
 				//(normalization constant)
 				val totalProb:Double = feedback.correct.foldLeft(0.0){
 						case (soFar:Double,(index:Int,offset:Int,score:Double)) =>
+					assert(!math.exp(scored(index)._3).isNaN, "NaN score")
 					soFar + math.exp(scored(index)._3) }
 				val correctCount:Double = feedback.correct.length.asInstanceOf[Double]
 				//(update)
@@ -2304,8 +2319,17 @@ class CKYParser extends StandardParser{
 						case O.CkyCountNormalization.none => raw
 						case O.CkyCountNormalization.uniform => 1.0 / correctCount
 						case O.CkyCountNormalization.proportional => raw / correctCount
-						case O.CkyCountNormalization.distribution => raw / totalProb
+						case O.CkyCountNormalization.distribution => {
+							assert(!totalProb.isNaN, "Total Probability is NaN")
+							if(totalProb == 0.0){
+								raw / correctCount
+							} else {
+								raw / totalProb
+							}
+						}
 					}
+					assert(correctCount > 0, "updating with no corrects?")
+					assert(!count.isNaN, "Trying to incorporate NaN count")
 					//(count rules)
 					trees(index).traverse( 
 							{(rid:Int) => rulesCounted(rid) += count},

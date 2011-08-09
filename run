@@ -36,7 +36,7 @@ env!(
 		selo(1, 'smoothing',
 			'addOne',
 			'none'),
-		selo(0,'ckyCountType',
+		selo(1,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
@@ -82,8 +82,8 @@ env!(
 		o('collapseNumbers'),
 		o('bucketNumbers'),
 
-		o('train', '10-20'),
-		o('dev', '20-25'),
+		o('train', '1-11'),
+		o('dev', '11-16'),
 
 #		o('train', '1-143'), # ENGLISH
 #		o('train', '1-163'), # ENGLISH
@@ -101,6 +101,7 @@ env!(
 		o('goldTagFile', 'aux/sentences-100-tagged'),
 		o('printAllParses'),
 #		o('cacheTemporalComputations',false),
+		o('todoHacks'),
 		#(debug programs)
 		selo(0,'runDebug',
 			'none',

@@ -54,6 +54,7 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 	def tags:Array[_<:TimeTag]
 	def timexes:Array[_<:Timex]
 
+	var strings:Array[String] = null
 	private var words:Array[Int] = null
 	private var pos:Array[Int] = null
 	private var nums:Array[Int] = null
@@ -134,19 +135,21 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 				} else {
 					wList = words(i) :: wList
 					pList = pos(i) :: pList
-					nList = -1 :: nList
+					nList = Int.MinValue :: nList
 					indexMap(i) = wList.length-1
 					i += 1
 				}
-				this.words = wList.reverse.map( str2w(_) ).toArray
+				this.strings = wList.reverse.toArray
+				this.words = strings.map( str2w(_) ).toArray
 				this.pos   = pList.reverse.map( str2pos(_) ).toArray
 				this.nums  = nList.reverse.map( _.intValue ).toArray
 			}
 			indexMap(length) = wList.length-1
 		} else {
-			this.words = words.map( str2w(_) )
+			this.strings = words
+			this.words = strings.map( str2w(_) )
 			this.pos   = pos.map( str2pos(_) )
-			this.nums  = words.map{ w => -1 }.toArray
+			this.nums  = words.map{ w => Int.MinValue }.toArray
 		}
 	}
 	
@@ -221,10 +224,26 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	}
 
 	def setWords(s:TimeSentence):Timex = {
+		//(set variables)
 		sentence = s
 		wordArray = s.wordSlice(scopeBegin-1,scopeEnd-1)
 		numArray = s.numSlice(scopeBegin-1,scopeEnd-1)
 		posArray = s.posSlice(scopeBegin-1,scopeEnd-1)
+		//(ensure correctness)
+		wordArray.zipWithIndex.foreach{ case (w:Int,i:Int) =>
+			if(U.isNum(w)){
+				if(O.todoHacks && numArray(i) == Int.MinValue){ 
+					//TODO fix in NumberNormalizer
+					numArray(i) = U.str2int(s.strings(scopeBegin-1+i))
+				}
+				if(numArray(i) == Int.MinValue){
+					println(U.join(wordArray.map{ U.w2str(_) }," "))
+					println(U.join(numArray," "))
+					throw new IllegalStateException("Number not recognized; sid: "+s.sid)
+				}
+			}
+		}
+		//(return)
 		this
 	}
 	def words:Array[Int] = wordArray
