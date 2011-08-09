@@ -228,6 +228,9 @@ trait Range extends Temporal{
 	def |<(diff:Duration):Range //shrink to left
 	def !(durr:Duration):Range  //canonicalize
 
+	def <<!(dur:Duration):Range = (this << dur) ! dur
+	def >>!(dur:Duration):Range = (this >> dur) ! dur
+
 	private def composite[E <: Temporal](
 			str:String,
 			other:Range,
@@ -251,7 +254,13 @@ trait Range extends Temporal{
 						other.backwardIterable(ground)
 					).iterator)
 			}
-			(cacheForward,cacheBackward)
+			val rtn = (cacheForward,cacheBackward)
+			if(!O.cacheTemporalComputations){
+				cacheForward = null
+				cacheBackward = null
+				cacheCond = null
+			}
+			rtn
 		}
 		new CompositeRange(
 			//(new apply)
@@ -386,13 +395,18 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 	override def >|(diff:Duration):Range = new GroundedRange(end-diff,end)
 
 	override def !(dur:Duration):Range = {
-		import Lex.{AYEAR,MONTH,WEEK,DAY,HOUR,MIN,SEC}
+		import Lex.{AYEAR,QUARTER,MONTH,WEEK,DAY,HOUR,MIN,SEC}
 		def yr(t:DateTime):Time = {
 			new Time(t.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0))
 		}
 		def hr(t:Time):Time = {
 			new Time(t.base.withMinuteOfHour(0).withSecondOfMinute(0)
 				.withMillisOfSecond(0))
+		}
+		def qr(t:Time):Time = {
+			val month0 = t.base.getMonthOfYear-1
+			new Time(t.base.withMonthOfYear( month0-(month0%3)+1 )
+				.withDayOfMonth(1).withMillisOfDay(0))
 		}
 		val (base,diff) = dur.smallestUnit match {
 			case DurationUnit.MILLENIUM => 
@@ -406,6 +420,8 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 				( yr(b.withYear(b.getYear-(b.getYear%10))), AYEAR*10)
 			case DurationUnit.YEAR => 
 				( yr(begin.base), AYEAR)
+			case DurationUnit.QUARTER => 
+				( qr(begin), QUARTER )
 			case DurationUnit.MONTH => 
 				( new Time(begin.base.withDayOfMonth(1).withMillisOfDay(0)), MONTH)
 			case DurationUnit.WEEK => 
@@ -736,12 +752,13 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 				case CENTURY => soFar.plusYears((p.getYears%1000)*n)
 				case DECADE => soFar.plusYears((p.getYears%100)*n)
 				case YEAR => soFar.plusYears((p.getYears%10)*n)
-				case MONTH => soFar.plusYears(p.getMonths*n)
-				case WEEK => soFar.plusYears(p.getWeeks*n)
-				case DAY => soFar.plusYears(p.getDays*n)
-				case HOUR => soFar.plusYears(p.getHours*n)
-				case MINUTE => soFar.plusYears(p.getMinutes*n)
-				case SECOND => soFar.plusYears(p.getSeconds*n)
+				case QUARTER => soFar.plusMonths(p.getMonths*(n*3))
+				case MONTH => soFar.plusMonths(p.getMonths*n)
+				case WEEK => soFar.plusWeeks(p.getWeeks*n)
+				case DAY => soFar.plusDays(p.getDays*n)
+				case HOUR => soFar.plusHours(p.getHours*n)
+				case MINUTE => soFar.plusMinutes(p.getMinutes*n)
+				case SECOND => soFar.plusSeconds(p.getSeconds*n)
 			}
 		} )
 	}
@@ -753,7 +770,9 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 		if(period.getYears%1000 > 100){unitsAsc = DurationUnit.CENTURY :: unitsAsc}
 		if(period.getYears%100 > 10){unitsAsc = DurationUnit.DECADE :: unitsAsc}
 		if(period.getYears > 0){unitsAsc = DurationUnit.YEAR :: unitsAsc}
-		if(period.getMonths > 0){unitsAsc = DurationUnit.MONTH :: unitsAsc}
+		if(period.getMonths > 0 && period.getMonths % 3 == 0)
+			{unitsAsc = DurationUnit.QUARTER :: unitsAsc}
+		if(period.getMonths % 3 > 0){unitsAsc = DurationUnit.MONTH :: unitsAsc}
 		if(period.getWeeks > 0){unitsAsc = DurationUnit.WEEK :: unitsAsc}
 		if(period.getDays > 0){unitsAsc = DurationUnit.DAY :: unitsAsc}
 		if(period.getHours > 0){unitsAsc = DurationUnit.HOUR :: unitsAsc}
@@ -810,28 +829,38 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
 		var cache:Temporal = null; var cacheCond:Time = null
 		(ground:Time) => {
-			if(cache == null || ground != cacheCond) cache = { //cache
-				//(update cache condition)
-				cacheCond = ground
-				//(get start)
-				val beginT:Time = 
-					if(bound == null) {
-						ground
-					} else {
-						if(ground > bound.begin && ground < bound.end){ ground }
-						else { bound.begin }
+			val term = 
+				if( cache == null || ground != cacheCond) {
+					//(update cache condition)
+					cacheCond = ground
+					//(get start)
+					val beginT:Time = 
+						if(bound == null) {
+							ground
+						} else {
+							if(ground > bound.begin && ground < bound.end){ ground }
+							else { bound.begin }
+						}
+					//(snap beginning)
+					val begin:Time = 
+						if(bound == null){ snapFn(beginT+interv*offset) } //interv first
+						else{ snapFn(beginT+interv*offset) } //^ note above
+					//(ground the time)
+					val rtn = new GroundedRange(
+						begin+base.beginOffset,
+						begin+base.beginOffset+base.norm)
+					if(O.cacheTemporalComputations){ 
+						cache = rtn
+					} else{
+						cache = null
+						cacheCond = null
 					}
-				//(snap beginning)
-				val begin:Time = 
-					if(bound == null){ snapFn(beginT+interv*offset) } //interv before snap
-					else{ snapFn(beginT+interv*offset) } //^ note above
-				//(ground the time)
-				new GroundedRange(
-					begin+base.beginOffset,
-					begin+base.beginOffset+base.norm)
-			}
+					rtn
+				} else {
+					cache
+				}
 			//(return cache)
-			cache match {
+			term match {
 				case (e:E) => 
 					assert(e.isInstanceOf[GroundedRange], "Range not grounded")
 					e
@@ -963,10 +992,10 @@ case class Time(base:DateTime) {
 		val baseMillis = base.getMillis
 		if(diffMillis > 0 && baseMillis > Long.MaxValue-diffMillis){
 			//((overflow))
-			new Time(new DateTime(Long.MaxValue))
+			Time.END_OF
 		} else if(diffMillis < 0 && baseMillis < Long.MinValue-diffMillis ){
 			//((underflow))
-			new Time(new DateTime(Long.MinValue))
+			Time.DAWN_OF
 		} else {
 			//((normal))
 			try{
@@ -1028,8 +1057,12 @@ case class Time(base:DateTime) {
 			} catch {
 				//(case: overflowed precise fields)
 				case (e:ArithmeticException) => 
-					new GroundedDuration(
-						new Period(new Period(tM-oM,PeriodType.years),PeriodType.standard))
+					if(tM < 0 && oM > 0){ Duration.NEG_INFINITE }
+					else if(tM > 0 && oM < 0){ Duration.INFINITE }
+					else if(tM-oM > 0){ Duration.INFINITE }
+					else if(tM-oM < 0){ Duration.NEG_INFINITE }
+					else if(tM == oM){ Duration.ZERO }
+					else{throw new TimeException("Unknown subtraction: "+this+" "+other)}
 			}
 		}
 	}
@@ -1128,8 +1161,8 @@ class PartialTime(fn:Range=>Range) extends Temporal {
 
 // ----- DURATION UNIT -----
 object DurationUnit extends Enumeration {
-	val MILLENIUM, CENTURY, DECADE, YEAR, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND,
-		ZERO
+	val MILLENIUM, CENTURY, DECADE, YEAR, QUARTER, MONTH, WEEK, DAY, 
+		HOUR, MINUTE, SECOND, ZERO
 			= Value
 }
 
@@ -1228,6 +1261,10 @@ object Lex {
 		LexUtil.yoc(i), 
 		Range(Duration(Years.ONE)), 
 		Duration(Years.years(100)))
+	def DOC(i:Int) = new RepeatedRange(
+		LexUtil.yoc(i*10), 
+		Range(Duration(Years.ONE)), 
+		Duration(Years.ONE)*10)
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
@@ -1239,10 +1276,8 @@ object Lex {
 	//(cannonicalize a range)
 	val canonicalize:(Range,Duration)=>Range = _ ! _
 	//(move a range and canonicalize)
-	val cannonicalLeft:(Range,Duration)=>Range 
-		= (r:Range,d:Duration) => { (r << d) ! d }
-	val cannonicalRight:(Range,Duration)=>Range 
-		= (r:Range,d:Duration) => { (r << d) ! d }
+	val cannonicalLeft:(Range,Duration)=>Range = _ <<! _
+	val cannonicalRight:(Range,Duration)=>Range = _ >>! _
 	//(create a range on boundary -- outward)
 	val catLeft:(Range,Duration)=>Range = _ <| _
 	val catRight:(Range,Duration)=>Range = _ |> _

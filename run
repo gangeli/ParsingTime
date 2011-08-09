@@ -13,9 +13,10 @@ env!(
 	# Runtime Options
 	o('cp', 
 		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
-	o('Xrunhprof:cpu=samples,depth=10'),
+	o('Xrunhprof:cpu=samples'),
+#	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx6000M'),
+	o('Xmx5000M'),
 	o('ea'),
 	'time.Entry',
 
@@ -35,11 +36,16 @@ env!(
 		selo(1, 'smoothing',
 			'addOne',
 			'none'),
-		selo(1,'ckyCountType',
+		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
 			'bestShallow'),
+		selo(3,'CkyCountNormalization',
+			'none',
+			'uniform',
+			'proportional',
+			'distribution'),
 		selo(0,'initMethod','uniform','random'),
 		selo(0,'lexTagMethod',
 			'PCFG',
@@ -69,14 +75,15 @@ env!(
 		o('instantAsDay'),
 
 		# -- DATA --
-		selo(2,'data',
+		selo(0,'data',
 			'Toy',
 			'Timebank',
 			'English'),
 		o('collapseNumbers'),
+		o('bucketNumbers'),
 
-		o('train', '1-8'),
-		o('dev', '8-9'),
+		o('train', '10-20'),
+		o('dev', '20-25'),
 
 		o('train', '1-143'), # ENGLISH
 		o('train', '1-163'), # ENGLISH
@@ -92,7 +99,8 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
-#		o('printAllParses'),
+		o('printAllParses'),
+#		o('cacheTemporalComputations',false),
 		#(debug programs)
 		selo(0,'runDebug',
 			'none',

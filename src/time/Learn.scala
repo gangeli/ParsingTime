@@ -143,11 +143,11 @@ case class BinaryRule(
 object Grammar {
 	case class NIL()
 
-	val DOW_STR = Array[String]("Mon:D","Tue:D","Wed:D","Thu:D","Fri:D",
-		"Sat:D","Sun:D")
-	val MOY_STR = Array[String]("Jan:D","Feb:D","Mar:D","Apr:D","May:D",
-		"Jun:D","Jul:D","Aug:D","Sep:D","Oct:D","Nov:D","Dec:D")
-	val QOY_STR = Array[String]("Q1:D","Q2:D","Q3:D","Q4:D")
+	val DOW_STR = Array[String]("Mon:S","Tue:S","Wed:S","Thu:S","Fri:S",
+		"Sat:S","Sun:S")
+	val MOY_STR = Array[String]("Jan:S","Feb:S","Mar:S","Apr:S","May:S",
+		"Jun:S","Jul:S","Aug:S","Sep:S","Oct:S","Nov:S","Dec:S")
+	val QOY_STR = Array[String]("Q1:S","Q2:S","Q3:S","Q4:S")
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
@@ -187,26 +187,26 @@ object Grammar {
 				"NUM"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOW(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 7 ),
-				"dow(n):D"),
+				"dow(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOM(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 31 ),
-				"dom(n):D"),
+				"dom(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  WOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 52 ),
-				"woy(n):D"),
+				"woy(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  MOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 12 ),
-				"moy(n):D"),
+				"moy(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  QOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 4 ),
-				"qoy(n):D"),
+				"qoy(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  YOC(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w <= 99 ),
-				"yoc(n):D"),
+				"yoc(n):S"),
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  THEYEAR(num) )),
 				"year(n):R"),
-			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  DECADE(num) )),
-				"decade(n):R"),
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOC(num) )),
+				"decade(n):S"),
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  CENTURY(num) )),
 				"century(n):R")
 			)
@@ -214,7 +214,7 @@ object Grammar {
 		//--F[ Range, Duration ]
 		val rangeDurationFn = List[((Range,Duration)=>Range,String,Boolean)](
 			(shiftLeft,"shiftLeft",true),(shiftRight,"shiftRight",true),
-			(cannonicalLeft,"shiftLeft!",true),(cannonicalRight,"shiftRight!",true),
+			(cannonicalLeft,"shiftLeft!",true),(cannonicalRight,"shiftRight!",true), //TODO falses here
 			(canonicalize,"canon.",false),
 			(catLeft,"catLeft",false),(catRight,"catRight",false),
 			(shrinkBegin,"shrinkBegin",false),(shrinkEnd,"shrinkEnd",false)
@@ -242,6 +242,15 @@ object Grammar {
 				(BinaryRule(Head.F_R, Head.Sequence, Head.F_RD, hack2(
 					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
 					)), "$f(-:R,d:S):R$") :: Nil
+			} ::: {
+				//(right apply -- ref augmented)
+				(BinaryRule(Head.Range, Head.F_RD, Head.Duration, hack2(
+					(fn:(Range,Duration)=>Range,d:Duration) => fn(REF,d)
+					)),"$f(ref:R,d:D):R$") ::
+				//(left apply -- ref augmented)
+				(BinaryRule(Head.Range, Head.Duration, Head.F_RD, hack2(
+					(d:Duration,fn:(Range,Duration)=>Range) => fn(REF,d)
+					)), "$f(d:D,ref:R):R$") :: Nil
 			}
 		
 		//--F[ Range, Range ]
@@ -263,6 +272,50 @@ object Grammar {
 				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
 					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
 					)), "$f(-:R,r:R):R$") :: Nil
+			} ::: {
+				//(right apply -- ref augmented left)
+				(BinaryRule(Head.Range, Head.F_RR, Head.Range, hack2(
+					(fn:(Range,Range)=>Range,r:Range) => fn(REF,r)
+					)),"$f(ref:R,r:R):R$") ::
+				//(left apply -- ref augmented left)
+				(BinaryRule(Head.Range, Head.Range, Head.F_RR, hack2(
+					(r:Range,fn:(Range,Range)=>Range) => fn(REF,r)
+					)), "$f(r:R,ref:R):R$") ::
+				//(right apply -- ref augmented right)
+				(BinaryRule(Head.Range, Head.F_RR, Head.Range, hack2(
+					(fn:(Range,Range)=>Range,r:Range) => fn(r,REF)
+					)),"$f(ref:R,r:R):R$") ::
+				//(left apply -- ref augmented right)
+				(BinaryRule(Head.Range, Head.Range, Head.F_RR, hack2(
+					(r:Range,fn:(Range,Range)=>Range) => fn(r,REF)
+					)), "$f(r:R,ref:R):R$") :: Nil
+			} ::: {
+				//(intersect in order)
+				(BinaryRule(Head.Range, Head.Range, Head.Range, hack2(
+					(a:Range,b:Range) => a ^ b
+					)), "inter$(a:R,b:R):R$") ::
+				(BinaryRule(Head.Range, Head.Range, Head.Sequence, hack2(
+					(a:Range,b:Sequence) => a ^ b
+					)), "inter$(a:R,b:S):R$") ::
+				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
+					(a:Sequence,b:Range) => a ^ b
+					)), "inter$(a:S,b:R):R$") ::
+				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
+					(a:Sequence,b:Sequence) => a ^ b
+					)), "inter$(a:S,b:S):S$") ::
+				//(intersect reverse)
+				(BinaryRule(Head.Range, Head.Range, Head.Range, hack2(
+					(a:Range,b:Range) => b ^ a
+					)), "inter$(b:R,a:R):R$") ::
+				(BinaryRule(Head.Range, Head.Range, Head.Sequence, hack2(
+					(a:Range,b:Sequence) => b ^ a
+					)), "inter$(b:R,a:S):R$") ::
+				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
+					(a:Sequence,b:Range) => b ^ a
+					)), "inter$(b:S,a:R):R$") ::
+				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
+					(a:Sequence,b:Sequence) => b ^ a
+					)), "inter$(b:S,a:S):S$") :: Nil
 			}
 		
 		//--F[ Duration, Number ]
@@ -276,56 +329,56 @@ object Grammar {
 			)
 		
 		//--F[ Range ]
-		rtn = rtn ::: List[(Rule,String)](
-			//(right apply)
-			(BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
-				(fn:Range=>Range,r:Range) => fn(r)
-				)), "$f_{r,r}:R$"),
-			//(left apply)
-			(BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
-				(r:Range,fn:Range=>Range) => fn(r)
-				)), "$f_{r,r}:R$")
-			)
+//		rtn = rtn ::: List[(Rule,String)](
+//			//(right apply)
+//			(BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
+//				(fn:Range=>Range,r:Range) => fn(r)
+//				)), "$f_{r,r}:R$"),
+//			//(left apply)
+//			(BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
+//				(r:Range,fn:Range=>Range) => fn(r)
+//				)), "$f_{r,r}:R$")
+//			)
 		
 		//--F[ Duration ]
-		rtn = rtn ::: List[(Rule,String)](
-			//(right apply)
-			(BinaryRule(Head.Range, Head.F_D, Head.Duration, hack2(
-				(fn:Duration=>Range,d:Duration) => fn(d)
-				)), "$f_{d}:R$"),
-			(BinaryRule(Head.Range, Head.F_D, Head.Sequence, hack2(
-				(fn:Duration=>Range,d:Duration) => fn(d)
-				)), "$f_{s}:R$"),
-			//(left apply)
-			(BinaryRule(Head.Range, Head.Duration, Head.F_D, hack2(
-				(d:Duration,fn:Duration=>Range) => fn(d)
-				)), "$f_{d}:R$"),
-			(BinaryRule(Head.Range, Head.Sequence, Head.F_D, hack2(
-				(d:Duration,fn:Duration=>Range) => fn(d)
-				)), "$f_{s}:R$")
-			)
+//		rtn = rtn ::: List[(Rule,String)](
+//			//(right apply)
+//			(BinaryRule(Head.Range, Head.F_D, Head.Duration, hack2(
+//				(fn:Duration=>Range,d:Duration) => fn(d)
+//				)), "$f_{d}:R$"),
+//			(BinaryRule(Head.Range, Head.F_D, Head.Sequence, hack2(
+//				(fn:Duration=>Range,d:Duration) => fn(d)
+//				)), "$f_{s}:R$"),
+//			//(left apply)
+//			(BinaryRule(Head.Range, Head.Duration, Head.F_D, hack2(
+//				(d:Duration,fn:Duration=>Range) => fn(d)
+//				)), "$f_{d}:R$"),
+//			(BinaryRule(Head.Range, Head.Sequence, Head.F_D, hack2(
+//				(d:Duration,fn:Duration=>Range) => fn(d)
+//				)), "$f_{s}:R$")
+//			)
 		
 		//--Type Raises
-		rtn = rtn ::: List[(Rule,String)]( 
-			//(now augmentation (arity 2))
-			(UnaryRule(Head.F_D, Head.F_RD, hack( 
-				(f:(Range,Duration)=>Range) => f(Range(REF,REF),_:Duration) 
-				)),"$f(ref:R,-:D):R$"),
-			(UnaryRule(Head.F_R, Head.F_RR, hack( 
-				(f:(Range,Range)=>Range) => f(Range(REF,REF),_:Range) 
-				)),"$f(ref:R,-:R):R$"),
-			(UnaryRule(Head.F_R, Head.F_RR, hack( 
-				(f:(Range,Range)=>Range) => f(_:Range,Range(REF,REF)) 
-				)),"$f(-:R,ref:R):R$"),
-			//(implicit intersect)
-			(UnaryRule(Head.F_R, Head.Range, hack(
-				(r:Range) => intersect(r,_:Range)
-				)),"intersect$(ref:R,-:R):R$"),
-			//(sequence grounding)
-			(UnaryRule(Head.Range, Head.Sequence, hack( 
-				(s:Sequence) => s
-				)),"$d:R$")
-			)
+//		rtn = rtn ::: List[(Rule,String)]( 
+//			//(now augmentation (arity 2))
+//			(UnaryRule(Head.F_D, Head.F_RD, hack( 
+//				(f:(Range,Duration)=>Range) => f(Range(REF,REF),_:Duration) 
+//				)),"$f(ref:R,-:D):R$"),
+//			(UnaryRule(Head.F_R, Head.F_RR, hack( 
+//				(f:(Range,Range)=>Range) => f(Range(REF,REF),_:Range) 
+//				)),"$f(ref:R,-:R):R$"),
+//			(UnaryRule(Head.F_R, Head.F_RR, hack( 
+//				(f:(Range,Range)=>Range) => f(_:Range,Range(REF,REF)) 
+//				)),"$f(-:R,ref:R):R$"),
+//			//(implicit intersect)
+//			(UnaryRule(Head.F_R, Head.Range, hack(
+//				(r:Range) => intersect(r,_:Range)
+//				)),"intersect$(ref:R,-:R):R$"),
+//			//(sequence grounding)
+//			(UnaryRule(Head.Range, Head.Sequence, hack( 
+//				(s:Sequence) => s
+//				)),"$d:R$")
+//			)
 
 		//--NIL Identities
 		rtn = rtn ::: List[(Rule,String)]( 
@@ -385,6 +438,7 @@ object Grammar {
 			UnaryRule(Head.ROOT, Head.Time, hack((t:Range) => t)),
 			UnaryRule(Head.ROOT, Head.Range, hack((r:Range) => r)),
 			UnaryRule(Head.ROOT, Head.Duration, hack((d:Duration) => d)),
+			UnaryRule(Head.ROOT, Head.Sequence, hack((s:Range) => s)), //note: range
 			UnaryRule(Head.ROOT, Head.F_R, hack((fn:Range=>Range) => fn))
 			)
 		//--Return
@@ -487,7 +541,7 @@ object ParseConversions {
 //-----
 case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	def apply(i:Int):String = {
-		if(words(i) == G.NUM){
+		if(U.isNum(words(i))){
 			nums(i).toString
 		} else {
 			U.w2str(words(i))
@@ -597,6 +651,10 @@ case class Parse(value:Temporal){
 			//(case: unks)
 			case (gold:UnkTime,guess:Temporal) => INF
 			case (gold:Temporal,guess:NoTime) => INF
+			case (gold:Temporal,guess:Sequence) =>
+				throw fail("Distribution returned a sequence: " + guess)
+			case (gold:Sequence,guess:Temporal) =>
+				throw fail("Gold is a sequence: " + gold)
 			//--Valid
 			//(case: durations)
 			case (gold:Duration,guess:Duration) => (guess-gold,Duration.ZERO)
@@ -607,7 +665,15 @@ case class Parse(value:Temporal){
 				} else if(O.instantAsDay && gold.norm.seconds == 0){
 					(guess.begin-gold.begin,guess.end-(gold.end+DAY))
 				} else {
-					(guess.begin-gold.begin,guess.end-gold.end)
+					assert(!guess.begin.equals(Time.DAWN_OF) || guess.begin==Time.DAWN_OF)
+					assert(!guess.end.equals(Time.END_OF) || guess.end==Time.END_OF)
+					if(guess.begin == Time.DAWN_OF && gold.begin != Time.DAWN_OF){
+						INF //case: beginning is neg_infinity
+					} else if(guess.end == Time.END_OF && gold.end != Time.END_OF){
+						INF //case: end is pos_infinity
+					} else {
+						(guess.begin-gold.begin,guess.end-gold.end) //case: can subtract
+					}
 				}
 			//--Possibly Valid
 			//(case: backoffs)
@@ -676,6 +742,7 @@ trait StandardParser extends Parser {
 			}
 			endIteration(i,feedback,data)
 			log("Score: " + score)
+			if(i != iters){ score.releaseResults } //release some memory
 			end_track
 			score
 		}).toArray
@@ -1013,7 +1080,7 @@ object CKYParser {
 				assert(right == null, "binary rule on closure ckyI")
 				var (childI,(childType,childValue)) = {
 					if(isLeaf){ //<--Base Case (leaf node)
-						if(sent.words(i) == G.NUM){
+						if(U.isNum(sent.words(i))){
 							//(case: number)
 							(i+1,(Head.Number,sent.nums(i)))
 						} else {
@@ -1714,9 +1781,9 @@ object CKYParser {
 			//(get candidate parses)
 			val candidates = CKY_LEX
 				.filter{ (term:CkyRule) =>
-					(  (term.child == Head.Word && word != G.NUM) ||      //is word rule
-					   (term.child == Head.Number && word == G.NUM) ) &&  //is number rule
-					term.validInput( if(word == G.NUM) num else word ) }  //is in range
+					(  (term.child == Head.Word && !U.isNum(word)) ||     //is word rule
+					   (term.child == Head.Number && U.isNum(word)) ) &&  //is number rule
+					term.validInput( if(U.isNum(word)) num else word ) }  //is in range
 				.map{ (term:CkyRule) => (term, lexLogProb(word,pos,term)) }
 			//(yield)
 			var ok:Boolean = true
@@ -1917,7 +1984,10 @@ class CKYParser extends StandardParser{
 			start_track("Creating Presentation")
 			val b = new StringBuilder
 			b.append(Const.START_PRESENTATION("Results"))
-			guesses.sortBy( _.sid ).foreach{ (g:GuessInfo) =>
+			guesses.sortBy( _.sid ).foldLeft(List[GuessInfo]()){ 
+						case (acc:List[GuessInfo],term:GuessInfo) =>
+							if(acc.length > 0 && acc(0).sid == term.sid) acc else term :: acc
+					}.reverse.foreach{ (g:GuessInfo) =>
 				val ref = if(g.feedback == null) null else g.feedback.ref
 				if(g.isFailedParse){
 					//(case: no parses for sentence)
@@ -2216,18 +2286,31 @@ class CKYParser extends StandardParser{
 				val guess = GuessInfo(identifier,trees(0),score,sent).feedback(feedback)
 				guesses = {if(feedback.isCorrect) guess else guess.wrong} ::
 					guesses.tail //note: tail to remove 'no result' guess
+				//(normalization constant)
+				val totalProb:Double = feedback.correct.foldLeft(0.0){
+						case (soFar:Double,(index:Int,offset:Int,score:Double)) =>
+					soFar + math.exp(scored(index)._3) }
+				val correctCount:Double = feedback.correct.length.asInstanceOf[Double]
 				//(update)
 				def update(index:Int,offset:Int) = {
-					val incr:Double = 
+					//(get raw count)
+					val raw:Double = 
 						if(O.hardEM) 1.0
 						else math.exp(scored(index)._3) *
 						     scored(index)._2.prob(offset)(feedback.grounding)
-					assert(incr >= 0.0 && incr <= 1.0, "invalid increment: " + incr)
+					assert(raw >= 0.0 && raw <= 1.0, "invalid raw count: " + raw)
+					//(normalize score)
+					val count:Double = O.ckyCountNormalization match {
+						case O.CkyCountNormalization.none => raw
+						case O.CkyCountNormalization.uniform => 1.0 / correctCount
+						case O.CkyCountNormalization.proportional => raw / correctCount
+						case O.CkyCountNormalization.distribution => raw / totalProb
+					}
 					//(count rules)
 					trees(index).traverse( 
-							{(rid:Int) => rulesCounted(rid) += incr},
+							{(rid:Int) => rulesCounted(rid) += count},
 							{(rid:Int,i:Int) => 
-								wordsCounted(rid).incrementCount(sent.words(i),incr)
+								wordsCounted(rid).incrementCount(sent.words(i),count)
 							}
 						)
 					//(append guesses)

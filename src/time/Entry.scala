@@ -17,6 +17,7 @@ import org.goobs.exec.Log._
 import org.goobs.exec.Execution
 import org.goobs.utils.Indexer;
 import org.goobs.utils.MetaClass;
+import org.goobs.utils.Stopwatch;
 import org.goobs.testing.ResultLogger;
 
 
@@ -38,6 +39,8 @@ object G {
 	def UNK:Int = W
 	def PUNK:Int = P
 	val NUM:Int = wordIndexer.addAndGetIndex("--NUM--")
+	def NUM(digits:Int) = wordIndexer.addAndGetIndex("--NUM("+digits+")--")
+
 }
 
 /**
@@ -63,16 +66,31 @@ object U {
 		})
 		lst.reverse
 	}
+	
+	private val isNumTerm = """^--NUM(\([0-9]+\))?--$""".r
+	def isNum(w:Int) = {
+		w2str(w) match {
+			case isNumTerm(e) => true
+			case _ => false
+		}
+	}
+	private def mkNum(str:String):Int = {
+		if(O.bucketNumbers){
+			G.NUM(str2int(str).toString.length)
+		} else {
+			G.NUM
+		}
+	}
 
 	def w2str(w:Int):String = {
 		if(w < G.W) G.wordIndexer.get(w) else "--UNK--"
 	}
 	def str2w(str:String):Int = {
-		if(isInt(str)) G.NUM else G.wordIndexer.addAndGetIndex(str)
+		if(isInt(str)) mkNum(str) else G.wordIndexer.addAndGetIndex(str)
 	}
 	def str2wTest(str:String):Int = {
 		if(isInt(str)){
-			G.NUM 
+			mkNum(str)
 		} else {
 			val w:Int = G.wordIndexer.indexOf(str)
 			if(w < 0) G.UNK else w
@@ -178,6 +196,8 @@ class Score {
 	private var totalWithPos = 0
 	private var goldMinusGuess = List[(Double,Double)]()
 	private var resultList:List[Result] = List[Result]()
+
+	def releaseResults:Unit = { resultList = List[Result]() }
 	def enter(exact:Boolean,diff:(Duration,Duration), position:Int) = {
 		//(score exact)
 		if(exact){ exactRight += 1 }
@@ -323,17 +343,28 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 		val score:Score = new Score
 		//--Iterate
+		//(timing variables)
+		val watch:Stopwatch = new Stopwatch
+		watch.start
+		var parseTime:Double = 0.0
+		var evalTime:Double = 0.0
+		//(iterate over timexes)
 		timexes.foreach{ (t:Timex) =>
 			assert(t.words.length > 0, "Timex has no words: " + t)
 			//(variables)
 			val sent = Sentence(t.tid,t.words,t.pos,t.nums)
 			//(parse)
 			val (parses,feedback) = fn(sent, t.tid)
+			parseTime += watch.lap
 			//(score)
 			val best:Temporal
 				= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
+			evalTime += watch.lap
 		}
 		//--Return
+		log("Timing: [parse] " + G.df.format(parseTime) +
+			"  [eval] " + G.df.format(evalTime) + 
+			" [ratio] " + G.df.format(parseTime/(parseTime+evalTime)) )
 		score
 	}
 }
@@ -403,18 +434,26 @@ object ToyData {
 	private def store(args:(String,Parse)*):ToyStore = ToyStore(args.toArray)
 	private val today = ("today",Parse(TODAY))
 	private val week = ("week",Parse(WEEK))
-	private val lastWeekToday = ("last week today",Parse(REF <| WEEK))
-	private val lastWeekNow = ("last week now",Parse(REF <| WEEK))
-	private val lastWeek = ("last week",Parse(REF <| WEEK))
+	private val aWeek = ("a week",Parse(WEEK))
+	private val thisWeek = ("this week",Parse(REF ! WEEK))
+	private val lastWeekToday = ("last week today",Parse(REF <<! WEEK))
+	private val lastWeekNow = ("last week now",Parse(REF <<! WEEK))
+	private val lastWeek = ("last week",Parse(REF <<! WEEK))
+	private val weeks2 = ("2 week",Parse(WEEK*2))
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(MONTH))
-	private val lastMonth = ("last month",Parse(REF <| MONTH))
+	private val lastMonth = ("last month",Parse(REF <<! MONTH))
+	private val lastQuarter = ("last quarter",Parse(REF <<! QUARTER))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(MONTH*2))
 	private val years2 = ("2 years",Parse(AYEAR*2))
 	private val april = ("april",Parse(MOY(4)))
+	private val april1776 = ("april 1776",Parse(MOY(4) ^ THEYEAR(1776)))
+	private val april2 = ("april 2",Parse(MOY(4) ^ DOM(2)))
 	private val ayear = ("a year",Parse(AYEAR))
+	private val lastYear = ("last year",Parse(REF <<! AYEAR))
+	private val thisYear = ("this year",Parse(REF ! AYEAR))
 
 	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
 		override def eachExample( 
@@ -434,7 +473,8 @@ object ToyData {
 				//(parse)
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
-				handleParse(parses,gold.value,todaysDate,score,s,feedback,null)
+				handleParse(parses,gold.value(todaysDate),todaysDate,score,s,feedback,
+					null)
 			}
 			score
 		}
@@ -452,8 +492,13 @@ object ToyData {
 	
 	def STANDARD:Data = {
 		Data(
-			store(today,week,lastWeekToday,lastWeek,month,aMonth,
-				april,ayear).internWords,
+			store(
+				today,
+				week,aWeek,thisWeek,month,aMonth,ayear,thisYear,
+				lastWeek,lastYear,lastQuarter,
+				y1776,y17sp76,april1776,april2,weeks2,
+				april
+				).internWords,
 //			store(week).internWords,
 			store(lastMonth),
 			NONE)
@@ -530,7 +575,9 @@ class Entry {
 		logG("train.averank: " +	trainScores(trainScores.length-1).avePos)
 		logG("train.inbeam: " + trainScores(trainScores.length-1).percentParsable)
 		logG("train.score: " + trainScores(trainScores.length-1).aveScore())
-		trainScores(trainScores.length-1).tempeval("train")
+		if(O.data != O.DataSource.Toy){
+			trainScores(trainScores.length-1).tempeval("train")
+		}
 		end_track
 		//(test)
 		val s = if(O.devTest) "dev" else "test"
@@ -543,7 +590,9 @@ class Entry {
 		logG(s+".averank: "+ testScore.avePos)
 		logG(s+".inbeam: "+ testScore.percentParsable)
 		logG(s+".score: "+ testScore.aveScore())
-		testScore.tempeval(s)
+		if(O.data != O.DataSource.Toy){
+			testScore.tempeval(s)
+		}
 		end_track
 		end_track
 		//--Debug dump

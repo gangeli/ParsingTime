@@ -14,6 +14,8 @@ public class O {
 	public static boolean devTest = false;
 	@Option(name="collapseNumbers", gloss="Pre-parse numeric expressions")
 	public static boolean collapseNumbers = false;
+	@Option(name="bucketNumbers", gloss="Bucket --NUM-- terms into num. digits")
+	public static boolean bucketNumbers = false;
 	public static enum DataSource{ 
 		Toy, Timebank, English }
 	@Option(name="data", gloss="Data source to use")
@@ -32,14 +34,19 @@ public class O {
 	public static enum InitType{ uniform, random }
 	@Option(name="initMethod", gloss="Initialize EM to random/uniform counts")
 	public static InitType initMethod = InitType.uniform;
-	//<CKY>
+	//<CKY / EM>
 	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
 	public static double ckyPosBackoff = 0.2;
 	@Option(name="kbestCKYAlgorithm", gloss="algorithm from (Huang et. al)")
 	public static int kbestCKYAlgorithm = 0;
 	public static enum CkyCountType{ all, bestAll, bestRandom, bestShallow }
-	@Option(name="ckyCountType", gloss="Parses to count as 'correct'")
+	@Option(name="ckyCountType", gloss="Parses to count as 'correct' for EM")
 	public static CkyCountType ckyCountType = CkyCountType.bestAll;
+	public static enum CkyCountNormalization{ none, uniform, 
+		proportional, distribution }
+	@Option(name="ckyCountNormalization",gloss="Normalize EM counts from example")
+	public static CkyCountNormalization ckyCountNormalization 
+		= CkyCountNormalization.none;
 
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")
@@ -87,5 +94,7 @@ public class O {
 	public static String runDebug = "none";
 	@Option(name="printAllParses", gloss="Print status for all parses")
 	public static boolean printAllParses = false;
+	@Option(name="cacheTemporalComputations", gloss="Cache temporal computations")
+	public static boolean cacheTemporalComputations = true;
 
 }
