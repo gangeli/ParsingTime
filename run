@@ -85,9 +85,9 @@ env!(
 		o('train', '1-11'),
 		o('dev', '11-16'),
 
-#		o('train', '1-143'), # ENGLISH
-#		o('train', '1-163'), # ENGLISH
-#		o('dev', '143-163'), # ENGLISH
+		o('train', '1-143'), # ENGLISH
+		o('train', '1-163'), # ENGLISH
+		o('dev', '143-163'), # ENGLISH
 
 
 		o('test', '163-183'),
@@ -99,7 +99,7 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
-		o('printAllParses'),
+#		o('printAllParses'),
 #		o('cacheTemporalComputations',false),
 		o('todoHacks'),
 		#(debug programs)

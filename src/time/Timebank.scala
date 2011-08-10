@@ -231,10 +231,14 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 		posArray = s.posSlice(scopeBegin-1,scopeEnd-1)
 		//(ensure correctness)
 		wordArray.zipWithIndex.foreach{ case (w:Int,i:Int) =>
-			if(U.isNum(w)){
+			if(U.isNum(w) && numArray(i) == Int.MinValue){
 				if(O.todoHacks && numArray(i) == Int.MinValue){ 
 					//TODO fix in NumberNormalizer
-					numArray(i) = U.str2int(s.strings(scopeBegin-1+i))
+					if(U.isInt(s.strings(scopeBegin-1+i))){
+						numArray(i) = U.str2int(s.strings(scopeBegin-1+i))
+					} else {
+						numArray(i) = 0 //TODO double hax
+					}
 				}
 				if(numArray(i) == Int.MinValue){
 					println(U.join(wordArray.map{ U.w2str(_) }," "))

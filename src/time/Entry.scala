@@ -246,7 +246,7 @@ class Score {
 			//(variables)
 			val file:String = r.timex.sentence.document.filename
 			val sent:Int = r.timex.sentence.indexInDocument
-			val beginOffset:Int = r.timex.sentence.origIndex(r.timex.scopeBegin)
+			val beginOffset:Int = r.timex.sentence.origIndex(r.timex.scopeBegin)-1
 			val endOffset:Int = r.timex.sentence.origIndex(r.timex.scopeEnd)
 			val timex3:String = "timex3"
 			val tNum:String = "t"+(r.timex.indexInDocument+1)
