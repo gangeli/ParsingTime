@@ -4,12 +4,14 @@
 # Evaluate
 #-----
 function score {
+	# -- Variables
 	last=`ls out | sort -nr | head -n 1`
 	if [ "$1" != "" ]; then
 		last="$1.exec"
 	fi
 	attr_len=`wc out/$last/attributes-train.tab | awk '{ print $1 }'`
 	ext_len=`wc out/$last/extents-train.tab | awk '{ print $1 }'`
+	# -- Scoring Script
 	if [ "$2" == "trim" ]; then
 		head -$attr_len aux/tempeval2/training/english/data/timex-attributes.tab > /tmp/attr.tab
 		head -$ext_len aux/tempeval2/training/english/data/timex-extents.tab > /tmp/ext.tab
@@ -27,6 +29,31 @@ function score {
 			aux/tempeval2/training/english/data/timex-extents.tab\
 			out/$last/extents-train.tab
 	fi
+	# -- Match
+	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep "value"\
+		> $goldVals
+	cat out/$last/attributes-train.tab | grep "value"\
+		> $guessVals
+	total=`cat $guessVals | wc | awk '{ print $1 }'`
+	missed=`diff $guessVals $goldVals | grep '^<' | wc | awk '{ print $1 }'`
+	correct=`calc $total-$missed | awk '{ print $1 }'`
+	echo "$goldVals"
+	echo "$guessVals"
+	echo ""
+	echo "---Accuracy---"
+	echo "Correct:  $correct"
+	echo "Missed:   $missed"
+	echo "Total:    $total"
+	echo ""
+	echo "Accuracy: `calc $correct / $total | awk '{ print $1 }'`"
+}
+
+function pyerr {
+	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep "value" |\
+		awk '{ print $7 "  " $8 }' > $goldVals
+	cat out/$last/attributes-train.tab | grep "value" |\
+		awk '{ print $7 "  " $8 }' > $guessVals
+	gvimdiff $guessVals $goldVals
 }
 
 #-----

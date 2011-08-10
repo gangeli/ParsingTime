@@ -294,18 +294,23 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 					}
 				}
 				case "PERIOD" => {
-					assert(timeVal.length == 8, "Period has 4 elements")
 					//(case: duration)
-					Duration(new Period(
-						Integer.parseInt(timeVal(1)),
-						Integer.parseInt(timeVal(2)),
-						Integer.parseInt(timeVal(3)),
-						Integer.parseInt(timeVal(4)),
-						Integer.parseInt(timeVal(5)),
-						Integer.parseInt(timeVal(6)),
-						Integer.parseInt(timeVal(7)),
+					assert(timeVal.length == 8, "Period has invalid element count")
+					var isApprox = false
+					def mkInt(str:String):Int = {
+						if(str.equalsIgnoreCase("x")){ isApprox = true; 1 }else{ str.toInt }
+					}
+					val rtn:Duration = Duration(new Period(
+						mkInt(timeVal(1)),
+						mkInt(timeVal(2)),
+						mkInt(timeVal(3)),
+						mkInt(timeVal(4)),
+						mkInt(timeVal(5)),
+						mkInt(timeVal(6)),
+						mkInt(timeVal(7)),
 						0
 						))
+					if(isApprox){ ~rtn } else { rtn }
 				}
 				case "UNK" => {
 					new UnkTime

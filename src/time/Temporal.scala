@@ -688,7 +688,9 @@ trait Duration extends Temporal {
 	override def apply[E <: Temporal](offset:Int):Time=>E = {
 		if(offset == 0){ (t:Time) => this match {
 				case (e:E) => 
-					assert(e.isInstanceOf[GroundedDuration], "Duration not grounded")
+					assert(e.isInstanceOf[GroundedDuration] || 
+						e.isInstanceOf[FuzzyDuration], 
+						"Duration not grounded")
 					e
 				case _ => throw new IllegalArgumentException("Runtime Type Error")
 			}
@@ -720,6 +722,7 @@ trait Duration extends Temporal {
 		val arr:Array[DurationUnit.Value] = units
 		if(arr.length == 0){ DurationUnit.ZERO } else { arr(0) }
 	}
+	def unary_~ : Duration = new FuzzyDuration(this)
 
 	override def equals(o:Any):Boolean = o match{
 		case (s:Sequence) => false
@@ -785,10 +788,43 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
 
+class FuzzyDuration(val base:Duration) extends Duration {
+	override def interval:GroundedDuration = base.interval
+	override def seconds:Long = base.seconds
+
+	override def +(diff:Duration):Duration = new FuzzyDuration( this.base + diff )
+	override def -(diff:Duration):Duration = new FuzzyDuration( this.base - diff )
+	override def *(n:Int):Duration         = this.base * n
+
+	override def units:Array[DurationUnit.Value] 
+		= Array[DurationUnit.Value](base.largestUnit)
+	override def unary_~ : Duration = this
+	
+	override def toString:String 
+		= Duration.cannonical(this.largestUnit).toString.replaceAll("[0-9]+","X")
+	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
+}
+
 // ----- OBJECT DURATION -----
 object Duration {
-	def apply(p:ReadablePeriod) = new GroundedDuration(p)
-	def apply(millis:Long):Duration = new GroundedDuration(new Period(millis))
+	def apply(p:ReadablePeriod):GroundedDuration = new GroundedDuration(p)
+	def apply(millis:Long):GroundedDuration = apply(new Period(millis))
+	def cannonical(unit:DurationUnit.Value):GroundedDuration = {
+		import DurationUnit._
+		unit match {
+			case MILLENIUM => this.apply(Years.years(1000))
+			case CENTURY   => this.apply(Years.years(100))
+			case DECADE    => this.apply(Years.years(10))
+			case YEAR      => this.apply(Years.ONE)
+			case QUARTER   => this.apply(Months.THREE)
+			case MONTH     => this.apply(Months.ONE)
+			case WEEK      => this.apply(Weeks.ONE)
+			case DAY       => this.apply(Days.ONE)
+			case HOUR      => this.apply(Hours.ONE)
+			case MINUTE    => this.apply(Minutes.ONE)
+			case SECOND    => this.apply(Seconds.ONE)
+		}
+	}
 	val INFINITE:Duration = new GroundedDuration( Period.years(Int.MaxValue) )
 	val NEG_INFINITE:Duration = new GroundedDuration( Period.years(Int.MinValue) )
 	val ZERO:Duration = new GroundedDuration( new Period(0L) )
@@ -1315,5 +1351,11 @@ object Lex {
 	//(concatenate two ranges -- inner)
 	//TODO
 
+	//(fuzzify a duration)
+	val fuzzify:(Duration=>Duration) = ~_:Duration
+
 	def todaysDate:Time = Time((new DateTime).withMillisOfDay(0))
 }
+
+
+

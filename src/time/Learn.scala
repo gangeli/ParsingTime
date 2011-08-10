@@ -334,6 +334,27 @@ object Grammar {
 				)), "n*D")
 			)
 		
+		//--F[ Duration ]
+		val durationFn = List[(Duration=>Duration,String)](
+				(fuzzify,"fuzzify") 
+			)
+		rtn = rtn ::: durationFn.foldLeft(List[(Rule,String)]()){ case 
+					(soFar:List[(Rule,String)],
+						(fn:(Duration=>Duration),
+						 str:String )) =>
+				//(intro)
+				(UnaryRule(Head.F_D, Head.Word, hack((w:Int) => fn
+					)),str+"$(-:D):D$") ::
+				//(right apply)
+				(BinaryRule(Head.Duration, Head.F_D, Head.Duration, hack2(
+					(fn:Duration=>Duration,d:Duration) => fn(d)
+					)), "$f_{d}:D$") ::
+				//(left apply)
+				(BinaryRule(Head.Duration, Head.Duration, Head.F_D, hack2(
+					(d:Duration,fn:Duration=>Duration) => fn(d)
+					)), "$f_{d}:D$") :: Nil
+			}
+		
 		//--F[ Range ]
 //		rtn = rtn ::: List[(Rule,String)](
 //			//(right apply)
@@ -344,24 +365,6 @@ object Grammar {
 //			(BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
 //				(r:Range,fn:Range=>Range) => fn(r)
 //				)), "$f_{r,r}:R$")
-//			)
-		
-		//--F[ Duration ]
-//		rtn = rtn ::: List[(Rule,String)](
-//			//(right apply)
-//			(BinaryRule(Head.Range, Head.F_D, Head.Duration, hack2(
-//				(fn:Duration=>Range,d:Duration) => fn(d)
-//				)), "$f_{d}:R$"),
-//			(BinaryRule(Head.Range, Head.F_D, Head.Sequence, hack2(
-//				(fn:Duration=>Range,d:Duration) => fn(d)
-//				)), "$f_{s}:R$"),
-//			//(left apply)
-//			(BinaryRule(Head.Range, Head.Duration, Head.F_D, hack2(
-//				(d:Duration,fn:Duration=>Range) => fn(d)
-//				)), "$f_{d}:R$"),
-//			(BinaryRule(Head.Range, Head.Sequence, Head.F_D, hack2(
-//				(d:Duration,fn:Duration=>Range) => fn(d)
-//				)), "$f_{s}:R$")
 //			)
 		
 		//--Type Raises
@@ -666,6 +669,9 @@ case class Parse(value:Temporal){
 				throw fail("Gold is a sequence: " + gold)
 			//--Valid
 			//(case: durations)
+			case (gold:FuzzyDuration,guess:FuzzyDuration) => 
+				if(gold.largestUnit == guess.largestUnit){(Duration.ZERO,Duration.ZERO)}
+				else{ INF }
 			case (gold:Duration,guess:Duration) => (guess-gold,Duration.ZERO)
 			//(case: grounded ranges)
 			case (gold:GroundedRange,guess:GroundedRange) => 
@@ -1767,16 +1773,7 @@ object CKYParser {
 	def lexLogProb(w:Int,pos:Int,rule:CkyRule):Double = {
 		assert(rule.arity == 1, "Lex with binary rule")
 		assert(w < G.W || w == G.UNK, "Word is out of range: " + w)
-		val raw:Double = wordScores(rule.rid)(w)
-		val W:Double = wordScores(rule.rid).length.asInstanceOf[Double]
-		val totalCount:Double = wordTotalCounts(rule.rid)
-		val prob:Double = O.smoothing match {
-			case O.SmoothingType.none => raw
-			case O.SmoothingType.addOne => (raw*totalCount+1.0)/(totalCount+W)
-			case _ => 
-				throw new IllegalStateException("Unknown smoothing: " + O.smoothing)
-		}
-		U.safeLn(prob)
+		U.safeLn( wordScores(rule.rid)(w) )
 	}
 	def ruleLogProb(rule:CkyRule):Double = {
 		rule.rids.foldLeft(0.0){ (logScore:Double,rid:Int) => 
@@ -1946,7 +1943,10 @@ class CKYParser extends StandardParser{
 			//(lex)
 			wordsCounted.zipWithIndex.foreach{ case (counter,rid) =>
 				(0 until wordScores(rid).length).foreach{ (w:Int) => 
-					wordScores(rid)(w) = 0.0 
+					wordScores(rid)(w) = O.smoothing match {
+						case O.SmoothingType.none => 0
+						case O.SmoothingType.addOne => 1.0
+					}
 				}
 				counter.keySet.foreach{ (w:Int) =>
 					wordScores(rid)(w) = counter.getCount(w)

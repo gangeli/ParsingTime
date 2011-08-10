@@ -37,32 +37,62 @@ def parse(str,ground)
 				DateTime.civil(y=str.to_i+1)
 			]
 		end
-	#(yearmonth)
-	elsif str.match /^[0-9]{6}$/ then
+	#(year-?month)
+	elsif str.match /^[0-9]{4}-?[0-9]{2}$/ then
 		year = str[0..3].to_i
-		month = str[4..5].to_i
+		month = str[-2..-1].to_i
 		[:RANGE, 
 			DateTime.civil(y=year,m=month),
 			DateTime.civil((month==12 ? year+1 : year),(month%12)+1)
 		]
-	#(yearWweek)
-	elsif str.match /^[0-9]{4}W[0-9 ]{2}$/ then
-		terms = [str[0..3],str[-2..-1]]
-		[:RANGE,
-			DateTime.commercial(terms[0].to_i,terms[1].to_i,1),
-			DateTime.commercial(
-				terms[1].to_i == 52 ? terms[0].to_i+1 : terms[0].to_i,
-				((terms[1].to_i)%52)+1,1)
-		]
-	#(year-month)
-	elsif str.match /^[0-9]{4}-[0-9 ]{2}$/ then
-		terms = str.split(/-/)
-		[:RANGE,
-			DateTime.civil(terms[0].to_i,terms[1].to_i),
-			DateTime.civil(
-				terms[1].to_i == 12 ? terms[0].to_i+1 : terms[0].to_i,
-				((terms[1].to_i)%12)+1)
-		]
+	#(year-?month-?day-time?)
+	elsif str.match /^([0-9]{4})-?([0-9]{2})-?([0-9]{2})T?(MO|AF|EV|NI)?$/ then
+		#(variables)
+		year = $1.to_i
+		month = $2.to_i
+		day = $3.to_i
+		time = $4
+		hrStart = 0
+		hrEnd = 0
+		incrDay = true
+		#(process time)
+		if time == "MO" then
+			hrStart = 8; hrEnd = 13; incrDay = false
+		elsif time == "AF" then
+			hrStart = 12; hrEnd = 17; incrDay = false
+		elsif time == "EV" then
+			hrStart = 16; hrEnd = 21; incrDay = false
+		elsif time == "NI" then
+			hrStart = 20; hrEnd = 0; incrDay = true
+		end
+		#(set range)
+		begin
+			[:RANGE, 
+				DateTime.civil(y=year,m=month,d=day,h=hrStart),
+				DateTime.civil(y=year,m=month,d=(incrDay ? day+1 : day),h=hrEnd),
+			]
+		rescue ArgumentError
+			raise "Unexpected error" if not incrDay
+			[:RANGE, 
+				DateTime.civil(y=year,m=month,d=day),
+				DateTime.civil(y=(month==12 ? year+1 : year),m=(month%12)+1,d=1)
+			]
+		end
+	#(year-?week-we?)
+	elsif str.match /^([0-9]{4})-?W([0-9]{2})-?(WE)?$/ then
+		year=$1.to_i
+		week=$2.to_i
+		if $4 then
+			[:RANGE,
+				DateTime.commercial(year,week, 6),
+				DateTime.commercial(year == 52 ? year+1 : year, (week.to_i%52)+1, 1)
+			]
+		else
+			[:RANGE,
+				DateTime.commercial(year,week, 1),
+				DateTime.commercial(year == 52 ? year+1 : year, (week.to_i%52)+1, 1)
+			]
+		end
 	#(year-quarter)
 	elsif str.match /^[0-9]{4}-Q[0-9]$/ then
 		terms = str.split(/-/)
@@ -107,33 +137,33 @@ def parse(str,ground)
 	#(present)
 	elsif str == "PRESENT_REF" then
 		[:INSTANT, :NOW]
-	#(unhandled)
 	# -- PERIOD --
-	elsif str.match /^P([0-9]*(D|W|M|Q|Y|E|C|L|H|S|T))+$/ then
+	#(grounded period)
+	elsif str.match /^P(([0-9]*|X)(D|W|M|Q|Y|E|C|L|H|S|T))+$/ then
 		time = false
 		period = [:PERIOD, 0, 0, 0, 0, 0, 0, 0] #tag|year|month|week|day|hr|min|sec
-		str.scan(/[0-9]*[DWMQYECLHST]/).each{ |d|
-			if d[-1].chr == "L" then
-				period[1] = d[0,d.length-1].to_i*1000
-			elsif d[-1].chr == "C" then
-				period[1] = d[0,d.length-1].to_i*100
-			elsif d[-1].chr == "E" then
-				period[1] = d[0,d.length-1].to_i*10
-			elsif d[-1].chr == "Y" then
-				period[1] = d[0,d.length-1].to_i
-			elsif d[-1].chr == "Q" then
-				period[2] = d[0,d.length-1].to_i*3
-			elsif d[-1].chr == "M" then
-				period[time ? 6 : 2] = d[0,d.length-1].to_i
-			elsif d[-1].chr == "W" then
-				period[3] = d[0,d.length-1].to_i
-			elsif d[-1].chr == "D" then
-				period[4] = d[0,d.length-1].to_i
-			elsif d[-1].chr == "H" then
-				period[5] = d[0,d.length-1].to_i
-			elsif d[-1].chr == "S" then
-				period[7] = d[0,d.length-1].to_i
-			elsif d[-1].chr == "T" then
+		str.scan(/([0-9]*|X)([DWMQYECLHST])/).each{ |v,d|
+			if d == "L" then
+				period[1] = (v == "X") ? "x" : v.to_i*1000
+			elsif d == "C" then
+				period[1] = (v == "X") ? "x" : v.to_i*100
+			elsif d == "E" then
+				period[1] = (v == "X") ? "x" : v.to_i*10
+			elsif d == "Y" then
+				period[1] = (v == "X") ? "x" : v.to_i
+			elsif d == "Q" then
+				period[2] = (v == "X") ? "x" : v.to_i*3
+			elsif d == "M" then
+				period[time ? 6 : 2] = (v == "X") ? "x" : v.to_i
+			elsif d == "W" then
+				period[3] = (v == "X") ? "x" : v.to_i
+			elsif d == "D" then
+				period[4] = (v == "X") ? "x" : v.to_i
+			elsif d == "H" then
+				period[5] = (v == "X") ? "x" : v.to_i
+			elsif d == "S" then
+				period[7] = (v == "X") ? "x" : v.to_i
+			elsif d == "T" then
 				time = true
 			else
 				raise "UNKNOWN INTERVAL #{d}"

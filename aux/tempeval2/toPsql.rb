@@ -138,8 +138,6 @@ class Doc
 	def to_db
 		#(save self)
 		raise "No pub_time: #{self}" if not pub_time
-		raise "Bad pub_time: #{self}"\
-			if pub_time.length != 2 or pub_time[0] != :INSTANT
 		ensureStatement(DOC_STMT,
 			fid,
 			filename,
@@ -183,9 +181,6 @@ class Sent
 		end
 		@orig2retok[@original.length] = @words.length
 		#(print)
-		puts @retok2orig.join(' ')
-		puts @orig2retok.join(' ')
-		puts '-------------------'
 		#(check map)
 		@retok2orig.each_with_index do |foreign,local|
 			raise "retok2orig not sorted"\
@@ -368,7 +363,10 @@ def ext_proc(timexes,sents,docs,file)
 	def updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count,start)
 		timex = timexes[lastDoc][lastSent][lastTid]
 		beginVal = sents[lastDoc][lastSent].orig2retok[timex.orig_start]
-		endVal = sents[lastDoc][lastSent].orig2retok[timex.orig_start+count+1]-1
+		endConservative = 
+			sents[lastDoc][lastSent].orig2retok[timex.orig_start+count]
+		endGreedy = sents[lastDoc][lastSent].orig2retok[timex.orig_start+count+1]-1
+		endVal = endConservative > endGreedy ? endConservative : endGreedy
 		raise "bad count" if count <= 0
 		raise "bad map #{beginVal} to #{endVal}" if endVal <= beginVal
 		raise "no end val #{count}" if not endVal

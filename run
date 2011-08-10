@@ -16,7 +16,7 @@ env!(
 	o('Xrunhprof:cpu=samples'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx5000M'),
+	o('Xmx2000M'),
 	o('ea'),
 	'time.Entry',
 
@@ -33,9 +33,9 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		selo(1, 'smoothing',
-			'addOne',
-			'none'),
+		selo(0, 'smoothing',
+			'none',
+			'addOne'),
 		selo(1,'ckyCountType',
 			'all',
 			'bestAll',
@@ -53,7 +53,7 @@ env!(
 			'GOLD'),
 #		o('hardEM'),
 		# <training>
-		o('beam', 1000),
+		o('beam', 100),
 		o('iters', 10),
 		o('maxSearchTime', 10000),
 		o('scoreBeam', 5),
