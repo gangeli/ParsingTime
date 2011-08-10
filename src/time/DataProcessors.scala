@@ -117,7 +117,10 @@ case class NumberAnnotator[S <: TimeSentence, T <: TimeTag](
 				current = null
 			}
 			} catch { //TODO get rid of me
-				case (e:Exception) => println("TODO: CAUGHT EXCEPTION " + e)
+				case (e:Exception) => {
+					println("TODO: CAUGHT EXCEPTION " + e)
+					e.printStackTrace()
+				}
 			}
 			//(save to database)
 			numbers.foreach{ (num:NAnn) => 

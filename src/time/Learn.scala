@@ -160,7 +160,8 @@ object Grammar {
 		rtn = rtn ::: times.map{ case (t:Range,s:String) => 
 			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
 		//(ranges)
-		val ranges = List[(Range,String)]((TODAY,"REF:R"))
+		val ranges = List[(Range,String)](
+			(TODAY,"REF:R"),(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"))
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
 			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
 		//(durations)
@@ -206,6 +207,9 @@ object Grammar {
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOC(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w < 10 ),
 				"doc(n):S"),
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  YOD(num) ))
+				.ensureValidity( (w:Int) => w >= 0 && w < 10 ),
+				"yod(n):S"),
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  THEYEAR(num) )),
 				"year(n):R"),
 			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  CENTURY(num) ))

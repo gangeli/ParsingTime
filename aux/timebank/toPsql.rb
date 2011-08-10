@@ -98,6 +98,8 @@ query(db,"CREATE TABLE #{TIMEX} (
 		type VARCHAR(31),
 		value VARCHAR(127),
 		original_value VARCHAR(127),
+		handle VARCHAR(8),
+		gold_span VARCHAR(32),
 		gloss VARCHAR(63)
 		);")
 #--TLink
@@ -119,8 +121,9 @@ TAG_STMT = db.prepare("INSERT INTO #{TAG}
 	(wid, sid, did, key, value)
   VALUES(?, ?, ?, ?, ?)")
 TIMEX_STMT = db.prepare("INSERT INTO #{TIMEX} 
-	(tid, sid, scope_begin, scope_end, type, value, original_value, gloss)
-  VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
+	(tid, sid, scope_begin, scope_end, type, value, original_value, handle, 
+		gold_span, gloss)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 TLINK_STMT = db.prepare("INSERT INTO #{TLINK} 
 	(lid, fid, source, target, type)
   VALUES(?, ?, ?, ?, ?)")
@@ -316,6 +319,8 @@ class Timex
 			@type,
 			value,
 			@original_value,
+			"t#{@tid}",
+			"[-1,-1)",
 #			@temporalFn,
 #			@mod ? @mod : "NONE",
 			text.chomp)

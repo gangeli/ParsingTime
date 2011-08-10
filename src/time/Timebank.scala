@@ -202,6 +202,10 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	private var timeVal:Array[String] = null
 	@Key(name="original_value")
 	private var originalValue:String = null
+	@Key(name="handle")
+	var handle:String = null
+	@Key(name="gold_span")
+	var goldSpan:Array[String] = null
 	@Key(name="gloss")
 	private var gloss:String = null
 

@@ -246,10 +246,10 @@ class Score {
 			//(variables)
 			val file:String = r.timex.sentence.document.filename
 			val sent:Int = r.timex.sentence.indexInDocument
-			val beginOffset:Int = r.timex.sentence.origIndex(r.timex.scopeBegin)-1
-			val endOffset:Int = r.timex.sentence.origIndex(r.timex.scopeEnd)
+			val beginOffset:Int = r.timex.goldSpan(0).toInt
+			val endOffset:Int = r.timex.goldSpan(1).toInt
 			val timex3:String = "timex3"
-			val tNum:String = "t"+(r.timex.indexInDocument+1)
+			val tNum:String = r.timex.handle
 			val one:String = "1"
 			val typ:String = r.guess.timex3Type(r.ground)
 			val value:String = if(typ.equals("UNK")){ "UNK" }
@@ -259,8 +259,8 @@ class Score {
 				= ""+file+"\t"+sent+"\t"+offset+"\t"+timex3+"\t"+tNum
 
 			//(attributes)
-			attrFile.write(prefix(beginOffset)+"\ttype\t"+typ+"\n")
-			attrFile.write(prefix(beginOffset)+"\tvalue\t"+value+"\n")
+			attrFile.write(prefix(beginOffset)+"\t1\ttype\t"+typ+"\n")
+			attrFile.write(prefix(beginOffset)+"\t1\tvalue\t"+value+"\n")
 			//(extents)
 			(beginOffset until endOffset).foreach{ (offset:Int) =>
 				extFile.write(prefix(offset)+"\t1\n")

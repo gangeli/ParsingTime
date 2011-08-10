@@ -5,6 +5,5 @@ JAR="time"
 JAVANLP="$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.6.jar:etc/models.jar"
 CP="dist/$JAR.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:$JAVANLP:etc/jdom.jar:etc/joda-time.jar"
 
-# -- Annotate Numbers (english)
-#java -cp $CP -server -Xmx1000M -ea time.NumberAnnotator timebank
 java -cp $CP -server -Xmx1000M -ea time.NumberAnnotator english
+#java -cp $CP -server -Xmx1000M -ea time.NumberAnnotator timebank

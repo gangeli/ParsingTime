@@ -1213,6 +1213,20 @@ object Lex {
 				}
 			}
 		}
+		def yod(iArg:Int):Time=>Time = (t:Time) => {
+			val i:Int = if(iArg < 0) t.base.getDayOfWeek else iArg
+			val newYear = t.base.getYear - (t.base.getYear%10) + i
+			try{
+				Time(t.base.withYear(newYear)
+					.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0))
+			} catch { case (e:IllegalFieldValueException) => 
+				if(newYear < 0){
+					Time.DAWN_OF
+				}else{
+					Time.END_OF
+				}
+			}
+		}
 	}
 	//--Durations
 	val SEC:Duration = new GroundedDuration(Seconds.ONE)
@@ -1268,9 +1282,16 @@ object Lex {
 		LexUtil.yoc(i*10), 
 		Range(Duration(Years.years(10))), 
 		Duration(Years.years(100)))
+	def YOD(i:Int) = new RepeatedRange(
+		LexUtil.yod(i), 
+		Range(Duration(Years.ONE)), 
+		Duration(Years.years(10)))
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
+
+	val YESTERDAY:Range = (REF <<! DAY)
+	val TOMORROW:Range = (REF <<! DAY)
 	
 	//--Functions
 	//(move a range by a duration)

@@ -99,6 +99,8 @@ query(db,"CREATE TABLE #{TIMEX} (
 		type VARCHAR(31),
 		value VARCHAR(127),
 		original_value VARCHAR(127),
+		handle VARCHAR(8),
+		gold_span VARCHAR(32),
 		gloss VARCHAR(63)
 		);")
 puts "  create statements"
@@ -112,8 +114,9 @@ TAG_STMT = db.prepare("INSERT INTO #{TAG}
 	(wid, sid, did, key, value)
   VALUES(?, ?, ?, ?, ?)")
 TIMEX_STMT = db.prepare("INSERT INTO #{TIMEX} 
-	(tid, sid, scope_begin, scope_end, type, value, original_value, gloss)
-  VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
+	(tid, sid, scope_begin, scope_end, type, value, 
+		original_value, handle, gold_span, gloss)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 puts "}"
 
 #-------------------------------------------------------------------------------
@@ -239,19 +242,23 @@ end
 
 class Timex
 	@@tid = 1
-	attr_accessor :tid, :sid, :scope_begin, :scope_end, :type, :value, :original_value, :gloss, :orig_start
-	def initialize(sid,start,type,origValue)
+	attr_accessor :tid, :sid, :scope_begin, :scope_end, :type, :value, :original_value, :handle, :gloss, :orig_start, :gold_span
+	def initialize(sid,start,type,origValue,handle)
 		@tid = @@tid
 		@sid = sid
 		@scope_begin = start.to_i+1
 		@type = type
 		@original_value = origValue
 		@value = parse(origValue,nil)
+		@handle = handle
 		@@tid += 1
 	end
 	def setEnd(e)
 		raise "non-positive length: #{@scope_begin} to #{e}" if e < @scope_begin
 		@scope_end = e+1
+	end
+	def setGoldSpan(start,stop)
+		@gold_span = "[#{start},#{stop}]"
 	end
 	def to_db(gloss)
 		raise "Bad scope: #{scope_begin} to #{scope_end}" if scope_end-scope_begin<1
@@ -266,6 +273,8 @@ class Timex
 			type,
 			value,
 			original_value,
+			handle,
+			gold_span,
 			gloss)
 	end
 end
@@ -340,7 +349,7 @@ def attr_proc(timexes,sents,docs,file)
 			timexes[doc] = {} if not timexes[doc]
 			timexes[doc][sent] = {} if not timexes[doc][sent]
 			timexes[doc][sent][tid] =\
-				Timex.new(sents[doc][sent].sid,newStart,type,value)
+				Timex.new(sents[doc][sent].sid,newStart,type,value,tid)
 			timex = timexes[doc][sent][tid]
 			timex.orig_start = start
 			raise "start longer than length"\
@@ -356,7 +365,7 @@ attr_proc(timexes,sents,docs,File.new(attr_test))
 
 #(timex spans)
 def ext_proc(timexes,sents,docs,file)
-	def updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count)
+	def updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count,start)
 		timex = timexes[lastDoc][lastSent][lastTid]
 		beginVal = sents[lastDoc][lastSent].orig2retok[timex.orig_start]
 		endVal = sents[lastDoc][lastSent].orig2retok[timex.orig_start+count+1]-1
@@ -364,8 +373,10 @@ def ext_proc(timexes,sents,docs,file)
 		raise "bad map #{beginVal} to #{endVal}" if endVal <= beginVal
 		raise "no end val #{count}" if not endVal
 		timex.setEnd( endVal )
+		timex.setGoldSpan( start.to_i, start.to_i+count )
 	end
 	last = nil
+	lastStart = nil
 	count = 0
 	file.each_line do |line|
 		doc,sent,start,timex3,tid,junk = line.split(/\s+/)
@@ -373,17 +384,19 @@ def ext_proc(timexes,sents,docs,file)
 		if [doc,sent,tid] != last and last != nil then
 			#(update timex)
 			lastDoc,lastSent,lastTid = last
-			updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count)
+			updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count,lastStart)
 			last = [doc,sent,tid]
+			lastStart = start
 			count = 0
 		elsif last == nil then
 			last = [doc,sent,tid]
+			lastStart = start
 		end
 		count += 1
 	end
 	#(update last)
-	lastDoc,lastSent,lastTid = last
-	updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count)
+	lastDoc,lastSent,lastTid,lastStart = last
+	updateFromCount(timexes,sents,lastDoc,lastSent,lastTid,count,lastStart)
 end
 puts "    timex extents (train)"
 ext_proc(timexes,sents,docs,File.new(ext_train))
