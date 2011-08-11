@@ -306,7 +306,7 @@ puts "  reading {"
 def dct_proc(docs,line,test)
 	name,pub_time = line.split(/\s+/)
 	docs[name] = Doc.new(name)
-	docs[name].pub_time = parse(pub_time,nil)
+	docs[name].pub_time = [:INSTANT, DateTime.parse(pub_time)]
 	docs[name].test = test
 end
 puts "    dct (train)"

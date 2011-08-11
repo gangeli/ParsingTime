@@ -295,7 +295,7 @@ trait DataStore {
 			timex:Timex):Temporal = {
 		//--Util
 		case class ScoreElem(index:Int,offset:Int,exact:Boolean,
-				diff:(Duration,Duration))
+				diff:(Duration,Duration),prob:Double)
 		def isExact(diff:(Duration,Duration)):Boolean
 			= { U.sumDiff(diff) < O.exactMatchThreshold }
 		val vitterbi:Temporal = 
@@ -309,8 +309,8 @@ trait DataStore {
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
 			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => {
 				soFar ::: parse.scoreFrom(gold,grounding).slice(0,O.scoreBeam)
-					.map{ case (diff:(Duration,Duration),score:Double,offset:Int) =>
-						ScoreElem(i,offset,isExact(diff),diff)
+					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
+						ScoreElem(i,offset,isExact(diff),diff,prob)
 					}.toList
 			}
 		}.toArray
@@ -319,7 +319,9 @@ trait DataStore {
 			//(get guess)
 			val bestGuess = scores(0)
 			//(is in beam?)
-			val correct = scores.filter{ (elem:ScoreElem) => elem.exact }
+			val correct = scores.filter{ (elem:ScoreElem) => 
+				assert(elem.prob >= 0.0 && elem.prob <= 1.0, "invalid probability")
+				elem.exact && elem.prob > 0.0}
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)

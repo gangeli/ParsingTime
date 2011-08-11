@@ -155,13 +155,14 @@ object Grammar {
 			= fn.asInstanceOf[(Any,Any)=>Any]
 		var rtn = List[(Rule,String)]()
 		//--Lex
-		//(times)
-		val times = List[(Range,String)]((REF,"REF:T"))
-		rtn = rtn ::: times.map{ case (t:Range,s:String) => 
-			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
+//		//(times)
+//		val times = List[(Range,String)]((REF,"REF:T"))
+//		rtn = rtn ::: times.map{ case (t:Range,s:String) => 
+//			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
 		//(ranges)
 		val ranges = List[(Range,String)](
-			(TODAY,"REF:R"),(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"))
+			(REF,"REF:R"),
+			(TODAY,"TODAY:R"),(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"))
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
 			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
 		//(durations)
@@ -444,7 +445,7 @@ object Grammar {
 
 		//-ROOT
 		rtn = rtn ::: List[UnaryRule](
-			UnaryRule(Head.ROOT, Head.Time, hack((t:Range) => t)),
+//			UnaryRule(Head.ROOT, Head.Time, hack((t:Range) => t)),
 			UnaryRule(Head.ROOT, Head.Range, hack((r:Range) => r)),
 			UnaryRule(Head.ROOT, Head.Duration, hack((d:Duration) => d)),
 			UnaryRule(Head.ROOT, Head.Sequence, hack((s:Range) => s)), //note: range
@@ -667,12 +668,16 @@ case class Parse(value:Temporal){
 				throw fail("Distribution returned a sequence: " + guess)
 			case (gold:Sequence,guess:Temporal) =>
 				throw fail("Gold is a sequence: " + gold)
+			//(case: type errors)
+			case (gold:FuzzyDuration,guess:GroundedDuration) => INF
+			case (gold:GroundedDuration,guess:FuzzyDuration) => INF
 			//--Valid
 			//(case: durations)
 			case (gold:FuzzyDuration,guess:FuzzyDuration) => 
 				if(gold.largestUnit == guess.largestUnit){(Duration.ZERO,Duration.ZERO)}
 				else{ INF }
-			case (gold:Duration,guess:Duration) => (guess-gold,Duration.ZERO)
+			case (gold:GroundedDuration,guess:GroundedDuration) => 
+				(guess-gold,Duration.ZERO)
 			//(case: grounded ranges)
 			case (gold:GroundedRange,guess:GroundedRange) => 
 				if(guess.norm.seconds == 0 && gold.norm.seconds == 0){
@@ -698,11 +703,14 @@ case class Parse(value:Temporal){
 			case (gold:PartialTime,guess:Temporal) =>
 				if(second){ INF }
 				else { diff(gold(ground),guess,true) }
-			//--Type Problems
-			//(case: types)
+			//--Not Valid
+			//(case: didn't catch above)
+			case (gold:Duration,guess:Duration) => throw fail("case: 2 durations")
+			case (gold:Range,guess:Range) => throw fail("case: 2 durations")
+			//(case: type error)
 			case (gold:Duration,guess:Temporal) =>  INF
 			case (gold:Range,guess:Temporal) => INF
-			//(case: default)
+			//(case: default fail)
 			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}
 		//--Map Iterator
@@ -1932,26 +1940,62 @@ class CKYParser extends StandardParser{
 
 	override def endIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {
 		if(feedback){
-			log("updating counts")
+			log("updating counts (E step)")
 			//--Copy Weights
 			//(rules)
-			(0 until ruleScores.length).foreach{ (rid:Int) => ruleScores(rid) = 0.0 }
+			//((total counts))
+			val totalCount:Double
+				= rulesCounted.foldLeft(0.0){ case (soFar,cnt) => soFar+cnt }
+			val totalRules:Double = rulesCounted.length.asInstanceOf[Double]
+			val rulesBackoff:Double = O.backoffFactor * totalCount / totalRules
+			assert(rulesBackoff >= 0.0 && !rulesBackoff.isNaN, 
+				"Bad backoff: " + rulesBackoff)
+			//((free counts -- smoothing))
+			(0 until ruleScores.length).foreach{ (rid:Int) => 
+				ruleScores(rid) = O.smoothing match {
+					case O.SmoothingType.none => 0.0
+					case O.SmoothingType.addOne => O.addOneCount
+					case O.SmoothingType.backoff => rulesBackoff
+				}
+			}
+			//((new scores))
 			rulesCounted.zipWithIndex.foreach{ case (count,rid) =>
 				assert(!count.isNaN, "Rule count is NaN")
-				ruleScores(rid) += count
+				if(O.smoothing == O.SmoothingType.backoff){
+					ruleScores(rid) += count * (1.0-O.backoffFactor)
+				} else {
+					ruleScores(rid) += count
+				}
 			}
 			//(lex)
 			wordsCounted.zipWithIndex.foreach{ case (counter,rid) =>
+				//((total counts))
+				wordTotalCounts(rid) = counter.totalCount
+				val totalWords:Double = wordScores(rid).length.asInstanceOf[Double]
+				val backoffCount:Double=O.backoffFactor*wordTotalCounts(rid)/totalWords
+				assert(backoffCount >= 0.0 && !backoffCount.isNaN, 
+					"bad backoff: " + backoffCount)
+				//((free counts -- smoothing))
 				(0 until wordScores(rid).length).foreach{ (w:Int) => 
-					wordScores(rid)(w) = O.smoothing match {
-						case O.SmoothingType.none => 0
-						case O.SmoothingType.addOne => 1.0
+					if(wordTotalCounts(rid) == 0.0){ //case: lex item is never seen
+						assert(counter.getCount(w) == 0.0, "counter shouldn't have count")
+						wordScores(rid)(w) = 1.0
+					} else {
+						wordScores(rid)(w) = O.smoothing match {
+							case O.SmoothingType.none => 0.0
+							case O.SmoothingType.addOne => O.addOneCount
+							case O.SmoothingType.backoff => backoffCount
+						}
 					}
 				}
+				//((new scores))
 				counter.keySet.foreach{ (w:Int) =>
-					wordScores(rid)(w) = counter.getCount(w)
+					if(O.smoothing == O.SmoothingType.backoff){
+						wordScores(rid)(w) = counter.getCount(w)*(1.0-O.backoffFactor)
+					} else {
+						wordScores(rid)(w) += counter.getCount(w)
+					}
 				}
-				wordTotalCounts(rid) = counter.totalCount
 			}
 			//(clear counts)
 			(0 until rulesCounted.length).foreach{ (rid:Int) => rulesCounted(rid)=0.0}
@@ -1971,8 +2015,58 @@ class CKYParser extends StandardParser{
 
 	private def reportInternal(writeParses:Boolean):Unit = {
 		//--Debug Print
-		//(best lex)
-		start_track("lex scores (top)")
+		//(best rules)
+		start_track("rule scores (top by head)")
+		Head.values.foreach{ (head:Head.Value) =>
+			val lst = RULES_INDEX
+				.filter{ case (r:Rule,rid:Int) => r.head == head && !r.isLex}
+				.map{ case (r:Rule,rid:Int) => (rid,ruleScores(rid)) }
+				.sortBy(-_._2)
+			if(lst.length > 0){
+				start_track(""+head)
+				//(top rules)
+				lst.slice(0,3).foreach{ case (rid:Int,score:Double) =>
+					logG("["+G.df.format(score)+"] "+RULES(rid))
+				}
+				//(bottom rules)
+				val sl:Int = 
+					if(lst.length > 6) { logG("..."); 3 }
+					else if(lst.length > 3) { lst.length-3 }
+					else { 0 }
+				lst.reverse.slice(0,sl).reverse.foreach{ case (rid:Int,score:Double) =>
+					logG("["+G.df.format(score)+"] "+RULES(rid))
+				}
+				end_track
+			}
+		}
+		end_track
+		//(word reachability)
+		start_track("impossible words")
+		var unreachableWords:Int = 0
+		RULES_INDEX.filter( _._1.isLex).foreach{ case (r:Rule,rid:Int) =>
+			val rule2word = (0 until G.W).foldLeft(0.0){ (count:Double,w:Int) =>
+				if(wordScores(rid)(w) == 0.0){ 
+					unreachableWords += 1
+					log("unreachable: " + RULES_STR(rid) + " -> " + U.w2str(w))
+				}
+				count + wordScores(rid)(w)
+			}
+			if(rule2word == 0){
+				logG("rule is unreachable: " + RULES_STR(rid))
+			}
+		}
+		if(unreachableWords > 0){
+			if(O.smoothing != O.SmoothingType.none){
+				throw new IllegalStateException("Words have zero probability")
+			} else {
+				logG("WARNING: " + unreachableWords + " rule->words with 0 probability")
+			}
+		} else {
+			logG("no zero probability words")
+		}
+		end_track
+		//(some lex probabilities)
+		start_track("lex scores (top by head)")
 		Head.values.foreach{ (head:Head.Value) =>
 			val bestLex:List[(Int,Int,Double)] = CKY_LEX
 				.filter{ (r:CkyRule) => r.head==head }
@@ -1986,12 +2080,6 @@ class CKYParser extends StandardParser{
 				logG("[" + G.df.format(score) + "] " + 
 					U.w2str(w) + " from " + RULES_STR(rid) )
 			}
-		}
-		end_track
-		//(best rules)
-		start_track("rule scores (top)")
-		ruleScores.zipWithIndex.sortBy(-_._1).slice(0,10).foreach{case (score,rid)=>
-			logG("[" + G.df.format(score) + "] " + RULES(rid))
 		}
 		end_track
 		//(write guesses)

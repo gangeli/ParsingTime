@@ -123,7 +123,7 @@ trait Temporal {
 		def getValue(r:Range):String = {
 			r match {
 				case (gr:GroundedRange) => 
-					if(gr.begin == ground && gr.norm <= DAY){
+					if(gr.begin == ground && gr.norm.seconds == 0){
 						"PRESENT_REF"
 					} else if(gr.begin == Time.DAWN_OF && gr.end != Time.END_OF){
 						"FUTURE_REF"
@@ -132,12 +132,18 @@ trait Temporal {
 					} else {
 						val norm = gr.norm
 						val year:String = df4.format(gr.begin.year)
-						if( isInt(norm / AYEAR) ){
+						if( gr.begin.month == 1 && gr.begin.day == 1 && !gr.begin.hasTime &&
+								gr.end.month == 1 && gr.end.day == 1 && !gr.end.hasTime ) {
 							"" + gr.begin.year
-						} else if( isInt(norm / QUARTER) ){
+						} else if( (gr.end.month-gr.begin.month) % 3 == 0 &&
+							gr.begin.day == 1 && gr.end.day == 1 &&
+							!gr.begin.hasTime && !gr.end.hasTime) {
 							"" + year + "-Q" + gr.begin.quarter
-						} else if( gr.begin.day == 1 && gr.end.day == 1 && 
-								gr.end.month > gr.begin.month ){
+						} else if( gr.begin.day == 1 && !gr.begin.hasTime &&
+								gr.end.day == 1 && !gr.end.hasTime &&
+								(gr.begin.year == gr.end.year ||
+									(gr.begin.year+1 == gr.end.year && 
+									 gr.begin.month == 12 && gr.end.month == 1) ) ) {
 							"" + year + "-" + df2.format(gr.begin.month)
 						} else if( isInt(norm / WEEK) ){
 							"" + year + "-W" + df2.format(gr.begin.week)
@@ -158,7 +164,7 @@ trait Temporal {
 			case (r:Range) =>
 				getValue(r)
 			case (pt:PartialTime) => getValue(pt(ground).asInstanceOf[GroundedRange])
-			case (d:Duration) => d.toString
+			case (d:Duration) => d.timexString
 			case _ => "UNK"
 		}
 	}
@@ -724,6 +730,7 @@ trait Duration extends Temporal {
 	}
 	def unary_~ : Duration = new FuzzyDuration(this)
 
+	def timexString:String = this.toString
 	override def equals(o:Any):Boolean = o match{
 		case (s:Sequence) => false
 		case (d:Duration) => this.seconds == d.seconds
@@ -755,7 +762,7 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 				case CENTURY => soFar.plusYears((p.getYears%1000)*n)
 				case DECADE => soFar.plusYears((p.getYears%100)*n)
 				case YEAR => soFar.plusYears((p.getYears%10)*n)
-				case QUARTER => soFar.plusMonths(p.getMonths*(n*3))
+				case QUARTER => soFar.plusMonths(p.getMonths*n)
 				case MONTH => soFar.plusMonths(p.getMonths*n)
 				case WEEK => soFar.plusWeeks(p.getWeeks*n)
 				case DAY => soFar.plusDays(p.getDays*n)
@@ -769,10 +776,10 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 	override def units:Array[DurationUnit.Value] = {
 		val period = base.toPeriod
 		var unitsAsc = List[DurationUnit.Value]()
-		if(period.getYears > 1000){ unitsAsc = DurationUnit.MILLENIUM :: unitsAsc }
-		if(period.getYears%1000 > 100){unitsAsc = DurationUnit.CENTURY :: unitsAsc}
-		if(period.getYears%100 > 10){unitsAsc = DurationUnit.DECADE :: unitsAsc}
-		if(period.getYears > 0){unitsAsc = DurationUnit.YEAR :: unitsAsc}
+		if(period.getYears >= 1000){ unitsAsc = DurationUnit.MILLENIUM :: unitsAsc }
+		if(period.getYears%1000 >= 100){unitsAsc = DurationUnit.CENTURY :: unitsAsc}
+		if(period.getYears%100 >= 10){unitsAsc = DurationUnit.DECADE :: unitsAsc}
+		if(period.getYears%10 > 0){unitsAsc = DurationUnit.YEAR :: unitsAsc}
 		if(period.getMonths > 0 && period.getMonths % 3 == 0)
 			{unitsAsc = DurationUnit.QUARTER :: unitsAsc}
 		if(period.getMonths % 3 > 0){unitsAsc = DurationUnit.MONTH :: unitsAsc}
@@ -782,6 +789,39 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 		if(period.getMinutes > 0){unitsAsc = DurationUnit.MINUTE :: unitsAsc}
 		if(period.getSeconds > 0){unitsAsc = DurationUnit.SECOND :: unitsAsc}
 		unitsAsc.reverse.toArray
+	}
+	override def timexString:String = {
+		import DurationUnit._
+		def f(str:String,isTime:Boolean) = {
+			if(!isTime) "T" + str else str
+		}
+		"P"+units.foldLeft(("",false)){ 
+			case ((soFar:String,t:Boolean),unit:DurationUnit.Value) => 
+				unit match {
+					case MILLENIUM => 
+						(soFar+(base.toPeriod.getYears/1000) + "L",false)
+					case CENTURY   => 
+						(soFar+((base.toPeriod.getYears%1000)/100) + "C",false)
+					case DECADE    => 
+						(soFar+((base.toPeriod.getYears%100)/10) + "E",false)
+					case YEAR      => 
+						(soFar+(base.toPeriod.getYears%10)+"Y",false)
+					case QUARTER   => 
+						(soFar+base.toPeriod.getMonths + "M",false)
+					case MONTH     => 
+						(soFar+base.toPeriod.getMonths + "M",false)
+					case WEEK      => 
+						(soFar+base.toPeriod.getWeeks + "W",false)
+					case DAY       => 
+						(soFar+base.toPeriod.getDays + "D",false)
+					case HOUR      => 
+						(soFar+f("" + base.toPeriod.getHours + "H",t),true)
+					case MINUTE    => 
+						(soFar+f("" + base.toPeriod.getMinutes + "M",t),true)
+					case SECOND    => 
+						(soFar+f("" + base.toPeriod.getSeconds + "S",t),true)
+			}
+		}._1
 	}
 	
 	override def toString:String = this.base.toString
@@ -800,8 +840,9 @@ class FuzzyDuration(val base:Duration) extends Duration {
 		= Array[DurationUnit.Value](base.largestUnit)
 	override def unary_~ : Duration = this
 	
-	override def toString:String 
+	override def timexString:String 
 		= Duration.cannonical(this.largestUnit).toString.replaceAll("[0-9]+","X")
+	override def toString:String = "~"+this.base.toString
 	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
 
@@ -1015,13 +1056,15 @@ case class Time(base:DateTime) {
 	def <=(t:Time):Boolean = !(this.base.getMillis > t.base.getMillis)
 
 	def year:Int    = base.getYear
-	def quarter:Int = (base.getMonthOfYear / 3).toInt + 1
+	def quarter:Int = base.getMonthOfYear.toInt/3 + 1
 	def week:Int    = base.getWeekOfWeekyear
 	def month:Int   = base.getMonthOfYear
 	def day:Int     = base.getDayOfMonth
 	def hour:Int    = base.getHourOfDay
 	def minute:Int  = base.getMinuteOfHour
 	def second:Int  = base.getSecondOfMinute
+
+	def hasTime:Boolean = base.getMillisOfDay > 0
 
 	def +(diff:Duration):Time = {
 		val diffMillis = diff.seconds*1000

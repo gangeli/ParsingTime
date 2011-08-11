@@ -30,6 +30,8 @@ function score {
 			out/$last/extents-train.tab
 	fi
 	# -- Match
+	goldVals=`mktemp`
+	guessVals=`mktemp`
 	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep "value"\
 		> $goldVals
 	cat out/$last/attributes-train.tab | grep "value"\
@@ -37,8 +39,6 @@ function score {
 	total=`cat $guessVals | wc | awk '{ print $1 }'`
 	missed=`diff $guessVals $goldVals | grep '^<' | wc | awk '{ print $1 }'`
 	correct=`calc $total-$missed | awk '{ print $1 }'`
-	echo "$goldVals"
-	echo "$guessVals"
 	echo ""
 	echo "---Accuracy---"
 	echo "Correct:  $correct"
@@ -49,10 +49,18 @@ function score {
 }
 
 function pyerr {
+	# -- Variables
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	goldVals=`mktemp`
+	guessVals=`mktemp`
+	# -- Display
 	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep "value" |\
-		awk '{ print $7 "  " $8 }' > $goldVals
+		awk '{ print NR ". " $7 "  " $8 }' > $goldVals
 	cat out/$last/attributes-train.tab | grep "value" |\
-		awk '{ print $7 "  " $8 }' > $guessVals
+		awk '{ print NR ". " $7 "  " $8 }' > $guessVals
 	gvimdiff $guessVals $goldVals
 }
 
