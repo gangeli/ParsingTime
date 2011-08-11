@@ -39,6 +39,10 @@ abstract class TimeDocument[A <: TimeSentence] extends org.goobs.testing.Datum{
 }
 
 
+
+object NumberType extends Enumeration {
+	val NONE, ORDINAL, NUMBER, UNIT = Value
+}
 abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 	@PrimaryKey(name="sid")
 	var sid:Int = 0
@@ -81,7 +85,7 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 	}
 	
 	def init(doc:TimeDocument[_<:TimeSentence],	
-			str2w:String=>Int,str2pos:String=>Int):Unit = { 
+			str2w:(String,NumberType.Value)=>Int,str2pos:String=>Int):Unit = { 
 		refreshLinks; 
 //		quickSort(timexes);  //TODO type hell breaks loose if uncommented
 		indexMap = (0 to length).toArray
@@ -92,6 +96,7 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 		val pos = new Array[String](length)
 		val numbers = new Array[Number](length)
 		val num_len = new Array[Int](length)
+		val num_type = new Array[NumberType.Value](length).map{x => NumberType.NONE}
 		//(get tags)
 		for( i <- 0 until tags.length ){
 			tags(i).key match {
@@ -113,6 +118,8 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 					origIndexMap(tags(i).wid-1) = tags(i).value.toInt
 				case "num_length" => 
 					num_len(tags(i).wid-1) = tags(i).value.toInt
+				case "num_type" => 
+					num_type(tags(i).wid-1) = NumberType.withName(tags(i).value)
 				case _ => 
 					//do nothing
 			}
@@ -122,12 +129,14 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 			var wList = List[String]()
 			var pList = List[String]()
 			var nList = List[Number]()
+			var tList = List[NumberType.Value]()
 			var i:Int = 0
 			while(i < length){
 				if(numbers(i) != null){
 					wList = numbers(i).toString :: wList
 					pList = "CD" :: wList
 					nList = numbers(i) :: nList
+					tList = num_type(i) :: tList
 					(0 until num_len(i)).foreach{ (diff:Int) => 
 						indexMap(i+diff) = wList.length-1
 					}
@@ -136,18 +145,24 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 					wList = words(i) :: wList
 					pList = pos(i) :: pList
 					nList = Int.MinValue :: nList
+					tList = num_type(i) :: tList
 					indexMap(i) = wList.length-1
 					i += 1
 				}
-				this.strings = wList.reverse.toArray
-				this.words = strings.map( str2w(_) ).toArray
-				this.pos   = pList.reverse.map( str2pos(_) ).toArray
-				this.nums  = nList.reverse.map( _.intValue ).toArray
 			}
+			val numTypes:Array[NumberType.Value] = tList.reverse.toArray
+			this.nums  = nList.reverse.map( _.intValue ).toArray
+			this.strings = wList.reverse.toArray
+			this.words = strings.zipWithIndex.map{ case (str:String,i:Int) =>
+				assert(nums(i) == Int.MinValue || numTypes(i) != NumberType.NONE)
+				str2w(str,numTypes(i)) }.toArray
+			this.pos   = pList.reverse.map( str2pos(_) ).toArray
 			indexMap(length) = wList.length-1
 		} else {
 			this.strings = words
-			this.words = strings.map( str2w(_) )
+			this.words = strings.zipWithIndex.map{ case (str:String,i:Int) =>
+				assert(nums(i) == Int.MinValue || num_type(i) != NumberType.NONE)
+				str2w(str,num_type(i)) }.toArray
 			this.pos   = pos.map( str2pos(_) )
 			this.nums  = words.map{ w => Int.MinValue }.toArray
 		}

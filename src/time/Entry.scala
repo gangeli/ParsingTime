@@ -39,7 +39,15 @@ object G {
 	def UNK:Int = W
 	def PUNK:Int = P
 	val NUM:Int = wordIndexer.addAndGetIndex("--NUM--")
-	def NUM(digits:Int) = wordIndexer.addAndGetIndex("--NUM("+digits+")--")
+	def NUM(digits:Int,numType:NumberType.Value) = {
+		val suffix:String = numType match {
+			case NumberType.NONE => "<<?>>"
+			case NumberType.UNIT => "u"
+			case NumberType.NUMBER => ""
+			case NumberType.ORDINAL => "nd"
+		}
+		wordIndexer.addAndGetIndex("--NUM("+digits+")"+suffix+"--")
+	}
 
 }
 
@@ -67,30 +75,37 @@ object U {
 		lst.reverse
 	}
 	
-	private val isNumTerm = """^--NUM(\([0-9]+\))?--$""".r
+	private val isNumTerm = """^--NUM(\([0-9]+\))?.*--$""".r
 	def isNum(w:Int) = {
 		w2str(w) match {
 			case isNumTerm(e) => true
 			case _ => false
 		}
 	}
-	private def mkNum(str:String):Int = {
-		if(O.bucketNumbers){
-			G.NUM(str2int(str).toString.length)
+	private def mkNum(str:String,numType:NumberType.Value):Int = {
+		if(O.todoHacks && numType == NumberType.NONE ){  //TODO fixme
+			mkNum(str,NumberType.NUMBER)
 		} else {
-			G.NUM
+			assert(numType != NumberType.NONE, "NONE number type not allowed: "+str)
+			if(O.bucketNumbers){
+				G.NUM(str2int(str).toString.length,numType)
+			} else {
+				G.NUM
+			}
 		}
 	}
 
 	def w2str(w:Int):String = {
 		if(w < G.W) G.wordIndexer.get(w) else "--UNK--"
 	}
-	def str2w(str:String):Int = {
-		if(isInt(str)) mkNum(str) else G.wordIndexer.addAndGetIndex(str)
+	def str2w(str:String):Int = str2w(str,NumberType.NONE)
+	def str2w(str:String,numType:NumberType.Value):Int = {
+		if(isInt(str)) mkNum(str,numType) else G.wordIndexer.addAndGetIndex(str)
 	}
-	def str2wTest(str:String):Int = {
+	def str2wTest(str:String):Int = str2wTest(str,NumberType.NONE)
+	def str2wTest(str:String,numType:NumberType.Value):Int = {
 		if(isInt(str)){
-			mkNum(str)
+			mkNum(str,numType)
 		} else {
 			val w:Int = G.wordIndexer.indexOf(str)
 			if(w < 0) G.UNK else w
@@ -193,11 +208,13 @@ class Score {
 		}
 	}
 	private var exactRight:Int = 0
+	private var exactRightK:Array[Int] = new Array[Int](O.reportK)
 	private var total:Int = 0
 	private var sumPos = 0
 	private var totalWithPos = 0
 	private var goldMinusGuess = List[(Double,Double)]()
 	private var resultList:List[Result] = List[Result]()
+	private var failedList = List[(Sentence,Temporal,Time)]()
 
 	def releaseResults:Unit = { resultList = List[Result]() }
 	def enter(exact:Boolean,diff:(Duration,Duration), position:Int) = {
@@ -214,10 +231,21 @@ class Score {
 			totalWithPos += 1
 		}
 	}
+	def enterK(topK:Array[Boolean]) = {
+		assert(topK.length <= O.reportK, "Entering too many parses")
+		(0 until exactRightK.length).foreach{ (i:Int) =>
+			val anyOK:Boolean = !topK.slice(0,i+1).forall( !_ )
+			if(anyOK){ exactRightK(i) += 1 }
+		}
+	}
 	def store(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean,t:Timex,
 			ground:Time)={
 		resultList = Result(sent,guess,gold,exact,t,ground) :: resultList
 	}
+	def logFailure(sent:Sentence,gold:Temporal,ground:Time) = {
+		failedList = (sent,gold,ground) :: failedList
+	}
+
 	def accuracy:Double 
 		= exactRight.asInstanceOf[Double]/total.asInstanceOf[Double]
 	def avePos:Double 
@@ -270,6 +298,17 @@ class Score {
 		extFile.close
 	}
 
+	def reportK:String = {
+		"beam quality: " + U.join( exactRightK.map{ (count:Int) =>
+			G.df.format(count.asInstanceOf[Double] / total.asInstanceOf[Double]) 
+		}, "  ")
+	}
+	def reportFailures(y:(String=>Any)):Unit = {
+		failedList.foreach{ case (sent:Sentence,gold:Temporal,ground:Time) =>
+			y(sent.toString + " :: " + gold + " :: " + ground)
+		}
+	}
+
 	override def toString:String = {
 		"accuracy: "+G.df.format(accuracy)+"; average pos: "+G.df.format(avePos)+
 			" (in " + G.pf.format((percentParsable*100)) + "%); score: "+
@@ -307,12 +346,11 @@ trait DataStore {
 		//--Score Parses
 		val scores:Array[ScoreElem] 
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
-			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => {
+			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
 				soFar ::: parse.scoreFrom(gold,grounding).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
 						ScoreElem(i,offset,isExact(diff),diff,prob)
 					}.toList
-			}
 		}.toArray
 		//--Process Score
 		if(scores.length > 0){
@@ -325,7 +363,9 @@ trait DataStore {
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)
+			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
 			score.store(sent,vitterbi,gold,bestGuess.exact,timex,grounding)
+			if(correct.length == 0){ score.logFailure(sent,gold,grounding) }
 			//(feedback)
 			feedback(Feedback(
 				gold, 
@@ -339,6 +379,7 @@ trait DataStore {
 			//(miss)
 			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
 			score.store(sent,vitterbi,gold,false,timex,grounding)
+			score.logFailure(sent,gold,grounding)
 		}
 		vitterbi
 	}
@@ -393,7 +434,7 @@ object SimpleTimexStore {
 				val sent:S = siter.next
 				sent.init(
 					doc,
-					if(collectWords) U.str2w(_) else U.str2wTest(_),
+					if(collectWords) U.str2w(_,_) else U.str2wTest(_,_),
 					if(collectWords) U.str2pos(_) else U.str2posTest(_)
 					)
 				val titer = sent.timexes.iterator

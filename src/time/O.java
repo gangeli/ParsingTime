@@ -88,6 +88,8 @@ public class O {
 	//--DEBUG
 	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")
 	public static boolean todoHacks = false;
+	@Option(name="reportK", gloss="Report parse accuracy on top K parses")
+	public static int reportK = 1;
 	@Option(name="paranoid", gloss="Paranoid correctness checks")
 	public static boolean paranoid = false;
 	@Option(name="useSeed", gloss="Use the same random seed")
@@ -100,6 +102,8 @@ public class O {
 	public static String runDebug = "none";
 	@Option(name="printAllParses", gloss="Print status for all parses")
 	public static boolean printAllParses = false;
+	@Option(name="printFailures", gloss="Print parses which are not in the beam")
+	public static boolean printFailures = false;
 	@Option(name="cacheTemporalComputations", gloss="Cache temporal computations")
 	public static boolean cacheTemporalComputations = true;
 

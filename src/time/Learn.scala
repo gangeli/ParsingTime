@@ -764,7 +764,13 @@ trait StandardParser extends Parser {
 				parse(i, sent, feedback, id)
 			}
 			endIteration(i,feedback,data)
-			log("Score: " + score)
+			log(""+score)
+			log(""+score.reportK)
+			if(O.printFailures){
+				start_track("failures")
+				score.reportFailures{ (str:String) => logG(str) }
+				end_track
+			}
 			if(i != iters){ score.releaseResults } //release some memory
 			end_track
 			score
@@ -1948,7 +1954,7 @@ class CKYParser extends StandardParser{
 				= rulesCounted.foldLeft(0.0){ case (soFar,cnt) => soFar+cnt }
 			val totalRules:Double = rulesCounted.length.asInstanceOf[Double]
 			val rulesBackoff:Double = O.backoffFactor * totalCount / totalRules
-			assert(rulesBackoff >= 0.0 && !rulesBackoff.isNaN, 
+			assert(rulesBackoff > 0.0 && !rulesBackoff.isNaN, 
 				"Bad backoff: " + rulesBackoff)
 			//((free counts -- smoothing))
 			(0 until ruleScores.length).foreach{ (rid:Int) => 
@@ -1974,7 +1980,8 @@ class CKYParser extends StandardParser{
 				headTotalCount(RULES(rid).head.id) += counter.totalCount
 			}
 			val backoffCount:Array[Double] = headTotalCount.map{ (count:Double) =>
-					O.backoffFactor*count / G.W.asInstanceOf[Double] 
+					val backoff:Double = O.backoffFactor*count / G.W.asInstanceOf[Double] 
+					if(backoff == 0.0) 1.0 else backoff
 				}
 			wordsCounted.zipWithIndex.foreach{ case (counter,rid) =>
 				//((free counts -- smoothing))
@@ -1988,7 +1995,7 @@ class CKYParser extends StandardParser{
 				//((new scores))
 				counter.keySet.foreach{ (w:Int) =>
 					if(O.smoothing == O.SmoothingType.backoff){
-						wordScores(rid)(w) = counter.getCount(w)*(1.0-O.backoffFactor)
+						wordScores(rid)(w) += counter.getCount(w)*(1.0-O.backoffFactor)
 					} else {
 						wordScores(rid)(w) += counter.getCount(w)
 					}
@@ -2393,6 +2400,7 @@ class CKYParser extends StandardParser{
 				val totalProb:Double = feedback.correct.foldLeft(0.0){
 						case (soFar:Double,(index:Int,offset:Int,score:Double)) =>
 					assert(!math.exp(scored(index)._3).isNaN, "NaN score")
+					assert(math.exp(scored(index)._3) <= 1.0, "invalid probability")
 					soFar + math.exp(scored(index)._3) }
 				val correctCount:Double = feedback.correct.length.asInstanceOf[Double]
 				//(update)
@@ -2411,7 +2419,7 @@ class CKYParser extends StandardParser{
 						case O.CkyCountNormalization.distribution => {
 							assert(!totalProb.isNaN, "Total Probability is NaN")
 							if(totalProb == 0.0){
-								raw / correctCount
+								1.0 / correctCount
 							} else {
 								raw / totalProb
 							}

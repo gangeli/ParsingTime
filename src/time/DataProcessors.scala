@@ -102,10 +102,12 @@ case class NumberAnnotator[S <: TimeSentence, T <: TimeTag](
 				}
 				//(prepare new annotation)
 				if(num != null){
-					if(t == null) {
-						throw new IllegalStateException("no type for num: " + num) 
-					}
-					current = NAnn(sentPointer,-1,num,t)
+					current = if(t == null) {
+							System.out.println("WARNING: NO TYPE FOR NUM: " + num) //TODO
+							NAnn(sentPointer,-1,num,"NUMBER") //TODO default
+						} else {
+							NAnn(sentPointer,-1,num,t)
+						}
 				}
 				sentPointer += 1
 				numsPointer += 1
@@ -138,9 +140,17 @@ case class NumberAnnotator[S <: TimeSentence, T <: TimeTag](
 				len.did = did
 				len.key = "num_length"
 				len.value = num.len.toString
+				//(type tag)
+				val numType = db.emptyObject(tagClass)
+				numType.wid = num.start+1
+				numType.sid = sent.sid
+				numType.did = did
+				numType.key = "num_type"
+				numType.value = num.t.toString
 				//(save)
 				start.flush
 				len.flush
+				numType.flush
 				println("  flushed " + num)
 			}
 		}
