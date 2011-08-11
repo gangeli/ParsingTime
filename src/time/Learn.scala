@@ -1968,24 +1968,21 @@ class CKYParser extends StandardParser{
 				}
 			}
 			//(lex)
+			//((total counts))
+			val headTotalCount:Array[Double] = new Array[Double](Head.values.size)
 			wordsCounted.zipWithIndex.foreach{ case (counter,rid) =>
-				//((total counts))
-				wordTotalCounts(rid) = counter.totalCount
-				val totalWords:Double = wordScores(rid).length.asInstanceOf[Double]
-				val backoffCount:Double=O.backoffFactor*wordTotalCounts(rid)/totalWords
-				assert(backoffCount >= 0.0 && !backoffCount.isNaN, 
-					"bad backoff: " + backoffCount)
+				headTotalCount(RULES(rid).head.id) += counter.totalCount
+			}
+			val backoffCount:Array[Double] = headTotalCount.map{ (count:Double) =>
+					O.backoffFactor*count / G.W.asInstanceOf[Double] 
+				}
+			wordsCounted.zipWithIndex.foreach{ case (counter,rid) =>
 				//((free counts -- smoothing))
 				(0 until wordScores(rid).length).foreach{ (w:Int) => 
-					if(wordTotalCounts(rid) == 0.0){ //case: lex item is never seen
-						assert(counter.getCount(w) == 0.0, "counter shouldn't have count")
-						wordScores(rid)(w) = 1.0
-					} else {
-						wordScores(rid)(w) = O.smoothing match {
-							case O.SmoothingType.none => 0.0
-							case O.SmoothingType.addOne => O.addOneCount
-							case O.SmoothingType.backoff => backoffCount
-						}
+					wordScores(rid)(w) = O.smoothing match {
+						case O.SmoothingType.none => 0.0
+						case O.SmoothingType.addOne => O.addOneCount
+						case O.SmoothingType.backoff => backoffCount(RULES(rid).head.id)
 					}
 				}
 				//((new scores))

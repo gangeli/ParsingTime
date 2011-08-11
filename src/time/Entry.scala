@@ -321,7 +321,7 @@ trait DataStore {
 			//(is in beam?)
 			val correct = scores.filter{ (elem:ScoreElem) => 
 				assert(elem.prob >= 0.0 && elem.prob <= 1.0, "invalid probability")
-				elem.exact && elem.prob > 0.0}
+				elem.exact }
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)
