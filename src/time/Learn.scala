@@ -265,7 +265,7 @@ object Grammar {
 		
 		//--F[ Range, Range ]
 		val rangeRangeFn = List[((Range,Range)=>Range,String)](
-//			(cons,"cons")
+			(cons,"cons")
 			)
 		rtn = rtn ::: rangeRangeFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
