@@ -3,6 +3,8 @@ package time;
 import org.goobs.exec.Option;
 
 public class O {
+	public static enum Distribution{ point, gaussian }
+
 	//--I/O
 	@Option(name="train", gloss="Training range", required=true)
 	public static org.goobs.utils.Range train;
@@ -38,6 +40,8 @@ public class O {
 	public static enum InitType{ uniform, random }
 	@Option(name="initMethod", gloss="Initialize EM to random/uniform counts")
 	public static InitType initMethod = InitType.uniform;
+	@Option(name="allowPartialTime", gloss="Allow partial time as root")
+	public static boolean allowPartialTime = false;
 	//<CKY / EM>
 	@Option(name="ckyPOSBackoff", gloss="Backoff for CKY from lex to pos terms")
 	public static double ckyPosBackoff = 0.2;
@@ -51,6 +55,10 @@ public class O {
 	@Option(name="ckyCountNormalization",gloss="Normalize EM counts from example")
 	public static CkyCountNormalization ckyCountNormalization 
 		= CkyCountNormalization.none;
+	@Option(name="timeDistribution", gloss="Distribution for ambiguous times")
+	public static Distribution timeDistribution = Distribution.point;
+	@Option(name="timeDistributionParams", gloss="Fix distribution params")
+	public static double[] timeDistributionParams = null;
 
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")
@@ -66,6 +74,8 @@ public class O {
 	public static TagMethod lexTagMethod = TagMethod.PCFG;
 	@Option(name="scoreBeam", gloss="Maximum possible groundings to check")
 	public static int scoreBeam = 1;
+	@Option(name="freeNils", gloss="NIL from a word has probability 1.0 always")
+	public static boolean freeNils = false;
 	//(crf)
 	@Option(name="crfKBest", gloss="Number of tags to use to approx. word dist.")
 	public static int crfKBest = 1000;

@@ -49,17 +49,23 @@ env!(
 			'uniform',
 			'proportional',
 			'distribution'),
-		selo(0,'initMethod','uniform','random'),
+		selo(1,'timeDistribution',
+			'point',
+			'gaussian'),
+#		o('timeDistributionParams','[0,1.0]'),
 		selo(0,'lexTagMethod',
 			'PCFG',
 			'CRF',
 			'GOLD'),
+		selo(0,'initMethod','uniform','random'),
+#		o('freeNils'),
+		o('allowPartialTime'),
 #		o('hardEM'),
 		# <training>
 		o('beam', 100),
-		o('iters', 30),
-		o('maxSearchTime', 10000),
+		o('iters', 20),
 		o('scoreBeam', 5),
+		o('maxSearchTime', 10000),
 		#<params>
 		o('usetime'),
 
@@ -89,12 +95,10 @@ env!(
 		o('train', '1-11'),
 		o('dev', '11-16'),
 
-		o('train', '1-143'), # ENGLISH
-#		o('train', '1-163'), # ENGLISH
-		o('dev', '143-163'), # ENGLISH
+#		o('train', '1-143'),  # ENGLISH
+#		o('dev', '143-163'),  # ENGLISH
+		o('test', '163-183'), # ENGLISH
 
-
-		o('test', '163-183'),
 		o('devTest', true),
 
 		# -- DEBUG --
@@ -104,7 +108,7 @@ env!(
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
 #		o('printAllParses'),
-		o('printFailures'),
+#		o('printFailures'),
 #		o('cacheTemporalComputations',false),
 		o('todoHacks'),
 		o('reportK', 5),

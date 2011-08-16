@@ -12,11 +12,12 @@ import org.goobs.exec.Execution
 import org.goobs.slib.Def
 import org.goobs.slib.JavaNLP._
 
-import edu.stanford.nlp.stats.ClassicCounter;
-import edu.stanford.nlp.stats.TwoDimensionalCounter;
-import edu.stanford.nlp.stats.Counter;
-import edu.stanford.nlp.stats.Counters;
+import edu.stanford.nlp.stats.ClassicCounter
+import edu.stanford.nlp.stats.TwoDimensionalCounter
+import edu.stanford.nlp.stats.Counter
+import edu.stanford.nlp.stats.Counters
 import edu.stanford.nlp.util.CoreMap
+import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ie.crf.CRFClassifier
 import edu.stanford.nlp.sequences.SeqClassifierFlags
 import edu.stanford.nlp.sequences.FeatureFactory
@@ -175,7 +176,8 @@ object Grammar {
 		val sequences = 
 			(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
 			(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
-			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList
+			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList ::: 
+			Nil
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
 			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
 		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
@@ -187,6 +189,9 @@ object Grammar {
 		rtn = rtn ::: List[(Rule,String)](
 			(UnaryRule(Head.Number, Head.Number, hack((num:Int) =>  num )),
 				"NUM"),
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  HOD(num) ))
+				.ensureValidity( (w:Int) => w >= 1 && w <= 24 ),
+				"hod(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOW(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 7 ),
 				"dow(n):S"),
@@ -262,7 +267,8 @@ object Grammar {
 		
 		//--F[ Range, Range ]
 		val rangeRangeFn = List[((Range,Range)=>Range,String)](
-			(intersect,"intersect"),(cons,"cons"))
+//			(cons,"cons")
+			)
 		rtn = rtn ::: rangeRangeFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
 						(fn:((Range,Range)=>Range),
@@ -445,12 +451,13 @@ object Grammar {
 
 		//-ROOT
 		rtn = rtn ::: List[UnaryRule](
-//			UnaryRule(Head.ROOT, Head.Time, hack((t:Range) => t)),
 			UnaryRule(Head.ROOT, Head.Range, hack((r:Range) => r)),
 			UnaryRule(Head.ROOT, Head.Duration, hack((d:Duration) => d)),
-			UnaryRule(Head.ROOT, Head.Sequence, hack((s:Range) => s)), //note: range
-			UnaryRule(Head.ROOT, Head.F_R, hack((fn:Range=>Range) => fn))
-			)
+			UnaryRule(Head.ROOT, Head.Sequence, hack((s:Range) => s)) //note: range
+			) ::: { if(O.allowPartialTime)
+				List[UnaryRule]( 
+					UnaryRule(Head.ROOT, Head.F_R, hack((fn:Range=>Range) => fn))
+				) else List[UnaryRule]() }
 		//--Return
 		rtn.toArray
 	}
@@ -561,6 +568,10 @@ case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	}
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
 	def length:Int = words.length
+	def gloss:String 
+		= U.join( words.zipWithIndex.map{ case (w:Int,i:Int) =>
+			if(U.isNum(w)){ U.w2str(w)+"["+nums(i).toString+"]" }
+			else{ U.w2str(w) } }, " ")
 	override def toString:String = U.sent2str(words)
 }
 case class Feedback(ref:Temporal,grounding:Time,
@@ -854,7 +865,7 @@ object CKYParser {
 			val javaData:java.util.List[java.util.List[CoreMap]] =
 				dataset.map{ case (sent:Sentence,ann:Array[Int]) => 
 					assert(ann.forall{ _.toString.toInt >= 0}, "numbers crashed")
-					annotate( 
+					setAnswers( 
 						sent2coremaps(
 							sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))),
 						ann.map{ _.toString} )
@@ -1787,7 +1798,11 @@ object CKYParser {
 	def lexLogProb(w:Int,pos:Int,rule:CkyRule):Double = {
 		assert(rule.arity == 1, "Lex with binary rule")
 		assert(w < G.W || w == G.UNK, "Word is out of range: " + w)
-		U.safeLn( wordScores(rule.rid)(w) )
+		if(O.freeNils && rule.head == Head.NIL){
+			U.safeLn( 0.1 )
+		} else {
+			U.safeLn( wordScores(rule.rid)(w) )
+		}
 	}
 	def ruleLogProb(rule:CkyRule):Double = {
 		rule.rids.foldLeft(0.0){ (logScore:Double,rid:Int) => 

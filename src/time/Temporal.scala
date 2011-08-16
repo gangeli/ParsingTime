@@ -8,11 +8,15 @@ import scala.collection.mutable.ArrayBuffer
 //------------------------------------------------------------------------------
 trait Temporal {
 	import Temporal.isInt
+	//(get values)
 	def apply[E <: Temporal](offset:Int):Time=>E
 	def prob(offset:Int):Time=>Double
 	def exists(offset:Int):Time=>Boolean = (ground:Time) => (offset == 0)
+	//(learn distribution)
+	def updateE(logprob:Double):Unit = {}
+	def runM:Unit = {}
 
-
+	//(helper functions)
 	final def forwardIterator[E <: Temporal](ground:Time):BufferedIterator[E] = {
 		var rightPointer:Int = 0;
 		new Iterator[E]{
@@ -990,6 +994,8 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 				math.pow((1.0-geomP),math.abs(offset)) * geomP
 			}
 	}
+
+
 	
 	def intersect(range:GroundedRange) = {
 		if(this.bound == null){
@@ -1253,6 +1259,10 @@ object DurationUnit extends Enumeration {
 //------------------------------------------------------------------------------
 object Lex {
 	object LexUtil {
+		def hod(iArg:Int):Time=>Time = (t:Time) => {
+			val i:Int = if(iArg < 0) t.base.getHourOfDay else iArg
+			Time(t.base.withHourOfDay(i).withMinuteOfHour(0).withSecondOfMinute(0))
+		}
 		def dow(iArg:Int):Time=>Time = (t:Time) => {
 			val i:Int = if(iArg < 0) t.base.getDayOfWeek else iArg
 			Time(t.base.withDayOfWeek(i).withMillisOfDay(0))
@@ -1333,6 +1343,10 @@ object Lex {
 	val SAT:Sequence = mkDOW(6)
 	val SUN:Sequence = mkDOW(7)
 	//--OTHER DurationS
+	def HOD(i:Int) = new RepeatedRange(
+		LexUtil.hod(i-1), 
+		Range(Duration(Hours.ONE)), 
+		Duration(Days.ONE))
 	def DOW(i:Int) = new RepeatedRange(
 		LexUtil.dow(i), 
 		Range(Duration(Days.ONE)), 
@@ -1370,7 +1384,7 @@ object Lex {
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
 
 	val YESTERDAY:Range = (REF <<! DAY)
-	val TOMORROW:Range = (REF <<! DAY)
+	val TOMORROW:Range = (REF >>! DAY)
 	
 	//--Functions
 	//(move a range by a duration)
