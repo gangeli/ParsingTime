@@ -1,7 +1,15 @@
 package time
 
-import org.joda.time._
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
+
+import org.joda.time._
+
+import edu.stanford.nlp.stats.ClassicCounter
+import edu.stanford.nlp.stats.Counter
+import edu.stanford.nlp.stats.Counters
+
+import org.goobs.exec.Log._
 
 //------------------------------------------------------------------------------
 // TEMPORAL
@@ -13,7 +21,7 @@ trait Temporal {
 	def prob(offset:Int):Time=>Double
 	def exists(offset:Int):Time=>Boolean = (ground:Time) => (offset == 0)
 	//(learn distribution)
-	def updateE(logprob:Double):Unit = {}
+	def updateE(offset:Int,ground:Time,logprob:Double):Unit = {}
 	def runM:Unit = {}
 
 	//(helper functions)
@@ -887,6 +895,13 @@ trait Sequence extends Range with Duration {
 // ----- REPEATED RANGE -----
 class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		bound:GroundedRange) extends Sequence {
+	import RepeatedRange.{Updater,Distribution}
+	
+	private var updater:Updater = null
+	private var distribution:Distribution = {
+		val (e,m) = getUpdater
+		m(false)
+	}
 
 	def this(snapFn:Time=>Time,base:UngroundedRange,interv:Duration) 
 		= this(snapFn,base,interv,null)
@@ -898,6 +913,39 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 				case _ => throw new IllegalArgumentException("Runtime Type Error")
 			},
 			interv)
+	
+	private def diff(offset:Int,ground:Time):Double = {
+		val grounded:GroundedRange = this.apply(offset)(ground)
+		assert(interv.seconds > 0.0, "Interval is zero or negative: " + interv)
+		assert(!math.abs((ground - grounded.begin)/interv).isNaN, "NaN diff")
+		(grounded.begin - ground)/interv
+	}
+	
+	private def getUpdater:Updater = {
+		//(overhead)
+		import O.Distribution._
+		import O.Scope._
+		def setUpdater(fn:()=>Updater):Updater = {
+			if(this.updater == null) {
+				this.updater = fn()
+			}
+			this.updater
+		}
+		//(routing)
+		O.timeDistribution match {
+			case Point => RepeatedRange.pointUpdater
+			case Multinomial =>
+				O.timeDistributionScope match {
+					case Global => RepeatedRange.multinomialUpdater
+					case Local => setUpdater( () => RepeatedRange.mkMultinomialUpdater )
+				}
+			case Gaussian =>
+				O.timeDistributionScope match {
+					case Global => RepeatedRange.gaussianUpdater
+					case Local => setUpdater( () => RepeatedRange.mkGaussianUpdater )
+				}
+		}
+	}
 	
 	override def exists(offset:Int) = (ground:Time) => {
 		if(bound == null){ true }
@@ -950,51 +998,26 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		}
 	}
 
+
 	override def prob(offset:Int):Time=>Double = {
-		import Sequence._
-		val groundFn:Time=>GroundedRange = this.apply(offset)
-		def diff(offset:Int,ground:Time):Double = {
-			val grounded:GroundedRange = this.apply(offset)(ground)
-			math.abs((ground - grounded.begin)/interv)
+		(ground:Time) => {
+			val cand:Double = this.distribution( offset, diff(offset,ground) )
+//			assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
+			//TODO ^ structured way to handle continuous probabilities?
+			if(cand > 1.0){ 1.0 } else { cand }
 		}
-		(ground:Time) =>
-			//(distribution)
-			if(!this.exists(offset)(ground)){
-				0.0
-			} else if(bound == null){
-				//(calculate norm)
-				val expNorm2Dir:Double = (-4 until 5).foldLeft(0.0){ 
-					case (soFar:Double,o:Int) =>
-					if(exists(o)(ground)) { 
-						soFar + expLambda*math.exp(-expLambda*diff(o,ground)) 
-					} else { 
-						soFar 
-					} }
-				//(take probability)
-				if(math.abs(offset) < 5){
-					expLambda*math.exp(-expLambda*diff(offset,ground)) / expNorm2Dir
-				} else {
-					0.0
-				}
-			} else {
-				//(calculate norm)
-				val expNorm1Dir:Double = (0 until 5).foldLeft(0.0){ 
-					case (soFar:Double,o:Int) =>
-					if(exists(o)(ground)) { 
-						soFar + expLambda*math.exp(-expLambda*diff(o,ground)) 
-					} else { 
-						soFar 
-					} }
-				//(take probability)
-				if(offset >= 0 && offset < 5){
-					expLambda*math.exp(expLambda*diff(offset,ground)) / expNorm1Dir
-				} else {
-					0.0
-				}
-				math.pow((1.0-geomP),math.abs(offset)) * geomP
-			}
 	}
 
+
+	override def updateE(offset:Int,ground:Time,logprob:Double):Unit = {
+		val (e,m) = getUpdater
+		e( offset, diff(offset,ground), logprob )
+	}
+
+	override def runM:Unit = {
+		val (e,m) = getUpdater
+		this.distribution = m(true)
+	}
 
 	
 	def intersect(range:GroundedRange) = {
@@ -1040,9 +1063,103 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 }
 
 // ----- OBJECT SEQUENCE -----
+object RepeatedRange {
+	type Distribution = (Int,Double)=>Double
+	type Updater = ((Int,Double,Double)=>Unit,(Boolean)=>Distribution) 
+
+	def mkGaussianUpdater:Updater = {
+		var data:List[(Double,Double)] = List[(Double,Double)]()
+		var dist:Distribution = null
+		//(updateE)
+		val e = (o:Int,x:Double,logprob:Double) => { 
+			assert(logprob <= 0.0, "Invalid log probability: " + logprob)
+			data = (x,logprob) :: data 
+		}
+		//(runM)
+		val m = (update:Boolean) => {
+			if(update || dist == null){
+				//(parameters)
+				assert(O.timeDistributionParams.length == 2, "Bad gaussian params")
+				val muPrior:Double = O.timeDistributionParams(0)
+				val sigmaPrior:Double = O.timeDistributionParams(1)
+				val mu = data.foldLeft(muPrior){ 
+					case (soFar:Double,(x:Double,logprob:Double)) =>
+						soFar + x //TODO soft EM here
+					} / {if(data.length == 0) 1.0 else data.length.asInstanceOf[Double] }
+				val sigmasq = data.foldLeft(sigmaPrior*sigmaPrior){ 
+						case (soFar:Double,(x:Double,logprob:Double)) =>
+							soFar + (x - mu)*(x - mu) //TODO soft EM here too
+					} / {if(data.length == 0) 1.0 else data.length.asInstanceOf[Double] }
+				assert(sigmasq > 0.0, "Sigma^2 is zero: " + sigmasq)
+				assert(!sigmasq.isNaN, "Sigma^2 is NaN: " + sigmasq)
+				assert(!mu.isNaN, "mu is NaN: " + mu)
+				if(update)
+					{ log("updated; ("+mu+","+math.sqrt(sigmasq)+")") }
+				//(clear data)
+				data = List[(Double,Double)]()
+				//(distribution)
+				dist = (offset:Int,x:Double) => {
+					1.0 / math.sqrt(2.0*math.Pi*sigmasq) * 
+						math.exp( -1.0*(x-mu)*(x-mu) / (2.0*sigmasq) ) //<--value
+				}
+			}
+			dist
+		}
+		//(return)
+		(e,m)
+	}
+	lazy val gaussianUpdater:Updater = mkGaussianUpdater
+
+	def mkMultinomialUpdater:Updater = {
+		var data = new ClassicCounter[Int]()
+		var dist:Distribution = null
+		//(updateE)
+		val e:(Int,Double,Double)=>Unit = (o:Int,x:Double,logprob:Double) => { 
+			assert(logprob <= 0.0, "Invalid log probability: " + logprob)
+			data.incrementCount(o,math.exp(logprob))
+		}
+		//(runM)
+		val m = (update:Boolean) => {
+			if(update || dist == null){
+				//(initialize)
+				if(data.totalCount == 0.0){
+					O.timeDistributionParams.zipWithIndex.foreach{ 
+						case (c:java.lang.Double,i:Int) =>
+							if(i == 0) { data.incrementCount(i,c) }
+							else{ data.incrementCount(i,c); data.incrementCount(-i,c); }
+					}
+				}
+				//(normalize)
+				Counters.normalize(data)
+				val counts:Counter[Int] = data
+				data = new ClassicCounter[Int]()
+				//(distribution)
+				if(update)
+					{ log("updated; argmax="+Counters.argmax(counts)) }
+				dist = (offset:Int,x:Double) => counts.getCount(offset)
+			}
+			dist
+		}
+		//(return)
+		(e,m)
+	}
+	lazy val multinomialUpdater:Updater = mkMultinomialUpdater
+
+	lazy val pointUpdater:Updater = {
+		//(updateE)
+		val e:(Int,Double,Double)=>Unit = (o:Int,x:Double,logprob:Double) => { }
+		//(runM)
+		val m = (update:Boolean) => 
+			{(offset:Int,x:Double) => if(offset == 0){ 1.0 } else { 0.0 }}
+		//(return)
+		(e,m)
+	}
+}
+
 object Sequence {
 	def apply(snapFn:Time=>Time,norm:Duration,interval:Duration)
 		= new RepeatedRange(snapFn,Range(norm),interval)
+
 	val geomP:Double = 0.5
 	val expLambda:Double = 1.0
 

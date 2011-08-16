@@ -5,6 +5,8 @@ require 'execrunner'
 # -- DEPENDENCIES --
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
 JAR='time'
+		
+@timeDistribution = 2
 
 # -- RUN --
 env!( 
@@ -49,10 +51,15 @@ env!(
 			'uniform',
 			'proportional',
 			'distribution'),
-		selo(1,'timeDistribution',
-			'point',
-			'gaussian'),
-#		o('timeDistributionParams','[0,1.0]'),
+		selo(@timeDistribution,'timeDistribution',
+			'Point',
+			'Multinomial',
+			'Gaussian'),
+		selo(@timeDistribution,'timeDistributionParams',
+			'[]',
+			'[1.0,0.5]',
+			'[0.0,1.0]'),
+		selo(1,'timeDistributionScope', 'Global', 'Local'),
 		selo(0,'lexTagMethod',
 			'PCFG',
 			'CRF',

@@ -149,6 +149,24 @@ object Grammar {
 	val MOY_STR = Array[String]("Jan:S","Feb:S","Mar:S","Apr:S","May:S",
 		"Jun:S","Jul:S","Aug:S","Sep:S","Oct:S","Nov:S","Dec:S")
 	val QOY_STR = Array[String]("Q1:S","Q2:S","Q3:S","Q4:S")
+
+	//(ranges)
+	val ranges = List[(Range,String)](
+		(REF,"REF:R"),
+		(TODAY,"TODAY:R"),(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"))
+	//(durations)
+	val durations = 
+		{if(O.useTime) List[(Duration,String)]((SEC,"Sec:D"),(MIN,"Min:D"),
+			(HOUR,"Hour:D")) else List[(Duration,String)]()} :::
+		List[(Duration,String)](
+			(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
+			(AYEAR,"Year:D"))
+	//(sequences)
+	val sequences = 
+		(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
+		(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
+		(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList ::: 
+		Nil
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
@@ -156,28 +174,8 @@ object Grammar {
 			= fn.asInstanceOf[(Any,Any)=>Any]
 		var rtn = List[(Rule,String)]()
 		//--Lex
-//		//(times)
-//		val times = List[(Range,String)]((REF,"REF:T"))
-//		rtn = rtn ::: times.map{ case (t:Range,s:String) => 
-//			(UnaryRule(Head.Time, Head.Word, hack((w:Int) => t)), s) }
-		//(ranges)
-		val ranges = List[(Range,String)](
-			(REF,"REF:R"),
-			(TODAY,"TODAY:R"),(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"))
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
 			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
-		//(durations)
-		val durations = 
-			{if(O.useTime) List[(Duration,String)]((SEC,"Sec:D"),(MIN,"Min:D"),
-				(HOUR,"Hour:D")) else List[(Duration,String)]()} :::
-			List[(Duration,String)](
-				(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
-				(AYEAR,"Year:D"))
-		val sequences = 
-			(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
-			(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
-			(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList ::: 
-			Nil
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
 			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
 		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
@@ -2024,6 +2022,12 @@ class CKYParser extends StandardParser{
 			//(normalize)
 			log("normalizing (M Step)")
 			normalize
+			//(update times)
+			start_track("time (M Step)")
+			ranges.foreach{ case (r:Range,s:String) => r.runM }
+			durations.foreach{ case (d:Duration,s:String) => d.runM }
+			sequences.foreach{ case (d:Duration,s:String) => d.runM }
+			end_track
 		}
 		//--Debug
 		start_track("Iteration Summary")
@@ -2420,6 +2424,8 @@ class CKYParser extends StandardParser{
 				val correctCount:Double = feedback.correct.length.asInstanceOf[Double]
 				//(update)
 				def update(index:Int,offset:Int) = {
+					val (head,temporal,score) = scored(index)
+					val parse = trees(index)
 					//(get raw count)
 					val raw:Double = 
 						if(O.hardEM) 1.0
@@ -2450,9 +2456,9 @@ class CKYParser extends StandardParser{
 							}
 						)
 					//(append guesses)
-					val score = scored(index)._3
-					val parse = trees(index)
 					corrects = GuessInfo(identifier,parse,score,sent) :: corrects
+					//(update time)
+					temporal.updateE(offset,feedback.grounding,U.safeLn(count))
 					//(debug)
 					b.append(Const.SLIDE(
 							id=identifier, correct=true, tree=parse.asParseString(sent),

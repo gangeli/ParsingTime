@@ -3,7 +3,8 @@ package time;
 import org.goobs.exec.Option;
 
 public class O {
-	public static enum Distribution{ point, gaussian }
+	public static enum Distribution{ Point, Multinomial, Gaussian }
+	public static enum Scope{ Global, Local }
 
 	//--I/O
 	@Option(name="train", gloss="Training range", required=true)
@@ -56,9 +57,11 @@ public class O {
 	public static CkyCountNormalization ckyCountNormalization 
 		= CkyCountNormalization.none;
 	@Option(name="timeDistribution", gloss="Distribution for ambiguous times")
-	public static Distribution timeDistribution = Distribution.point;
+	public static Distribution timeDistribution = Distribution.Point;
 	@Option(name="timeDistributionParams", gloss="Fix distribution params")
-	public static double[] timeDistributionParams = null;
+	public static Double[] timeDistributionParams = null;
+	@Option(name="timeDistributionScope", gloss="Fix distribution params")
+	public static Scope timeDistributionScope = Scope.Global;
 
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")
