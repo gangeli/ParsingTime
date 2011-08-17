@@ -279,9 +279,9 @@ class Score {
 			val timex3:String = "timex3"
 			val tNum:String = r.timex.handle
 			val one:String = "1"
-			val typ:String = r.guess.timex3Type(r.ground)
+			val typ:String = r.guess.timex3Type(Range(r.ground,r.ground))
 			val value:String = if(typ.equals("UNK")){ "UNK" }
-			                   else{ r.guess.timex3Value(r.ground) }
+			                   else{ r.guess.timex3Value(Range(r.ground,r.ground)) }
 			
 			def prefix(offset:Int):String
 				= ""+file+"\t"+sent+"\t"+offset+"\t"+timex3+"\t"+tNum
@@ -520,8 +520,9 @@ object ToyData {
 				//(parse)
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
-				handleParse(parses,gold.value(todaysDate),todaysDate,score,s,feedback,
-					null)
+				handleParse(parses,
+					gold.value(Range(todaysDate,todaysDate)),todaysDate,
+					score,s,feedback,null)
 			}
 			score
 		}

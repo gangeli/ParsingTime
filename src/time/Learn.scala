@@ -708,10 +708,10 @@ case class Parse(value:Temporal){
 			//(case: backoffs)
 			case (gold:Range,guess:GroundedRange) => 
 				if(second){ INF }
-				else { diff(gold(ground),guess,true) }
+				else { diff(gold(Range(ground,ground)),guess,true) }
 			case (gold:PartialTime,guess:Temporal) =>
 				if(second){ INF }
-				else { diff(gold(ground),guess,true) }
+				else { diff(gold(Range(ground,ground)),guess,true) }
 			//--Not Valid
 			//(case: didn't catch above)
 			case (gold:Duration,guess:Duration) => throw fail("case: 2 durations")
@@ -723,14 +723,16 @@ case class Parse(value:Temporal){
 			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}
 		//--Map Iterator
-		value.distribution(ground).iterator.map{
+		value.distribution(Range(ground,ground)).iterator.map{
 				case (guess:Temporal,score:Double,offset:Int) =>
 			(diff(gold,guess,false),score,offset)
 		}
 	}
 
 	def ground(ground:Time):Temporal
-		= if(value.exists(0)(ground)) value(0)(ground) else new NoTime
+		= if(value.exists(Range(ground,ground),0)){
+				value(Range(ground,ground),0)
+			} else { new NoTime }
 }
 
 object Parse {
@@ -2430,7 +2432,8 @@ class CKYParser extends StandardParser{
 					val raw:Double = 
 						if(O.hardEM) 1.0
 						else math.exp(scored(index)._3) *
-						     scored(index)._2.prob(offset)(feedback.grounding)
+						     scored(index)._2.prob(
+								 	Range(feedback.grounding,feedback.grounding),offset)
 					assert(raw >= 0.0 && raw <= 1.0, "invalid raw count: " + raw)
 					//(normalize score)
 					val count:Double = O.ckyCountNormalization match {
@@ -2458,7 +2461,7 @@ class CKYParser extends StandardParser{
 					//(append guesses)
 					corrects = GuessInfo(identifier,parse,score,sent) :: corrects
 					//(update time)
-					temporal.updateE(offset,feedback.grounding,U.safeLn(count))
+					temporal.updateE(Range(feedback.grounding,feedback.grounding),offset,U.safeLn(count))
 					//(debug)
 					b.append(Const.SLIDE(
 							id=identifier, correct=true, tree=parse.asParseString(sent),
