@@ -538,11 +538,12 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	override def !(dur:Duration):Range = {
 		new CompositeRange(
 				(ground:GroundedRange,offset:Int) => {
-					val (tFn,grounded) = this.traverse(ground,offset)
+					val (tFn,grounded):(TraverseFn,GroundedRange) 
+						= this.traverse(ground,offset)
 					grounded match {
 						case (gr:GroundedRange) =>
 							(Temporal.fnCat(tFn,(fn:(Temporal,Int)=>Unit) => fn(this,offset)),
-							 gr.asInstanceOf[GroundedRange] ! dur)
+							 gr ! dur)
 						case _ => throw new IllegalArgumentException("Runtime Type Error")
 					}
 				},
@@ -708,7 +709,7 @@ object Range {
 		def mkNext(left:OverlapState,right:OverlapState
 				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
 			val nullVal = (null,null,null)
-			if(left.nextRange==null || right.nextRange==null){
+			if(left.nextVal==null || right.nextVal==null){
 				//(case: an iterator is empty)
 				nullVal
 			} else if(left.nextRange.end <= right.nextRange.begin) {
@@ -997,7 +998,8 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 	private def diff(ground:GroundedRange,offset:Int):Double = {
 		val grounded:GroundedRange = this.apply(ground,offset)
 		assert(interv.seconds > 0.0, "Interval is zero or negative: " + interv)
-		assert(((grounded.begin - ground.begin)/interv).isNaN, "NaN diff")
+		assert(!((grounded.begin - ground.begin)/interv).isNaN, 
+			"NaN diff: " + grounded.begin + " " + ground.begin)
 		(grounded.begin - ground.begin)/interv
 	}
 	
@@ -1402,9 +1404,13 @@ class UnkTime extends NoTime {
 class PartialTime(fn:Range=>Range) extends Temporal {
 	override def traverse[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
 		val resolved:Range = fn(Range(Time.DAWN_OF,Time.END_OF))
-		val (tFn,grounded) = resolved.traverse(ground,offset)
-		assert(grounded.isInstanceOf[GroundedRange], "Ungrounded PartialTime")
-		(Temporal.fnCat(tFn, (fn:(Temporal,Int)=>Unit) => fn(this,offset)),grounded)
+		val (tFn,grounded):(TraverseFn,GroundedRange) 
+			= resolved.traverse(ground,offset)
+		grounded match {
+			case (e:E) =>
+				(Temporal.fnCat(tFn, (fn:(Temporal,Int)=>Unit) => fn(this,offset)),e)
+			case _ => throw new IllegalArgumentException("Runtime Type Error")
+		}
 	}
 	override def prob(ground:GroundedRange,offset:Int):Double
 		= fn(Range(Time.DAWN_OF,Time.END_OF)).prob(ground,offset)
