@@ -9,6 +9,8 @@ import edu.stanford.nlp.stats.ClassicCounter
 import edu.stanford.nlp.stats.Counter
 import edu.stanford.nlp.stats.Counters
 
+import org.apache.commons.math.distribution.NormalDistributionImpl
+
 import org.goobs.exec.Log._
 
 import Temporal.{TraverseFn,TraverseTask}
@@ -113,11 +115,14 @@ trait Temporal {
 		val (feedback,rtn) = evaluate[E](ground,offset)
 		rtn
 	}
-	final def apply(ground:GroundedRange):Temporal = {
+	final def apply[E <: Temporal](ground:GroundedRange):E = {
 		if(this.exists(ground,0)) {
-			apply(ground,0)
+			apply[E](ground,0)
 		} else {
-			new NoTime
+			new NoTime match {
+				case (e:E) => e
+				case _ => throw new IllegalArgumentException("Runtime Type Error")
+			}
 		}
 	}
 	final def apply[E <: Temporal](ground:Time):Temporal
@@ -138,8 +143,10 @@ trait Temporal {
 						if(gr.norm < Lex.DAY){ "TIME" } else { "DATE" }
 					case _ => 
 						r(ground) match {
-							case (nt:NoTime) => "UNK"
-							case (gr:GroundedRange) => getType(gr)
+							case (gr:GroundedRange) => gr match {
+								case (nt:NoTime) => "UNK"
+								case _ => getType(gr)
+							}
 							case _ => 
 								throw new IllegalArgumentException("Unk grounding: "+r(ground))
 						}
@@ -159,9 +166,9 @@ trait Temporal {
 				case (gr:GroundedRange) => 
 					if(gr.begin == ground && gr.norm.seconds == 0){
 						"PRESENT_REF"
-					} else if(gr.begin == Time.DAWN_OF && gr.end != Time.END_OF){
+					} else if((gr.begin eq Time.DAWN_OF) && (gr.end ne Time.END_OF)){
 						"FUTURE_REF"
-					} else if(gr.end == Time.END_OF && gr.begin != Time.DAWN_OF){
+					} else if((gr.end eq Time.END_OF) && (gr.begin ne Time.DAWN_OF)){
 						"PAST_REF"
 					} else {
 						val norm = gr.norm
@@ -275,9 +282,11 @@ trait Range extends Temporal{
 	def >|(diff:Duration):Range //shirnk to right
 	def |<(diff:Duration):Range //shrink to left
 	def !(durr:Duration):Range  //canonicalize
+	def norm:GroundedDuration   //take the norm
 
 	def <<!(dur:Duration):Range = (this << dur) ! dur
 	def >>!(dur:Duration):Range = (this >> dur) ! dur
+
 
 	private def composite[E <: Temporal](
 			str:String,
@@ -348,6 +357,7 @@ trait Range extends Temporal{
 					backward.exists(-offset)
 				}
 			},
+			{if(this.norm < other.norm) this.norm else other.norm} ,
 			List[String]("("+this + ") "+str+" (" + other+")")
 		)
 	}
@@ -387,6 +397,7 @@ class CompositeRange(
 			applyFn:(GroundedRange,Int)=>(TraverseFn,GroundedRange),
 			probFn:(GroundedRange,Int)=>Double,
 			existsFn:(GroundedRange,Int)=>Boolean,
+			theNorm:GroundedDuration,
 			ops:List[String]
 		) extends Sequence {
 	
@@ -403,28 +414,26 @@ class CompositeRange(
 	override def exists(ground:GroundedRange,offset:Int):Boolean = existsFn(ground,offset)
 
 	override def +(diff:Duration):Duration 
-		= extend( (r:GroundedRange) => Range(r.begin,r.end + diff), "+" )
+		= extend((r:GroundedRange) => Range(r.begin,r.end + diff), norm+diff, "+")
 	override def -(diff:Duration):Duration
-		= extend( (r:GroundedRange) => Range(r.begin,r.end - diff), "-" )
+		= extend((r:GroundedRange) => Range(r.begin,r.end - diff), norm-diff, "-")
 	override def *(n:Int):Duration
-		= extend( (r:GroundedRange) => Range(r.begin,r.begin+r.norm*n), "*"+n )
+		= extend((r:GroundedRange) => Range(r.begin,r.begin+r.norm*n),norm*n,"*"+n)
 	//(TODO these should be factored out of Sequence)
-	override def interval:GroundedDuration 
-		= throw new TimeException("Should not be able to call this")
-	override def seconds:Long 
-		= throw new TimeException("Should not be able to call this")
-	override def units:Array[DurationUnit.Value]
-		= throw new TimeException("Should not be able to call this")
+	override def interval:GroundedDuration = norm
+	override def seconds:Long = norm.seconds
+	override def units:Array[DurationUnit.Value] = norm.units
 
-	override def >>(diff:Duration):Range = extend( _ >> diff, ">>" )
-	override def <<(diff:Duration):Range = extend( _ << diff, "<<" )
-	override def |>(diff:Duration):Range = extend( _ |> diff, "|>" )
-	override def <|(diff:Duration):Range = extend( _ <| diff, "<|" )
-	override def >|(diff:Duration):Range = extend( _ >| diff, ">|" )
-	override def |<(diff:Duration):Range = extend( _ |< diff, "|<" )
-	override def !(diff:Duration):Range = extend( _ ! diff, "!" )
+	override def >>(diff:Duration):Range = extend( _ >> diff, norm, ">>" )
+	override def <<(diff:Duration):Range = extend( _ << diff, norm, "<<" )
+	override def |>(diff:Duration):Range = extend( _ |> diff, norm, "|>" )
+	override def <|(diff:Duration):Range = extend( _ <| diff, norm, "<|" )
+	override def >|(diff:Duration):Range = extend( _ >| diff, norm, ">|" )
+	override def |<(diff:Duration):Range = extend( _ |< diff, norm, "|<" )
+	override def !(diff:Duration):Range  = extend( _ !  diff, norm, "!" )
+	override def norm:GroundedDuration = this.theNorm
 
-	private def extend(fn:GroundedRange=>Range, op:String) = {
+	private def extend(fn:GroundedRange=>Range, newNorm:Duration, op:String) = {
 		new CompositeRange( 
 			(ground:GroundedRange,offset:Int) => { 
 				val (tFn,rtn) = this.applyFn(ground,offset)
@@ -432,11 +441,12 @@ class CompositeRange(
 			},
 			(ground:GroundedRange,offset:Int) => this.probFn(ground,offset),
 			(ground:GroundedRange,offset:Int) => this.existsFn(ground,offset),
+			newNorm.interval,
 			op :: this.ops
 		)
 	}
 	
-	override def equals(o:Any):Boolean = this == o
+	override def equals(o:Any):Boolean = this eq o.asInstanceOf[AnyRef]
 	override def toString:String = Temporal.join(ops.toArray, " <- ")
 	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
@@ -511,7 +521,7 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 	}
 
 	
-	def norm:Duration = (end - begin)
+	def norm:GroundedDuration = (end - begin).interval
 
 	override def equals(o:Any):Boolean = o match {
 		case (gr:GroundedRange) => 
@@ -528,8 +538,19 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 		) extends Range{
 	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
 		if(offset == 0){ 
-			new GroundedRange(ground.begin+beginOffset,
-					ground.begin+beginOffset+normVal) match {
+			val gr:GroundedRange = 
+				if(normVal eq Duration.NEG_INFINITE){
+					new GroundedRange(Time.DAWN_OF, ground.begin+beginOffset)
+				} else if(normVal eq Duration.INFINITE){
+					new GroundedRange(ground.begin+beginOffset,Time.END_OF)
+				} else if(normVal.seconds == 0){
+					new GroundedRange(ground.begin+beginOffset,
+						ground.end+beginOffset)
+				} else {
+					new GroundedRange(ground.begin+beginOffset,
+						ground.begin+beginOffset+normVal)
+				}
+			gr match {
 				case (e:E) => ( (fn:TraverseTask) => fn(this,offset,0), e )
 				case _ => throw new IllegalArgumentException("Runtime Type Error")
 			}
@@ -558,7 +579,7 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	override def >|(diff:Duration):Range 
 		= new UngroundedRange(diff,beginOffset+normVal-diff)
 	
-	def norm:Duration = normVal
+	def norm:GroundedDuration = normVal.interval
 	
 	override def !(dur:Duration):Range = {
 		new CompositeRange(
@@ -574,6 +595,7 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 				},
 				this.prob(_:GroundedRange,_:Int),
 				this.exists(_:GroundedRange,_:Int),
+				dur.interval,
 				List[String](this + " ! " + dur)
 			)
 	}
@@ -867,9 +889,17 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 	}
 
 	override def +(diff:Duration):Duration
-		= new GroundedDuration(this.base.toPeriod.plus(diff.interval.base))
-	override def -(diff:Duration):Duration 
-		= new GroundedDuration(base.toPeriod.minus(diff.interval.base))
+		= if(this eq Duration.INFINITE){ Duration.INFINITE }
+		  else if(this eq Duration.NEG_INFINITE){ Duration.NEG_INFINITE }
+		  else if(diff eq Duration.INFINITE){ Duration.INFINITE }
+		  else if(diff eq Duration.NEG_INFINITE){ Duration.NEG_INFINITE }
+		  else { new GroundedDuration(base.toPeriod.plus(diff.interval.base)) }
+	override def -(diff:Duration):Duration
+		= if(this eq Duration.INFINITE){ Duration.INFINITE }
+		  else if(this eq Duration.NEG_INFINITE){ Duration.NEG_INFINITE }
+		  else if(diff eq Duration.INFINITE){ Duration.NEG_INFINITE }
+		  else if(diff eq Duration.NEG_INFINITE){ Duration.INFINITE }
+		  else { new GroundedDuration(base.toPeriod.minus(diff.interval.base)) }
 	override def *(n:Int):Duration = {
 		import DurationUnit._
 		var p = base.toPeriod
@@ -994,7 +1024,7 @@ object Duration {
 // ----- SEQUENCE -----
 trait Sequence extends Range with Duration {
 	override def exists(ground:GroundedRange,offset:Int) = true
-	override def equals(o:Any):Boolean = this == o
+	override def equals(o:Any):Boolean = this eq o.asInstanceOf[AnyRef]
 }
 
 // ----- REPEATED RANGE -----
@@ -1002,8 +1032,8 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		bound:GroundedRange) extends Sequence {
 	import RepeatedRange.{Updater,Distribution}
 
-	private var isSparse:Boolean = false
-	def sparse:RepeatedRange = { this.isSparse = true; this }
+	private var isSparse:Boolean = true
+	def dense:RepeatedRange = { this.isSparse = false; this }
 	private lazy val updater:Updater = {
 		//(overhead)
 		import O.Distribution._
@@ -1105,11 +1135,11 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 
 
 	override def prob(ground:GroundedRange,offset:Int):Double = {
-		if(this.distribution == null){ this.distribution = updater._2(false) }
+		if(this.distribution == null)
+			{ this.distribution = updater._2(this.toString,false) }
 		val cand:Double = this.distribution( offset, diff(ground,offset,0) )
-		//assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
-		//TODO ^ structured way to handle continuous probabilities?
-		if(cand > 1.0){ 1.0 } else { cand }
+		assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
+		cand
 	}
 
 
@@ -1121,14 +1151,12 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
 		if(O.printAllParses){ logG(str) } else { log(str) }
 		assert(!logprob.isNaN, "NaN probability")
-		if(logprob > Double.NegativeInfinity){
-			e( offset-originOffset, diff, logprob )
-		}
+		e( offset-originOffset, diff, logprob )
 	}
 
 	override def runM:Unit = {
 		val (e,m) = updater
-		this.distribution = m(true)
+		this.distribution = m(if(isSparse){"general"}else{this.toString},true)
 	}
 
 	
@@ -1153,8 +1181,8 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		= new RepeatedRange(snapFn, base |< diff, interv)
 	override def >|(diff:Duration):Range 
 		= new RepeatedRange(snapFn, base >| diff, interv)
-
 	override def !(dur:Duration):Range = this
+	override def norm:GroundedDuration = interv.interval
 	
 	override def interval:GroundedDuration = interv.interval
 	override def seconds:Long = interv.seconds
@@ -1168,7 +1196,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 	override def *(n:Int):Duration 
 		= new RepeatedRange(snapFn, base, interv * n)
 	
-	override def equals(o:Any):Boolean = this == o
+	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
 	private var name:String = this.base.toString + " every " + interv
 	def name(n:String):RepeatedRange = {this.name = n; this}
 	override def toString:String = name
@@ -1178,7 +1206,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 // ----- OBJECT SEQUENCE -----
 object RepeatedRange {
 	type Distribution = (Int,Double)=>Double
-	type Updater = ((Int,Double,Double)=>Unit,(Boolean)=>Distribution) 
+	type Updater = ((Int,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
 
 	def mkGaussianUpdater:Updater = {
 		var data:List[(Double,Double)] = List[(Double,Double)]()
@@ -1191,7 +1219,7 @@ object RepeatedRange {
 			seenE = true
 		}
 		//(runM)
-		val m = (update:Boolean) => {
+		val m = (tag:String,update:Boolean) => {
 			if((update && seenE) || dist == null){
 				//(parameters)
 				assert(O.timeDistributionParams.length == 2, "Bad gaussian params")
@@ -1210,14 +1238,20 @@ object RepeatedRange {
 				assert(!mu.isNaN, "mu is NaN: " + mu)
 				//(debug)
 				if(dist != null){
-					log("Normalize to (" + mu + "," + math.sqrt(sigmasq) + ")")
+					val str = "Normalize ["+tag+"] ("+mu+","+math.sqrt(sigmasq)+")"
+					if(O.printAllParses){ logG(str) } else { log(str) }
 				}
 				//(clear data)
 				data = List[(Double,Double)]()
 				//(distribution)
+//				dist = (offset:Int,x:Double) => {
+//					1.0 / math.sqrt(2.0*math.Pi*sigmasq) * 
+//						math.exp( -1.0*(x-mu)*(x-mu) / (2.0*sigmasq) ) //<--value
+//				}
+				val distribImpl = new NormalDistributionImpl(mu,math.sqrt(sigmasq))
 				dist = (offset:Int,x:Double) => {
-					1.0 / math.sqrt(2.0*math.Pi*sigmasq) * 
-						math.exp( -1.0*(x-mu)*(x-mu) / (2.0*sigmasq) ) //<--value
+					distribImpl.cumulativeProbability(x+1.0)-
+					distribImpl.cumulativeProbability(x)               //<--CDF
 				}
 			}
 			seenE = false
@@ -1239,7 +1273,7 @@ object RepeatedRange {
 			seenE = true
 		}
 		//(runM)
-		val m = (update:Boolean) => {
+		val m = (tag:String,update:Boolean) => {
 			if((update && seenE) || dist == null){
 				//(initialize)
 				if(data.totalCount == 0.0){
@@ -1254,12 +1288,14 @@ object RepeatedRange {
 				val counts:Counter[Int] = data
 				data = new ClassicCounter[Int]()
 				//(debug)
-				if(dist != null){ log("Normalize to " + counts) }
+				if(dist != null){
+					val str = "Normalize ["+tag+"] " + counts
+					if(O.printAllParses){ logG(str) } else { log(str) }
+				}
 				//(distribution)
-				if(update)
-					{ log("updated; argmax="+Counters.argmax(counts)) }
 				dist = (offset:Int,x:Double) => counts.getCount(offset)
 			}
+			seenE = false
 			dist
 		}
 		//(return)
@@ -1272,7 +1308,7 @@ object RepeatedRange {
 		//(updateE)
 		val e:(Int,Double,Double)=>Unit = (o:Int,x:Double,logprob:Double) => { }
 		//(runM)
-		val m = (update:Boolean) => 
+		val m = (tag:String,update:Boolean) => 
 			{(offset:Int,x:Double) => if(offset == 0){ 1.0 } else { 0.0 }}
 		//(return)
 		(e,m)
@@ -1361,13 +1397,13 @@ case class Time(base:DateTime) {
 		assert(this.equals(Time.END_OF) || this != Time.END_OF, "eq check")
 		val tM:Long = this.base.toInstant.getMillis
 		val oM:Long = other.base.toInstant.getMillis
-		if(this == Time.DAWN_OF){
+		if(this eq Time.DAWN_OF){
 			//(case: subtracting from neg_infinity)
-			if(other == Time.DAWN_OF){ Duration.ZERO }
+			if(other eq Time.DAWN_OF){ Duration.ZERO }
 			else { Duration.NEG_INFINITE }
-		} else if(this == Time.END_OF){
+		} else if(this eq Time.END_OF){
 			//(case: subtracting from pos_infinity)
-			if(other == Time.END_OF){ Duration.ZERO }
+			if(other eq Time.END_OF){ Duration.ZERO }
 			else { Duration.INFINITE }
 		} else if(oM < 0 && Long.MaxValue + oM < tM){
 			//(case: overflowing a Long)
@@ -1391,6 +1427,24 @@ case class Time(base:DateTime) {
 			}
 		}
 	}
+	
+	def guessRange:GroundedRange = {
+		import Lex._
+		if(second != 0){
+			Range(this,this)
+		} else if(minute != 0){
+			Range(this,this+MIN)
+		} else if(hour != 0){
+			Range(this,this+HOUR)
+		} else if(day != 1){
+			Range(this,this+DAY)
+		} else if((month-1) % 3 != 0){
+			Range(this,this+MONTH)
+		} else {
+			Range(this,this+QUARTER)
+		}
+	}
+
 	override def toString:String = this.base.toString
 }
 
@@ -1577,7 +1631,7 @@ object Lex {
 	private def mkDOW(i:Int) = new RepeatedRange(
 		LexUtil.dow(i), 
 		Range(Duration(Days.ONE)), 
-		Duration(Weeks.ONE))
+		Duration(Weeks.ONE)).dense
 	val MON:Sequence = mkDOW(1)
 	val TUE:Sequence = mkDOW(2)
 	val WED:Sequence = mkDOW(3)
@@ -1589,45 +1643,47 @@ object Lex {
 	def HOD(i:Int) = new RepeatedRange(
 		LexUtil.hod(i-1), 
 		Range(Duration(Hours.ONE)), 
-		Duration(Days.ONE)).sparse.name("HOD("+i+")")
+		Duration(Days.ONE)).name("HOD("+i+")")
 	def DOW(i:Int) = new RepeatedRange(
 		LexUtil.dow(i), 
 		Range(Duration(Days.ONE)), 
-		Duration(Weeks.ONE)).sparse.name("DOW("+i+")")
+		Duration(Weeks.ONE)).name("DOW("+i+")")
 	def DOM(i:Int) = new RepeatedRange(
 		LexUtil.dom(i), 
 		Range(Duration(Days.ONE)), 
-		Duration(Months.ONE)).sparse.name("DOM("+i+")")
+		Duration(Months.ONE)).name("DOM("+i+")")
 	def WOY(i:Int) = new RepeatedRange(
 		LexUtil.woy(i), 
 		Range(Duration(Weeks.ONE)), 
-		Duration(Years.ONE)).sparse.name("WOY("+i+")")
+		Duration(Years.ONE)).name("WOY("+i+")")
 	def MOY(i:Int) = new RepeatedRange(
 		LexUtil.moy(i), 
 		Range(Duration(Months.ONE)), 
-		Duration(Years.ONE)).sparse.name("MOY("+i+")")
+		Duration(Years.ONE)).name("MOY("+i+")")
 	def QOY(i:Int) = new RepeatedRange(
 		LexUtil.qoy(i), 
 		Range(Duration(Months.THREE)), 
-		Duration(Years.ONE)).sparse.name("QOY("+i+")")
+		Duration(Years.ONE)).name("QOY("+i+")")
 	def YOC(i:Int) = new RepeatedRange(
 		LexUtil.yoc(i), 
 		Range(Duration(Years.ONE)), 
-		Duration(Years.years(100))).sparse.name("YOC("+i+")")
+		Duration(Years.years(100))).name("YOC("+i+")")
 	def DOC(i:Int) = new RepeatedRange(
 		LexUtil.yoc(i*10), 
 		Range(Duration(Years.years(10))), 
-		Duration(Years.years(100))).sparse.name("DOC("+i+")")
+		Duration(Years.years(100))).name("DOC("+i+")")
 	def YOD(i:Int) = new RepeatedRange(
 		LexUtil.yod(i), 
 		Range(Duration(Years.ONE)), 
-		Duration(Years.years(10))).sparse.name("YOD("+i+")")
+		Duration(Years.years(10))).name("YOD("+i+")")
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
 
 	val YESTERDAY:Range = (REF <<! DAY)
-	val TOMORROW:Range = (REF >>! DAY)
+	val TOMORROW:Range  = (REF >>! DAY)
+	val FUTURE:Range    = Range(Duration.INFINITE)
+	val PAST:Range      = Range(Duration.NEG_INFINITE)
 	
 	//--Functions
 	//(move a range by a duration)
@@ -1653,6 +1709,8 @@ object Lex {
 
 	//(fuzzify a duration)
 	val fuzzify:(Duration=>Duration) = ~_:Duration
+	//(get norm of a range)
+	val norm:(Range=>Duration) = _.norm
 
 	def todaysDate:Time = Time((new DateTime).withMillisOfDay(0))
 }

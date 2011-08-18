@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
 JAR='time'
 		
-@timeDistribution = 2
+@timeDistribution = 1
 
 # -- RUN --
 env!( 
@@ -14,11 +14,11 @@ env!(
 	'java',
 	# Runtime Options
 	o('cp', 
-		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar"),
+		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar:etc/math.jar"),
 	o('Xrunhprof:cpu=samples'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx2000M'),
+	o('Xmx1000M'),
 	o('ea'),
 	'time.Entry',
 
@@ -66,7 +66,7 @@ env!(
 			'GOLD'),
 		selo(0,'initMethod','uniform','random'),
 #		o('freeNils'),
-		o('allowPartialTime'),
+#		o('allowPartialTime'),
 #		o('hardEM'),
 		# <training>
 		o('beam', 100),
@@ -89,6 +89,7 @@ env!(
 		o('scoreGranularity', 60*60*24),  # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
+#		o('guessRange'),
 #		o('instantAsDay'),
 
 		# -- DATA --
@@ -114,6 +115,7 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
+		o('badTimexes', 'aux/bad.txt'),
 		o('printAllParses'),
 #		o('printFailures'),
 #		o('cacheTemporalComputations',false),

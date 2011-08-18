@@ -28,7 +28,8 @@ import edu.stanford.nlp.sequences.FeatureFactory
 object Head extends Enumeration {
 	type V = Value
 	val ROOT, Word, Number, 
-		Time, Range, Duration, Sequence, F_RR, F_RD, F_R, F_D, NIL = Value
+		Time, Range, Duration, Sequence, 
+		F_RR, F_RD, F_RS, F_R2R, F_R2D, F_D, NIL = Value
 }
 trait Rule {
 	// -- Must Override --
@@ -152,8 +153,11 @@ object Grammar {
 
 	//(ranges)
 	val ranges = List[(Range,String)](
-		(REF,"REF:R"),
-		(TODAY,"TODAY:R"),(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"))
+		(PAST,"PAST:R"),(FUTURE,"FUTURE:R"),
+		(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"),
+		(TODAY,"TODAY:R"),
+		(REF,"REF:R")
+		)
 	//(durations)
 	val durations = 
 		{if(O.useTime) List[(Duration,String)]((SEC,"Sec:D"),(MIN,"Min:D"),
@@ -163,9 +167,9 @@ object Grammar {
 			(AYEAR,"Year:D"))
 	//(sequences)
 	val sequences = 
-		(1 to 7).map( i => (DOW(i).name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
-		(1 to 12).map( i => (MOY(i).name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
-		(1 to 4).map( i => (QOY(i).name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
+		(1 to 7).map(i=>(DOW(i).dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
+		(1 to 12).map(i=>(MOY(i).dense.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
+		(1 to 4).map(i=>(QOY(i).dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
 		Nil
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
@@ -236,31 +240,43 @@ object Grammar {
 						 seqAlso:Boolean)) =>
 				//(intro)
 				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
-					)),str+"$(-:R,-:D):R$") :: soFar
+					)),str+"$(-:R,-:D):R$") :: 
+					{if(seqAlso){
+						(UnaryRule(Head.F_RS, Head.Word, hack((w:Int) => fn
+							)),str+"$(-:R,-:S):R$") :: soFar
+					} else {
+						soFar
+					}}
 			}  ::: {
 				//(right apply)
-				(BinaryRule(Head.F_R, Head.F_RD, Head.Duration, hack2(
+				(BinaryRule(Head.F_R2R, Head.F_RD, Head.Duration, hack2(
 					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
 					)),"$f(-:R,d:D):R$") ::
-				(BinaryRule(Head.F_R, Head.F_RD, Head.Sequence, hack2(
-					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
+				(BinaryRule(Head.F_R2R, Head.F_RS, Head.Sequence, hack2(
+					(fn:(Range,Duration)=>Range,d:Sequence) => fn(_:Range,d)
 					)),"$f(-:R,d:S):R$") ::
 				//(left apply)
-				(BinaryRule(Head.F_R, Head.Duration, Head.F_RD, hack2(
+				(BinaryRule(Head.F_R2R, Head.Duration, Head.F_RD, hack2(
 					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
 					)), "$f(-:R,d:D):R$") :: 
-				(BinaryRule(Head.F_R, Head.Sequence, Head.F_RD, hack2(
-					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
+				(BinaryRule(Head.F_R2R, Head.Sequence, Head.F_RS, hack2(
+					(d:Sequence,fn:(Range,Duration)=>Range) => fn(_:Range,d)
 					)), "$f(-:R,d:S):R$") :: Nil
 			} ::: {
 				//(right apply -- ref augmented)
 				(BinaryRule(Head.Range, Head.F_RD, Head.Duration, hack2(
 					(fn:(Range,Duration)=>Range,d:Duration) => fn(REF,d)
 					)),"$f(ref:R,d:D):R$") ::
+				(BinaryRule(Head.Range, Head.F_RS, Head.Sequence, hack2(
+					(fn:(Range,Duration)=>Range,d:Sequence) => fn(REF,d)
+					)),"$f(ref:R,d:S):R$") ::
 				//(left apply -- ref augmented)
 				(BinaryRule(Head.Range, Head.Duration, Head.F_RD, hack2(
 					(d:Duration,fn:(Range,Duration)=>Range) => fn(REF,d)
-					)), "$f(d:D,ref:R):R$") :: Nil
+					)), "$f(d:D,ref:R):R$") ::
+				(BinaryRule(Head.Range, Head.Sequence, Head.F_RS, hack2(
+					(d:Sequence,fn:(Range,Duration)=>Range) => fn(REF,d)
+					)), "$f(d:S,ref:R):R$") :: Nil
 			}
 		
 		//--F[ Range, Range ]
@@ -276,11 +292,11 @@ object Grammar {
 					)),str+"$(-:R,-:R):R$") :: soFar
 			} ::: {
 				//(right apply)
-				(BinaryRule(Head.F_R, Head.F_RR, Head.Range, hack2(
+				(BinaryRule(Head.F_R2R, Head.F_RR, Head.Range, hack2(
 					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
 					)),"$f(-:R,r:R):R$") ::
 				//(left apply)
-				(BinaryRule(Head.F_R, Head.Range, Head.F_RR, hack2(
+				(BinaryRule(Head.F_R2R, Head.Range, Head.F_RR, hack2(
 					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
 					)), "$f(-:R,r:R):R$") :: Nil
 			} ::: {
@@ -349,7 +365,8 @@ object Grammar {
 						 str:String )) =>
 				//(intro)
 				(UnaryRule(Head.F_D, Head.Word, hack((w:Int) => fn
-					)),str+"$(-:D):D$") ::
+					)),str+"$(-:D):D$") :: soFar
+			} ::: {
 				//(right apply)
 				(BinaryRule(Head.Duration, Head.F_D, Head.Duration, hack2(
 					(fn:Duration=>Duration,d:Duration) => fn(d)
@@ -361,16 +378,35 @@ object Grammar {
 			}
 		
 		//--F[ Range ]
-//		rtn = rtn ::: List[(Rule,String)](
-//			//(right apply)
-//			(BinaryRule(Head.Range, Head.F_R, Head.Range, hack2(
-//				(fn:Range=>Range,r:Range) => fn(r)
-//				)), "$f_{r,r}:R$"),
-//			//(left apply)
-//			(BinaryRule(Head.Range, Head.Range, Head.F_R, hack2(
-//				(r:Range,fn:Range=>Range) => fn(r)
-//				)), "$f_{r,r}:R$")
-//			)
+		val rangeToDurationFn = List[(Range=>Duration,String)](
+				(norm,"fuzzify") 
+			)
+		rtn = rtn ::: rangeToDurationFn.foldLeft(List[(Rule,String)]()){ case 
+					(soFar:List[(Rule,String)],
+						(fn:(Range=>Duration),
+						 str:String )) =>
+				//(intro)
+				(UnaryRule(Head.F_R2D, Head.Word, hack((w:Int) => fn
+					)),str+"$(-:R):D$") :: soFar
+			} ::: {
+				//(right apply)
+				(BinaryRule(Head.Duration, Head.F_R2D, Head.Range, hack2(
+					(fn:Range=>Duration,r:Range) => fn(r)
+					)), "$f_{r}:D$") ::
+				//(left apply)
+				(BinaryRule(Head.Duration, Head.Range, Head.F_R2D, hack2(
+					(r:Range,fn:Range=>Duration) => fn(r)
+					)), "$f_{r}:D$") :: Nil
+			} ::: {
+				//(right apply)
+				(BinaryRule(Head.Range, Head.F_R2R, Head.Range, hack2(
+					(fn:Range=>Range,r:Range) => fn(r)
+					)), "$f_{r}:R$") ::
+				//(left apply)
+				(BinaryRule(Head.Range, Head.Range, Head.F_R2R, hack2(
+					(r:Range,fn:Range=>Range) => fn(r)
+					)), "$f_{r}:R$") :: Nil
+			}
 		
 		//--Type Raises
 //		rtn = rtn ::: List[(Rule,String)]( 
@@ -418,12 +454,18 @@ object Grammar {
 				(n:NIL,s:Sequence) => s
 				)),"$s:S$"),
 			//(f_range)
-			(BinaryRule(Head.F_R, Head.F_R, Head.NIL, hack2( 
+			(BinaryRule(Head.F_R2R, Head.F_R2R, Head.NIL, hack2( 
 				(f:Range=>Range,n:NIL) => f
 				)),"$f(-:R):R$"),
-			(BinaryRule(Head.F_R, Head.NIL, Head.F_R, hack2( 
+			(BinaryRule(Head.F_R2R, Head.NIL, Head.F_R2R, hack2( 
 				(n:NIL,f:Range=>Range) => f
 				)),"$f(-:R):R$"),
+			(BinaryRule(Head.F_R2D, Head.F_R2D, Head.NIL, hack2( 
+				(f:Range=>Duration,n:NIL) => f
+				)),"$f(-:R):D$"),
+			(BinaryRule(Head.F_R2D, Head.NIL, Head.F_R2D, hack2( 
+				(n:NIL,f:Range=>Duration) => f
+				)),"$f(-:R):D$"),
 			//(f_duration)
 			(BinaryRule(Head.F_D, Head.F_D, Head.NIL, hack2( 
 				(f:Duration=>Range,n:NIL) => f
@@ -454,7 +496,7 @@ object Grammar {
 			UnaryRule(Head.ROOT, Head.Sequence, hack((s:Range) => s)) //note: range
 			) ::: { if(O.allowPartialTime)
 				List[UnaryRule]( 
-					UnaryRule(Head.ROOT, Head.F_R, hack((fn:Range=>Range) => fn))
+					UnaryRule(Head.ROOT, Head.F_R2R, hack((fn:Range=>Range) => fn))
 				) else List[UnaryRule]() }
 		//--Return
 		rtn.toArray
@@ -664,7 +706,7 @@ trait ParseTree extends Tree[Head.Value] {
 //-----
 case class Parse(value:Temporal){
 	var tree:String = ""
-	def scoreFrom(gold:Temporal,ground:Time
+	def scoreFrom(gold:Temporal,ground:GroundedRange
 			):Iterator[((Duration,Duration),Double,Int)]={
 		val INF = (Duration.INFINITE,Duration.INFINITE)
 		def diff(gold:Temporal,guess:Temporal,second:Boolean):(Duration,Duration) 
@@ -708,10 +750,10 @@ case class Parse(value:Temporal){
 			//(case: backoffs)
 			case (gold:Range,guess:GroundedRange) => 
 				if(second){ INF }
-				else { diff(gold(Range(ground,ground)),guess,true) }
+				else { val gr:GroundedRange = gold(ground); diff(gr,guess,true) }
 			case (gold:PartialTime,guess:Temporal) =>
 				if(second){ INF }
-				else { diff(gold(Range(ground,ground)),guess,true) }
+				else { val gr:GroundedRange = gold(ground); diff(gr,guess,true) }
 			//--Not Valid
 			//(case: didn't catch above)
 			case (gold:Duration,guess:Duration) => throw fail("case: 2 durations")
@@ -723,12 +765,12 @@ case class Parse(value:Temporal){
 			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}
 		//--Map Iterator
-		value.distribution(Range(ground,ground)).iterator.map{
+		value.distribution(ground).iterator.map{
 				case (guess:Temporal,score:Double,offset:Int) =>
 			(diff(gold,guess,false),score,offset)
 		}
 	}
-
+	
 	def ground(ground:Time):Temporal
 		= if(value.exists(Range(ground,ground),0)){
 				value(Range(ground,ground),0)

@@ -164,6 +164,22 @@ object U {
 	}
 
 	def sigmoid(d:Double):Double = 1.0 / (1.0 + math.exp(-d))
+
+	private lazy val badTimexes:Set[Int] = {
+		import scala.io.Source.fromFile
+		import java.io.File
+		if(O.badTimexes == null || O.badTimexes.equalsIgnoreCase("false")){
+			Set.empty
+		} else {
+			fromFile(new File(O.badTimexes)).getLines
+				.filter{ (str:String) =>
+					!str.trim.equals("") && !str.trim.startsWith("#")}
+				.map{ (str:String) => str.toInt }.toArray.toSet
+		}
+	}
+	def timexOK(tid:Int):Boolean = {
+		!badTimexes.contains(tid)
+	}
 			
 }
 
@@ -212,6 +228,7 @@ class Score {
 	private var total:Int = 0
 	private var sumPos = 0
 	private var totalWithPos = 0
+	private var totalWithNonzeroPos = 0
 	private var goldMinusGuess = List[(Double,Double)]()
 	private var resultList:List[Result] = List[Result]()
 	private var failedList = List[(Sentence,Temporal,Time)]()
@@ -228,6 +245,9 @@ class Score {
 		//(score position)
 		if(position > 0){
 			sumPos += position
+			totalWithNonzeroPos += 1
+		}
+		if(position >= 0){
 			totalWithPos += 1
 		}
 	}
@@ -249,7 +269,7 @@ class Score {
 	def accuracy:Double 
 		= exactRight.asInstanceOf[Double]/total.asInstanceOf[Double]
 	def avePos:Double 
-		= sumPos.asInstanceOf[Double] / totalWithPos.asInstanceOf[Double]
+		= sumPos.asInstanceOf[Double] / totalWithNonzeroPos.asInstanceOf[Double]
 	def percentParsable:Double
 		= (totalWithPos.asInstanceOf[Double] / total.asInstanceOf[Double])
 	def aveScore(
@@ -347,7 +367,10 @@ trait DataStore {
 		val scores:Array[ScoreElem] 
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
 			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
-				soFar ::: parse.scoreFrom(gold,grounding).slice(0,O.scoreBeam)
+				val ground:GroundedRange 
+					= if(O.guessRange){ grounding.guessRange }
+					  else{ Range(grounding,grounding) }
+				soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
 						ScoreElem(i,offset,isExact(diff),diff,prob)
 					}.toList
@@ -385,7 +408,7 @@ trait DataStore {
 	}
 }
 
-class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
+class SimpleTimexStore(timexes:Array[Timex],filter:Boolean) extends DataStore{
 	override def eachExample( 
 			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 		val score:Score = new Score
@@ -396,7 +419,9 @@ class SimpleTimexStore(timexes:Array[Timex]) extends DataStore{
 		var parseTime:Double = 0.0
 		var evalTime:Double = 0.0
 		//(iterate over timexes)
-		timexes.foreach{ (t:Timex) =>
+		timexes
+				.filter{ (t:Timex) => !filter || U.timexOK(t.tid) }
+				.foreach{ (t:Timex) =>
 			assert(t.words.length > 0, "Timex has no words: " + t)
 			//(variables)
 			val sent = Sentence(t.tid,t.words,t.pos,t.nums)
@@ -456,17 +481,17 @@ object SimpleTimexStore {
 				U.accum(
 					timexes[E,D](dataset,O.train.minInclusive,O.train.maxExclusive,
 						_:Timex=>Unit,true), 
-					(x:Timex) => log("[train] " + x) ).toArray),
+					(x:Timex) => log("[train] " + x) ).toArray, true),
 			new SimpleTimexStore(
 				U.accum(
 					timexes[E,D](dataset,O.dev.minInclusive,O.dev.maxExclusive,
 						_:Timex=>Unit,false), 
-					(x:Timex) => log("[dev] " + x) ).toArray),
+					(x:Timex) => log("[dev] " + x) ).toArray, false),
 			new SimpleTimexStore(
 				U.accum(
 					timexes[E,D](dataset,O.test.minInclusive,O.test.maxExclusive,
 						_:Timex=>Unit,false), 
-					(x:Timex) => log("[test] " + x) ).toArray)
+					(x:Timex) => log("[test] " + x) ).toArray, false)
 			)
 		end_track
 		data

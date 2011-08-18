@@ -97,6 +97,8 @@ public class O {
 	public static double c_vagueness = 1.0;
 	@Option(name="instantAsDay", gloss="Treat a [gold] instant as a day")
 	public static boolean instantAsDay = false;
+	@Option(name="guessRange", gloss="Guess reference range")
+	public static boolean guessRange = false;
 	
 	//--DEBUG
 	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")
@@ -111,6 +113,8 @@ public class O {
 	public static int seed = 42;
 	@Option(name="goldTagFile", gloss="File to read Gold lex tags from")
 	public static String goldTagFile = "goldTags";
+	@Option(name="badTimexes", gloss="TIDs of timexes to ignore in training")
+	public static String badTimexes = null;
 	@Option(name="runDebug", gloss="Run a debug program")
 	public static String runDebug = "none";
 	@Option(name="printAllParses", gloss="Print status for all parses")
