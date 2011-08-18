@@ -163,9 +163,9 @@ object Grammar {
 			(AYEAR,"Year:D"))
 	//(sequences)
 	val sequences = 
-		(1 to 7).map( i => (DOW(i),DOW_STR(i-1)) ).toList :::
-		(1 to 12).map( i => (MOY(i),MOY_STR(i-1)) ).toList :::
-		(1 to 4).map( i => (QOY(i),QOY_STR(i-1)) ).toList ::: 
+		(1 to 7).map( i => (DOW(i).name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
+		(1 to 12).map( i => (MOY(i).name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
+		(1 to 4).map( i => (QOY(i).name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
 		Nil
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
@@ -311,7 +311,7 @@ object Grammar {
 				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
 					(a:Sequence,b:Range) => a ^ b
 					)), "inter$(a:S,b:R):R$") ::
-				(BinaryRule(Head.Range, Head.Sequence, Head.Sequence, hack2(
+				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
 					(a:Sequence,b:Sequence) => a ^ b
 					)), "inter$(a:S,b:S):S$") ::
 				//(intersect reverse)
@@ -324,7 +324,7 @@ object Grammar {
 				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
 					(a:Sequence,b:Range) => b ^ a
 					)), "inter$(b:S,a:R):R$") ::
-				(BinaryRule(Head.Range, Head.Sequence, Head.Sequence, hack2(
+				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
 					(a:Sequence,b:Sequence) => b ^ a
 					)), "inter$(b:S,a:S):S$") :: Nil
 			}
@@ -986,6 +986,7 @@ object CKYParser {
 	}
 	private var corrects = List[GuessInfo]()
 	private var guesses = List[GuessInfo]()
+	private var timesToNormalize = List[()=>Any]()
 
 	//(rules)
 	val CKY_UNARY:Array[CkyRule] = CLOSURES.map{ (closure:Closure) =>
@@ -1955,6 +1956,7 @@ class CKYParser extends StandardParser{
 		if(feedback){
 			guesses = List[GuessInfo]()
 			corrects = List[GuessInfo]()
+			timesToNormalize = List[()=>Any]()
 		}
 		end_track
 	}
@@ -1968,7 +1970,9 @@ class CKYParser extends StandardParser{
 			val totalCount:Double
 				= rulesCounted.foldLeft(0.0){ case (soFar,cnt) => soFar+cnt }
 			val totalRules:Double = rulesCounted.length.asInstanceOf[Double]
-			val rulesBackoff:Double = O.backoffFactor * totalCount / totalRules
+			val rulesBackoff:Double = 
+				if(totalCount==0) { 0.000001/totalRules }
+				else { O.backoffFactor * totalCount / totalRules }
 			assert(rulesBackoff > 0.0 && !rulesBackoff.isNaN, 
 				"Bad backoff: " + rulesBackoff)
 			//((free counts -- smoothing))
@@ -2026,6 +2030,7 @@ class CKYParser extends StandardParser{
 			normalize
 			//(update times)
 			start_track("time (M Step)")
+			timesToNormalize.foreach{ (fn:()=>Any) => fn() }
 			ranges.foreach{ case (r:Range,s:String) => r.runM }
 			durations.foreach{ case (d:Duration,s:String) => d.runM }
 			sequences.foreach{ case (d:Duration,s:String) => d.runM }
@@ -2351,6 +2356,7 @@ class CKYParser extends StandardParser{
 
 	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:Int
 			):(Array[Parse],Feedback=>Any)={
+		startTrack("Sentence: " + sent.toString)
 		//--Initial Checks
 		if(O.paranoid){ val (ok,msg) = ensureValidProbabilities; assert(ok,msg) }
 		//--Run Parser
@@ -2364,14 +2370,15 @@ class CKYParser extends StandardParser{
 			assert(trees(0).equals(singleBest(0)), "parse doesn't match single-best")
 		}
 		//(convert to parses)
-		val scored:Array[(Head.Value,Temporal,Double)]=trees.map{ _.evaluate(sent) }
+		val scored:Array[(Head.Value,Temporal,Double)]
+			= trees.map{ _.evaluate(sent) }
 		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
 		parses.zipWithIndex.foreach{ case (p:Parse,i:Int) =>
 			p.tree = trees(i).asParseString(sent)
 		}
 		//(debug)
 		val str = 
-			"Parsed \"" + U.sent2str(sent.words) + "\" ("+parses.length+") as " + 
+			"Guesses: " + 
 			U.join(
 				scored.slice(0,3).map{ case (tag,parse,score) => 
 					""+parse+"["+G.df.format(score)+"]"}, " or ")
@@ -2402,6 +2409,7 @@ class CKYParser extends StandardParser{
 			assert( equivalent, "Inconsistent with algorithm 0: " + message)
 			O.kbestCKYAlgorithm = saveAlg
 		}
+
 		//--Debug (begin)
 		//(presentation)
 		val b = new StringBuilder //debug start
@@ -2412,6 +2420,8 @@ class CKYParser extends StandardParser{
 		//(return)
 		val rtn = (	parses, 
 			(feedback:Feedback) => {
+				log(if(feedback.isCorrect) "correct" 
+				    else "missed ("+feedback.correct.length + " in beam)")
 				//(best guess)
 				val (head,parse,score) = scored(0)
 				val guess = GuessInfo(identifier,trees(0),score,sent).feedback(feedback)
@@ -2424,10 +2434,11 @@ class CKYParser extends StandardParser{
 					assert(math.exp(scored(index)._3) <= 1.0, "invalid probability")
 					soFar + math.exp(scored(index)._3) }
 				val correctCount:Double = feedback.correct.length.asInstanceOf[Double]
-				//(update)
+				//--Update Function
 				def update(index:Int,offset:Int) = {
 					val (head,temporal,score) = scored(index)
 					val parse = trees(index)
+					startTrack("Correct: " + temporal)
 					//(get raw count)
 					val raw:Double = 
 						if(O.hardEM) 1.0
@@ -2461,7 +2472,16 @@ class CKYParser extends StandardParser{
 					//(append guesses)
 					corrects = GuessInfo(identifier,parse,score,sent) :: corrects
 					//(update time)
-					temporal.updateE(Range(feedback.grounding,feedback.grounding),offset,U.safeLn(count))
+					val ground = Range(feedback.grounding,feedback.grounding)
+					timesToNormalize = {() => { temporal.traverse(ground,offset,
+							(term:Temporal,trueOffset:Int,originOffset:Int)=>{
+								term.runM
+							})
+						}} :: timesToNormalize
+					temporal.traverse(ground,offset,
+						(term:Temporal,trueOffset:Int,originOffset:Int) => {
+							term.updateE(ground,trueOffset,originOffset,U.safeLn(count))
+						})
 					//(debug)
 					b.append(Const.SLIDE(
 							id=identifier, correct=true, tree=parse.asParseString(sent),
@@ -2470,8 +2490,11 @@ class CKYParser extends StandardParser{
 								.ground(feedback.grounding).toString,
 							ground=feedback.grounding.toString
 						))
+					//(end)
+					endTrack
 				}
-				//(run update)
+				//--Run Update
+				startTrack("Update")
 				O.ckyCountType match {
 					case O.CkyCountType.all => 
 						//(update every correct parse)
@@ -2497,6 +2520,8 @@ class CKYParser extends StandardParser{
 						if(bestI >= 0){ update(bestI,bestOffset) }
 					case _ => throw fail("Unknown case")
 				}
+				endTrack //end update
+				endTrack //end sentence
 			}
 		)
 		//--Debug (end)
@@ -2508,6 +2533,7 @@ class CKYParser extends StandardParser{
 		writer.write(b.toString)
 		writer.close
 		//--Return
+		if(parses.length == 0){ endTrack } //end sentence (if no feedback)
 		rtn
 	}
 }

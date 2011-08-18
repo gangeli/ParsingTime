@@ -226,7 +226,7 @@ class Score {
 			= (Score.duration2double(diff._1), Score.duration2double(diff._2)) ::
 				goldMinusGuess
 		//(score position)
-		if(position >= 0){
+		if(position > 0){
 			sumPos += position
 			totalWithPos += 1
 		}
@@ -486,6 +486,9 @@ object ToyData {
 	private val lastWeekToday = ("last week today",Parse(REF <<! WEEK))
 	private val lastWeekNow = ("last week now",Parse(REF <<! WEEK))
 	private val lastWeek = ("last week",Parse(REF <<! WEEK))
+	private val pastWeek = ("past week",Parse(REF << WEEK))
+	private val thePastWeek = ("the past week",Parse(REF << WEEK))
+	private val pastMonths2 = ("past 2 months",Parse(REF << (MONTH*2)))
 	private val weeks2 = ("2 week",Parse(WEEK*2))
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(MONTH))
@@ -501,6 +504,8 @@ object ToyData {
 	private val ayear = ("a year",Parse(AYEAR))
 	private val lastYear = ("last year",Parse(REF <<! AYEAR))
 	private val thisYear = ("this year",Parse(REF ! AYEAR))
+	private val monday = ("monday",Parse(DOW(1)(todaysDate,0)))
+	private val friday_neg1 = ("friday",Parse(DOW(1)(todaysDate,-1)))
 
 	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
 		override def eachExample( 
@@ -541,13 +546,27 @@ object ToyData {
 	def STANDARD:Data = {
 		Data(
 			store(
-				today,
-				week,aWeek,thisWeek,month,aMonth,ayear,thisYear,
+			//--Train
+				//(durations)
+				week,aWeek,month,aMonth,ayear,weeks2,
+				//(cannonicals)
+				thisWeek,thisYear,
+				//(shifts -- standard)
 				lastWeek,lastYear,lastQuarter,
-				y1776,y17sp76,april1776,april2,weeks2,
-				april
+				//(shifts -- noncannonical)
+				pastWeek,thePastWeek,pastMonths2,
+				//(numbers -- basic)
+				y1776,
+//				//(numbers -- complex)
+//				y17sp76,
+				//(sequences)
+				april,
+				//(intersects)
+				april1776,april2,
+				//(ref)
+				today
 				).internWords,
-//			store(week).internWords,
+			//--Test
 			store(lastMonth),
 			NONE)
 	}

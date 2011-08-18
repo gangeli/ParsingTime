@@ -118,9 +118,6 @@ plot \"/tmp/data\" using 1:2 title 'Training' with linespoints, \\
 #-----
 # Utilities
 #-----
-function make {
-	/usr/bin/make $@ 2>&1 | color -r -cyan:red:yellow '([^ /]+.scala):([0-9]+): (error:.*)' -red -fatal '([a-z]+|[0-9]+) errors? found' || return 1
-}
 function r {
 	make $@ && ./run
 }
