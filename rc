@@ -70,6 +70,9 @@ function pyerr {
 function v {
 	file=$1
 	last=`ls out | sort -nr | head -n 1`
+	if [ "$2" != "" ]; then
+		last="$2.exec"
+	fi
 	vim out/$last/$file
 }
 

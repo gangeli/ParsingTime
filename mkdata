@@ -15,6 +15,15 @@ if [ "$1" == "tempeval2" ]; then
 elif [ "$1" == "timebank" ]; then
 	cd aux/timebank && ./toPsql.rb . data && cd ../.. &&\
 		java -cp $CP -server -Xmx1000M -ea time.NumberAnnotator timebank
+elif [ "$1" == "gutime" ]; then
+	if [ "$2" == "" ]; then
+		echo "Usage: `basename $0` gutime [annotate_directory]"
+		exit 1
+	fi
+	java -cp $CP -server -Xmx1000M -ea time.TimeAnnotator $2
 else
 	echo "Invalid dataset: $1"
 fi
+
+
+

@@ -379,7 +379,7 @@ object Grammar {
 		
 		//--F[ Range ]
 		val rangeToDurationFn = List[(Range=>Duration,String)](
-				(norm,"fuzzify") 
+				(norm,"norm") 
 			)
 		rtn = rtn ::: rangeToDurationFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
@@ -2522,7 +2522,8 @@ class CKYParser extends StandardParser{
 						}} :: timesToNormalize
 					temporal.traverse(ground,offset,
 						(term:Temporal,trueOffset:Int,originOffset:Int) => {
-							term.updateE(ground,trueOffset,originOffset,U.safeLn(count))
+							term.updateE(ground,trueOffset,originOffset,
+								if(O.hardEM) 0.0 else U.safeLn(count) )
 						})
 					//(debug)
 					b.append(Const.SLIDE(

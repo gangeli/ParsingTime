@@ -15,15 +15,15 @@ object Timebank {
 
 abstract class TimeDocument[A <: TimeSentence] extends org.goobs.testing.Datum{
 	@PrimaryKey(name="fid")
-	private var fid:Int = 0
+	var fid:Int = 0
 	@Key(name="filename")
 	var filename:String = null
 	@Key(name="pub_time")
-	private var pubTime:String = null
+	var pubTime:String = null
 	@Key(name="test")
 	private var test:Boolean = false
 	@Key(name="notes")
-	private var notes:String = null
+	var notes:String = null
 	def sentences:Array[A]
 	
 	def init:Unit = { 
@@ -206,23 +206,23 @@ class Timex extends DatabaseObject with Ordered[Timex]{
 	@PrimaryKey(name="tid")
 	var tid:Int = 0
 	@Key(name="sid")
-	private var sid:Int = 0
+	var sid:Int = 0
 	@Key(name="scope_begin")
 	var scopeBegin:Int = 0
 	@Key(name="scope_end")
 	var scopeEnd:Int = 0
 	@Key(name="type")
-	private var timeType:String = null
+	var timeType:String = null
 	@Key(name="value")
-	private var timeVal:Array[String] = null
+	var timeVal:Array[String] = null
 	@Key(name="original_value")
-	private var originalValue:String = null
+	var originalValue:String = null
 	@Key(name="handle")
 	var handle:String = null
 	@Key(name="gold_span")
 	var goldSpan:Array[String] = null
 	@Key(name="gloss")
-	private var gloss:String = null
+	var gloss:String = null
 
 	private var timeCache:Temporal = null
 	var grounding:Time = null
@@ -419,3 +419,23 @@ class EnglishTimex extends Timex
 
 
 
+//-- NYT GUTIME --
+@Table(name="gutime_nyt_doc")
+class GUTimeNYTDocument extends TimeDocument[GUTimeNYTSentence] {
+	@Child(localField="fid", childField="fid")
+	var sentencesVal:Array[GUTimeNYTSentence] = null
+	override def sentences = sentencesVal
+}
+@Table(name="gutime_nyt_sent")
+class GUTimeNYTSentence extends TimeSentence {
+	@Child(localField="sid", childField="sid")
+	private var tagsVal:Array[GUTimeNYTTag] = null
+	@Child(localField="sid", childField="sid")
+	var timexesVal:Array[GUTimeNYTTimex] = null
+	override def tags = tagsVal
+	override def timexes = timexesVal
+}
+@Table(name="gutime_nyt_tag")
+class GUTimeNYTTag extends TimeTag
+@Table(name="gutime_nyt_timex")
+class GUTimeNYTTimex extends Timex

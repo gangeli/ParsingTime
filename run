@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
 JAR='time'
 		
-@timeDistribution = 1
+@timeDistribution = 2
 
 # -- RUN --
 env!( 
@@ -18,7 +18,7 @@ env!(
 	o('Xrunhprof:cpu=samples'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx1000M'),
+	o('Xmx1500M'),
 	o('ea'),
 	'time.Entry',
 
@@ -40,7 +40,7 @@ env!(
 			'addOne',
 			'backoff'),
 		o('addOneCount', 0.1),
-		o('backoffFactor', 0.1),
+		o('backoffFactor', 0.01),
 		selo(1,'ckyCountType',
 			'all',
 			'bestAll',
@@ -67,7 +67,7 @@ env!(
 		selo(0,'initMethod','uniform','random'),
 #		o('freeNils'),
 #		o('allowPartialTime'),
-#		o('hardEM'),
+		o('hardEM'),
 		# <training>
 		o('beam', 100),
 		o('iters', 20),
@@ -103,8 +103,8 @@ env!(
 		o('train', '1-11'),
 		o('dev', '11-16'),
 
-#		o('train', '1-143'),  # ENGLISH
-#		o('dev', '143-163'),  # ENGLISH
+		o('train', '1-143'),  # ENGLISH
+		o('dev', '143-163'),  # ENGLISH
 		o('test', '163-183'), # ENGLISH
 
 		o('devTest', true),
@@ -115,8 +115,8 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
-		o('badTimexes', 'aux/bad.txt'),
-		o('printAllParses'),
+#		o('badTimexes', 'aux/bad.txt'),
+#		o('printAllParses'),
 #		o('printFailures'),
 #		o('cacheTemporalComputations',false),
 		o('todoHacks'),

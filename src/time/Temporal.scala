@@ -1225,18 +1225,28 @@ object RepeatedRange {
 				assert(O.timeDistributionParams.length == 2, "Bad gaussian params")
 				val muPrior:Double = O.timeDistributionParams(0)
 				val sigmaPrior:Double = O.timeDistributionParams(1)
-				val mu = data.foldLeft(muPrior){ 
-					case (soFar:Double,(x:Double,logprob:Double)) =>
-						soFar + x //TODO soft EM here
-					} / {if(data.length == 0) 1.0 else data.length.asInstanceOf[Double] }
-				val sigmasq = data.foldLeft(sigmaPrior*sigmaPrior){ 
-						case (soFar:Double,(x:Double,logprob:Double)) =>
-							soFar + (x - mu)*(x - mu) //TODO soft EM here too
-					} / {if(data.length == 0) 1.0 else data.length.asInstanceOf[Double] }
+				//((mu))
+				val (muNumer,muDenom) = data.foldLeft((muPrior,0.0)){ 
+					case ((numer:Double,denom:Double),(x:Double,logprob:Double)) =>
+						val prob = math.exp(logprob)
+						val count = if(O.hardEM){ x } else { x*prob }
+						(numer+count, denom+prob)
+					}
+				val mu:Double = if(muDenom == 0){ muPrior } else { muNumer / muDenom }
+				//((sigma))
+				val (sigmaNumer,sigmaDenom)=data.foldLeft((sigmaPrior*sigmaPrior,0.0)){ 
+					case ((numer:Double,denom:Double),(x:Double,logprob:Double)) =>
+						val prob = math.exp(logprob)
+						val count = if(O.hardEM){ 1.0 } else { prob }
+						(numer+count*(x-mu)*(x-mu), denom+count)
+					}
+				val sigmasq:Double
+					= if(sigmaDenom == 0){ sigmaPrior*sigmaPrior } 
+					  else { sigmaNumer / sigmaDenom }
+				//(debug)
 				assert(sigmasq > 0.0, "Sigma^2 is zero: " + sigmasq)
 				assert(!sigmasq.isNaN, "Sigma^2 is NaN: " + sigmasq)
 				assert(!mu.isNaN, "mu is NaN: " + mu)
-				//(debug)
 				if(dist != null){
 					val str = "Normalize ["+tag+"] ("+mu+","+math.sqrt(sigmasq)+")"
 					if(O.printAllParses){ logG(str) } else { log(str) }
