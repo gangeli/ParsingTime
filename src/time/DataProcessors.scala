@@ -442,6 +442,7 @@ object TimeAnnotator {
 		doc.notes="Automatically generated from GUTime"
 		//(flush)
 		doc.flush
+		println("  fid="+doc.fid)
 		//--Annotate
 		//(pre-annotate sentences)
 		val docGloss:String = 
@@ -597,9 +598,9 @@ object TimeAnnotator {
 		//--Process Files
 		val dir = new File(args(0))
 		assert(dir.isDirectory, "Input must be a directory")
-		db.beginTransaction
 		var success:Int = 0
 		var total:Int = 0
+		db.beginTransaction
 		dir.listFiles.foreach{ case (f:File) => 
 			val (fileSuccess,fileTotal) = appendFile(f)
 			success += fileSuccess
@@ -607,6 +608,7 @@ object TimeAnnotator {
 			println("FILE COMPLETE: " + success + " / " + total)
 		}
 		db.endTransaction
+		//--Create Indices
 		//--Print
 		println()
 		println("SUCCESSFULLY PROCESSED: " + success)

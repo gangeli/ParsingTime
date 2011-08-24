@@ -46,8 +46,10 @@ object NumberType extends Enumeration {
 abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 	@PrimaryKey(name="sid")
 	var sid:Int = 0
+	@Index
 	@Key(name="fid")
 	var fid:Int = 0
+	@Index
 	@Key(name="length")
 	var length:Int = 0
 	@Key(name="gloss")
@@ -190,12 +192,16 @@ abstract class TimeSentence extends DatabaseObject with Ordered[TimeSentence]{
 }
 
 class TimeTag extends DatabaseObject{
+	@Index
 	@Key(name="wid")
 	var wid:Int = 0
+	@Index
 	@Key(name="sid")
 	var sid:Int = 0
+	@Index
 	@Key(name="did")
 	var did:Int = 0
+	@Index
 	@Key(name="key")
 	var key:String = null
 	@Key(name="value")
@@ -205,12 +211,16 @@ class TimeTag extends DatabaseObject{
 class Timex extends DatabaseObject with Ordered[Timex]{
 	@PrimaryKey(name="tid")
 	var tid:Int = 0
+	@Index
 	@Key(name="sid")
 	var sid:Int = 0
+	@Index
 	@Key(name="scope_begin")
 	var scopeBegin:Int = 0
+	@Index
 	@Key(name="scope_end")
 	var scopeEnd:Int = 0
+	@Index
 	@Key(name="type")
 	var timeType:String = null
 	@Key(name="value")
