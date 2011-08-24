@@ -341,10 +341,14 @@ object TimeAnnotator {
 	val name = """.*id\="([^"]+)".*""".r
 
 	val pipeline:AnnotationPipeline = {
-			val pipe = new AnnotationPipeline();
-			pipe.addAnnotator(new PTBTokenizerAnnotator(false));
-			pipe.addAnnotator(new WordsToSentencesAnnotator(false));
-			pipe.addAnnotator(new POSTaggerAnnotator(false));
+			val props = new Properties
+			props.setProperty("pos.model",
+				"/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+			props.setProperty("annotators","tokenize, ssplit, pos")
+			val pipe = new StanfordCoreNLP(props);
+//			pipe.addAnnotator(new PTBTokenizerAnnotator(false));
+//			pipe.addAnnotator(new WordsToSentencesAnnotator(false));
+//			pipe.addAnnotator(new POSTaggerAnnotator(false));
 			pipe
 		}
 
