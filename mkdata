@@ -6,12 +6,15 @@ JAVANLP="$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/research/cla
 CP="dist/$JAR.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:$JAVANLP:etc/jdom.jar:etc/joda-time.jar"
 
 if [ "$1" == "tempeval2" ]; then
-	if [ "$2" == "english" ]; then
-		cd aux/tempeval2 && ./toPsql.rb english data && cd ../.. &&\
-			java -cp $CP -server -Xmx1000M -ea time.NumberAnnotator english
+	if [ "$2" == "" ]; then
+		echo "Usage: `basename $0` tempeval2 [annotate_directory] [language]"
+	elif [ "$3" == "" ]; then
+		echo "Usage: `basename $0` tempeval2 [annotate_directory] [language]"
 	else
-		echo "Invalid tempeval2 language: $2"
+		java -cp $CP -server -Xmx1000M -ea time.TempEval2 $2 $3
 	fi
+#		cd aux/tempeval2 && ./toPsql.rb english data && cd ../.. &&\
+#			java -cp $CP -server -Xmx1000M -ea time.NumberAnnotator english
 elif [ "$1" == "timebank" ]; then
 	cd aux/timebank && ./toPsql.rb . data && cd ../.. &&\
 		java -cp $CP -server -Xmx1000M -ea time.NumberAnnotator timebank

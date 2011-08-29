@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileInputStream;
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.HashMap
+import scala.io.Source.fromFile
 
 import edu.stanford.nlp.pipeline._
 import edu.stanford.nlp.ie.NumberNormalizer
@@ -331,6 +333,7 @@ object NumberAnnotator {
 
 //------------------------------------------------------------------------------
 // GUTime Data Processor
+// TODO don't hard code tagger paths
 //------------------------------------------------------------------------------
 
 object TimeAnnotator {
@@ -623,4 +626,98 @@ object TimeAnnotator {
 
 
 
+//------------------------------------------------------------------------------
+// TempEval2 Data Processor
+// TODO don't hard code English
+//------------------------------------------------------------------------------
+object TempEval2 {
+	val did = 30451;
+	val db = Database.fromString(
+		"psql://research@localhost:data<what?why42?").connect
 
+	def main(args:Array[String]) = {
+		//--Setup
+		//(add source)
+		if(db.getFirstObjectWhere(classOf[Source],"did="+did) == null){
+			val source = db.emptyObject(classOf[Source])
+			source.did = did;
+			source.name = "Tempeval2 English"
+			source.notes = ""
+			source.flush
+			println("CREATED SOURCE")
+		} else {
+			println("FOUND SOURCE")
+		}
+		//(delete tables)
+		println("deleting EnglishDocument")
+		db.dropTable(classOf[EnglishDocument])
+		println("deleting EnglishSentence")
+		db.dropTable(classOf[EnglishSentence])
+		println("deleting EnglishTag")
+		db.dropTable(classOf[EnglishTag])
+		println("deleting EnglishTimex")
+		db.dropTable(classOf[EnglishTimex])
+
+		//--Variables
+		//(locations)
+		val dir  = args(0)
+		val lang = args(1)
+		val train     = dir+"/training/"+lang+"/data"
+		val test      = dir+"/test/"+lang+"/key"
+		val baseTrain = train+"/base-segmentation.tab"
+		val baseTest  = test+"/base-segmentation.tab"
+		val dctTrain  = train+"/dct.txt"
+		val dctTest   = dir+"/test/"+lang+"/dct-"+lang.substring(0,2)+".txt"
+		val attrTrain = train+"/timex-attributes.tab"
+		val attrTest  = test+"/timex-attributes.tab"
+		val extTrain  = train+"/timex-extents.tab"
+		val extTest   = test+"/timex-extents.tab"
+		//(regexes)
+		def mkline(n:Int) = {
+			val b = new StringBuilder
+			b.append("""\s*""")
+			(0 until (n-1)).foreach{ (i:Int) => b.append("""([^\s]+)\s+""") }
+			b.append("""([^\s]+)""")
+			b.append("""\s*""")
+			b.toString.r
+		}
+		val Dct = mkline(2)
+		val Base = mkline(4)
+
+		//--Util
+		def eachLine(f:String, fn:String=>Any) =
+			fromFile(new File(f)).getLines.foreach{ case (line:String) => fn(line) }
+
+		//--Documents
+		//(vars)
+		val docs = new HashMap[String,EnglishDocument]
+		//(process)
+		def processDct(line:String,test:Boolean) = {
+			val Dct(name,pubTime) = line
+			val doc = db.emptyObject(classOf[EnglishDocument])
+			doc.filename = name
+			doc.pubTime = (new DateTime(pubTime)).toString
+			doc.test = test
+			doc.notes = ""
+			doc.flush
+			docs(name) = doc
+		}
+		//(read)
+		eachLine(dctTrain, (line:String) => processDct(line,false) )
+		eachLine(dctTest, (line:String) => processDct(line,true) )
+		
+		//--Words
+		val revWords = new HashMap[(String,Int),List[String]]
+		//(process)
+		def processBase(line:String) = {
+			val Base(doc,sid,offset,word) = line
+			val key = (doc,sid.toInt)
+			val wordsSoFar = revWords(key)
+			revWords(key) = word :: {if(wordsSoFar == null) Nil else wordsSoFar}
+		}
+		//(read)
+		eachLine(baseTrain, (line:String) => processBase(line) )
+		eachLine(baseTest,  (line:String) => processBase(line) )
+	
+	}
+}

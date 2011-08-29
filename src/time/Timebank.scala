@@ -21,7 +21,7 @@ abstract class TimeDocument[A <: TimeSentence] extends org.goobs.testing.Datum{
 	@Key(name="pub_time")
 	var pubTime:String = null
 	@Key(name="test")
-	private var test:Boolean = false
+	var test:Boolean = false
 	@Key(name="notes")
 	var notes:String = null
 	def sentences:Array[A]
