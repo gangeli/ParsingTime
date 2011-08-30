@@ -37,6 +37,11 @@ class OriginalTimeTypeAnnotation extends CoreAnnotation[String]{
 class OriginalTimeValueAnnotation extends CoreAnnotation[String]{
 	def getType:Class[String] = classOf[String]
 }
+class OriginalTokensAnnotation 
+		extends CoreAnnotation[java.util.List[CoreLabel]]{
+	def getType:Class[java.util.List[CoreLabel]] 
+		= classOf[java.util.List[CoreLabel]]
+}
 class TimeIdentifierAnnotation extends CoreAnnotation[String]{
 	def getType:Class[String] = classOf[String]
 }

@@ -645,16 +645,40 @@ object DataLib {
 //------------------------------------------------------------------------------
 // TempEval2 Data Processor
 //------------------------------------------------------------------------------
-abstract class TempEval2Task extends Task[DBCoreMap] {
+// -- RETOKENIZE --
+abstract class TempEval2RetokTask extends Task[DBCoreMap] {
+	def retokSent(sent:CoreMap):Unit = {
+		println(sent)
+	}
 	override def perform(d:Dataset[DBCoreMap]):Unit = {
+		val lang = this.language.toString
+		println("RETOKENIZING " + lang)
+		//(for each document)
+		(0 until d.numExamples).foreach{ case (docIndex:Int) =>
+			val map:DBCoreMap = d.get(docIndex)
+			val sents=map.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
+			//(for each sentence)
+			sents.foreach{ case (sent:CoreMap) =>
+				//(retokenize sentence)
+				retokSent(sent)
+			}
+		}
 	}
 	override def dependencies = Array[Class[_ <: Task[_]]]()
+	override def name = "retok"
 	def language:Language.Value
 }
 
+class TempEval2EnglishRetokTask extends TempEval2RetokTask
+	{ override def language:Language.Value = Language.english }
 
+// -- NUMBER NORMALIZE --
+//TODO
+
+
+// -- INITIALIZE --
 object TempEval2Task {
-	val pipeline:StanfordCoreNLP = {
+	lazy val pipeline:StanfordCoreNLP = {
 		val props = new java.util.Properties
 		props.setProperty("annotators","tokenize, ssplit, pos, lemma")
 		props.setProperty("tokenize.whitespace", "true")
@@ -663,6 +687,25 @@ object TempEval2Task {
 	}
 
 	def datasetName(lang:String):String = "tempeval2-"+lang
+
+	def retok(args:Array[String]) = {
+		//(overhead)
+		if(args.length != 1){ 
+			DataProcessor.exit("usage: tempeval2 retok [language]")
+		}
+		val lang = args(0)
+		println("Loading dataset...")
+		val dataset = new CoreMapDataset(datasetName(lang), DataProcessor.db)
+		//(run task)
+		dataset.runAndRegisterTask( new TempEval2EnglishRetokTask )
+	}
+
+	def numbers(args:Array[String]) = {
+		if(args.length != 0){ 
+			DataProcessor.exit("tempeval2 numbers takes no arguments")
+		}
+		DataProcessor.exit("NOT IMPLEMENTED tempeval2 numbers")
+	}
 
 	def init(args:Array[String]) = {
 		//--Overhead
@@ -894,9 +937,11 @@ object DataProcessor {
 
 	def mkTempEval(args:Array[String]) = {
 		println("ANNOTATING TempEval")
-		if(args.length < 1){ exit("No task given") }
+		if(args.length < 1){ exit("No task given (one of [init,retok,numbers] )") }
 		args(0).toLowerCase match {
 			case "init" => TempEval2Task.init(args.slice(1,args.length))
+			case "retok" => TempEval2Task.retok(args.slice(1,args.length))
+			case "numbers" => TempEval2Task.numbers(args.slice(1,args.length))
 			case _ => exit("Unknown task: " + args(0))
 		}
 	}
