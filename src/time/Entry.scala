@@ -285,37 +285,37 @@ class Score {
 	}
 	def results:Array[Result] = resultList.reverse.toArray
 
-	def tempeval(suffix:String):Unit = {
-		import java.io.FileWriter
-		//--Write Files
-		val attrFile = new FileWriter(Execution.touch("attributes-"+suffix+".tab"))
-		val extFile = new FileWriter(Execution.touch("extents-"+suffix+".tab"))
-		results.sortBy( _.timex.tid ).foreach{ (r:Result) => 
-			//(variables)
-			val file:String = r.timex.sentence.document.filename
-			val sent:Int = r.timex.sentence.indexInDocument
-			val beginOffset:Int = r.timex.goldSpan(0).toInt
-			val endOffset:Int = r.timex.goldSpan(1).toInt
-			val timex3:String = "timex3"
-			val tNum:String = r.timex.handle
-			val one:String = "1"
-			val typ:String = r.guess.timex3Type(Range(r.ground,r.ground))
-			val value:String = if(typ.equals("UNK")){ "UNK" }
-			                   else{ r.guess.timex3Value(Range(r.ground,r.ground)) }
-			
-			def prefix(offset:Int):String
-				= ""+file+"\t"+sent+"\t"+offset+"\t"+timex3+"\t"+tNum
-
-			//(attributes)
-			attrFile.write(prefix(beginOffset)+"\t1\ttype\t"+typ+"\n")
-			attrFile.write(prefix(beginOffset)+"\t1\tvalue\t"+value+"\n")
-			//(extents)
-			(beginOffset until endOffset).foreach{ (offset:Int) =>
-				extFile.write(prefix(offset)+"\t1\n")
-			}
-		}
-		attrFile.close
-		extFile.close
+	def tempeval(suffix:String):Unit = { //TODO
+//		import java.io.FileWriter
+//		//--Write Files
+//		val attrFile = new FileWriter(Execution.touch("attributes-"+suffix+".tab"))
+//		val extFile = new FileWriter(Execution.touch("extents-"+suffix+".tab"))
+//		results.sortBy( _.timex.tid ).foreach{ (r:Result) => 
+//			//(variables)
+//			val file:String = r.timex.sentence.document.filename
+//			val sent:Int = r.timex.sentence.indexInDocument
+//			val beginOffset:Int = r.timex.goldSpan(0).toInt
+//			val endOffset:Int = r.timex.goldSpan(1).toInt
+//			val timex3:String = "timex3"
+//			val tNum:String = r.timex.handle
+//			val one:String = "1"
+//			val typ:String = r.guess.timex3Type(Range(r.ground,r.ground))
+//			val value:String = if(typ.equals("UNK")){ "UNK" }
+//			                   else{ r.guess.timex3Value(Range(r.ground,r.ground)) }
+//			
+//			def prefix(offset:Int):String
+//				= ""+file+"\t"+sent+"\t"+offset+"\t"+timex3+"\t"+tNum
+//
+//			//(attributes)
+//			attrFile.write(prefix(beginOffset)+"\t1\ttype\t"+typ+"\n")
+//			attrFile.write(prefix(beginOffset)+"\t1\tvalue\t"+value+"\n")
+//			//(extents)
+//			(beginOffset until endOffset).foreach{ (offset:Int) =>
+//				extFile.write(prefix(offset)+"\t1\n")
+//			}
+//		}
+//		attrFile.close
+//		extFile.close
 	}
 
 	def reportK:String = {
@@ -442,56 +442,23 @@ class SimpleTimexStore(timexes:Array[Timex],filter:Boolean) extends DataStore{
 }
 
 object SimpleTimexStore {
-	def docs[S<:TimeSentence,E <: TimeDocument[S]](dataset:Dataset[E],
-			begin:Int,end:Int,fn:E=>Unit):Unit = {
-		val iter = dataset.slice(begin,end).iterator
-		while(iter.hasNext){
-			val doc = iter.next
-			doc.init
-			fn(doc)
-		}
-	}
-	def timexes[S<:TimeSentence,E <: TimeDocument[S]](dataset:Dataset[E],
-			begin:Int,end:Int,fn:Timex=>Unit,collectWords:Boolean):Unit = {
-		docs[S,E](dataset,begin,end, (doc:E) => {
-			val siter = doc.sentences.iterator
-			while(siter.hasNext){
-				val sent:S = siter.next
-				sent.init(
-					doc,
-					if(collectWords) U.str2w(_,_) else U.str2wTest(_,_),
-					if(collectWords) U.str2pos(_) else U.str2posTest(_)
-					)
-				val titer = sent.timexes.iterator
-				while(titer.hasNext){
-					fn(titer.next.ground(doc.grounding).setWords(sent))
-				}
-			}
-		})
-	}
-
-	def apply[E <: TimeSentence,D<:TimeDocument[E]](dataset:Dataset[D]):Data = {
-		//--Process Timexes
+	def apply(dataset:TimeDataset):Data = {
 		start_track("Loading Timexes")
+		//(log)
 		logG("* train: " + O.train)
 		logG({if(O.devTest) "*" else " "} + "   dev: " + O.dev)
 		logG({if(!O.devTest) "*" else " "} + "  test: " + O.test)
+		//(get timexes)
+		val timexes = dataset.timexes
+		//(make data)
+		log("creating data")
 		val data = Data(
 			new SimpleTimexStore(
-				U.accum(
-					timexes[E,D](dataset,O.train.minInclusive,O.train.maxExclusive,
-						_:Timex=>Unit,true), 
-					(x:Timex) => log("[train] " + x) ).toArray, true),
+				timexes.slice(O.train.minInclusive,O.train.maxExclusive),true),
 			new SimpleTimexStore(
-				U.accum(
-					timexes[E,D](dataset,O.dev.minInclusive,O.dev.maxExclusive,
-						_:Timex=>Unit,false), 
-					(x:Timex) => log("[dev] " + x) ).toArray, false),
+				timexes.slice(O.dev.minInclusive,O.dev.maxExclusive),false),
 			new SimpleTimexStore(
-				U.accum(
-					timexes[E,D](dataset,O.test.minInclusive,O.test.maxExclusive,
-						_:Timex=>Unit,false), 
-					(x:Timex) => log("[test] " + x) ).toArray, false)
+				timexes.slice(O.test.minInclusive,O.test.maxExclusive),false)
 			)
 		end_track
 		data
@@ -623,11 +590,12 @@ class Entry {
 				end_track
 				data
 			case O.DataSource.Timebank =>
-				SimpleTimexStore[TimebankSentence,TimebankDocument](
-					Execution.getDataset(classOf[TimebankDocument]))
+				SimpleTimexStore(
+					new TimeDataset(Execution.getDataset(TimeDataset.timebank)))
 			case O.DataSource.English => 
-				SimpleTimexStore[EnglishSentence,EnglishDocument](
-					Execution.getDataset(classOf[EnglishDocument]))
+				SimpleTimexStore(
+					new TimeDataset(
+						Execution.getDataset(TimeDataset.tempeval2(Language.english))))
 			case _ => throw fail("Data source not implemented: " + this.data)
 		}
 		//--Create Parser

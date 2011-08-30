@@ -2,9 +2,11 @@ package time
 
 import java.util.Properties;
 import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.{List => JList};
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.StringReader;
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashMap
@@ -13,15 +15,23 @@ import scala.io.Source.fromFile
 import edu.stanford.nlp.pipeline._
 import edu.stanford.nlp.ie.NumberNormalizer
 import edu.stanford.nlp.pipeline.StanfordCoreNLP
+import edu.stanford.nlp.pipeline.PTBTokenizerAnnotator
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.ling._
 import edu.stanford.nlp.util._
 import edu.stanford.nlp.time.{Timex => StanfordTimex}
 import edu.stanford.nlp.time.GUTimeAnnotator
 import edu.stanford.nlp.tagger.maxent.MaxentTagger
+import edu.stanford.nlp.process.PTBTokenizer
+import edu.stanford.nlp.process.CoreLabelTokenFactory
 
 import org.goobs.database._
-import org.goobs.slib.JavaNLP._
+import org.goobs.testing.Dataset
+import org.goobs.testing.Datum
+import org.goobs.stanford.JavaNLP._
+import org.goobs.stanford.Task
+import org.goobs.stanford.DBCoreMap
+import org.goobs.stanford.CoreMapDataset
 
 import org.joda.time._
 
@@ -43,6 +53,8 @@ object DataLib {
 	val Year = """^([0-9]{2,4})$""".r
 	val YearMonth = """^([0-9]{4})-?([0-9]{2})$""".r
 	val YearMonthDay = """^([0-9]{4})-?([0-9]{2})-?([0-9]{2})$""".r
+	val YearMonthDayHour = 
+		"""^([0-9]{4})-?([0-9]{2})-?([0-9]{2})T?([0-9]{1,2})?$""".r
 	val YearMonthDayTime = 
 		"""^([0-9]{4})-?([0-9]{2})-?([0-9]{2})T?(MO|AF|EV|NI)?$""".r
 	val YearWeekWE = """^([0-9]{4})-?W([0-9]{2})-?(WE)?$""".r
@@ -74,6 +86,10 @@ object DataLib {
 			case YearMonthDay(year,month,day) => 
 				val base = new DateTime(year.toInt,month.toInt,day.toInt,0,0,0,0)
 				(base, base.plusDays(1))
+			case YearMonthDayHour(year,month,day,hour) => 
+				val base = 
+					new DateTime(year.toInt,month.toInt,day.toInt,hour.toInt-1,0,0,0)
+				(base, base.plusHours(1))
 			case YearMonthDayTime(year,month,day,time) => 
 				val base = time match {
 					case "MO" => new DateTime(year.toInt,month.toInt,day.toInt,8,0,0,0)
@@ -176,159 +192,159 @@ object DataLib {
 }
 
 
-//------------------------------------------------------------------------------
-// NUMBER ANNOTATOR
-//------------------------------------------------------------------------------
-case class NumberAnnotator[S <: TimeSentence, T <: TimeTag](
-		sentClass:Class[S], tagClass:Class[T]) {
-	val did = 30452;
-	case class NAnn(start:Int,var len:Int,num:Number,t:String)
-
-	def run = {
-		//--Setup
-		//(database)
-		val db = Database.fromString(
-			"psql://research@localhost:data<what?why42?").connect
-		val sentences = db.getObjects(sentClass,
-			"SELECT * FROM "+Database.getTableName(sentClass))
-		//(javanlp pipeline)
-		val props = new Properties
-		props.setProperty("annotators","tokenize, ssplit, pos, lemma")
-		val pipeline = new StanfordCoreNLP(props)
-		//--Prepare
-		if(db.getFirstObjectWhere(classOf[Source],"did="+did) == null){
-			val source = db.emptyObject(classOf[Source])
-			source.did = did;
-			source.name = "Number Annotation for Time Data"
-			source.notes = ""
-			source.flush
-			println("CREATED SOURCE")
-		} else {
-			println("FOUND SOURCE")
-		}
-		val delCount = db.deleteObjectsWhere(tagClass, "did='"+did+"'")
-		println("DELETED " + delCount + " tags")
-		//--Modify
-		sentences.foreach{ (sent:S) => 
-			var numbers = List[NAnn]()
-			try{ //TODO get rid of me
-			//(annotate)
-			val (words,pos) = sent.bootstrap
-			println("-----")
-			val glossText = sent.gloss.replaceAll("/"," / ")
-				.replaceAll("""-"""," - ").replaceAll("""\s+"""," ")
-			println(glossText)
-			val input:Annotation = new Annotation(glossText)
-			pipeline.annotate(input)
-			val nums = NumberNormalizer.findAndMergeNumbers(input);
-			val tokens = input.get[JList[CoreLabel],TokensAnnotation](
-				classOf[TokensAnnotation])
-			if(tokens.size != words.length){
-				println(U.join(tokens.map{ x => x.word }.toArray,"_"))
-				throw new IllegalStateException("Length mismatch: " +
-					tokens.size + " versus " + words.length + " sent " + sent.sid);
-			}
-			//(collect numbers: vars)
-			var sentPointer = 0
-			var numsPointer = 0
-			var current:NAnn = null
-			//(collect numbers: algorithm)
-			while(sentPointer < words.length && numsPointer < nums.size) {
-				//(sync positions)
-				val term = nums(numsPointer)
-				val word = term.get[String,TextAnnotation](classOf[TextAnnotation])
-				//(get number)
-				val num = term.get[Number,NumericCompositeValueAnnotation](
-					classOf[NumericCompositeValueAnnotation])
-				var t = term.get[String,NumericCompositeTypeAnnotation](
-					classOf[NumericCompositeTypeAnnotation])
-				//(add any last annotation)
-				if(current != null){
-					while(!words(sentPointer).equals(word)){
-						sentPointer += 1
-						if(sentPointer >= sent.length){ 
-							throw new IllegalStateException(
-								"unbound on " + current + " waiting for '" + word + "'") 
-						}
-					}
-					current.len = sentPointer - current.start
-					numbers = current :: numbers
-					current = null
-				}
-				//(prepare new annotation)
-				if(num != null){
-					current = if(t == null) {
-							System.out.println("WARNING: NO TYPE FOR NUM: " + num) //TODO
-							NAnn(sentPointer,-1,num,"NUMBER") //TODO default
-						} else {
-							NAnn(sentPointer,-1,num,t)
-						}
-				}
-				sentPointer += 1
-				numsPointer += 1
-			}
-			//(add any dangling annotations)
-			if(current != null){
-				current.len = sentPointer - current.start
-				numbers = current :: numbers
-				current = null
-			}
-			} catch { //TODO get rid of me
-				case (e:Exception) => {
-					println("TODO: CAUGHT EXCEPTION " + e)
-					e.printStackTrace()
-				}
-			}
-			//(save to database)
-			numbers.foreach{ (num:NAnn) => 
-				//(value tag)
-				val start = db.emptyObject(tagClass)
-				start.wid = num.start+1
-				start.sid = sent.sid
-				start.did = did
-				start.key = "num"
-				start.value = num.num.toString
-				//(length tag)
-				val len = db.emptyObject(tagClass)
-				len.wid = num.start+1
-				len.sid = sent.sid
-				len.did = did
-				len.key = "num_length"
-				len.value = num.len.toString
-				//(type tag)
-				val numType = db.emptyObject(tagClass)
-				numType.wid = num.start+1
-				numType.sid = sent.sid
-				numType.did = did
-				numType.key = "num_type"
-				numType.value = num.t.toString
-				//(save)
-				start.flush
-				len.flush
-				numType.flush
-				println("  flushed " + num)
-			}
-		}
-	}
-}
-
-object NumberAnnotator {
-	def main(args:Array[String]) = {
-		if(args.length != 1){
-			System.err.println("usage: NumberAnnotator language")
-			System.exit(1)
-		}
-		args(0).toLowerCase match {
-		case "timebank" => 
-			(new NumberAnnotator(classOf[TimebankSentence],classOf[TimebankTag])).run
-		case "english" => 
-			(new NumberAnnotator(classOf[EnglishSentence],classOf[EnglishTag])).run
-		case _ =>
-			System.err.println("Unknown language: " + args(0))
-			System.exit(1)
-		}
-	}
-}
+////------------------------------------------------------------------------------
+//// NUMBER ANNOTATOR
+////------------------------------------------------------------------------------
+//case class NumberAnnotator[S <: TimeSentence, T <: TimeTag](
+//		sentClass:Class[S], tagClass:Class[T]) {
+//	val did = 30452;
+//	case class NAnn(start:Int,var len:Int,num:Number,t:String)
+//
+//	def run = {
+//		//--Setup
+//		//(database)
+//		val db = Database.fromString(
+//			"psql://research@localhost:data<what?why42?").connect
+//		val sentences = db.getObjects(sentClass,
+//			"SELECT * FROM "+Database.getTableName(sentClass))
+//		//(javanlp pipeline)
+//		val props = new Properties
+//		props.setProperty("annotators","tokenize, ssplit, pos, lemma")
+//		val pipeline = new StanfordCoreNLP(props)
+//		//--Prepare
+//		if(db.getFirstObjectWhere(classOf[Source],"did="+did) == null){
+//			val source = db.emptyObject(classOf[Source])
+//			source.did = did;
+//			source.name = "Number Annotation for Time Data"
+//			source.notes = ""
+//			source.flush
+//			println("CREATED SOURCE")
+//		} else {
+//			println("FOUND SOURCE")
+//		}
+//		val delCount = db.deleteObjectsWhere(tagClass, "did='"+did+"'")
+//		println("DELETED " + delCount + " tags")
+//		//--Modify
+//		sentences.foreach{ (sent:S) => 
+//			var numbers = List[NAnn]()
+//			try{ //TODO get rid of me
+//			//(annotate)
+//			val (words,pos) = sent.bootstrap
+//			println("-----")
+//			val glossText = sent.gloss.replaceAll("/"," / ")
+//				.replaceAll("""-"""," - ").replaceAll("""\s+"""," ")
+//			println(glossText)
+//			val input:Annotation = new Annotation(glossText)
+//			pipeline.annotate(input)
+//			val nums = NumberNormalizer.findAndMergeNumbers(input);
+//			val tokens = input.get[JList[CoreLabel],TokensAnnotation](
+//				classOf[TokensAnnotation])
+//			if(tokens.size != words.length){
+//				println(U.join(tokens.map{ x => x.word }.toArray,"_"))
+//				throw new IllegalStateException("Length mismatch: " +
+//					tokens.size + " versus " + words.length + " sent " + sent.sid);
+//			}
+//			//(collect numbers: vars)
+//			var sentPointer = 0
+//			var numsPointer = 0
+//			var current:NAnn = null
+//			//(collect numbers: algorithm)
+//			while(sentPointer < words.length && numsPointer < nums.size) {
+//				//(sync positions)
+//				val term = nums(numsPointer)
+//				val word = term.get[String,TextAnnotation](classOf[TextAnnotation])
+//				//(get number)
+//				val num = term.get[Number,NumericCompositeValueAnnotation](
+//					classOf[NumericCompositeValueAnnotation])
+//				var t = term.get[String,NumericCompositeTypeAnnotation](
+//					classOf[NumericCompositeTypeAnnotation])
+//				//(add any last annotation)
+//				if(current != null){
+//					while(!words(sentPointer).equals(word)){
+//						sentPointer += 1
+//						if(sentPointer >= sent.length){ 
+//							throw new IllegalStateException(
+//								"unbound on " + current + " waiting for '" + word + "'") 
+//						}
+//					}
+//					current.len = sentPointer - current.start
+//					numbers = current :: numbers
+//					current = null
+//				}
+//				//(prepare new annotation)
+//				if(num != null){
+//					current = if(t == null) {
+//							System.out.println("WARNING: NO TYPE FOR NUM: " + num) //TODO
+//							NAnn(sentPointer,-1,num,"NUMBER") //TODO default
+//						} else {
+//							NAnn(sentPointer,-1,num,t)
+//						}
+//				}
+//				sentPointer += 1
+//				numsPointer += 1
+//			}
+//			//(add any dangling annotations)
+//			if(current != null){
+//				current.len = sentPointer - current.start
+//				numbers = current :: numbers
+//				current = null
+//			}
+//			} catch { //TODO get rid of me
+//				case (e:Exception) => {
+//					println("TODO: CAUGHT EXCEPTION " + e)
+//					e.printStackTrace()
+//				}
+//			}
+//			//(save to database)
+//			numbers.foreach{ (num:NAnn) => 
+//				//(value tag)
+//				val start = db.emptyObject(tagClass)
+//				start.wid = num.start+1
+//				start.sid = sent.sid
+//				start.did = did
+//				start.key = "num"
+//				start.value = num.num.toString
+//				//(length tag)
+//				val len = db.emptyObject(tagClass)
+//				len.wid = num.start+1
+//				len.sid = sent.sid
+//				len.did = did
+//				len.key = "num_length"
+//				len.value = num.len.toString
+//				//(type tag)
+//				val numType = db.emptyObject(tagClass)
+//				numType.wid = num.start+1
+//				numType.sid = sent.sid
+//				numType.did = did
+//				numType.key = "num_type"
+//				numType.value = num.t.toString
+//				//(save)
+//				start.flush
+//				len.flush
+//				numType.flush
+//				println("  flushed " + num)
+//			}
+//		}
+//	}
+//}
+//
+//object NumberAnnotator {
+//	def main(args:Array[String]) = {
+//		if(args.length != 1){
+//			System.err.println("usage: NumberAnnotator language")
+//			System.exit(1)
+//		}
+//		args(0).toLowerCase match {
+//		case "timebank" => 
+//			(new NumberAnnotator(classOf[TimebankSentence],classOf[TimebankTag])).run
+//		case "english" => 
+//			(new NumberAnnotator(classOf[EnglishSentence],classOf[EnglishTag])).run
+//		case _ =>
+//			System.err.println("Unknown language: " + args(0))
+//			System.exit(1)
+//		}
+//	}
+//}
 
 
 //------------------------------------------------------------------------------
@@ -336,328 +352,325 @@ object NumberAnnotator {
 // TODO don't hard code tagger paths
 //------------------------------------------------------------------------------
 
-object TimeAnnotator {
-	val db = Database.fromString(
-		"psql://research@localhost:data<what?why42?").connect
-	val did = 30453;
-	val date = """.*id\="[^0-9]+([0-9]{4})([0-9]{2})([0-9]{2})\.[0-9]+".*""".r
-	val name = """.*id\="([^"]+)".*""".r
-
-	val pipeline:AnnotationPipeline = {
-			val props = new Properties
-			props.setProperty("pos.model",
-				"/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger")
-			props.setProperty("annotators","tokenize, ssplit, pos")
-			val pipe = new StanfordCoreNLP(props);
-//			pipe.addAnnotator(new PTBTokenizerAnnotator(false));
-//			pipe.addAnnotator(new WordsToSentencesAnnotator(false));
-//			pipe.addAnnotator(new POSTaggerAnnotator(false));
-			pipe
-		}
-
-	val tagger = new MaxentTagger(
-		"/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger")
-
-	def appendSentence(doc:GUTimeNYTDocument,sentOrigGloss:String
-			):(Int,Array[Int]) = {
-		val isSpecial = """^-(.*)-$""".r
-		val isDash = """^(-)$""".r
-		val isSlash = """^(\\?)/$""".r
-		//--Create Sentence
-		//(vars)
-		val sentOrigTokens = sentOrigGloss.split("""\s+""")
-		val sentGloss = U.join( sentOrigTokens.map{ (w:String) =>
-			w match {
-				case isSpecial(e) => w
-				case isDash(e) => w
-				case isSlash(e) => w
-				case _ => w.replaceAll("-"," - ").replaceAll("/"," / ")
-			} }, " ").replaceAll("""\s+"""," ")
-		val sent = sentGloss.split(" ")
-		//(create object)
-		val sentence = db.emptyObject(classOf[GUTimeNYTSentence])
-		sentence.fid = doc.fid
-		sentence.length = sent.length
-		sentence.gloss = sentGloss
-		sentence.flush
-		val sid = sentence.sid
-		//--Create Map
-		//(variables)
-		var offset = 0
-		val retok2orig:Array[Int] = sent.map{ x => 0 }
-		val orig2retok:Array[Int] =
-			(0 to sentOrigTokens.length).map{case (i:Int)=>
-				if(i == sentOrigTokens.length){
-					sent.length
-				} else {
-					val w = sentOrigTokens(i)
-					//(get jump)
-					val jump:Int = w match {
-							case isSpecial(e) => 0
-							case isDash(e) => 0
-							case isSlash(e) => 0
-							case _ =>
-								w.toCharArray.filter( (c:Char) => c == '-' || c == '/' ).length
-						}
-					//(create maps)
-					val rtn = offset
-					(offset until offset+1+jump*2).
-						foreach{ (fI:Int) => retok2orig(fI) = i }
-					offset += 1 + jump*2
-					rtn
-				}
-			}.toArray
-		//--Create Tags
-		//(helper function)
-		def mktag(wid:Int,key:String,value:String):GUTimeNYTTag = {
-			val tag = db.emptyObject(classOf[GUTimeNYTTag])
-			tag.sid = sid
-			tag.did = did
-			tag.wid = wid
-			tag.key = key
-			tag.value = value
-			tag
-		}
-		//(form and original)
-		sent.zipWithIndex.foreach{ case (w:String,i:Int) =>
-			mktag(i+1,"form",w).flush
-			mktag(i+1,"orig",""+retok2orig(i)).flush
-			7 //cast error otherwise?
-		}
-		//(tag)
-  	val tagged = tagger.tagSentence(sent)
-		tagged.zipWithIndex.foreach{ case (t,i) =>
-			mktag(i+1,"pos",t.tag).flush
-			7 //cast error otherwise?
-		}
-		//--Return
-		(sid,orig2retok)
-	}
-
-	def appendDoc(f:File, hdr:String, sentsGloss:Array[String]):Unit = {
-		//--Create Document
-		//(process header)
-		val date(year,month,day) = hdr
-		val name(filename) = hdr
-		val pubTime = new DateTime(year.toInt,month.toInt,day.toInt,0,0,0,0)
-		//(debug)
-		println("Processing " + filename + " {")
-		//(fill fields)
-		val doc:GUTimeNYTDocument = db.emptyObject(classOf[GUTimeNYTDocument])
-		doc.filename = filename
-		doc.pubTime = pubTime.toString
-		doc.notes="Automatically generated from GUTime"
-		//(flush)
-		doc.flush
-		println("  fid="+doc.fid)
-		//--Annotate
-		//(pre-annotate sentences)
-		val docGloss:String = 
-				sentsGloss.foldLeft(new StringBuilder){case (b:StringBuilder,l:String)=>
-					b.append(l).append("\n"); b }.toString 
-		val document = new Annotation(docGloss)
-		pipeline.annotate(document)
-		//(gutime annotation)
-		val calendar = pubTime.toGregorianCalendar.asInstanceOf[Calendar]
-		document.set(classOf[CalendarAnnotation], calendar)
-		val gutime = new GUTimeAnnotator(new File("etc/"));
-		gutime.annotate(document)
-		println("  (gutime annotated)")
-		//--Read Annotations
-		//(vars)
-		var offset:Int = 0
-		var sI:Int = 0
-		var wI:Int = 0
-		val sents:Array[Array[String]] = sentsGloss.map{ _.split(" ") }
-		//(save sentences)
-		val savedSents:Array[(Int,Array[Int])] 
-			= sentsGloss.map{ (sent:String) =>
-					appendSentence(doc,U.join( sent.toCharArray.map{ (c:Char) => 
-						if(c > 127) " " else Character.toString(c) },"") )
-				}
-		println("  (sentences annotated)")
-		//(iterate over timexes)
-		println("  timexes {")
-		var timexTag:Int = 1
-		document.get[
-			JList[CoreMap],TimexAnnotations](
-			classOf[TimexAnnotations]).foreach{ case (map:CoreMap) =>
-				//(get vars)
-				val begin:Int 
-					= map.get[java.lang.Integer,CharacterOffsetBeginAnnotation](
-						classOf[CharacterOffsetBeginAnnotation])
-				val end:Int 
-					= map.get[java.lang.Integer,CharacterOffsetEndAnnotation](
-						classOf[CharacterOffsetEndAnnotation])+1
-				val timex:StanfordTimex = map.get[StanfordTimex,TimexAnnotation](
-					classOf[TimexAnnotation])
-				//(find sentence and word)
-				//((find beginning)
-				while(sI < sents.length && (offset+sents(sI)(wI).length) <= begin){
-					offset += sents(sI)(wI).length + 1
-					wI += 1
-					if(wI >= sents(sI).length){
-						sI += 1; wI = 0;
-					}
-				}
-				var sentI = sI
-				val goldBegin = wI
-				val wBegin = savedSents(sentI)._2(goldBegin)
-				//((find end))
-				while(sI < sents.length && (offset+sents(sI)(wI).length) <= end){
-					offset += sents(sI)(wI).length + 1
-					wI += 1
-					if(wI >= sents(sI).length){
-						sI += 1; wI = 0;
-					}
-				}
-				//((fix end overflow))
-				val goldEnd = if(wI == 0){ sents(sentI).length } else { wI }
-				val wEnd = savedSents(sentI)._2(goldEnd)
-				//(process timex)
-				val timexValue = timex.value
-				val timexType = timex.timexType
-				if(timexValue != null){
-					val timex = db.emptyObject(classOf[GUTimeNYTTimex])
-					timex.sid = savedSents(sentI)._1
-					timex.scopeBegin = wBegin
-					timex.scopeEnd = wEnd
-					timex.timeType = timexType
-					val joda = DataLib.timex2JodaTime(timexValue,pubTime)
-					val arr  = DataLib.jodaTime2Array(joda)
-					timex.timeVal = arr
-					timex.originalValue = timexValue
-					timex.handle = "t"+timexTag; timexTag += 1
-					timex.goldSpan = Array[String](""+goldBegin,""+goldEnd)
-					timex.gloss = U.join(sents(sentI).slice(goldBegin,goldEnd)," ")
-					timex.flush
-					println("    "+timex)
-				}
-			}
-		println("  }")
-		println("}")
-	}
-	def appendFile(f:File):(Int,Int) = {
-		import scala.io.Source.fromFile
-		var lastDoc:String = ""
-		var inSent:Boolean = false
-		var sent:String = ""
-		var sents:List[String] = List[String]()
-		var success:Int = 0
-		var total:Int = 0
-		fromFile(f).getLines.foreach{ case (line:String) =>
-			if(line.startsWith("<DOC id")){
-				lastDoc = line
-			} else{
-				line.trim.toLowerCase match {
-					case "<s>" => assert(!inSent); inSent = true; sent = ""
-					case "</s>" => 
-						assert(inSent); inSent = false; 
-						sents = sent.replaceAll("""\s+"""," ") :: sents
-					case "<text>" => //noop
-					case "</text>" => //noop
-					case "</doc>" => 
-						try{
-							appendDoc(f,lastDoc,sents.reverse.toArray); 
-							success += 1
-						} catch {
-							case (e:Exception) => {}
-						}
-						total += 1
-						sents = List[String]();
-					case _ => sent = sent + line
-				}
-			}
-		}
-		(success,total)
-	}
-
-
-	def main(args:Array[String]) = {
-		DateTimeZone.setDefault(DateTimeZone.UTC);
-		//--Arguments
-		//(error check)
-		if(args.length != 1){
-			System.err.println("usage: TimeAnnotator files_directory")
-			System.exit(1)
-		}
-		//--Setup
-		//(add source)
-		if(db.getFirstObjectWhere(classOf[Source],"did="+did) == null){
-			val source = db.emptyObject(classOf[Source])
-			source.did = did;
-			source.name = "GUTime Automatically Generated Data"
-			source.notes = ""
-			source.flush
-			println("CREATED SOURCE")
-		} else {
-			println("FOUND SOURCE")
-		}
-		//(delete tables)
-		println("deleting GUTimeNYTDocument")
-		db.dropTable(classOf[GUTimeNYTDocument])
-		println("deleting GUTimeNYTSentence")
-		db.dropTable(classOf[GUTimeNYTSentence])
-		println("deleting GUTimeNYTTag")
-		db.dropTable(classOf[GUTimeNYTTag])
-		println("deleting GUTimeNYTTimex")
-		db.dropTable(classOf[GUTimeNYTTimex])
-		//--Process Files
-		val dir = new File(args(0))
-		assert(dir.isDirectory, "Input must be a directory")
-		var success:Int = 0
-		var total:Int = 0
-		db.beginTransaction
-		dir.listFiles.foreach{ case (f:File) => 
-			val (fileSuccess,fileTotal) = appendFile(f)
-			success += fileSuccess
-			total += fileTotal
-			println("FILE COMPLETE: " + success + " / " + total)
-		}
-		db.endTransaction
-		//--Create Indices
-		//--Print
-		println()
-		println("SUCCESSFULLY PROCESSED: " + success)
-		println("       TOTAL PROCESSED: " + total)
-	}
-}
+//object TimeAnnotator {
+//	val db = Database.fromString(
+//		"psql://research@localhost:data<what?why42?").connect
+//	val did = 30453;
+//	val date = """.*id\="[^0-9]+([0-9]{4})([0-9]{2})([0-9]{2})\.[0-9]+".*""".r
+//	val name = """.*id\="([^"]+)".*""".r
+//
+//	val pipeline:AnnotationPipeline = {
+//			val props = new Properties
+//			props.setProperty("pos.model",
+//				"/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+//			props.setProperty("annotators","tokenize, ssplit, pos")
+//			val pipe = new StanfordCoreNLP(props);
+////			pipe.addAnnotator(new PTBTokenizerAnnotator(false));
+////			pipe.addAnnotator(new WordsToSentencesAnnotator(false));
+////			pipe.addAnnotator(new POSTaggerAnnotator(false));
+//			pipe
+//		}
+//
+//	val tagger = new MaxentTagger(
+//		"/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+//
+//	def appendSentence(doc:GUTimeNYTDocument,sentOrigGloss:String
+//			):(Int,Array[Int]) = {
+//		val isSpecial = """^-(.*)-$""".r
+//		val isDash = """^(-)$""".r
+//		val isSlash = """^(\\?)/$""".r
+//		//--Create Sentence
+//		//(vars)
+//		val sentOrigTokens = sentOrigGloss.split("""\s+""")
+//		val sentGloss = U.join( sentOrigTokens.map{ (w:String) =>
+//			w match {
+//				case isSpecial(e) => w
+//				case isDash(e) => w
+//				case isSlash(e) => w
+//				case _ => w.replaceAll("-"," - ").replaceAll("/"," / ")
+//			} }, " ").replaceAll("""\s+"""," ")
+//		val sent = sentGloss.split(" ")
+//		//(create object)
+//		val sentence = db.emptyObject(classOf[GUTimeNYTSentence])
+//		sentence.fid = doc.fid
+//		sentence.length = sent.length
+//		sentence.gloss = sentGloss
+//		sentence.flush
+//		val sid = sentence.sid
+//		//--Create Map
+//		//(variables)
+//		var offset = 0
+//		val retok2orig:Array[Int] = sent.map{ x => 0 }
+//		val orig2retok:Array[Int] =
+//			(0 to sentOrigTokens.length).map{case (i:Int)=>
+//				if(i == sentOrigTokens.length){
+//					sent.length
+//				} else {
+//					val w = sentOrigTokens(i)
+//					//(get jump)
+//					val jump:Int = w match {
+//							case isSpecial(e) => 0
+//							case isDash(e) => 0
+//							case isSlash(e) => 0
+//							case _ =>
+//								w.toCharArray.filter( (c:Char) => c == '-' || c == '/' ).length
+//						}
+//					//(create maps)
+//					val rtn = offset
+//					(offset until offset+1+jump*2).
+//						foreach{ (fI:Int) => retok2orig(fI) = i }
+//					offset += 1 + jump*2
+//					rtn
+//				}
+//			}.toArray
+//		//--Create Tags
+//		//(helper function)
+//		def mktag(wid:Int,key:String,value:String):GUTimeNYTTag = {
+//			val tag = db.emptyObject(classOf[GUTimeNYTTag])
+//			tag.sid = sid
+//			tag.did = did
+//			tag.wid = wid
+//			tag.key = key
+//			tag.value = value
+//			tag
+//		}
+//		//(form and original)
+//		sent.zipWithIndex.foreach{ case (w:String,i:Int) =>
+//			mktag(i+1,"form",w).flush
+//			mktag(i+1,"orig",""+retok2orig(i)).flush
+//			7 //cast error otherwise?
+//		}
+//		//(tag)
+//  	val tagged = tagger.tagSentence(sent)
+//		tagged.zipWithIndex.foreach{ case (t,i) =>
+//			mktag(i+1,"pos",t.tag).flush
+//			7 //cast error otherwise?
+//		}
+//		//--Return
+//		(sid,orig2retok)
+//	}
+//
+//	def appendDoc(f:File, hdr:String, sentsGloss:Array[String]):Unit = {
+//		//--Create Document
+//		//(process header)
+//		val date(year,month,day) = hdr
+//		val name(filename) = hdr
+//		val pubTime = new DateTime(year.toInt,month.toInt,day.toInt,0,0,0,0)
+//		//(debug)
+//		println("Processing " + filename + " {")
+//		//(fill fields)
+//		val doc:GUTimeNYTDocument = db.emptyObject(classOf[GUTimeNYTDocument])
+//		doc.filename = filename
+//		doc.pubTime = pubTime.toString
+//		doc.notes="Automatically generated from GUTime"
+//		//(flush)
+//		doc.flush
+//		println("  fid="+doc.fid)
+//		//--Annotate
+//		//(pre-annotate sentences)
+//		val docGloss:String = 
+//				sentsGloss.foldLeft(new StringBuilder){case (b:StringBuilder,l:String)=>
+//					b.append(l).append("\n"); b }.toString 
+//		val document = new Annotation(docGloss)
+//		pipeline.annotate(document)
+//		//(gutime annotation)
+//		val calendar = pubTime.toGregorianCalendar.asInstanceOf[Calendar]
+//		document.set(classOf[CalendarAnnotation], calendar)
+//		val gutime = new GUTimeAnnotator(new File("etc/"));
+//		gutime.annotate(document)
+//		println("  (gutime annotated)")
+//		//--Read Annotations
+//		//(vars)
+//		var offset:Int = 0
+//		var sI:Int = 0
+//		var wI:Int = 0
+//		val sents:Array[Array[String]] = sentsGloss.map{ _.split(" ") }
+//		//(save sentences)
+//		val savedSents:Array[(Int,Array[Int])] 
+//			= sentsGloss.map{ (sent:String) =>
+//					appendSentence(doc,U.join( sent.toCharArray.map{ (c:Char) => 
+//						if(c > 127) " " else Character.toString(c) },"") )
+//				}
+//		println("  (sentences annotated)")
+//		//(iterate over timexes)
+//		println("  timexes {")
+//		var timexTag:Int = 1
+//		document.get[
+//			JList[CoreMap],TimexAnnotations](
+//			classOf[TimexAnnotations]).foreach{ case (map:CoreMap) =>
+//				//(get vars)
+//				val begin:Int 
+//					= map.get[java.lang.Integer,CharacterOffsetBeginAnnotation](
+//						classOf[CharacterOffsetBeginAnnotation])
+//				val end:Int 
+//					= map.get[java.lang.Integer,CharacterOffsetEndAnnotation](
+//						classOf[CharacterOffsetEndAnnotation])+1
+//				val timex:StanfordTimex = map.get[StanfordTimex,TimexAnnotation](
+//					classOf[TimexAnnotation])
+//				//(find sentence and word)
+//				//((find beginning)
+//				while(sI < sents.length && (offset+sents(sI)(wI).length) <= begin){
+//					offset += sents(sI)(wI).length + 1
+//					wI += 1
+//					if(wI >= sents(sI).length){
+//						sI += 1; wI = 0;
+//					}
+//				}
+//				var sentI = sI
+//				val goldBegin = wI
+//				val wBegin = savedSents(sentI)._2(goldBegin)
+//				//((find end))
+//				while(sI < sents.length && (offset+sents(sI)(wI).length) <= end){
+//					offset += sents(sI)(wI).length + 1
+//					wI += 1
+//					if(wI >= sents(sI).length){
+//						sI += 1; wI = 0;
+//					}
+//				}
+//				//((fix end overflow))
+//				val goldEnd = if(wI == 0){ sents(sentI).length } else { wI }
+//				val wEnd = savedSents(sentI)._2(goldEnd)
+//				//(process timex)
+//				val timexValue = timex.value
+//				val timexType = timex.timexType
+//				if(timexValue != null){
+//					val timex = db.emptyObject(classOf[GUTimeNYTTimex])
+//					timex.sid = savedSents(sentI)._1
+//					timex.scopeBegin = wBegin
+//					timex.scopeEnd = wEnd
+//					timex.timeType = timexType
+//					val joda = DataLib.timex2JodaTime(timexValue,pubTime)
+//					val arr  = DataLib.jodaTime2Array(joda)
+//					timex.timeVal = arr
+//					timex.originalValue = timexValue
+//					timex.handle = "t"+timexTag; timexTag += 1
+//					timex.goldSpan = Array[String](""+goldBegin,""+goldEnd)
+//					timex.gloss = U.join(sents(sentI).slice(goldBegin,goldEnd)," ")
+//					timex.flush
+//					println("    "+timex)
+//				}
+//			}
+//		println("  }")
+//		println("}")
+//	}
+//	def appendFile(f:File):(Int,Int) = {
+//		import scala.io.Source.fromFile
+//		var lastDoc:String = ""
+//		var inSent:Boolean = false
+//		var sent:String = ""
+//		var sents:List[String] = List[String]()
+//		var success:Int = 0
+//		var total:Int = 0
+//		fromFile(f).getLines.foreach{ case (line:String) =>
+//			if(line.startsWith("<DOC id")){
+//				lastDoc = line
+//			} else{
+//				line.trim.toLowerCase match {
+//					case "<s>" => assert(!inSent); inSent = true; sent = ""
+//					case "</s>" => 
+//						assert(inSent); inSent = false; 
+//						sents = sent.replaceAll("""\s+"""," ") :: sents
+//					case "<text>" => //noop
+//					case "</text>" => //noop
+//					case "</doc>" => 
+//						try{
+//							appendDoc(f,lastDoc,sents.reverse.toArray); 
+//							success += 1
+//						} catch {
+//							case (e:Exception) => {}
+//						}
+//						total += 1
+//						sents = List[String]();
+//					case _ => sent = sent + line
+//				}
+//			}
+//		}
+//		(success,total)
+//	}
+//
+//
+//	def main(args:Array[String]) = {
+//		DateTimeZone.setDefault(DateTimeZone.UTC);
+//		//--Arguments
+//		//(error check)
+//		if(args.length != 1){
+//			System.err.println("usage: TimeAnnotator files_directory")
+//			System.exit(1)
+//		}
+//		//--Setup
+//		//(add source)
+//		if(db.getFirstObjectWhere(classOf[Source],"did="+did) == null){
+//			val source = db.emptyObject(classOf[Source])
+//			source.did = did;
+//			source.name = "GUTime Automatically Generated Data"
+//			source.notes = ""
+//			source.flush
+//			println("CREATED SOURCE")
+//		} else {
+//			println("FOUND SOURCE")
+//		}
+//		//(delete tables)
+//		println("deleting GUTimeNYTDocument")
+//		db.dropTable(classOf[GUTimeNYTDocument])
+//		println("deleting GUTimeNYTSentence")
+//		db.dropTable(classOf[GUTimeNYTSentence])
+//		println("deleting GUTimeNYTTag")
+//		db.dropTable(classOf[GUTimeNYTTag])
+//		println("deleting GUTimeNYTTimex")
+//		db.dropTable(classOf[GUTimeNYTTimex])
+//		//--Process Files
+//		val dir = new File(args(0))
+//		assert(dir.isDirectory, "Input must be a directory")
+//		var success:Int = 0
+//		var total:Int = 0
+//		db.beginTransaction
+//		dir.listFiles.foreach{ case (f:File) => 
+//			val (fileSuccess,fileTotal) = appendFile(f)
+//			success += fileSuccess
+//			total += fileTotal
+//			println("FILE COMPLETE: " + success + " / " + total)
+//		}
+//		db.endTransaction
+//		//--Create Indices
+//		//--Print
+//		println()
+//		println("SUCCESSFULLY PROCESSED: " + success)
+//		println("       TOTAL PROCESSED: " + total)
+//	}
+//}
 
 
 
 
 //------------------------------------------------------------------------------
 // TempEval2 Data Processor
-// TODO don't hard code English
 //------------------------------------------------------------------------------
-object TempEval2 {
-	val did = 30451;
-	val db = Database.fromString(
-		"psql://research@localhost:data<what?why42?").connect
+abstract class TempEval2Task extends Task[DBCoreMap] {
+	override def perform(d:Dataset[DBCoreMap]):Unit = {
+	}
+	override def dependencies = Array[Class[_ <: Task[_]]]()
+	def language:Language.Value
+}
 
-	def main(args:Array[String]) = {
-		//--Setup
-		//(add source)
-		if(db.getFirstObjectWhere(classOf[Source],"did="+did) == null){
-			val source = db.emptyObject(classOf[Source])
-			source.did = did;
-			source.name = "Tempeval2 English"
-			source.notes = ""
-			source.flush
-			println("CREATED SOURCE")
-		} else {
-			println("FOUND SOURCE")
+
+object TempEval2Task {
+	val pipeline:StanfordCoreNLP = {
+		val props = new java.util.Properties
+		props.setProperty("annotators","tokenize, ssplit, pos, lemma")
+		props.setProperty("tokenize.whitespace", "true")
+		props
+		new StanfordCoreNLP(props)
+	}
+
+	def datasetName(lang:String):String = "tempeval2-"+lang
+
+	def init(args:Array[String]) = {
+		//--Overhead
+		println("INIT")
+		//(error checking)
+		if(args.length != 2){ 
+			DataProcessor.exit("usage: tempeval2 init [directory] [language]")
 		}
-		//(delete tables)
-		println("deleting EnglishDocument")
-		db.dropTable(classOf[EnglishDocument])
-		println("deleting EnglishSentence")
-		db.dropTable(classOf[EnglishSentence])
-		println("deleting EnglishTag")
-		db.dropTable(classOf[EnglishTag])
-		println("deleting EnglishTimex")
-		db.dropTable(classOf[EnglishTimex])
-
 		//--Variables
 		//(locations)
 		val dir  = args(0)
@@ -683,41 +696,222 @@ object TempEval2 {
 		}
 		val Dct = mkline(2)
 		val Base = mkline(4)
+		val Attr = mkline(8)
+		val Ext = mkline(6)
 
 		//--Util
 		def eachLine(f:String, fn:String=>Any) =
 			fromFile(new File(f)).getLines.foreach{ case (line:String) => fn(line) }
 
 		//--Documents
+		println("Reading Documents")
 		//(vars)
-		val docs = new HashMap[String,EnglishDocument]
+		val docs = new HashMap[String,Annotation]
+		var id = 0
 		//(process)
 		def processDct(line:String,test:Boolean) = {
 			val Dct(name,pubTime) = line
-			val doc = db.emptyObject(classOf[EnglishDocument])
-			doc.filename = name
-			doc.pubTime = (new DateTime(pubTime)).toString
-			doc.test = test
-			doc.notes = ""
-			doc.flush
+			val doc = new Annotation("")
+			doc.set(classOf[CalendarAnnotation], 
+				new DateTime(pubTime).toGregorianCalendar.asInstanceOf[Calendar])
+			doc.set(classOf[IDAnnotation], ""+id)
+			doc.set(classOf[DocIDAnnotation], name)
+			doc.set(classOf[IsTestAnnotation], test)
 			docs(name) = doc
+			id += 1
 		}
 		//(read)
 		eachLine(dctTrain, (line:String) => processDct(line,false) )
 		eachLine(dctTest, (line:String) => processDct(line,true) )
 		
 		//--Words
-		val revWords = new HashMap[(String,Int),List[String]]
+		println("Reading Words")
+		//(vars)
+		val sent = new HashMap[String,StringBuilder]
+		val verify = new HashMap[(String,Int),List[String]]
 		//(process)
 		def processBase(line:String) = {
-			val Base(doc,sid,offset,word) = line
-			val key = (doc,sid.toInt)
-			val wordsSoFar = revWords(key)
-			revWords(key) = word :: {if(wordsSoFar == null) Nil else wordsSoFar}
+			val Base(doc,sidText,offsetText,word) = line
+			val sid = sidText.toInt
+			if(!sent.contains(doc)){ sent(doc) = new StringBuilder }
+			if(!verify.contains((doc,sid))){ verify((doc,sid)) = List[String]() }
+			verify((doc,sid)) = word :: verify((doc,sid))
+			sent(doc).append(word).append(" ")
 		}
 		//(read)
 		eachLine(baseTrain, (line:String) => processBase(line) )
 		eachLine(baseTest,  (line:String) => processBase(line) )
-	
+		//(digest)
+		sent.foreach{ case (name:String,text:StringBuilder) =>
+			docs(name).set(classOf[TextAnnotation], text.toString)
+		}
+		//(create annotation)
+		val tokenFact = PTBTokenizer.factory(new CoreLabelTokenFactory(),
+			PTBTokenizerAnnotator.DEFAULT_OPTIONS)
+		docs.foreach{ case (name:String,doc:Annotation) =>
+			//(variables)
+			val gloss = sent(name).toString
+			var sid = 0
+			val sentences:java.util.List[CoreMap] = new java.util.ArrayList[CoreMap]
+			//(process document)
+			while(verify.contains((name,sid))){
+				//(vars)
+				val words = verify((name,sid)).reverse.toArray
+				val sentMap = new ArrayCoreMap(1)
+				val labels:java.util.List[CoreLabel]=new java.util.ArrayList[CoreLabel]
+				sentMap.set(classOf[TokensAnnotation],labels)
+				sentMap.set(classOf[TextAnnotation], U.join(words," "))
+				var offset = 0
+				//(process sentence)
+				words.foreach{ case (str:String) =>
+					//(tokenize)
+					val label = tokenFact.getTokenizer(new StringReader(str)).next
+					label.set(classOf[CharacterOffsetBeginAnnotation], 
+						new java.lang.Integer(offset))
+					label.set(classOf[CharacterOffsetEndAnnotation], 
+						new java.lang.Integer(offset+str.length))
+					offset += str.length+1
+					labels.add(label)
+				}
+				//(add sentence)
+				sid += 1
+				sentences.add(sentMap)
+			}
+			doc.set(classOf[SentencesAnnotation],sentences)
+		}
+		
+		//--Timexes Attributes
+		println("Reading Timexes (attributes)")
+		//(util)
+		def getSentence(doc:String,sid:Int):CoreMap = {
+			docs(doc)
+				.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
+				.get(sid)
+		}
+		def getTimex(sent:CoreMap,tid:String):CoreMap = {
+			//(ensure timex list)
+			if(!sent.containsKey[java.util.List[CoreMap],TimeExpressionsAnnotation](
+					classOf[TimeExpressionsAnnotation])){
+				sent.set(classOf[TimeExpressionsAnnotation],
+					new java.util.ArrayList[CoreMap]()
+						.asInstanceOf[java.util.List[CoreMap]])
+			}
+			//(find timex in list)
+			val lst = sent.get[
+				java.util.List[CoreMap],TimeExpressionsAnnotation](
+				classOf[TimeExpressionsAnnotation])
+			val filtered = lst.filter{ case (map:CoreMap) =>
+				val cand = map.get[String,TimeIdentifierAnnotation](
+					classOf[TimeIdentifierAnnotation])
+				cand.equals(tid)
+			}
+			//(return timex)
+			if(filtered.length == 1){
+				filtered(0)
+			} else if(filtered.length == 0){
+				val timex = new ArrayCoreMap(4)
+				timex.set(classOf[TimeIdentifierAnnotation], tid)
+				lst.add(timex)
+				timex
+			} else{
+				throw new IllegalStateException("Repeated timex in sentence!")
+			}
+		}
+		def fastGetTimex(doc:String,sid:Int,tid:String):CoreMap = {
+			getTimex(getSentence(doc,sid),tid)
+		}
+		//(process)
+		def processAttr(line:String) = {
+			//(variables)
+			val Attr(doc,sidText,start,timex3,tid,junk,tag,value) = line
+			val sent = getSentence(doc,sidText.toInt)
+			val ground = new DateTime(docs(doc)
+				.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation]))
+			val timex = getTimex(sent,tid)
+			//(set annotations)
+			timex.set(classOf[BeginIndexAnnotation], new java.lang.Integer(start))
+			tag match {
+				case "type" => timex.set(classOf[OriginalTimeTypeAnnotation], value)
+				case "value" => 
+					timex.set(classOf[OriginalTimeValueAnnotation], value)
+					timex.set(classOf[TimeValueAnnotation], 
+						DataLib.jodaTime2Array(DataLib.timex2JodaTime(value,ground)))
+			}
+		}
+		//(read)
+		eachLine(attrTrain, (line:String) => processAttr(line) )
+		eachLine(attrTest,  (line:String) => processAttr(line) )
+		
+		//--Timexes Extent
+		println("Reading Timexes (extents)")
+		//(vars)
+		var count = 0
+		var countCond:(String,String,String) = null
+		//(process)
+		def processCount = {
+			//(update timex)
+			val (d,s,t) = countCond
+			val timex = fastGetTimex(d,s.toInt,t)
+			val begin:Int = timex.get[java.lang.Integer,BeginIndexAnnotation](
+				classOf[BeginIndexAnnotation])
+			timex.set(
+				classOf[EndIndexAnnotation],new java.lang.Integer(begin+count))
+		}
+		def processExt(line:String) = {
+			//(variables)
+			val Ext(doc,sidText,start,timex3,tid,junk) = line
+			if( !(doc,sidText,tid).equals(countCond) ){
+				//(process)
+				if(countCond != null){ processCount }
+				//(reset cache)
+				countCond = (doc,sidText,tid)
+				count = 0
+			}
+		}
+		if(countCond != null){ processCount }
+		//(read)
+		eachLine(extTrain, (line:String) => processExt(line) )
+		eachLine(extTest,  (line:String) => processExt(line) )
+
+		//--Dump
+		println("FLUSHING")
+		val maps:Array[CoreMap] = docs.values.toList.sortBy{ case (map:CoreMap) =>
+			map.get[String,IDAnnotation](classOf[IDAnnotation]).toInt
+		}.toArray
+		new CoreMapDataset(datasetName(lang),DataProcessor.db,maps)
 	}
 }
+
+
+case class DataProcessor(noop:Int)
+object DataProcessor {
+	val db = Database.fromString(
+		"psql://research@localhost:data<what?why42?").connect
+	def exit(msg:String) = {
+		println("ERROR: " + msg)
+		System.exit(1)
+	}
+
+	def mkTempEval(args:Array[String]) = {
+		println("ANNOTATING TempEval")
+		if(args.length < 1){ exit("No task given") }
+		args(0).toLowerCase match {
+			case "init" => TempEval2Task.init(args.slice(1,args.length))
+			case _ => exit("Unknown task: " + args(0))
+		}
+	}
+
+	def main(args:Array[String]):Unit = {	
+		DateTimeZone.setDefault(DateTimeZone.UTC);
+		if(args.length < 1){ exit("No dataset given") }
+		args(0).toLowerCase match {
+			case "tempeval2" => mkTempEval(args.slice(1,args.length))
+			case _ => exit("Invalid dataset: " + args(0))
+		}
+	}
+
+
+}
+
+
+
