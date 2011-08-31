@@ -647,8 +647,11 @@ object DataLib {
 //------------------------------------------------------------------------------
 // -- RETOKENIZE --
 abstract class TempEval2RetokTask extends Task[DBCoreMap] {
+	var i = 0
 	def retokSent(sent:CoreMap):Unit = {
-		println(sent)
+		println(i)
+		i += 1
+//		val tokens = sent.get[java.util.List[CoreLabel],TokensAnnotation](TOKENS)
 	}
 	override def perform(d:Dataset[DBCoreMap]):Unit = {
 		val lang = this.language.toString

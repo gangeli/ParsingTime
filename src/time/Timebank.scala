@@ -3,6 +3,7 @@ package time
 import scala.util.Sorting.quickSort
 
 import edu.stanford.nlp.util.CoreMap
+import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
 
 import org.joda.time.DateTime
