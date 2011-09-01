@@ -1,17 +1,23 @@
 package time
 
+import java.util.Calendar
+import java.util.{List => JList}
+
 import scala.util.Sorting.quickSort
+import scala.collection.JavaConversions._
 
 import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
+import edu.stanford.nlp.ling.CoreAnnotations._
 
 import org.joda.time.DateTime
 import org.joda.time.Period
 import org.joda.time.DateTimeZone
 
 import org.goobs.database._
-import org.goobs.stanford.CoreMapDataset
+import org.goobs.stanford.CoreMapDatum
+import org.goobs.testing.Dataset
 import org.goobs.exec.Log._
 
 //------------------------------------------------------------------------------
@@ -38,16 +44,24 @@ class OriginalTimeTypeAnnotation extends CoreAnnotation[String]{
 class OriginalTimeValueAnnotation extends CoreAnnotation[String]{
 	def getType:Class[String] = classOf[String]
 }
-class OriginalTokensAnnotation 
-		extends CoreAnnotation[java.util.List[CoreLabel]]{
-	def getType:Class[java.util.List[CoreLabel]] 
-		= classOf[java.util.List[CoreLabel]]
-}
 class TimeIdentifierAnnotation extends CoreAnnotation[String]{
 	def getType:Class[String] = classOf[String]
 }
 class IsTestAnnotation extends CoreAnnotation[Boolean]{
 	def getType:Class[Boolean] = classOf[Boolean]
+}
+class OriginalTokensAnnotation 
+		extends CoreAnnotation[java.util.List[CoreLabel]]{
+	def getType:Class[java.util.List[CoreLabel]] 
+		= classOf[java.util.List[CoreLabel]]
+}
+class OriginalBeginIndexAnnotation
+		extends CoreAnnotation[java.lang.Integer]{
+	def getType:Class[java.lang.Integer] = classOf[java.lang.Integer]
+}
+class OriginalEndIndexAnnotation
+		extends CoreAnnotation[java.lang.Integer]{
+	def getType:Class[java.lang.Integer] = classOf[java.lang.Integer]
 }
 
 
@@ -55,26 +69,122 @@ class IsTestAnnotation extends CoreAnnotation[Boolean]{
 //------------------------------------------------------------------------------
 // DATA
 //------------------------------------------------------------------------------
-object TimeDataset {
-	val timebank:String = "timebank"
-	def tempeval2(lang:Language.Value):String = "tempeval2-"+lang.toString
-	val gigaword:String = "gigaword"
+class TimeDataset(data:Dataset[CoreMapDatum]) {
+	def slice(minInclusive:Int,maxExclusive:Int):TimeDataset
+		= new TimeDataset(data.slice(minInclusive,maxExclusive))
+
+	def timexes:Array[Timex] = {
+		start_track("Reading Timexes")
+		//(variables)
+		var rtn:List[Timex] = List[Timex]()
+		var index = 0
+		//(get timexes)
+		data.iterator.foreach{ (doc:CoreMapDatum) => //for each doc
+			val pubTime = Time(new DateTime(
+				doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+				.getTimeInMillis))
+			val sents = 
+				doc.get[JList[CoreMap],SentencesAnnotation](
+				classOf[SentencesAnnotation])
+			sents.foreach{ (sent:CoreMap) => //for each sentence
+				val tokens:JList[CoreLabel] =
+					sent.get[JList[CoreLabel],TokensAnnotation](
+					classOf[TokensAnnotation])
+				assert(tokens != null, " No tokens for " + sent)
+				val tokenList:List[CoreLabel] = tokens.map{ x => x }.toList
+				val timexes:JList[CoreMap] = 
+					sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
+					classOf[TimeExpressionsAnnotation])
+				if(timexes != null){
+					timexes.foreach{ (timex:CoreMap) =>  //for each timex
+						val tmx = new Timex(index,timex,tokenList,pubTime)
+						rtn = tmx :: rtn
+						index += 1
+						logG(tmx)
+					}
+				}
+			}
+		}
+		end_track
+		//(return)
+		rtn.reverse.toArray
+	}
 }
 
-class TimeDataset(data:CoreMapDataset) {
-	def timexes:Array[Timex] = Array[Timex]() //TODO
+class Timex(index:Int,time:CoreMap,sent:List[CoreLabel],pubTime:Time) {
+	private val span:List[CoreLabel] = {
+		val begin = time.get[java.lang.Integer,BeginIndexAnnotation](
+							classOf[BeginIndexAnnotation])
+		val end = time.get[java.lang.Integer,EndIndexAnnotation](
+							classOf[EndIndexAnnotation])
+		assert(end > begin, "Range is invalid: " + time)
+		sent.slice(begin,end)
+	}
+
+	private def numType(str:String):NumberType.Value = {
+		if(str != null){
+			str match {
+				case "ORDINAL" => NumberType.ORDINAL
+				case "NUMBER" => NumberType.NUMBER
+				case "UNIT" => NumberType.UNIT
+				case _ => NumberType.NONE
+			}
+		} else {
+			NumberType.NONE
+		}
+	}
+
+	def tid:Int = index
+	def words(test:Boolean):Array[Int] = { 
+		span.map{ (lbl:CoreLabel) => 
+			//(get annotation)
+			val numVal = lbl.get[Number,NumericCompositeValueAnnotation](
+				classOf[NumericCompositeValueAnnotation])
+			val t = numType(lbl.get[String,NumericCompositeTypeAnnotation](
+				classOf[NumericCompositeTypeAnnotation]))
+			val w = if(t != NumberType.NONE){ numVal.toString } else { lbl.word }
+			//(get word)
+			if(test) {
+				U.str2w(w, t) 
+			} else {
+				U.str2w(w, t)
+			}
+		}.toArray
+	}
+	def pos(test:Boolean):Array[Int] = { 
+		span.map{ (lbl:CoreLabel) => 
+			if(test) U.str2posTest(lbl.tag) else U.str2pos(lbl.tag)
+		}.toArray
+	}
+	def nums:Array[Int] = { 
+		span.map{ (lbl:CoreLabel) => 
+			//(get annotation)
+			val numVal = lbl.get[Number,NumericCompositeValueAnnotation](
+				classOf[NumericCompositeValueAnnotation])
+			val numType = lbl.get[String,NumericCompositeTypeAnnotation](
+				classOf[NumericCompositeTypeAnnotation])
+			//(get number)
+			if(numVal != null){
+				numVal.intValue
+			} else {
+				-1
+			}
+		}.toArray
+	}
+	def gold:Temporal
+		= DataLib.array2JodaTime(
+			time.get[Array[String],TimeValueAnnotation](classOf[TimeValueAnnotation]))
 	
+	def grounding:Time = pubTime
 
+	override def toString:String 
+		= "timex["+tid+"] "+words(false).map{ U.w2str(_) }.mkString(" * ")
+//		= "timex["+tid+"] "+span.map{ _.word }.mkString(" * ")
 }
 
-class Timex(time:CoreMap,sent:List[CoreMap]) {
-	def tid:Int = -1                       //TODO
-	def words:Array[Int] = Array[Int]()    //TODO
-	def pos:Array[Int] = Array[Int]()      //TODO
-	def nums:Array[Int] = Array[Int]()     //TODO
-	def gold:Temporal = null               //TODO
-	def grounding:Time = null
-}
+
+
+
 
 //object Timebank {
 //	

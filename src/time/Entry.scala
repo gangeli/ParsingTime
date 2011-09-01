@@ -15,10 +15,11 @@ import org.goobs.slib.Def
 import org.goobs.testing._
 import org.goobs.exec.Log._
 import org.goobs.exec.Execution
-import org.goobs.utils.Indexer;
-import org.goobs.utils.MetaClass;
-import org.goobs.utils.Stopwatch;
-import org.goobs.testing.ResultLogger;
+import org.goobs.utils.Indexer
+import org.goobs.utils.MetaClass
+import org.goobs.utils.Stopwatch
+import org.goobs.testing.ResultLogger
+import org.goobs.stanford.SerializedCoreMapDataset
 
 
 
@@ -55,17 +56,6 @@ object G {
 	Global utility functions
 */
 object U {
-	def join[A](array:Array[A], str:String) = {
-		if(array.length == 0){
-			""
-		} else {
-			val sb:StringBuilder = new StringBuilder
-			array.foreach( (a:A) => {
-				sb.append(a).append(str)
-			})
-			sb.substring(0, sb.length - str.length)
-		}
-	}
 	def accum[E](fn:(E=>Unit)=>Unit,aux:E=>Unit = (e:E)=>{}):List[E] = {
 		var lst:List[E] = List[E]()
 		fn( (e:E) => {
@@ -83,15 +73,11 @@ object U {
 		}
 	}
 	private def mkNum(str:String,numType:NumberType.Value):Int = {
-		if(O.todoHacks && numType == NumberType.NONE ){  //TODO fixme
-			mkNum(str,NumberType.NUMBER)
+		assert(numType != NumberType.NONE, "NONE number type not allowed: "+str)
+		if(O.bucketNumbers) {
+			G.NUM(str2int(str).toString.length,numType)
 		} else {
-			assert(numType != NumberType.NONE, "NONE number type not allowed: "+str)
-			if(O.bucketNumbers){
-				G.NUM(str2int(str).toString.length,numType)
-			} else {
-				G.NUM
-			}
+			G.NUM
 		}
 	}
 
@@ -100,12 +86,16 @@ object U {
 	}
 	def str2w(str:String):Int = str2w(str,NumberType.NONE)
 	def str2w(str:String,numType:NumberType.Value):Int = {
-		if(isInt(str)) mkNum(str,numType) else G.wordIndexer.addAndGetIndex(str)
+		if(numType != NumberType.NONE) {
+			mkNum(str,numType) 
+		} else {
+			G.wordIndexer.addAndGetIndex(str)
+		}
 	}
 	def str2wTest(str:String):Int = str2wTest(str,NumberType.NONE)
 	def str2wTest(str:String,numType:NumberType.Value):Int = {
-		if(isInt(str)){
-			mkNum(str,numType)
+		if(numType != NumberType.NONE) {
+			mkNum(str,numType) 
 		} else {
 			val w:Int = G.wordIndexer.indexOf(str)
 			if(w < 0) G.UNK else w
@@ -118,7 +108,7 @@ object U {
 		val p:Int = G.posIndexer.indexOf(str)
 		if(p < 0) G.PUNK else p
 	}
-	def sent2str(sent:Array[Int]) = join(sent.map(w2str(_)), " ")
+	def sent2str(sent:Array[Int]) = sent.map(w2str(_)) mkString " "
 
 	def sumDiff(diff:(Duration,Duration)):Int = {
 		val secA:Long = diff._1.seconds.abs
@@ -319,9 +309,9 @@ class Score {
 	}
 
 	def reportK:String = {
-		"beam quality: " + U.join( exactRightK.map{ (count:Int) =>
+		"beam quality: " + exactRightK.map{ (count:Int) =>
 			G.df.format(count.asInstanceOf[Double] / total.asInstanceOf[Double]) 
-		}, "  ")
+		}.mkString("  ")
 	}
 	def reportFailures(y:(String=>Any)):Unit = {
 		failedList.foreach{ case (sent:Sentence,gold:Temporal,ground:Time) =>
@@ -339,7 +329,13 @@ class Score {
 //------------------------------------------------------------------------------
 // DATA STORES
 //------------------------------------------------------------------------------
-case class Data(train:DataStore,dev:DataStore,test:DataStore)
+case class Data(train:DataStore,dev:DataStore,test:DataStore){
+	def noopLoop:Unit = {
+		train.eachExample( (s,i) => (Array[Parse](),f=>{}) )
+		dev.eachExample( (s,i) => (Array[Parse](),f=>{}) )
+		test.eachExample( (s,i) => (Array[Parse](),f=>{}) )
+	}
+}
 
 trait DataStore {
 
@@ -408,7 +404,7 @@ trait DataStore {
 	}
 }
 
-class SimpleTimexStore(timexes:Array[Timex],filter:Boolean) extends DataStore{
+class SimpleTimexStore(timexes:Array[Timex],test:Boolean) extends DataStore{
 	override def eachExample( 
 			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 		val score:Score = new Score
@@ -420,11 +416,11 @@ class SimpleTimexStore(timexes:Array[Timex],filter:Boolean) extends DataStore{
 		var evalTime:Double = 0.0
 		//(iterate over timexes)
 		timexes
-				.filter{ (t:Timex) => !filter || U.timexOK(t.tid) }
+				.filter{ (t:Timex) => test || U.timexOK(t.tid) }
 				.foreach{ (t:Timex) =>
-			assert(t.words.length > 0, "Timex has no words: " + t)
+			assert(t.words(test).length > 0, "Timex has no words: " + t)
 			//(variables)
-			val sent = Sentence(t.tid,t.words,t.pos,t.nums)
+			val sent = Sentence(t.tid,t.words(test),t.pos(test),t.nums)
 			//(parse)
 			val (parses,feedback) = fn(sent, t.tid)
 			parseTime += watch.lap
@@ -448,18 +444,21 @@ object SimpleTimexStore {
 		logG("* train: " + O.train)
 		logG({if(O.devTest) "*" else " "} + "   dev: " + O.dev)
 		logG({if(!O.devTest) "*" else " "} + "  test: " + O.test)
-		//(get timexes)
-		val timexes = dataset.timexes
 		//(make data)
 		log("creating data")
 		val data = Data(
 			new SimpleTimexStore(
-				timexes.slice(O.train.minInclusive,O.train.maxExclusive),true),
+				dataset.slice(O.train.minInclusive,O.train.maxExclusive).timexes,false),
 			new SimpleTimexStore(
-				timexes.slice(O.dev.minInclusive,O.dev.maxExclusive),false),
+				dataset.slice(O.dev.minInclusive,O.dev.maxExclusive).timexes,true),
 			new SimpleTimexStore(
-				timexes.slice(O.test.minInclusive,O.test.maxExclusive),false)
+				dataset.slice(O.test.minInclusive,O.test.maxExclusive).timexes,true)
 			)
+		//(loop over data to read everything)
+		start_track("NOOP loop")
+		data.noopLoop
+		end_track
+		//(return)
 		end_track
 		data
 	}
@@ -574,6 +573,19 @@ class Entry {
 //------
 // INIT
 //------
+	def mkDataFilename:String = {
+		"aux/coremap/"+
+		{O.data match {
+			case O.DataSource.Timebank =>
+				"timebank"
+			case O.DataSource.English => 
+				"tempeval2-english"
+			case _ => throw fail("Data source not implemented: " + this.data) }
+		} +
+		{ if(O.retokenize) "-retok" else "" } + 
+		{ if(O.collapseNumbers) "-numbers" else "" }
+	}
+
 	def init:Entry = {
 		start_track("Initializing")
 		//--Initialize JodaTime
@@ -589,14 +601,9 @@ class Entry {
 				val data = ToyData.STANDARD
 				end_track
 				data
-			case O.DataSource.Timebank =>
+			case _ =>
 				SimpleTimexStore(
-					new TimeDataset(Execution.getDataset(TimeDataset.timebank)))
-			case O.DataSource.English => 
-				SimpleTimexStore(
-					new TimeDataset(
-						Execution.getDataset(TimeDataset.tempeval2(Language.english))))
-			case _ => throw fail("Data source not implemented: " + this.data)
+					new TimeDataset(new SerializedCoreMapDataset(mkDataFilename)))
 		}
 		//--Create Parser
 		start_track("Creating Parser")

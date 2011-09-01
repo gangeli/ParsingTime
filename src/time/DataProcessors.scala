@@ -16,6 +16,8 @@ import edu.stanford.nlp.pipeline._
 import edu.stanford.nlp.ie.NumberNormalizer
 import edu.stanford.nlp.pipeline.StanfordCoreNLP
 import edu.stanford.nlp.pipeline.PTBTokenizerAnnotator
+import edu.stanford.nlp.pipeline.MorphaAnnotator
+import edu.stanford.nlp.pipeline.POSTaggerAnnotator
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.ling._
 import edu.stanford.nlp.util._
@@ -24,14 +26,15 @@ import edu.stanford.nlp.time.GUTimeAnnotator
 import edu.stanford.nlp.tagger.maxent.MaxentTagger
 import edu.stanford.nlp.process.PTBTokenizer
 import edu.stanford.nlp.process.CoreLabelTokenFactory
+import edu.stanford.nlp.process.WhitespaceTokenizer
 
 import org.goobs.database._
 import org.goobs.testing.Dataset
 import org.goobs.testing.Datum
 import org.goobs.stanford.JavaNLP._
 import org.goobs.stanford.Task
-import org.goobs.stanford.DBCoreMap
-import org.goobs.stanford.CoreMapDataset
+import org.goobs.stanford.CoreMapDatum
+import org.goobs.stanford.SerializedCoreMapDataset
 
 import org.joda.time._
 
@@ -49,7 +52,7 @@ class Source extends DatabaseObject {
 // LIBRARIES
 //------------------------------------------------------------------------------
 object DataLib {
-	val Time = """^T([0-9]{2})([0-9]{2})$""".r
+	val Tm = """^T([0-9]{2})([0-9]{2})$""".r
 	val Year = """^([0-9]{2,4})$""".r
 	val YearMonth = """^([0-9]{4})-?([0-9]{2})$""".r
 	val YearMonthDay = """^([0-9]{4})-?([0-9]{2})-?([0-9]{2})$""".r
@@ -69,7 +72,7 @@ object DataLib {
 	def timex2JodaTime(timex:String,ground:DateTime):Any = {
 		val str = timex.trim
 		val pass1 = str match {
-			case Time(hr,min) => 
+			case Tm(hr,min) => 
 				val base = ground.withHourOfDay(hr.toInt).withMinuteOfHour(min.toInt)
 				(base, base.plusMinutes(1))
 			case Year(y) =>
@@ -160,8 +163,8 @@ object DataLib {
 					}
 				}
 				(period,fuzzy)
-			case "PAST_REF" => (new DateTime(Long.MinValue),ground)
-			case "FUTURE_REF" => (ground,new DateTime(Long.MaxValue))
+			case "PAST_REF" => ("PAST",ground)
+			case "FUTURE_REF" => (ground,"FUTURE")
 			case "PRESENT_REF" => (ground,ground)
 			case Unk(x) => str
 			case _ => 
@@ -175,6 +178,10 @@ object DataLib {
 		time match {
 			case (begin:DateTime,end:DateTime) =>
 				Array[String]("RANGE",begin.toString,end.toString)
+			case (begin:String,end:DateTime) =>
+				Array[String]("RANGE",begin,end.toString)
+			case (begin:DateTime,end:String) =>
+				Array[String]("RANGE",begin.toString,end)
 			case (begin:Period,fuzzy:Boolean) =>
 				def mkVal(i:Int) = if(fuzzy) "x" else ""+i
 				Array[String]("PERIOD",
@@ -187,6 +194,133 @@ object DataLib {
 					mkVal(begin.getSeconds) )
 			case (s:String) => Array[String]("UNK",s)
 			case _ => throw new IllegalArgumentException("Unknown time: " + time)
+		}
+	}
+
+	def array2JodaTime(timeVal:Array[String]):Temporal = {
+		assert(timeVal.length > 0, "No time value for timex!")
+		val inType:String = timeVal(0).trim
+		inType match {
+			case "INSTANT" => {
+				//(case: instant time)
+				assert(timeVal.length == 2, "Instant has one element")
+				if(timeVal(1).trim == "NOW"){
+					Range(Duration.ZERO)
+				} else {
+					val rawTime = new DateTime(timeVal(1).trim)
+					val time:Time = 
+						if(rawTime.equals(Time.DAWN_OF)){ Time.DAWN_OF }
+						else if(rawTime.equals(Time.END_OF)){ Time.END_OF }
+						else Time(rawTime)
+					Range(time)
+				}
+			}
+			case "RANGE" => {
+				//(case: range)
+				assert(timeVal.length == 3, "Range has two elements")
+				val begin:String = timeVal(1).trim
+				val end:String = timeVal(2).trim
+				val beginTime:Time
+					= if(begin.equals("PAST")) Time.DAWN_OF else Time(new DateTime(begin))
+				val endTime:Time
+					=if(end.equals("FUTURE")) Time.END_OF else Time(new DateTime(end))
+				Range(
+						{if(beginTime.equals(Time.DAWN_OF)){ Time.DAWN_OF }
+						else if(beginTime.equals(Time.END_OF)){ Time.END_OF }
+						else beginTime},
+
+						{if(endTime.equals(Time.DAWN_OF)){ Time.DAWN_OF }
+						else if(endTime.equals(Time.END_OF)){ Time.END_OF }
+						else endTime}
+					)
+			}
+			case "PERIOD" => {
+				//(case: duration)
+				assert(timeVal.length == 8, "Period has invalid element count")
+				var isApprox = false
+				def mkInt(str:String):Int = {
+					if(str.equalsIgnoreCase("x")){ isApprox = true; 1 }else{ str.toInt }
+				}
+				val rtn:Duration = Duration(new Period(
+					mkInt(timeVal(1)),
+					mkInt(timeVal(2)),
+					mkInt(timeVal(3)),
+					mkInt(timeVal(4)),
+					mkInt(timeVal(5)),
+					mkInt(timeVal(6)),
+					mkInt(timeVal(7)),
+					0
+					))
+				if(isApprox){ ~rtn } else { rtn }
+			}
+			case "UNK" => {
+				new UnkTime
+			}
+			case _ => throw new IllegalStateException("Unknown time: " + 
+				inType + " for timex: " + timeVal.mkString(" "))
+		}
+	}
+
+	def relinkTimexes(sent:CoreMap):Unit = {
+		//--Variables
+		val origTokens = sent.get[JList[CoreLabel],OriginalTokensAnnotation](
+			classOf[OriginalTokensAnnotation])
+		val retok = sent.get[JList[CoreLabel],TokensAnnotation](
+			classOf[TokensAnnotation])
+		val timexes:java.util.List[CoreMap] = 
+			sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
+			classOf[TimeExpressionsAnnotation])
+		//--Retokenize
+		if(timexes != null){
+			timexes.foreach{ (timex:CoreMap) =>
+				//(get offset information)
+				val oldBegin =
+					if(timex.has[java.lang.Integer,OriginalBeginIndexAnnotation](
+							classOf[OriginalBeginIndexAnnotation])){
+						timex.get[java.lang.Integer,OriginalBeginIndexAnnotation](
+							classOf[OriginalBeginIndexAnnotation])
+					} else {
+						timex.get[java.lang.Integer,BeginIndexAnnotation](
+							classOf[BeginIndexAnnotation])
+					}
+				val oldEnd =
+					if(timex.has[java.lang.Integer,OriginalEndIndexAnnotation](
+							classOf[OriginalEndIndexAnnotation])){
+						timex.get[java.lang.Integer,OriginalEndIndexAnnotation](
+							classOf[OriginalEndIndexAnnotation])
+					} else {
+						timex.get[java.lang.Integer,EndIndexAnnotation](
+							classOf[EndIndexAnnotation])
+					}
+				assert(oldBegin != null)
+				assert(oldEnd != null, timex.toString)
+				val beginOffset = origTokens(oldBegin).beginPosition
+				val endOffset = origTokens(oldEnd).endPosition
+				timex.set(classOf[OriginalBeginIndexAnnotation],oldBegin)
+				timex.set(classOf[OriginalEndIndexAnnotation],oldEnd)
+				//(find new positions)
+				retok.zipWithIndex.foreach{ case (tok:CoreLabel,index:Int) => 
+					val candBegin = tok.beginPosition
+					val candEnd = tok.endPosition
+					if(candBegin == beginOffset){
+						timex.set(classOf[BeginIndexAnnotation],
+							new java.lang.Integer(index))
+					}
+					if(candEnd == endOffset){
+						timex.set(classOf[EndIndexAnnotation],
+							new java.lang.Integer(index+1))
+					}
+				}
+				//(error check)
+				if(timex.get[java.lang.Integer,BeginIndexAnnotation](
+						classOf[BeginIndexAnnotation]) == null){
+					throw new IllegalStateException("No begin index for " + timex)
+				}
+				if(timex.get[java.lang.Integer,EndIndexAnnotation](
+						classOf[EndIndexAnnotation]) == null){
+					throw new IllegalStateException("No end index for " + timex)
+				}
+			}
 		}
 	}
 }
@@ -646,24 +780,91 @@ object DataLib {
 // TempEval2 Data Processor
 //------------------------------------------------------------------------------
 // -- RETOKENIZE --
-abstract class TempEval2RetokTask extends Task[DBCoreMap] {
-	var i = 0
-	def retokSent(sent:CoreMap):Unit = {
-		println(i)
-		i += 1
-//		val tokens = sent.get[java.util.List[CoreLabel],TokensAnnotation](TOKENS)
+abstract class TempEval2RetokTask extends Task[CoreMapDatum] {
+	def retokSentence(sent:CoreMap):Unit = {
+		//--Retokenize Sentence
+		val origTokens=sent.get[java.util.List[CoreLabel],TokensAnnotation](TOKENS)
+		val retok = origTokens.foldRight(List[CoreLabel]()){ 
+				(word:CoreLabel,soFar:List[CoreLabel]) =>
+			val orig = word.current
+			val baseOffset = word.beginPosition
+			val finalOffsetGold = word.endPosition
+			val (lastTerm,otherTerms,finalOffset)
+				= orig.toCharArray.foldLeft(
+					(new StringBuilder,List[CoreLabel](),baseOffset)){
+					case ((tok:StringBuilder,toks:List[CoreLabel],offset:Int),chr:Char) =>
+						chr match {
+							//(tokenize on -)
+							case '-' => (new StringBuilder,
+								if(tok.length > 0){
+									toks :::
+									TempEval2Task.tokenize("-",offset+tok.length).toList :::
+									TempEval2Task.tokenize(tok.toString,offset
+										).toList
+								} else {
+									toks ::: TempEval2Task.tokenize("-",offset).toList
+								},
+								offset+tok.length+1)
+							//(tokenize on /)
+							case '/' => (new StringBuilder,
+								if(tok.length > 0){
+									toks :::
+									TempEval2Task.tokenize("/",offset+tok.length).toList :::
+									TempEval2Task.tokenize(tok.toString,offset
+										).toList
+								} else {
+									toks ::: TempEval2Task.tokenize("/",offset).toList
+								},
+								offset+tok.length+1)
+							//(part of a token)
+							case _ => (tok.append(chr),toks,offset)
+						}
+				}	
+			assert(finalOffset+lastTerm.length == finalOffsetGold, 
+				"Offset mismatch for word: "+word + " orig: " + word)
+			val newTok
+				= if(lastTerm.length > 0) {
+					otherTerms :::
+					TempEval2Task.tokenize(lastTerm.toString,finalOffset).toList
+				} else { otherTerms }
+			newTok ::: soFar
+		}
+		//(set result)
+		sent.set(classOf[OriginalTokensAnnotation],origTokens)
+		val jRetok:java.util.List[CoreLabel] = retok
+		sent.set(classOf[TokensAnnotation],jRetok)
+		//--Re-Link Timexes
+		DataLib.relinkTimexes(sent)
 	}
-	override def perform(d:Dataset[DBCoreMap]):Unit = {
+
+	override def perform(d:Dataset[CoreMapDatum]):Unit = {
 		val lang = this.language.toString
 		println("RETOKENIZING " + lang)
 		//(for each document)
 		(0 until d.numExamples).foreach{ case (docIndex:Int) =>
-			val map:DBCoreMap = d.get(docIndex)
+			val map:CoreMap = d.get(docIndex)
 			val sents=map.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
 			//(for each sentence)
 			sents.foreach{ case (sent:CoreMap) =>
 				//(retokenize sentence)
-				retokSent(sent)
+				DataProcessor.assertValidSentence(sent)
+				retokSentence(sent)
+				DataProcessor.assertValidSentence(sent)
+			}
+		}
+		println("TAGGING " + lang)
+		val lemma = new MorphaAnnotator(false)
+		val pos = new POSTaggerAnnotator(false)
+		(0 until d.numExamples).foreach{ case (docIndex:Int) =>
+			//(process)
+			val map:Annotation 
+				= d.get(docIndex).implementation.asInstanceOf[Annotation]
+			pos.annotate(map)
+			lemma.annotate(map)
+			//(check)
+			val sents=map.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
+			sents.foreach{ case (sent:CoreMap) =>
+				DataProcessor.assertValidSentence(sent)
 			}
 		}
 	}
@@ -675,8 +876,66 @@ abstract class TempEval2RetokTask extends Task[DBCoreMap] {
 class TempEval2EnglishRetokTask extends TempEval2RetokTask
 	{ override def language:Language.Value = Language.english }
 
+
+
+
+
 // -- NUMBER NORMALIZE --
-//TODO
+abstract class TempEval2NumberNormalizeTask extends Task[CoreMapDatum] {
+	def findNumbers(sent:CoreMap) = {
+		//(set numbers)
+		val nums:JList[CoreMap] = NumberNormalizer.findAndMergeNumbers(sent);
+		val tokens:JList[CoreLabel] = nums.map{ new CoreLabel(_) }.toList
+		sent.set(classOf[TokensAnnotation], tokens )
+		//(relink timexes)
+		DataLib.relinkTimexes(sent)
+		//(set current annotation)
+		tokens.foreach{ (num:CoreLabel) =>
+			if(num.current == null || num.current.equals("")){
+				num.setCurrent(num.word)
+			}
+		}
+//		//(dump numbers -- debug)
+//		tokens.foreach{ (num:CoreLabel) =>
+//			val numVal = num.get[Number,NumericCompositeValueAnnotation](
+//				classOf[NumericCompositeValueAnnotation])
+//			val numType = num.get[String,NumericCompositeTypeAnnotation](
+//				classOf[NumericCompositeTypeAnnotation])
+//			val token = num.word
+//			if(numVal != null || numType != null){
+//				println(numVal+"\t"+numType+"\t"+
+//					{if(numVal == null) "null" else numVal.getClass}+
+//					"\t"+token)
+//			}
+//		}
+	}
+
+	override def perform(d:Dataset[CoreMapDatum]):Unit = {
+		val lang = this.language.toString
+		println("NORMALIZING NUMBERS " + lang)
+		//(for each document)
+		(0 until d.numExamples).foreach{ case (docIndex:Int) =>
+			val map:CoreMap = d.get(docIndex)
+			val sents=map.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
+			//(for each sentence)
+			sents.foreach{ case (sent:CoreMap) =>
+				//(normalize numbers)
+				DataProcessor.assertValidSentence(sent)
+				findNumbers(sent)
+			}
+		}
+	}
+	override def dependencies = Array[Class[_ <: Task[_]]]()
+	override def name = "numbers"
+	def language:Language.Value
+}
+
+class TempEval2EnglishNumberNormalizeTask extends TempEval2NumberNormalizeTask
+	{ override def language:Language.Value = Language.english }
+
+
+
+
 
 
 // -- INITIALIZE --
@@ -688,26 +947,46 @@ object TempEval2Task {
 		props
 		new StanfordCoreNLP(props)
 	}
+	lazy val tokenFact = 
+		PTBTokenizer.factory(new CoreLabelTokenFactory(),
+			PTBTokenizerAnnotator.DEFAULT_OPTIONS)
 
-	def datasetName(lang:String):String = "tempeval2-"+lang
+	def datasetName(lang:String):String = "aux/coremap/tempeval2-"+lang
+
+	def tokenize(str:String,offsetZero:Int):Array[CoreLabel] = {
+		val tokIter = tokenFact.getTokenizer(new StringReader(str))
+		var offset = offsetZero
+		tokIter.map{ (label:CoreLabel) =>
+			label.set(classOf[CharacterOffsetBeginAnnotation], 
+				new java.lang.Integer(offset))
+			label.set(classOf[CharacterOffsetEndAnnotation], 
+				new java.lang.Integer(offset+label.current.length))
+				offset += label.current.length
+			label
+		}.toArray
+	}
 
 	def retok(args:Array[String]) = {
 		//(overhead)
 		if(args.length != 1){ 
 			DataProcessor.exit("usage: tempeval2 retok [language]")
 		}
-		val lang = args(0)
+		val lang = args(0) //TODO ignored for now
 		println("Loading dataset...")
-		val dataset = new CoreMapDataset(datasetName(lang), DataProcessor.db)
+		val dataset = new SerializedCoreMapDataset(datasetName(lang))
 		//(run task)
 		dataset.runAndRegisterTask( new TempEval2EnglishRetokTask )
 	}
 
 	def numbers(args:Array[String]) = {
-		if(args.length != 0){ 
+		if(args.length != 1){ 
 			DataProcessor.exit("tempeval2 numbers takes no arguments")
 		}
-		DataProcessor.exit("NOT IMPLEMENTED tempeval2 numbers")
+		val lang = args(0) //TODO ignored for now
+		println("Loading dataset...")
+		val dataset = new SerializedCoreMapDataset(datasetName(lang)+"-retok")
+		//(run task)
+		dataset.runAndRegisterTask( new TempEval2EnglishNumberNormalizeTask )
 	}
 
 	def init(args:Array[String]) = {
@@ -744,6 +1023,7 @@ object TempEval2Task {
 		val Base = mkline(4)
 		val Attr = mkline(8)
 		val Ext = mkline(6)
+		val PubTime = """([0-9]{4})([0-9]{2})([0-9]{2})""".r
 
 		//--Util
 		def eachLine(f:String, fn:String=>Any) =
@@ -757,9 +1037,11 @@ object TempEval2Task {
 		//(process)
 		def processDct(line:String,test:Boolean) = {
 			val Dct(name,pubTime) = line
+			val PubTime(year,month,day) = pubTime
 			val doc = new Annotation("")
 			doc.set(classOf[CalendarAnnotation], 
-				new DateTime(pubTime).toGregorianCalendar.asInstanceOf[Calendar])
+				new DateTime(year.toInt,month.toInt,day.toInt,0,0,0,0)
+				.toGregorianCalendar.asInstanceOf[Calendar])
 			doc.set(classOf[IDAnnotation], ""+id)
 			doc.set(classOf[DocIDAnnotation], name)
 			doc.set(classOf[IsTestAnnotation], test)
@@ -792,8 +1074,6 @@ object TempEval2Task {
 			docs(name).set(classOf[TextAnnotation], text.toString)
 		}
 		//(create annotation)
-		val tokenFact = PTBTokenizer.factory(new CoreLabelTokenFactory(),
-			PTBTokenizerAnnotator.DEFAULT_OPTIONS)
 		docs.foreach{ case (name:String,doc:Annotation) =>
 			//(variables)
 			val gloss = sent(name).toString
@@ -806,21 +1086,25 @@ object TempEval2Task {
 				val sentMap = new ArrayCoreMap(1)
 				val labels:java.util.List[CoreLabel]=new java.util.ArrayList[CoreLabel]
 				sentMap.set(classOf[TokensAnnotation],labels)
-				sentMap.set(classOf[TextAnnotation], U.join(words," "))
+				sentMap.set(classOf[TextAnnotation], words mkString " ")
 				var offset = 0
 				//(process sentence)
 				words.foreach{ case (str:String) =>
 					//(tokenize)
-					val label = tokenFact.getTokenizer(new StringReader(str)).next
-					label.set(classOf[CharacterOffsetBeginAnnotation], 
-						new java.lang.Integer(offset))
-					label.set(classOf[CharacterOffsetEndAnnotation], 
-						new java.lang.Integer(offset+str.length))
+					val tokens = tokenize(str,offset).toList
+					if(tokens.length > 0){
+						val word = tokens.map{ _.word }.mkString(" ")
+						val current = tokens.map{ _.current }.mkString("")
+						tokens(0).setWord(word)
+						tokens(0).setCurrent(current)
+						tokens(0).setEndPosition(tokens(tokens.length-1).endPosition)
+					}
+					labels.add(tokens(0))
 					offset += str.length+1
-					labels.add(label)
 				}
 				//(add sentence)
 				sid += 1
+				DataProcessor.assertValidSentence(sentMap)
 				sentences.add(sentMap)
 			}
 			doc.set(classOf[SentencesAnnotation],sentences)
@@ -872,7 +1156,8 @@ object TempEval2Task {
 			val Attr(doc,sidText,start,timex3,tid,junk,tag,value) = line
 			val sent = getSentence(doc,sidText.toInt)
 			val ground = new DateTime(docs(doc)
-				.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation]))
+				.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+				.getTimeInMillis)
 			val timex = getTimex(sent,tid)
 			//(set annotations)
 			timex.set(classOf[BeginIndexAnnotation], new java.lang.Integer(start))
@@ -891,40 +1176,38 @@ object TempEval2Task {
 		//--Timexes Extent
 		println("Reading Timexes (extents)")
 		//(vars)
-		var count = 0
 		var countCond:(String,String,String) = null
+		var lastWid:String = null
 		//(process)
-		def processCount = {
+		def processCount(end:Int) = {
 			//(update timex)
 			val (d,s,t) = countCond
 			val timex = fastGetTimex(d,s.toInt,t)
-			val begin:Int = timex.get[java.lang.Integer,BeginIndexAnnotation](
-				classOf[BeginIndexAnnotation])
 			timex.set(
-				classOf[EndIndexAnnotation],new java.lang.Integer(begin+count))
+				classOf[EndIndexAnnotation],new java.lang.Integer(end+1))
 		}
 		def processExt(line:String) = {
 			//(variables)
-			val Ext(doc,sidText,start,timex3,tid,junk) = line
+			val Ext(doc,sidText,widText,timex3,tid,junk) = line
 			if( !(doc,sidText,tid).equals(countCond) ){
 				//(process)
-				if(countCond != null){ processCount }
+				if(countCond != null){ processCount(lastWid.toInt) }
 				//(reset cache)
 				countCond = (doc,sidText,tid)
-				count = 0
 			}
+			lastWid = widText
 		}
-		if(countCond != null){ processCount }
 		//(read)
 		eachLine(extTrain, (line:String) => processExt(line) )
 		eachLine(extTest,  (line:String) => processExt(line) )
+		if(countCond != null){ processCount(lastWid.toInt) }
 
 		//--Dump
 		println("FLUSHING")
 		val maps:Array[CoreMap] = docs.values.toList.sortBy{ case (map:CoreMap) =>
 			map.get[String,IDAnnotation](classOf[IDAnnotation]).toInt
 		}.toArray
-		new CoreMapDataset(datasetName(lang),DataProcessor.db,maps)
+		new SerializedCoreMapDataset(datasetName(lang),maps)
 	}
 }
 
@@ -936,6 +1219,19 @@ object DataProcessor {
 	def exit(msg:String) = {
 		println("ERROR: " + msg)
 		System.exit(1)
+	}
+
+	def assertValidSentence(sent:CoreMap) = {
+		val tokens = sent.get[JList[CoreLabel],TokensAnnotation](TOKENS)
+		val text:String = sent.get[String,TextAnnotation](TEXT)
+		tokens.foreach{ (tok:CoreLabel) =>
+			val begin = tok.beginPosition
+			val end = tok.endPosition
+			val word = tok.current
+			val check = text.substring(begin,end)
+			assert(word.equals(check), "Word '" + word + "' maps to '" + check + "'")
+		}
+
 	}
 
 	def mkTempEval(args:Array[String]) = {

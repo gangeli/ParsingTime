@@ -889,17 +889,29 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 	}
 
 	override def +(diff:Duration):Duration
-		= if(this eq Duration.INFINITE){ Duration.INFINITE }
-		  else if(this eq Duration.NEG_INFINITE){ Duration.NEG_INFINITE }
-		  else if(diff eq Duration.INFINITE){ Duration.INFINITE }
-		  else if(diff eq Duration.NEG_INFINITE){ Duration.NEG_INFINITE }
-		  else { new GroundedDuration(base.toPeriod.plus(diff.interval.base)) }
+		= if(this.equals(Duration.INFINITE)){ Duration.INFINITE }
+		  else if(this.equals(Duration.NEG_INFINITE)){ Duration.NEG_INFINITE }
+		  else if(diff.equals(Duration.INFINITE)){ Duration.INFINITE }
+		  else if(diff.equals(Duration.NEG_INFINITE)){ Duration.NEG_INFINITE }
+		  else { 
+				assert( !(this.equals(Duration.INFINITE) || 
+					this.equals(Duration.NEG_INFINITE)))
+				assert( !(diff.equals(Duration.INFINITE) || 
+					diff.equals(Duration.NEG_INFINITE)))
+				new GroundedDuration(base.toPeriod.plus(diff.interval.base))
+			}
 	override def -(diff:Duration):Duration
-		= if(this eq Duration.INFINITE){ Duration.INFINITE }
-		  else if(this eq Duration.NEG_INFINITE){ Duration.NEG_INFINITE }
-		  else if(diff eq Duration.INFINITE){ Duration.NEG_INFINITE }
-		  else if(diff eq Duration.NEG_INFINITE){ Duration.INFINITE }
-		  else { new GroundedDuration(base.toPeriod.minus(diff.interval.base)) }
+		= if(this.equals(Duration.INFINITE)){ Duration.INFINITE }
+		  else if(this.equals(Duration.NEG_INFINITE)){ Duration.NEG_INFINITE }
+		  else if(diff.equals(Duration.INFINITE)){ Duration.NEG_INFINITE }
+		  else if(diff.equals(Duration.NEG_INFINITE)){ Duration.INFINITE }
+		  else { 
+				assert( !(this.equals(Duration.INFINITE) || 
+					this.equals(Duration.NEG_INFINITE)))
+				assert( !(diff.equals(Duration.INFINITE) || 
+					diff.equals(Duration.NEG_INFINITE)))
+				new GroundedDuration(base.toPeriod.minus(diff.interval.base))
+			}
 	override def *(n:Int):Duration = {
 		import DurationUnit._
 		var p = base.toPeriod

@@ -609,9 +609,9 @@ case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 	def foreach(fn:(Int,Int)=>Any) = words.zip(pos).foreach(Function.tupled(fn))
 	def length:Int = words.length
 	def gloss:String 
-		= U.join( words.zipWithIndex.map{ case (w:Int,i:Int) =>
+		= words.zipWithIndex.map{ case (w:Int,i:Int) =>
 			if(U.isNum(w)){ U.w2str(w)+"["+nums(i).toString+"]" }
-			else{ U.w2str(w) } }, " ")
+			else{ U.w2str(w) } } mkString " "
 	override def toString:String = U.sent2str(words)
 }
 case class Feedback(ref:Temporal,grounding:Time,
@@ -880,14 +880,14 @@ object CKYParser {
 			//(print info)
 			grouped.foreach{ case (sent:Sentence,tags:Array[Array[Int]]) =>
 				val guess = tagger.tag(sent)
-				println("" + sent + "::  " + U.join(guess.map( toS(_) ), " " ))
+				println("" + sent + "::  " + guess.map( toS(_) ).mkString(" ") )
 				tags.foreach{ (gold:Array[Int]) =>
 					if(guess.zip(gold).forall{ case(a:Int,b:Int) => a == b }){
 						print(" *")
 					} else {
 						print("  ")
 					}
-					println(U.join(gold.map( toS(_) )," "))
+					println(gold.map( toS(_) ) mkString " ")
 				}
 			}
 		}
@@ -934,7 +934,7 @@ object CKYParser {
 //					""+m.get[String,TextAnnotation](WORD)+
 //					"("+RULES_STR(m.get[String,AnswerAnnotation](ANSWER).toInt)+")"
 //				}.toArray
-//				println("train:  " + U.join(strs, "  ") ) 
+//				println("train:  " + strs.mkString("  ") ) 
 //			}
 			classifier.train(javaData)
 			end_track
@@ -974,7 +974,7 @@ object CKYParser {
 			//(debug) //TODO removeme
 //			println("-----KLEX " + sent + "------")
 //			sequences.foreach{ case (term:Array[Int],score:Double) => 
-//				println(sent + " (" + G.df.format(score) + ") :: " + U.join(term.map{ (i:Int) => CKY_LEX(rid2lexI(i))},"   "))
+//				println(sent + " (" + G.df.format(score) + ") :: " + term.map{ (i:Int) => CKY_LEX(rid2lexI(i))},mkString("   "))
 //			}
 			//( P(slot,rule) )
 			val pSlotRule:Array[Array[Double]] = {
@@ -1107,7 +1107,7 @@ object CKYParser {
 		def numChildren:Int = rids.length
 		def isLex:Boolean = rids.length == 1 && rule.isLex
 		def validInput(w:Int):Boolean = rule.validInput(w)
-		override def toString:String = "<" + U.join(rules,", ") + ">"
+		override def toString:String = "<" + rules.mkString(", ") + ">"
 	}
 
 	class ChartElem(
@@ -1291,7 +1291,7 @@ object CKYParser {
 		}
 		override def toString:String = {
 			"[" + G.df.format(logScore) + "] " + 
-				term + " -> (" + U.join(children.map{ _.head },", ") + ")"
+				term + " -> (" + children.map{ _.head }.mkString(", ") + ")"
 		}
 	}
 
@@ -1841,6 +1841,8 @@ object CKYParser {
 	def lexLogProb(w:Int,pos:Int,rule:CkyRule):Double = {
 		assert(rule.arity == 1, "Lex with binary rule")
 		assert(w < G.W || w == G.UNK, "Word is out of range: " + w)
+		assert(rule.rid < wordScores.length, "Rule rid is out of range? " + rule)
+		assert(w < wordScores(rule.rid).length, "Word is out of range? "+w+"/"+G.W)
 		if(O.freeNils && rule.head == Head.NIL){
 			U.safeLn( 0.1 )
 		} else {
@@ -2421,9 +2423,8 @@ class CKYParser extends StandardParser{
 		//(debug)
 		val str = 
 			"Guesses: " + 
-			U.join(
 				scored.slice(0,3).map{ case (tag,parse,score) => 
-					""+parse+"["+G.df.format(score)+"]"}, " or ")
+					""+parse+"["+G.df.format(score)+"]"}.mkString(" or ")
 		if(O.printAllParses) {
 			logG(str)
 		} else {
@@ -2444,9 +2445,9 @@ class CKYParser extends StandardParser{
 			val (equivalent,message) = isEquivalentOutput(scoredReference, scored)
 			if(!equivalent){
 				println("----ALGORITHM 0----")
-				println(U.join(scoredReference, "\n"))
+				println(scoredReference mkString "\n")
 				println("----ALGORITHM "+saveAlg+"----")
-				println(U.join(scored, "\n"))
+				println(scored mkString "\n")
 			}
 			assert( equivalent, "Inconsistent with algorithm 0: " + message)
 			O.kbestCKYAlgorithm = saveAlg

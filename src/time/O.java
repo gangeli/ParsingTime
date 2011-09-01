@@ -15,6 +15,8 @@ public class O {
 	public static org.goobs.utils.Range test;
 	@Option(name="devTest", gloss="Report on development set")
 	public static boolean devTest = false;
+	@Option(name="retokenize", gloss="Tokenize on - and /")
+	public static boolean retokenize = false;
 	@Option(name="collapseNumbers", gloss="Pre-parse numeric expressions")
 	public static boolean collapseNumbers = false;
 	@Option(name="bucketNumbers", gloss="Bucket --NUM-- terms into num. digits")
