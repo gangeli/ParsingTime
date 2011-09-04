@@ -8,10 +8,9 @@ import org.joda.time._
 import edu.stanford.nlp.stats.ClassicCounter
 import edu.stanford.nlp.stats.Counter
 import edu.stanford.nlp.stats.Counters
+import edu.stanford.nlp.util.logging.Redwood.Static._
 
 import org.apache.commons.math.distribution.NormalDistributionImpl
-
-import org.goobs.exec.Log._
 
 import Temporal.{TraverseFn,TraverseTask}
 
@@ -1161,7 +1160,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		val diff:Double = this.diff(ground,offset,originOffset)
 		val str="E-Step [" + this + "]: offset=["+offset+" origin "+originOffset+
 			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
-		if(O.printAllParses){ logG(str) } else { log(str) }
+		if(O.printAllParses){ log(FORCE,str) } else { log(str) }
 		assert(!logprob.isNaN, "NaN probability")
 		e( offset-originOffset, diff, logprob )
 	}
@@ -1261,7 +1260,7 @@ object RepeatedRange {
 				assert(!mu.isNaN, "mu is NaN: " + mu)
 				if(dist != null){
 					val str = "Normalize ["+tag+"] ("+mu+","+math.sqrt(sigmasq)+")"
-					if(O.printAllParses){ logG(str) } else { log(str) }
+					if(O.printAllParses){ log(FORCE,str) } else { log(str) }
 				}
 				//(clear data)
 				data = List[(Double,Double)]()
@@ -1312,7 +1311,7 @@ object RepeatedRange {
 				//(debug)
 				if(dist != null){
 					val str = "Normalize ["+tag+"] " + counts
-					if(O.printAllParses){ logG(str) } else { log(str) }
+					if(O.printAllParses){ log(FORCE,str) } else { log(str) }
 				}
 				//(distribution)
 				dist = (offset:Int,x:Double) => counts.getCount(offset)

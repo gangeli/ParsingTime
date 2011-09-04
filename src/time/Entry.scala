@@ -10,16 +10,19 @@ import java.io.StringReader
 import java.text.DecimalFormat
 //(jodatime)
 import org.joda.time.DateTimeZone
+//(stanford)
+import edu.stanford.nlp.util.logging.Redwood
+import edu.stanford.nlp.util.logging.Redwood.Static._
 //(lib)
 import org.goobs.slib.Def
 import org.goobs.testing._
-import org.goobs.exec.Log._
 import org.goobs.exec.Execution
 import org.goobs.utils.Indexer
 import org.goobs.utils.MetaClass
 import org.goobs.utils.Stopwatch
 import org.goobs.testing.ResultLogger
 import org.goobs.stanford.SerializedCoreMapDataset
+import org.goobs.stanford.StanfordExecutionLogInterface
 
 
 
@@ -421,6 +424,7 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean) extends DataStore{
 			assert(t.words(test).length > 0, "Timex has no words: " + t)
 			//(variables)
 			val sent = Sentence(t.tid,t.words(test),t.pos(test),t.nums)
+			startTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
 			//(parse)
 			val (parses,feedback) = fn(sent, t.tid)
 			parseTime += watch.lap
@@ -428,6 +432,7 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean) extends DataStore{
 			val best:Temporal
 				= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
 			evalTime += watch.lap
+			endTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
 		}
 		//--Return
 		log("Timing: [parse] " + G.df.format(parseTime) +
@@ -439,11 +444,11 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean) extends DataStore{
 
 object SimpleTimexStore {
 	def apply(dataset:TimeDataset):Data = {
-		start_track("Loading Timexes")
+		startTrack("Loading Timexes")
 		//(log)
-		logG("* train: " + O.train)
-		logG({if(O.devTest) "*" else " "} + "   dev: " + O.dev)
-		logG({if(!O.devTest) "*" else " "} + "  test: " + O.test)
+		log(FORCE,"* train: " + O.train)
+		log(FORCE,{if(O.devTest) "*" else " "} + "   dev: " + O.dev)
+		log(FORCE,{if(!O.devTest) "*" else " "} + "  test: " + O.test)
 		//(make data)
 		log("creating data")
 		val data = Data(
@@ -455,11 +460,11 @@ object SimpleTimexStore {
 				dataset.slice(O.test.minInclusive,O.test.maxExclusive).timexes,true)
 			)
 		//(loop over data to read everything)
-		start_track("NOOP loop")
+		startTrack("NOOP loop")
 		data.noopLoop
-		end_track
+		endTrack("NOOP loop")
 		//(return)
-		end_track
+		endTrack("Loading Timexes")
 		data
 	}
 }
@@ -587,7 +592,7 @@ class Entry {
 	}
 
 	def init:Entry = {
-		start_track("Initializing")
+		startTrack("Initializing")
 		//--Initialize JodaTime
 		log("JodaTime settings")
 		DateTimeZone.setDefault(DateTimeZone.UTC);
@@ -597,21 +602,21 @@ class Entry {
 		//(timexes)
 		this.data = O.data match {
 			case O.DataSource.Toy => 
-				start_track("Toy Data")
+				startTrack("Toy Data")
 				val data = ToyData.STANDARD
-				end_track
+				endTrack("Toy Data")
 				data
 			case _ =>
 				SimpleTimexStore(
 					new TimeDataset(new SerializedCoreMapDataset(mkDataFilename)))
 		}
 		//--Create Parser
-		start_track("Creating Parser")
+		startTrack("Creating Parser")
 		assert(G.W > 0, "Words have not been interned yet!")
 		parser = new MetaClass("time."+O.parser).createInstance(classOf[Parser])
-		end_track
+		endTrack("Creating Parser")
 		//--Return
-		end_track
+		endTrack("Initializing")
 		this
 	}
 
@@ -621,15 +626,15 @@ class Entry {
 //------
 	def run:Entry = {
 		//--Run
-		start_track("Running")
+		startTrack("Running")
 		val (trainScores:Array[Score],testScore:Score)
 			= parser.run(this.data,O.iters)
-		end_track
+		endTrack("Running")
 		//--Process
-		start_track("Results")
+		startTrack("Results")
 		val logger = Execution.getLogger();
 		//(train)
-		start_track("train")
+		startTrack("train")
 		logger.setGlobalResult("train.accuracy",
 			trainScores(trainScores.length-1).accuracy)
 		logger.setGlobalResult("train.averank",
@@ -638,30 +643,30 @@ class Entry {
 			trainScores(trainScores.length-1).percentParsable)
 		logger.setGlobalResult("train.score",
 			trainScores(trainScores.length-1).aveScore())
-		logG("train.accuracy: " + trainScores(trainScores.length-1).accuracy)
-		logG("train.averank: " +	trainScores(trainScores.length-1).avePos)
-		logG("train.inbeam: " + trainScores(trainScores.length-1).percentParsable)
-		logG("train.score: " + trainScores(trainScores.length-1).aveScore())
+		log(FORCE,"train.accuracy: " + trainScores(trainScores.length-1).accuracy)
+		log(FORCE,"train.averank: " +	trainScores(trainScores.length-1).avePos)
+		log(FORCE,"train.inbeam: " + trainScores(trainScores.length-1).percentParsable)
+		log(FORCE,"train.score: " + trainScores(trainScores.length-1).aveScore())
 		if(O.data != O.DataSource.Toy){
 			trainScores(trainScores.length-1).tempeval("train")
 		}
-		end_track
+		endTrack("train")
 		//(test)
 		val s = if(O.devTest) "dev" else "test"
-		start_track(s)
+		startTrack(s)
 		logger.setGlobalResult(s+".accuracy", testScore.accuracy)
 		logger.setGlobalResult(s+".averank", testScore.avePos)
 		logger.setGlobalResult(s+".inbeam", testScore.percentParsable)
 		logger.setGlobalResult(s+".score", testScore.aveScore())
-		logG(s+".accuracy: "+ testScore.accuracy)
-		logG(s+".averank: "+ testScore.avePos)
-		logG(s+".inbeam: "+ testScore.percentParsable)
-		logG(s+".score: "+ testScore.aveScore())
+		log(FORCE,s+".accuracy: "+ testScore.accuracy)
+		log(FORCE,s+".averank: "+ testScore.avePos)
+		log(FORCE,s+".inbeam: "+ testScore.percentParsable)
+		log(FORCE,s+".score: "+ testScore.aveScore())
 		if(O.data != O.DataSource.Toy){
 			testScore.tempeval(s)
 		}
-		end_track
-		end_track
+		endTrack(s)
+		endTrack("Results")
 		//--Debug dump
 		log("saving parses")
 		trainScores.zipWithIndex.foreach( pair => {
@@ -683,6 +688,8 @@ class Entry {
 
 object Entry {
 	def main(args:Array[String]):Unit = {
+		Execution.changeLogInterface(new StanfordExecutionLogInterface())
+		//--Exec
 		Execution.exec(new Runnable(){
 			override def run:Unit = {
 				O.runDebug.toLowerCase match {
@@ -691,7 +698,7 @@ object Entry {
 					//(case: test the CRF)
 					case "crf" => CKYParser.CRFTagger.debugSequence
 					//(case: read the gold tag file)
-					case "goldtagread" => Const.goldTag; logG("OK")
+					case "goldtagread" => Const.goldTag; log(FORCE,"OK")
 					//(case: don't run a debug sequence)
 					case "none" => {
 						(new Entry).init.run

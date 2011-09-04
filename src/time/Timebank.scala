@@ -10,6 +10,7 @@ import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
 import edu.stanford.nlp.ling.CoreAnnotations._
+import edu.stanford.nlp.util.logging.Redwood._
 
 import org.joda.time.DateTime
 import org.joda.time.Period
@@ -18,7 +19,6 @@ import org.joda.time.DateTimeZone
 import org.goobs.database._
 import org.goobs.stanford.CoreMapDatum
 import org.goobs.testing.Dataset
-import org.goobs.exec.Log._
 
 //------------------------------------------------------------------------------
 // UTILITIES
@@ -74,7 +74,7 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 		= new TimeDataset(data.slice(minInclusive,maxExclusive))
 
 	def timexes:Array[Timex] = {
-		start_track("Reading Timexes")
+		forceTrack("Reading Timexes")
 		//(variables)
 		var rtn:List[Timex] = List[Timex]()
 		var index = 0
@@ -100,12 +100,12 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 						val tmx = new Timex(index,timex,tokenList,pubTime)
 						rtn = tmx :: rtn
 						index += 1
-						logG(tmx)
+						log(tmx)
 					}
 				}
 			}
 		}
-		end_track
+		endTrack("Reading Timexes")
 		//(return)
 		rtn.reverse.toArray
 	}

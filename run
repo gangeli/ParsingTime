@@ -3,7 +3,7 @@
 require 'execrunner'
 
 # -- DEPENDENCIES --
-JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
+JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
 JAR='time'
 		
 @timeDistribution = 1
@@ -116,7 +116,7 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
-#		o('badTimexes', 'aux/bad.txt'),
+		o('badTimexes', 'aux/bad.txt'),
 #		o('printAllParses'),
 #		o('printFailures'),
 #		o('cacheTemporalComputations',false),

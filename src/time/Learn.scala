@@ -7,7 +7,6 @@ import scala.collection.mutable.HashSet
 import Lex._
 import ParseConversions._
 
-import org.goobs.exec.Log._
 import org.goobs.exec.Execution
 import org.goobs.slib.Def
 import org.goobs.stanford.JavaNLP._
@@ -21,6 +20,7 @@ import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ie.crf.CRFClassifier
 import edu.stanford.nlp.sequences.SeqClassifierFlags
 import edu.stanford.nlp.sequences.FeatureFactory
+import edu.stanford.nlp.util.logging.Redwood.Static._
 
 //------------------------------------------------------------------------------
 // GRAMMAR
@@ -791,15 +791,15 @@ trait Parser {
 	def report:Unit = {}
 	def cycle(data:DataStore,iters:Int,feedback:Boolean=true):Array[Score]
 	def run(data:Data,iters:Int):(Array[Score],Score) = {
-		start_track("Training")
+		startTrack("Training")
 		val train = cycle(data.train,iters)
-		end_track
-		start_track("Testing")
+		endTrack("Training")
+		startTrack("Testing")
 		val test = cycle(if(O.devTest) data.dev else data.test, 1, false)(0)
-		end_track
-		start_track("Parser State")
+		endTrack("Testing")
+		startTrack("Parser State")
 		report
-		end_track
+		endTrack("Parser State")
 		(train,test)
 	}
 }
@@ -811,7 +811,7 @@ trait StandardParser extends Parser {
 		):(Array[Parse],Feedback=>Any)
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
-			start_track("Iteration " + i)
+			startTrack("Iteration " + i)
 			beginIteration(i,feedback,data)
 			val score = data.eachExample{ (sent:Sentence,id:Int) => 
 				parse(i, sent, feedback, id)
@@ -820,12 +820,12 @@ trait StandardParser extends Parser {
 			log(""+score)
 			log(""+score.reportK)
 			if(O.printFailures){
-				start_track("failures")
-				score.reportFailures{ (str:String) => logG(str) }
-				end_track
+				startTrack("failures")
+				score.reportFailures{ (str:String) => log(FORCE,str) }
+				endTrack("failures")
 			}
 			if(i != iters){ score.releaseResults } //release some memory
-			end_track
+			endTrack("Iteration " + i)
 			score
 		}).toArray
 	}
@@ -901,7 +901,7 @@ object CKYParser {
 				debugSequence(dataset,true)
 				println("-------------------------")
 			}
-			start_track("Training CRF Classifier")
+			startTrack("Training CRF Classifier")
 			//(create data)
 			log("creating data...")
 			val javaData:java.util.List[java.util.List[CoreMap]] =
@@ -915,13 +915,13 @@ object CKYParser {
 			//(create flags)
 			val flags = new SeqClassifierFlags
 			flags.featureFactory = O.crfFeatureFactory
-			debug("flags.featureFactory: " + flags.featureFactory)
+			log(DBG,"flags.featureFactory: " + flags.featureFactory)
 			flags.backgroundSymbol = NIL_RID.toString
-			debug("flags.backgroundSymbol: " + flags.backgroundSymbol)
+			log(DBG,"flags.backgroundSymbol: " + flags.backgroundSymbol)
 			flags.inferenceType = "Beam"
-			debug("flags.inferenceType: " + flags.inferenceType)
+			log(DBG,"flags.inferenceType: " + flags.inferenceType)
 			flags.beamSize = O.crfKBest
-			debug("flags.beamSize: " + flags.beamSize)
+			log(DBG,"flags.beamSize: " + flags.beamSize)
 			val classifier = new CRFClassifier[CoreMap](flags)
 			//(train classifier)
 			log("training...")
@@ -937,7 +937,7 @@ object CKYParser {
 //				println("train:  " + strs.mkString("  ") ) 
 //			}
 			classifier.train(javaData)
-			end_track
+			endTrack("Training CRF Classifier")
 			new CRFTagger(classifier)
 		}
 	}
@@ -1984,16 +1984,16 @@ class CKYParser extends StandardParser{
 	//-----
 
 	override def beginIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {
-		start_track("Begin Iteration")
+		startTrack("Begin Iteration")
 		//(debug rules)
 		ruleScores.zipWithIndex.foreach{ case (score:Double,rid:Int) =>
-			debugG("rule["+RULES_STR(rid)+"] score " + score)
+			log(DBG,"rule["+RULES_STR(rid)+"] score " + score)
 		}
 		CKY_UNARY.foreach{ (r:CkyRule) => 
-			debugG("unary [" + G.df.format(ruleLogProb(r))+"]  "+r.rids.length+" "+r)
+			log(DBG,"unary [" + G.df.format(ruleLogProb(r))+"]  "+r.rids.length+" "+r)
 		}
 		CKY_LEX.foreach{ (r:CkyRule) => 
-			debugG("lex "+RULES_STR(r.rid))
+			log(DBG,"lex "+RULES_STR(r.rid))
 		}
 		//(clear last decoded)
 		log("clearing last parses")
@@ -2002,7 +2002,7 @@ class CKYParser extends StandardParser{
 			corrects = List[GuessInfo]()
 			timesToNormalize = List[()=>Any]()
 		}
-		end_track
+		endTrack("Begin Iteration")
 	}
 
 	override def endIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {
@@ -2073,49 +2073,49 @@ class CKYParser extends StandardParser{
 			log("normalizing (M Step)")
 			normalize
 			//(update times)
-			start_track("time (M Step)")
+			startTrack("time (M Step)")
 			timesToNormalize.foreach{ (fn:()=>Any) => fn() }
 			ranges.foreach{ case (r:Range,s:String) => r.runM }
 			durations.foreach{ case (d:Duration,s:String) => d.runM }
 			sequences.foreach{ case (d:Duration,s:String) => d.runM }
-			end_track
+			endTrack("time (M Step)")
 		}
 		//--Debug
-		start_track("Iteration Summary")
+		startTrack("Iteration Summary")
 		reportInternal(false)
-		end_track
+		endTrack("Iteration Summary")
 	}
 
 
 	private def reportInternal(writeParses:Boolean):Unit = {
 		//--Debug Print
 		//(best rules)
-		start_track("rule scores (top by head)")
+		startTrack("rule scores (top by head)")
 		Head.values.foreach{ (head:Head.Value) =>
 			val lst = RULES_INDEX
 				.filter{ case (r:Rule,rid:Int) => r.head == head && !r.isLex}
 				.map{ case (r:Rule,rid:Int) => (rid,ruleScores(rid)) }
 				.sortBy(-_._2)
 			if(lst.length > 0){
-				start_track(""+head)
+				startTrack(""+head)
 				//(top rules)
 				lst.slice(0,3).foreach{ case (rid:Int,score:Double) =>
-					logG("["+G.df.format(score)+"] "+RULES(rid))
+					log(FORCE,"["+G.df.format(score)+"] "+RULES(rid))
 				}
 				//(bottom rules)
 				val sl:Int = 
-					if(lst.length > 6) { logG("..."); 3 }
+					if(lst.length > 6) { log(FORCE,"..."); 3 }
 					else if(lst.length > 3) { lst.length-3 }
 					else { 0 }
 				lst.reverse.slice(0,sl).reverse.foreach{ case (rid:Int,score:Double) =>
-					logG("["+G.df.format(score)+"] "+RULES(rid))
+					log(FORCE,"["+G.df.format(score)+"] "+RULES(rid))
 				}
-				end_track
+				endTrack(""+head)
 			}
 		}
-		end_track
+		endTrack("rule scores (top by head)")
 		//(word reachability)
-		start_track("impossible words")
+		startTrack("impossible words")
 		var unreachableWords:Int = 0
 		RULES_INDEX.filter( _._1.isLex).foreach{ case (r:Rule,rid:Int) =>
 			val rule2word = (0 until G.W).foldLeft(0.0){ (count:Double,w:Int) =>
@@ -2126,21 +2126,21 @@ class CKYParser extends StandardParser{
 				count + wordScores(rid)(w)
 			}
 			if(rule2word == 0){
-				logG("rule is unreachable: " + RULES_STR(rid))
+				log(FORCE,"rule is unreachable: " + RULES_STR(rid))
 			}
 		}
 		if(unreachableWords > 0){
 			if(O.smoothing != O.SmoothingType.none){
 				throw new IllegalStateException("Words have zero probability")
 			} else {
-				logG("WARNING: " + unreachableWords + " rule->words with 0 probability")
+				log(FORCE,"WARNING: " + unreachableWords + " rule->words with 0 probability")
 			}
 		} else {
-			logG("no zero probability words")
+			log(FORCE,"no zero probability words")
 		}
-		end_track
+		endTrack("impossible words")
 		//(some lex probabilities)
-		start_track("lex scores (top by head)")
+		startTrack("lex scores (top by head)")
 		Head.values.foreach{ (head:Head.Value) =>
 			val bestLex:List[(Int,Int,Double)] = CKY_LEX
 				.filter{ (r:CkyRule) => r.head==head }
@@ -2151,14 +2151,14 @@ class CKYParser extends StandardParser{
 							(r.rid,w,score) }.toList
 				}.filter{ _._3 > 0.0 }.sortBy( - _._3 ).slice(0,5)
 			bestLex.foreach{ case (rid,w,score) =>
-				logG("[" + G.df.format(score) + "] " + 
+				log(FORCE,"[" + G.df.format(score) + "] " + 
 					U.w2str(w) + " from " + RULES_STR(rid) )
 			}
 		}
-		end_track
+		endTrack("lex scores (top by head)")
 		//(write guesses)
 		if(writeParses){
-			start_track("Creating Presentation")
+			startTrack("Creating Presentation")
 			val b = new StringBuilder
 			b.append(Const.START_PRESENTATION("Results"))
 			guesses.sortBy( _.sid ).foldLeft(List[GuessInfo]()){ 
@@ -2191,7 +2191,7 @@ class CKYParser extends StandardParser{
 			val writer = new java.io.FileWriter(Execution.touch("parses.rb"))
 			writer.write(b.toString)
 			writer.close
-			end_track
+			endTrack("Creating Presentation")
 		}
 	}
 
@@ -2400,7 +2400,6 @@ class CKYParser extends StandardParser{
 
 	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:Int
 			):(Array[Parse],Feedback=>Any)={
-		startTrack("Sentence: " + sent.toString)
 		//--Initial Checks
 		if(O.paranoid){ val (ok,msg) = ensureValidProbabilities; assert(ok,msg) }
 		//--Run Parser
@@ -2426,7 +2425,7 @@ class CKYParser extends StandardParser{
 				scored.slice(0,3).map{ case (tag,parse,score) => 
 					""+parse+"["+G.df.format(score)+"]"}.mkString(" or ")
 		if(O.printAllParses) {
-			logG(str)
+			log(FORCE,str)
 		} else {
 			log(str)
 		}
@@ -2535,7 +2534,7 @@ class CKYParser extends StandardParser{
 							ground=feedback.grounding.toString
 						))
 					//(end)
-					endTrack
+					endTrack("Correct: " + temporal)
 				}
 				//--Run Update
 				startTrack("Update")
@@ -2564,8 +2563,7 @@ class CKYParser extends StandardParser{
 						if(bestI >= 0){ update(bestI,bestOffset) }
 					case _ => throw fail("Unknown case")
 				}
-				endTrack //end update
-				endTrack //end sentence
+				endTrack("Update")
 			}
 		)
 		//--Debug (end)
@@ -2577,7 +2575,6 @@ class CKYParser extends StandardParser{
 		writer.write(b.toString)
 		writer.close
 		//--Return
-		if(parses.length == 0){ endTrack } //end sentence (if no feedback)
 		rtn
 	}
 }
