@@ -17,14 +17,14 @@ ${DIST}/time.jar: $(wildcard src/time/*.java)	$(wildcard src/time/*.scala)
 	mkdir -p ${BUILD}
 	mkdir -p ${DIST}
 	javac -d $(BUILD) -cp $(CP) `find $(SRC) -name "*.java"`
-	fsc -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
+	etc/scalac -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
 	jar cf ${DIST}/time.jar -C $(BUILD) .
 	jar uf ${DIST}/time.jar -C $(SRC) .
 
 ${DIST}/test.jar: $(wildcard test/src/time/*.java) $(wildcard test/src/time/*.scala) ${DIST}/time.jar
 	mkdir -p ${TEST_BUILD}
 	mkdir -p ${DIST}
-	fsc -deprecation -d ${TEST_BUILD} -cp ${CP}:$(DIST)/time.jar:$(LIB)/scalatest.jar `find $(TEST_SRC) -name "*.scala"` `find ${TEST_SRC} -name "*.java"`
+	etc/fsc -deprecation -d ${TEST_BUILD} -cp ${CP}:$(DIST)/time.jar:$(LIB)/scalatest.jar `find $(TEST_SRC) -name "*.scala"` `find ${TEST_SRC} -name "*.java"`
 	jar cf ${DIST}/test.jar -C $(TEST_BUILD) .
 	jar uf ${DIST}/test.jar -C $(TEST_SRC) .
 	
