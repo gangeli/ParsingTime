@@ -35,12 +35,14 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		selo(2, 'smoothing',
-			'none',
-			'addOne',
-			'backoff'),
-		o('addOneCount', 0.1),
-		o('backoffFactor', 0.01),
+		o('rulePrior', 0.01),
+		o('lexPrior', 0.01),
+#		selo(2, 'smoothing',
+#			'none',
+#			'addOne',
+#			'backoff'),
+#		o('addOneCount', 0.1),
+#		o('backoffFactor', 0.01),
 		selo(1,'ckyCountType',
 			'all',
 			'bestAll',

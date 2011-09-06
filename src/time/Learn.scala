@@ -1053,32 +1053,52 @@ object CKYParser {
 			if(matches.length > 0) matches(0)._2 else -1
 		}.toArray
 	
-	//(counts)
-	private val rulesCounted:Array[Double] = RULES.map{ r => 0.0 }
-	private val wordsCounted:Array[Counter[Int]] = 
-		RULES.map{ r => new ClassicCounter[Int] }
 	
-	//(parameters)
-	private val ruleScores:Array[Double] = (0 until RULES.length).map{(rid:Int) =>
-		if(RULES(rid).isLex){
-			Double.NaN
-		} else {
-			O.initMethod match {
-				case O.InitType.uniform => 1.0
-				case O.InitType.random => U.rand
+	//(learning)
+	private val (pRuleGivenHead,rid2Indices)
+			:(Array[Multinomial[Int]],Array[(Int,Int)]) = {
+		val mapping = (0 until RULES.length).map{ x => (0,0) }.toArray
+		val distributions:Array[Multinomial[Int]]
+				= Head.values.map{ (head:Head.Value) =>
+			//((create structures))
+			RULES.zipWithIndex.filter{ _._1.head == head }.map{ _._2 }
+					.zipWithIndex.foreach{ case (rid:Int,index:Int) =>
+				mapping(rid) = (head.id,index)
 			}
-		}
-	}.toArray
-	private val wordScores:Array[Array[Double]] = (0 until RULES.length).map{ r =>
-		(0 to G.W).map{ w =>
-			O.initMethod match {
-				case O.InitType.uniform => 1.0
-				case O.InitType.random => U.rand
+			val size = RULES.filter{ _.head == head }.length
+			val mult:Multinomial[Int] = new Multinomial[Int](U.intStore(size))
+			//((initialize))
+			(0 until size).foreach{ case (i:Int) =>
+				O.initMethod match {
+					case O.InitType.uniform => mult.incrementCount(i,1.0)
+					case O.InitType.random => mult.incrementCount(i,U.rand)
+				}
+			}//((return))
+			(head.id,mult)
+		}.toArray.sortBy( _._1 ).map{ _._2 }
+		(distributions,mapping)
+	}
+	private val ruleESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
+		= pRuleGivenHead.map{ _.newStatistics(O.rulePrior) }
+
+	private val pWordGivenHead:Array[Multinomial[Int]] = {
+		Head.values.map{ (head:Head.Value) =>
+			val dist = new Multinomial[Int](U.intStore(G.W+1))
+			(0 to G.W).foreach{ (w:Int) =>
+				dist.incrementCount(
+					w,
+					O.initMethod match {
+						case O.InitType.uniform => 1.0
+						case O.InitType.random => U.rand
+					}
+				)
 			}
-		}.toArray}.toArray
-	private val wordTotalCounts:Array[Double] = 
-		(0 until RULES.length).map{ r => 0.0 }.toArray
-	
+			(head.id,dist)
+		}.toArray.sortBy{ _._1 }.map{ _._2 }
+	}
+	private val lexESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
+		= pWordGivenHead.map{ _.newStatistics(O.lexPrior) }
+
 	//(substructures)
 	private var tagger:CRFTagger = null
 	
@@ -1842,19 +1862,20 @@ object CKYParser {
 	def lexLogProb(w:Int,pos:Int,rule:CkyRule):Double = {
 		assert(rule.arity == 1, "Lex with binary rule")
 		assert(w < G.W || w == G.UNK, "Word is out of range: " + w)
-		assert(rule.rid < wordScores.length, "Rule rid is out of range? " + rule)
-		assert(w < wordScores(rule.rid).length, "Word is out of range? "+w+"/"+G.W)
+		assert(rule.isLex,"Lex probability accessed on non-lex rule")
 		if(O.freeNils && rule.head == Head.NIL){
 			U.safeLn( 0.1 )
 		} else {
-			U.safeLn( wordScores(rule.rid)(w) )
+			U.safeLn( pWordGivenHead(rule.head.id).prob(w) )
 		}
 	}
 	def ruleLogProb(rule:CkyRule):Double = {
 		rule.rids.foldLeft(0.0){ (logScore:Double,rid:Int) => 
 			assert(!RULES(rid).isLex,
 				"Rule probability calculation accessed a lex rule")
-			logScore + U.safeLn(ruleScores(rid)) }
+			val (headID,multID) = rid2Indices(rid)
+			logScore + U.safeLn(pRuleGivenHead(headID).prob(multID))
+		}
 	}
 
 	def klex(sent:Sentence,y:(CkyRule,Int,Double)=>Boolean):Array[Int] = {
@@ -1883,11 +1904,6 @@ object CKYParser {
 class CKYParser extends StandardParser{
 	import CKYParser._
 	import Grammar._
-	//-----
-	// Startup
-	//-----
-	//(normalize)
-	normalize
 
 	//-----
 	// CKY
@@ -1986,16 +2002,6 @@ class CKYParser extends StandardParser{
 
 	override def beginIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {
 		startTrack("Begin Iteration")
-		//(debug rules)
-		ruleScores.zipWithIndex.foreach{ case (score:Double,rid:Int) =>
-			log(DBG,"rule["+RULES_STR(rid)+"] score " + score)
-		}
-		CKY_UNARY.foreach{ (r:CkyRule) => 
-			log(DBG,"unary [" + G.df.format(ruleLogProb(r))+"]  "+r.rids.length+" "+r)
-		}
-		CKY_LEX.foreach{ (r:CkyRule) => 
-			log(DBG,"lex "+RULES_STR(r.rid))
-		}
 		//(clear last decoded)
 		log("clearing last parses")
 		if(feedback){
@@ -2008,78 +2014,39 @@ class CKYParser extends StandardParser{
 
 	override def endIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {
 		if(feedback){
-			log("updating counts (E step)")
-			//--Copy Weights
-			//(rules)
-			//((total counts))
-			val totalCount:Double
-				= rulesCounted.foldLeft(0.0){ case (soFar,cnt) => soFar+cnt }
-			val totalRules:Double = rulesCounted.length.asInstanceOf[Double]
-			val rulesBackoff:Double = 
-				if(totalCount==0) { 0.000001/totalRules }
-				else { O.backoffFactor * totalCount / totalRules }
-			assert(rulesBackoff > 0.0 && !rulesBackoff.isNaN, 
-				"Bad backoff: " + rulesBackoff)
-			//((free counts -- smoothing))
-			(0 until ruleScores.length).foreach{ (rid:Int) => 
-				ruleScores(rid) = O.smoothing match {
-					case O.SmoothingType.none => 0.0
-					case O.SmoothingType.addOne => O.addOneCount
-					case O.SmoothingType.backoff => rulesBackoff
-				}
+			startTrack("M Step")
+			//(update rules)
+			startTrack("rules")
+			(0 until pRuleGivenHead.length).foreach{ (hid:Int) =>
+				pRuleGivenHead(hid) = ruleESS(hid).runMStep
 			}
-			//((new scores))
-			rulesCounted.zipWithIndex.foreach{ case (count,rid) =>
-				assert(!count.isNaN, "Rule count is NaN")
-				if(O.smoothing == O.SmoothingType.backoff){
-					ruleScores(rid) += count * (1.0-O.backoffFactor)
-				} else {
-					ruleScores(rid) += count
-				}
+			endTrack("rules")
+			startTrack("lex")
+			(0 until pWordGivenHead.length).foreach{ (hid:Int) =>
+				pWordGivenHead(hid) = lexESS(hid).runMStep
 			}
-			//(lex)
-			//((total counts))
-			val headTotalCount:Array[Double] = new Array[Double](Head.values.size)
-			wordsCounted.zipWithIndex.foreach{ case (counter,rid) =>
-				headTotalCount(RULES(rid).head.id) += counter.totalCount
-			}
-			val backoffCount:Array[Double] = headTotalCount.map{ (count:Double) =>
-					val backoff:Double = O.backoffFactor*count / G.W.asInstanceOf[Double] 
-					if(backoff == 0.0) 1.0 else backoff
-				}
-			wordsCounted.zipWithIndex.foreach{ case (counter,rid) =>
-				//((free counts -- smoothing))
-				(0 until wordScores(rid).length).foreach{ (w:Int) => 
-					wordScores(rid)(w) = O.smoothing match {
-						case O.SmoothingType.none => 0.0
-						case O.SmoothingType.addOne => O.addOneCount
-						case O.SmoothingType.backoff => backoffCount(RULES(rid).head.id)
-					}
-				}
-				//((new scores))
-				counter.keySet.foreach{ (w:Int) =>
-					if(O.smoothing == O.SmoothingType.backoff){
-						wordScores(rid)(w) += counter.getCount(w)*(1.0-O.backoffFactor)
-					} else {
-						wordScores(rid)(w) += counter.getCount(w)
-					}
-				}
-			}
-			//(clear counts)
-			(0 until rulesCounted.length).foreach{ (rid:Int) => rulesCounted(rid)=0.0}
-			(0 until wordsCounted.length).foreach{ (rid:Int) => 
-				wordsCounted(rid) = new ClassicCounter[Int]
-			}
-			//(normalize)
-			log("normalizing (M Step)")
-			normalize
+			endTrack("lex")
 			//(update times)
-			startTrack("time (M Step)")
+			startTrack("time")
 			timesToNormalize.foreach{ (fn:()=>Any) => fn() }
 			ranges.foreach{ case (r:Range,s:String) => r.runM }
 			durations.foreach{ case (d:Duration,s:String) => d.runM }
 			sequences.foreach{ case (d:Duration,s:String) => d.runM }
-			endTrack("time (M Step)")
+			endTrack("time")
+			//(CRF retrain)
+			if(O.crfTag && corrects.length > 0){
+				startTrack("crf")
+				tagger = CRFTagger(corrects.map{ (guess:GuessInfo) =>
+						val sent:Sentence = guess.sent
+						val rules:Array[Int] = guess.parse.lexRules
+						assert(guess.sent.length == rules.length, "length mismatch")
+						( guess.sent, rules )
+					}.toArray)
+				endTrack("crf")
+			} else {
+				tagger = null
+			}
+			endTrack("M Step")
 		}
 		//--Debug
 		startTrack("Iteration Summary")
@@ -2093,49 +2060,21 @@ class CKYParser extends StandardParser{
 		//(best rules)
 		startTrack("rule scores (top by head)")
 		Head.values.foreach{ (head:Head.Value) =>
-			val lst = RULES_INDEX
-				.filter{ case (r:Rule,rid:Int) => r.head == head && !r.isLex}
-				.map{ case (r:Rule,rid:Int) => (rid,ruleScores(rid)) }
-				.sortBy(-_._2)
-			if(lst.length > 0){
-				startTrack(""+head)
-				//(top rules)
-				lst.slice(0,3).foreach{ case (rid:Int,score:Double) =>
-					log(FORCE,"["+G.df.format(score)+"] "+RULES(rid))
-				}
-				//(bottom rules)
-				val sl:Int = 
-					if(lst.length > 6) { log(FORCE,"..."); 3 }
-					else if(lst.length > 3) { lst.length-3 }
-					else { 0 }
-				lst.reverse.slice(0,sl).reverse.foreach{ case (rid:Int,score:Double) =>
-					log(FORCE,"["+G.df.format(score)+"] "+RULES(rid))
-				}
-				endTrack(""+head)
-			}
+			log( pRuleGivenHead(head.id) )
 		}
 		endTrack("rule scores (top by head)")
 		//(word reachability)
 		startTrack("impossible words")
 		var unreachableWords:Int = 0
-		RULES_INDEX.filter( _._1.isLex).foreach{ case (r:Rule,rid:Int) =>
-			val rule2word = (0 until G.W).foldLeft(0.0){ (count:Double,w:Int) =>
-				if(wordScores(rid)(w) == 0.0){ 
-					unreachableWords += 1
-					log("unreachable: " + RULES_STR(rid) + " -> " + U.w2str(w))
-				}
-				count + wordScores(rid)(w)
-			}
-			if(rule2word == 0){
-				log(FORCE,"rule is unreachable: " + RULES_STR(rid))
+		Head.values.foreach{ (head:Head.Value) =>
+			pWordGivenHead(head.id).zeroes.foreach{ (w:Int) =>
+				log("unreachable: " + head + " -> " + U.w2str(w))
+				unreachableWords += 1
 			}
 		}
 		if(unreachableWords > 0){
-			if(O.smoothing != O.SmoothingType.none){
-				throw new IllegalStateException("Words have zero probability")
-			} else {
-				log(FORCE,"WARNING: " + unreachableWords + " rule->words with 0 probability")
-			}
+			log(FORCE,"WARNING: " + 
+				unreachableWords + " rule->words with 0 probability")
 		} else {
 			log(FORCE,"no zero probability words")
 		}
@@ -2143,18 +2082,7 @@ class CKYParser extends StandardParser{
 		//(some lex probabilities)
 		startTrack("lex scores (top by head)")
 		Head.values.foreach{ (head:Head.Value) =>
-			val bestLex:List[(Int,Int,Double)] = CKY_LEX
-				.filter{ (r:CkyRule) => r.head==head }
-				.foldLeft(List[(Int,Int,Double)]()){ 
-						(soFar:List[(Int,Int,Double)], r:CkyRule) =>
-					soFar ::: 
-						wordScores(r.rid).zipWithIndex.map{ case (score:Double,w:Int) =>
-							(r.rid,w,score) }.toList
-				}.filter{ _._3 > 0.0 }.sortBy( - _._3 ).slice(0,5)
-			bestLex.foreach{ case (rid,w,score) =>
-				log(FORCE,"[" + G.df.format(score) + "] " + 
-					U.w2str(w) + " from " + RULES_STR(rid) )
-			}
+			log( pWordGivenHead(head.id) )
 		}
 		endTrack("lex scores (top by head)")
 		//(write guesses)
@@ -2243,166 +2171,8 @@ class CKYParser extends StandardParser{
 		}
 	}
 
-
-	def ensureValidProbabilities:(Boolean,String) = {
-		def isOne(d:Double):Boolean = d > 0.99999 && d < 1.00001
-		import scala.math.exp
-		//--Raw Scores
-		//(rules)
-		Head.values.foreach{ (head:Head.Value) =>
-			val unaryScore:Double = CKY_UNARY
-				.filter{ (r:CkyRule) => r.head==head && r.rids.length == 1}
-				.foldLeft(0.0){ (soFar:Double,r:CkyRule) => soFar + ruleScores(r.rid) }
-			val binaryScore:Double = CKY_BINARY
-				.filter{ (r:CkyRule) => r.head==head && r.rids.length == 1}
-				.foldLeft(0.0){ (soFar:Double,r:CkyRule) => soFar + ruleScores(r.rid) }
-			val totalNum:Int = 
-				CKY_UNARY.filter{(r:CkyRule)=>r.head==head && r.rids.length==1}.length+
-				CKY_BINARY.filter{(r:CkyRule)=>r.head==head && r.rids.length==1}.length
-			if(totalNum > 0 && !isOne(unaryScore+binaryScore)){
-				return (false,
-					"rule (struct) scores do not add to one for head " + head + 
-					" [" + (unaryScore+binaryScore)+"]")
-			}
-		}
-		//(lex)
-		Head.values.foreach{ (head:Head.Value) =>
-			val lexScore:Double = CKY_LEX.filter{ (r:CkyRule) => r.head==head }
-				.foldLeft(0.0){ (soFar:Double, r:CkyRule) =>
-					soFar + wordScores(r.rid).foldLeft(0.0){ (x:Double,s:Double) => x+s }
-				}
-			val num:Int = CKY_LEX.filter{ (r:CkyRule) => r.head==head }.length
-			if(num>0 && !isOne(lexScore)){
-				return (false,"lex (struct) scores for nonterminal " +
-					head + " does not sum to 1 ["+lexScore+"]")
-			}
-		}
-		//--Functions
-		//(rules)
-		Head.values.foreach{ (head:Head.Value) =>
-			val unaryScore:Double = CKY_UNARY
-				.filter{ (r:CkyRule) => r.head==head && r.rids.length == 1}
-				.foldLeft(0.0){ (soFar:Double,r:CkyRule) => soFar+exp(ruleLogProb(r)) }
-			val binaryScore:Double = CKY_BINARY
-				.filter{ (r:CkyRule) => r.head==head && r.rids.length == 1}
-				.foldLeft(0.0){ (soFar:Double,r:CkyRule) => soFar+exp(ruleLogProb(r)) }
-			val totalNum:Int = 
-				CKY_UNARY.filter{(r:CkyRule)=>r.head==head && r.rids.length==1}.length+
-				CKY_BINARY.filter{(r:CkyRule)=>r.head==head && r.rids.length==1}.length
-			if(totalNum > 0 && !isOne(unaryScore+binaryScore)){
-				return (false,"rule (fn) scores do not add to one for head " + head +
-					" [" + (unaryScore+binaryScore)+"]")
-			}
-		}
-		//(lex)
-		Head.values.foreach{ (head:Head.Value) =>
-			val lexScore:Double = CKY_LEX.filter{ (r:CkyRule) => r.head==head }
-				.foldLeft(0.0){ (soFar:Double, r:CkyRule) =>
-					soFar + (0 to G.W).foldLeft(0.0){ (soFarWord:Double,w:Int) => 
-						soFarWord+exp(lexLogProb(w,-1,r))
-					}
-				}
-			val totalNum:Int = CKY_LEX.filter{ (r:CkyRule) => r.head==head }.length
-			if(totalNum > 0 && !isOne(lexScore)){
-				return (false,"lex (fn) scores for nonterminal " +
-					head + " does not sum to 1 ["+lexScore+"]")
-			}
-		}
-		(true,"ok")
-	}
-	
-	def normalize:Unit = {
-		//--Rules
-		val seen = new Array[Boolean](RULES.length)
-		Head.values.foreach{ (head:Head.Value) => 
-			//(count)
-			val unaryCount:Double = CKY_UNARY
-				.filter{ (r:CkyRule) => r.head==head && r.rids.length == 1}
-				.foldLeft(0.0){ (soFar:Double,r:CkyRule) => soFar + ruleScores(r.rid) }
-			val binaryCount:Double = CKY_BINARY
-				.filter{ (r:CkyRule) => r.head==head && r.rids.length == 1}
-				.foldLeft(0.0){ (soFar:Double,r:CkyRule) => soFar + ruleScores(r.rid) }
-			val totalCount:Double = unaryCount+binaryCount
-			val totalNum:Int = 
-				CKY_UNARY.filter{(r:CkyRule)=>r.head==head && r.rids.length==1}.length+
-				CKY_BINARY.filter{(r:CkyRule)=>r.head==head && r.rids.length==1}.length
-			//(set)
-			CKY_UNARY.filter{ (r:CkyRule) => r.head==head && r.rids.length == 1}
-				.foreach{ (r:CkyRule) => 
-					assert(!seen(r.rid), "updating a rule multiple times")
-					seen(r.rid) = true
-					if(totalCount == 0.0){
-						//(case: never seen)
-						ruleScores(r.rid) = 1.0 / totalNum.asInstanceOf[Double]
-					} else {
-						//(case: normal)
-						ruleScores(r.rid) /= totalCount
-					}
-				}
-			CKY_BINARY.filter{ (r:CkyRule) => r.head==head}
-				.foreach{ (r:CkyRule) => 
-					assert(r.rids.length == 1, "binary ckyrule with multiple rules")
-					assert(!seen(r.rid), "updating a rule multiple times")
-					seen(r.rid) = true
-					if(totalCount == 0.0){
-						//(case: never seen)
-						ruleScores(r.rid) = 1.0 / totalNum.asInstanceOf[Double]
-					} else {
-						//(case: normal)
-						ruleScores(r.rid) /= totalCount
-					}
-				}
-		}
-		assert(seen.zipWithIndex.forall{ case (seen:Boolean,rid:Int) => 
-				seen || RULES(rid).isLex
-			}, "Some rules were not seen")
-		//--Lex
-		Head.values.foreach{ (head:Head.Value) =>
-			//(count)
-			val totalCount:Double = CKY_LEX.filter{ (r:CkyRule) => r.head==head }
-				.foldLeft(0.0){ (soFar:Double, r:CkyRule) =>
-					soFar + wordScores(r.rid).foldLeft(0.0){ (x:Double,s:Double) => x+s }
-				}
-			val num:Int = CKY_LEX.filter{ (r:CkyRule) => r.head==head }.length
-			//(set)
-			CKY_LEX.filter{ (r:CkyRule) => r.head==head }.foreach{ (r:CkyRule) =>
-				(0 until wordScores(r.rid).length).foreach{ (w:Int) =>
-					if(num > 0 && totalCount > 0.0){
-						//(case: normal)
-						wordScores(r.rid)(w) /= totalCount
-					} else if(num > 0) {
-						//(case: never seen)
-						wordScores(r.rid)(w) = 1.0 /
-								( wordScores(r.rid).length.asInstanceOf[Double] *
-								  num.asInstanceOf[Double] )
-					} else {
-						throw new IllegalStateException("Should never reach here")
-					}
-				}
-			}
-		}
-		//--CRF Retrain
-		if(O.crfTag && corrects.length > 0){
-			tagger = CRFTagger(corrects.map{ (guess:GuessInfo) =>
-					val sent:Sentence = guess.sent
-					val rules:Array[Int] = guess.parse.lexRules
-					assert(guess.sent.length == rules.length, "length mismatch")
-					( guess.sent, rules )
-				}.toArray)
-		} else {
-			tagger = null
-		}
-		//--Debug
-		if(O.paranoid){
-			val (ok,msg) = ensureValidProbabilities; assert(ok,msg)
-		}
-	}
-
-
 	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:Int
 			):(Array[Parse],Feedback=>Any)={
-		//--Initial Checks
-		if(O.paranoid){ val (ok,msg) = ensureValidProbabilities; assert(ok,msg) }
 		//--Run Parser
 		//(run CKY)
 		val trees:Array[ParseTree] = cky(sent,O.beam)
@@ -2505,11 +2275,14 @@ class CKYParser extends StandardParser{
 					}
 					assert(correctCount > 0, "updating with no corrects?")
 					assert(!count.isNaN, "Trying to incorporate NaN count")
-					//(count rules)
+					//(count rules) NOTE: E-STEP HERE
 					trees(index).traverse( 
-							{(rid:Int) => rulesCounted(rid) += count},
+							{(rid:Int) =>
+								val (hid,multI) = rid2Indices(rid)
+								ruleESS(hid).updateEStep(multI,count) 
+							},
 							{(rid:Int,i:Int) => 
-								wordsCounted(rid).incrementCount(sent.words(i),count)
+								lexESS(RULES(rid).head.id).updateEStep(sent.words(i),count)
 							}
 						)
 					//(append guesses)

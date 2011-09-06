@@ -1,6 +1,7 @@
 package time;
 
 import org.goobs.exec.Option;
+import org.goobs.stats.Dirichlet;
 
 public class O {
 	public static enum Distribution{ Point, Multinomial, Gaussian }
@@ -29,6 +30,10 @@ public class O {
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")
 	public static int beam = 100000;
+	@Option(name="rulePrior", gloss="Dirichlet prior for CKY rules")
+	public static Dirichlet<scala.Int> rulePrior = Dirichlet.ZERO();
+	@Option(name="lexPrior", gloss="Dirichlet prior for CKY lexical terms")
+	public static Dirichlet<scala.Int> lexPrior = Dirichlet.ZERO();
 	public static enum SmoothingType{ none, addOne, backoff }
 	@Option(name="smoothing", gloss="Smoothing type for grammar")
 	public static SmoothingType smoothing = SmoothingType.none;

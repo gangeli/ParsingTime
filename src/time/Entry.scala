@@ -23,6 +23,7 @@ import org.goobs.utils.Stopwatch
 import org.goobs.testing.ResultLogger
 import org.goobs.stanford.SerializedCoreMapDataset
 import org.goobs.stanford.StanfordExecutionLogInterface
+import org.goobs.stats.CountStore
 
 
 
@@ -172,6 +173,39 @@ object U {
 	}
 	def timexOK(tid:Int):Boolean = {
 		!badTimexes.contains(tid)
+	}
+
+	def intStore(capacity:Int):CountStore[Int] = {
+		val counts:Array[Double] = new Array[Double](capacity)
+		new CountStore[Int] {
+			override def getCount(key:Int):Double = counts(key)
+			override def setCount(key:Int,count:Double):Unit = { counts(key) = count }
+			override def emptyCopy:CountStore[Int] = intStore(capacity)
+			override def clone:CountStore[Int] = {
+				super.clone
+				val copy = emptyCopy
+				counts.zipWithIndex.foreach{ case (count:Double,i:Int) =>
+					copy.setCount(i,count)
+				}
+				copy
+			}
+			override def clear:CountStore[Int] = {
+				(0 until counts.length).foreach{ (i:Int) => counts(i) = 0 }
+				this
+			}
+			override def iterator:java.util.Iterator[Int] = {
+				var nextIndex = 0
+				new java.util.Iterator[Int] {
+					override def hasNext:Boolean = nextIndex < counts.length
+					override def next:Int = {
+						if(nextIndex >= counts.length){ throw new NoSuchElementException }
+						nextIndex += 1
+						nextIndex - 1
+					}
+					override def remove:Unit = {}
+				}
+			}
+		}
 	}
 			
 }
@@ -437,7 +471,7 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean) extends DataStore{
 		//--Return
 		log("Timing: [parse] " + G.df.format(parseTime) +
 			"  [eval] " + G.df.format(evalTime) + 
-			" [ratio] " + G.df.format(parseTime/(parseTime+evalTime)) )
+			" [parse/eval] " + G.df.format(parseTime/(parseTime+evalTime)) )
 		score
 	}
 }
