@@ -438,14 +438,14 @@ object Gigaword {
 	val pipeline:AnnotationPipeline = {
 			val props = new Properties
 			props.setProperty("pos.model",
-				"/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+				"/home/angeli/lib/data/bidirectional-distsim-wsj-0-18.tagger")
 			props.setProperty("annotators","tokenize, ssplit, pos")
 			val pipe = new StanfordCoreNLP(props);
 			pipe
 		}
 
 	val tagger = new MaxentTagger(
-		"/home/gabor/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+		"/home/angeli/lib/data/bidirectional-distsim-wsj-0-18.tagger")
 
 	def appendDoc(outDir:File,
 			f:File, hdr:String, sentsGloss:Array[String]):Unit = {
@@ -472,7 +472,7 @@ object Gigaword {
 		pipeline.annotate(doc)
 		println("  (JavaNLP annotated)")
 		//(gutime annotation)
-		val gutime = new GUTimeAnnotator(new File("etc/"));
+		val gutime = new GUTimeAnnotator(new File("/user/angeli/workspace/time/etc/")); //TODO don't hardcode
 		gutime.annotate(doc)
 		println("  (gutime annotated)")
 		//--Iterate Timexes
@@ -619,7 +619,11 @@ object Gigaword {
 					case "<text>" => //noop
 					case "</text>" => //noop
 					case "</doc>" => 
+						try{
 						appendDoc(outDir,f,lastDoc,sents.reverse.toArray); 
+						} catch {
+							case (e:Exception) => {}
+						}
 						sents = List[String]();
 					case _ => sent = sent + line
 				}
@@ -1012,8 +1016,6 @@ object TempEval2Task {
 
 case class DataProcessor(noop:Int)
 object DataProcessor {
-	val db = Database.fromString(
-		"psql://research@localhost:data<what?why42?").connect
 	def exit(msg:String) = {
 		println("ERROR: " + msg)
 		System.exit(1)

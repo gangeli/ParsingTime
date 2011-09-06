@@ -10,6 +10,7 @@ import ParseConversions._
 import org.goobs.exec.Execution
 import org.goobs.slib.Def
 import org.goobs.stanford.JavaNLP._
+import org.goobs.stats._
 
 import edu.stanford.nlp.stats.ClassicCounter
 import edu.stanford.nlp.stats.TwoDimensionalCounter
