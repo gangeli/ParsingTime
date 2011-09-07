@@ -26,6 +26,7 @@ import edu.stanford.nlp.tagger.maxent.MaxentTagger
 import edu.stanford.nlp.process.PTBTokenizer
 import edu.stanford.nlp.process.CoreLabelTokenFactory
 import edu.stanford.nlp.process.WhitespaceTokenizer
+import edu.stanford.nlp.io.IOUtils
 
 import org.goobs.database._
 import org.goobs.testing.Dataset
@@ -438,14 +439,15 @@ object Gigaword {
 	val pipeline:AnnotationPipeline = {
 			val props = new Properties
 			props.setProperty("pos.model",
-				"/home/angeli/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+				System.getenv("HOME") +
+					"/lib/data/bidirectional-distsim-wsj-0-18.tagger")
 			props.setProperty("annotators","tokenize, ssplit, pos")
 			val pipe = new StanfordCoreNLP(props);
 			pipe
 		}
 
 	val tagger = new MaxentTagger(
-		"/home/angeli/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+		System.getenv("HOME") + "/lib/data/bidirectional-distsim-wsj-0-18.tagger")
 
 	def appendDoc(outDir:File,
 			f:File, hdr:String, sentsGloss:Array[String]):Unit = {
@@ -472,7 +474,8 @@ object Gigaword {
 		pipeline.annotate(doc)
 		println("  (JavaNLP annotated)")
 		//(gutime annotation)
-		val gutime = new GUTimeAnnotator(new File("/user/angeli/workspace/time/etc/")); //TODO don't hardcode
+		val gutime = new GUTimeAnnotator(new File(
+			System.getenv("HOME")+"/workspace/time/etc/"));
 		gutime.annotate(doc)
 		println("  (gutime annotated)")
 		//--Iterate Timexes
@@ -586,14 +589,18 @@ object Gigaword {
 			sent.remove[JList[CoreMap],TimexAnnotations](classOf[TimexAnnotations])
 		}
 		//(write)
+		val outFile = outDir.getPath + "/" + filename + ".coremap"
 		try {
-			val outFile = outDir.getPath + "/" + filename + ".coremap"
-			val fos = new FileOutputStream(outFile);
-			val out = new ObjectOutputStream(fos);
-			out.writeObject(doc);
-			out.close();
+			IOUtils.writeObjectToFile(doc,outFile)
+//			val fos = new FileOutputStream(outFile);
+//			val out = new ObjectOutputStream(fos);
+//			out.writeObject(doc);
+//			out.close();
 		} catch {
-			case (e:IOException) => throw new RuntimeException(e);
+			case (e:IOException) => {
+				new File(outFile).delete
+				throw new RuntimeException(e);
+			}
 		}
 		//(done)
 		println("}")

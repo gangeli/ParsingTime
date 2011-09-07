@@ -613,16 +613,15 @@ class Entry {
 // INIT
 //------
 	def mkDataFilename:String = {
-		"aux/coremap/"+
 		{O.data match {
-			case O.DataSource.Timebank =>
-				"timebank"
 			case O.DataSource.English => 
-				"tempeval2-english"
+				"aux/coremap/tempeval2-english" +
+					{ if(O.retokenize) "-retok" else "" } + 
+					{ if(O.collapseNumbers) "-numbers" else "" }
+			case O.DataSource.NYT =>
+				"aux/processedNYT"
 			case _ => throw fail("Data source not implemented: " + this.data) }
-		} +
-		{ if(O.retokenize) "-retok" else "" } + 
-		{ if(O.collapseNumbers) "-numbers" else "" }
+		}
 	}
 
 	def init:Entry = {
@@ -632,7 +631,7 @@ class Entry {
 		DateTimeZone.setDefault(DateTimeZone.UTC);
 		//--Load Data
 		//(dataset)
-		log("loading dataset")
+		forceTrack("loading dataset")
 		//(timexes)
 		this.data = O.data match {
 			case O.DataSource.Toy => 
@@ -644,6 +643,7 @@ class Entry {
 				SimpleTimexStore(
 					new TimeDataset(new SerializedCoreMapDataset(mkDataFilename)))
 		}
+		endTrack("loading dataset")
 		//--Create Parser
 		startTrack("Creating Parser")
 		assert(G.W > 0, "Words have not been interned yet!")

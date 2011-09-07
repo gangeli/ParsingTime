@@ -1055,9 +1055,9 @@ object CKYParser {
 	
 	
 	//(learning)
-	private val (pRuleGivenHead,rid2Indices)
+	private val (pRuleGivenHead,rid2RuleGivenHeadIndices)
 			:(Array[Multinomial[Int]],Array[(Int,Int)]) = {
-		val mapping = (0 until RULES.length).map{ x => (0,0) }.toArray
+		val mapping = (0 until RULES.length).map{ x => (-1,0) }.toArray
 		val distributions:Array[Multinomial[Int]]
 				= Head.values.map{ (head:Head.Value) =>
 			//((create structures))
@@ -1081,23 +1081,31 @@ object CKYParser {
 	private val ruleESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
 		= pRuleGivenHead.map{ _.newStatistics(O.rulePrior) }
 
-	private val pWordGivenHead:Array[Multinomial[Int]] = {
-		Head.values.map{ (head:Head.Value) =>
-			val dist = new Multinomial[Int](U.intStore(G.W+1))
-			(0 to G.W).foreach{ (w:Int) =>
-				dist.incrementCount(
-					w,
-					O.initMethod match {
-						case O.InitType.uniform => 1.0
-						case O.InitType.random => U.rand
+	private val (pWordGivenRule,rid2WordGivenRuleIndices)
+			:(Array[Multinomial[Int]],Array[Int]) = { //TODO fixme
+		val mapping = (0 until RULES.length).map{ x => -1 }.toArray
+		val distributions:Array[Multinomial[Int]]
+				= RULES.zipWithIndex
+						.filter( _._1.isLex)
+						.zipWithIndex
+						.map{ case ((r:Rule,rid:Int),termId) =>
+					mapping(rid) = termId
+					val dist = new Multinomial[Int](U.intStore(G.W+1))
+					(0 to G.W).foreach{ (w:Int) =>
+						dist.incrementCount(
+							w,
+							O.initMethod match {
+								case O.InitType.uniform => 1.0
+								case O.InitType.random => U.rand
+							}
+						)
 					}
-				)
-			}
-			(head.id,dist)
-		}.toArray.sortBy{ _._1 }.map{ _._2 }
+					dist
+				}
+		(distributions,mapping)
 	}
 	private val lexESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
-		= pWordGivenHead.map{ _.newStatistics(O.lexPrior) }
+		= pWordGivenRule.map{ _.newStatistics(O.lexPrior) }
 
 	//(substructures)
 	private var tagger:CRFTagger = null
@@ -1866,14 +1874,13 @@ object CKYParser {
 		if(O.freeNils && rule.head == Head.NIL){
 			U.safeLn( 0.1 )
 		} else {
-			U.safeLn( pWordGivenHead(rule.head.id).prob(w) )
+			ruleLogProb(rule) + 
+				U.safeLn( pWordGivenRule(rid2WordGivenRuleIndices(rule.rid)).prob(w) )
 		}
 	}
 	def ruleLogProb(rule:CkyRule):Double = {
 		rule.rids.foldLeft(0.0){ (logScore:Double,rid:Int) => 
-			assert(!RULES(rid).isLex,
-				"Rule probability calculation accessed a lex rule")
-			val (headID,multID) = rid2Indices(rid)
+			val (headID,multID) = rid2RuleGivenHeadIndices(rid)
 			logScore + U.safeLn(pRuleGivenHead(headID).prob(multID))
 		}
 	}
@@ -2022,8 +2029,8 @@ class CKYParser extends StandardParser{
 			}
 			endTrack("rules")
 			startTrack("lex")
-			(0 until pWordGivenHead.length).foreach{ (hid:Int) =>
-				pWordGivenHead(hid) = lexESS(hid).runMStep
+			(0 until pWordGivenRule.length).foreach{ (id:Int) =>
+				pWordGivenRule(id) = lexESS(id).runMStep
 			}
 			endTrack("lex")
 			//(update times)
@@ -2049,7 +2056,7 @@ class CKYParser extends StandardParser{
 			endTrack("M Step")
 		}
 		//--Debug
-		startTrack("Iteration Summary")
+		forceTrack("Iteration Summary")
 		reportInternal(false)
 		endTrack("Iteration Summary")
 	}
@@ -2058,18 +2065,45 @@ class CKYParser extends StandardParser{
 	private def reportInternal(writeParses:Boolean):Unit = {
 		//--Debug Print
 		//(best rules)
-		startTrack("rule scores (top by head)")
+		forceTrack("rule scores (top by head)")
 		Head.values.foreach{ (head:Head.Value) =>
-			log( pRuleGivenHead(head.id) )
+			log(FORCE, head + " -> " + 
+				pRuleGivenHead(head.id).toString( new KeyPrinter[Int]{
+					override def format(index:Int):String = {
+						(0 until RULES.length).foreach{ (rid:Int) =>
+							val (hid,multI) = rid2RuleGivenHeadIndices(rid)
+							if(hid == head.id && multI == index){
+								return RULES(rid).toString
+							}
+						}
+						throw fail("Could not find rule corresponding to distribution term")
+					}
+				})
+			)
 		}
 		endTrack("rule scores (top by head)")
+		//(best lex)
+		forceTrack("lex scores (top by head)")
+		(0 until RULES.length).foreach{ (rid:Int) =>
+			val id = rid2WordGivenRuleIndices(rid)
+			if(id >= 0){
+				log(FORCE, RULES_STR(rid) + " -> " + 
+					pWordGivenRule(id).toString( new KeyPrinter[Int]{
+						override def format(w:Int):String = U.w2str(w)
+					}))
+			}
+		}
+		endTrack("lex scores (top by head)")
 		//(word reachability)
-		startTrack("impossible words")
+		forceTrack("impossible words")
 		var unreachableWords:Int = 0
-		Head.values.foreach{ (head:Head.Value) =>
-			pWordGivenHead(head.id).zeroes.foreach{ (w:Int) =>
-				log("unreachable: " + head + " -> " + U.w2str(w))
-				unreachableWords += 1
+		(0 until RULES.length).foreach{ (rid:Int) =>
+			val id = rid2WordGivenRuleIndices(rid)
+			if(id >= 0){
+				pWordGivenRule(id).zeroes.foreach{ (w:Int) =>
+					log("unreachable: " + RULES_STR(rid) + " -> " + U.w2str(w))
+					unreachableWords += 1
+				}
 			}
 		}
 		if(unreachableWords > 0){
@@ -2079,12 +2113,6 @@ class CKYParser extends StandardParser{
 			log(FORCE,"no zero probability words")
 		}
 		endTrack("impossible words")
-		//(some lex probabilities)
-		startTrack("lex scores (top by head)")
-		Head.values.foreach{ (head:Head.Value) =>
-			log( pWordGivenHead(head.id) )
-		}
-		endTrack("lex scores (top by head)")
 		//(write guesses)
 		if(writeParses){
 			startTrack("Creating Presentation")
@@ -2278,11 +2306,17 @@ class CKYParser extends StandardParser{
 					//(count rules) NOTE: E-STEP HERE
 					trees(index).traverse( 
 							{(rid:Int) =>
-								val (hid,multI) = rid2Indices(rid)
+								//((update rule))
+								val (hid,multI) = rid2RuleGivenHeadIndices(rid)
 								ruleESS(hid).updateEStep(multI,count) 
 							},
 							{(rid:Int,i:Int) => 
-								lexESS(RULES(rid).head.id).updateEStep(sent.words(i),count)
+								//((update rule))
+								val (hid,multI) = rid2RuleGivenHeadIndices(rid)
+								ruleESS(hid).updateEStep(multI,count) 
+								//((update lex))
+								val lexI = rid2WordGivenRuleIndices(rid)
+								lexESS(lexI).updateEStep(sent.words(i),count)
 							}
 						)
 					//(append guesses)

@@ -22,10 +22,9 @@ public class O {
 	public static boolean collapseNumbers = false;
 	@Option(name="bucketNumbers", gloss="Bucket --NUM-- terms into num. digits")
 	public static boolean bucketNumbers = false;
-	public static enum DataSource{ 
-		Toy, Timebank, English }
+	public static enum DataSource{ Toy, English, NYT }
 	@Option(name="data", gloss="Data source to use")
-	public static DataSource data = DataSource.Timebank;
+	public static DataSource data = DataSource.English;
 
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")

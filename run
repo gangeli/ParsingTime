@@ -3,7 +3,7 @@
 require 'execrunner'
 
 # -- DEPENDENCIES --
-JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes"
+JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.6.jar"
 JAR='time'
 		
 @timeDistribution = 1
@@ -72,7 +72,7 @@ env!(
 #		o('hardEM'),
 		# <training>
 		o('beam', 100),
-		o('iters', 10),
+		o('iters', 20),
 		o('scoreBeam', 5),
 		o('maxSearchTime', 10000),
 		#<params>
@@ -95,10 +95,10 @@ env!(
 #		o('instantAsDay'),
 
 		# -- DATA --
-		selo(2,'data',
+		selo(1,'data',
 			'Toy',
-			'Timebank',
-			'English'),
+			'English',
+			'NYT'),
 		o('retokenize'),
 		o('collapseNumbers'),
 		o('bucketNumbers'),
