@@ -585,6 +585,8 @@ object Gigaword {
 		//(removing GuTime Timexes)
 		println("  (cleaning up)")
 		doc.remove[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
+		doc.remove[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
+		doc.remove[String,TextAnnotation](classOf[TextAnnotation])
 		sents.foreach{ (sent:CoreMap) => 
 			sent.remove[JList[CoreMap],TimexAnnotations](classOf[TimexAnnotations])
 		}

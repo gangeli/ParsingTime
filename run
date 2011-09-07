@@ -95,7 +95,7 @@ env!(
 #		o('instantAsDay'),
 
 		# -- DATA --
-		selo(1,'data',
+		selo(2,'data',
 			'Toy',
 			'English',
 			'NYT'),
@@ -106,6 +106,10 @@ env!(
 		o('train', '1-11'),
 		o('dev', '11-16'),
 
+		o('train', '0-142'),  # ENGLISH
+		o('dev', '142-162'),  # ENGLISH
+		o('test', '162-182'), # ENGLISH
+		
 		o('train', '0-142'),  # ENGLISH
 		o('dev', '142-162'),  # ENGLISH
 		o('test', '162-182'), # ENGLISH
