@@ -437,7 +437,9 @@ class CompositeRange(
 		new CompositeRange( 
 			(ground:GroundedRange,offset:Int) => { 
 				val (tFn,rtn) = this.applyFn(ground,offset)
-				(Temporal.fnCat(tFn, (fn:TraverseTask) => fn(this,offset,0)),rtn)
+				(Temporal.fnCat(tFn, 
+					(task:TraverseTask) => task(this,offset,0)),
+				fn(rtn).asInstanceOf[GroundedRange]  )
 			},
 			(ground:GroundedRange,offset:Int) => this.probFn(ground,offset),
 			(ground:GroundedRange,offset:Int) => this.existsFn(ground,offset),

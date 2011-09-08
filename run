@@ -35,8 +35,8 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		o('rulePrior', 0.00),
-		o('lexPrior', 0.00),
+		o('rulePrior', 0.001),
+		o('lexPrior', 0.001),
 		selo(1,'ckyCountType',
 			'all',
 			'bestAll',
@@ -89,8 +89,8 @@ env!(
 #		o('instantAsDay'),
 
 		# -- DATA --
-		o('train', 'NYT[0,10]'),
-		o('dev',   'NYT[10,20]'),
+		o('train', 'NYT[0,100]'),
+		o('dev',   'NYT[1000,1020]'),
 #		o('train', 'English[0,142]'),
 #		o('dev',   'English[142,162]'),
 		o('test',  'English[162,182]'), #real test data
