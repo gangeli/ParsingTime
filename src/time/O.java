@@ -60,13 +60,6 @@ public class O {
 	public static Dirichlet<scala.Int> rulePrior = Dirichlet.ZERO();
 	@Option(name="lexPrior", gloss="Dirichlet prior for CKY lexical terms")
 	public static Dirichlet<scala.Int> lexPrior = Dirichlet.ZERO();
-	public static enum SmoothingType{ none, addOne, backoff }
-	@Option(name="smoothing", gloss="Smoothing type for grammar")
-	public static SmoothingType smoothing = SmoothingType.none;
-	@Option(name="addOneCount", gloss="Number of fake counts to add")
-	public static double addOneCount = 1.0;
-	@Option(name="backoffFactor", gloss="Backoff percent to hold out")
-	public static double backoffFactor = 0.1;
 	@Option(name="useTime", gloss="Parse date and time both")
 	public static boolean useTime = false;
 	@Option(name="hardEM", gloss="Use hard rather than soft EM updates")

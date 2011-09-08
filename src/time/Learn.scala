@@ -195,6 +195,9 @@ object Grammar {
 		rtn = rtn ::: List[(Rule,String)](
 			(UnaryRule(Head.Number, Head.Number, hack((num:Int) =>  num )),
 				"NUM"),
+			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  MOH(num) ))
+				.ensureValidity( (w:Int) => w >= 0 && w < 60 ),
+				"moh(n):S"),
 			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  HOD(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 24 ),
 				"hod(n):S"),
@@ -229,7 +232,7 @@ object Grammar {
 				"century(n):R")
 			)
 
-		//--F[ Range, Duration ]
+		//--F[ Range, Duration ] : Range
 		val rangeDurationFn = List[((Range,Duration)=>Range,String,Boolean)](
 			(shiftLeft,"shiftLeft",true),(shiftRight,"shiftRight",true),
 			(cannonicalLeft,"shiftLeft!",false),(cannonicalRight,"shiftRight!",false),
@@ -283,7 +286,8 @@ object Grammar {
 					)), "$f(d:S,ref:R):R$") :: Nil
 			}
 		
-		//--F[ Range, Range ]
+		//--F[ Range, Range ] : Range //TODO should work with sequences too?
+		                              // e.g. "after Thursday => cons(THU,INF)
 		val rangeRangeFn = List[((Range,Range)=>Range,String)](
 			(cons,"cons")
 			)
@@ -349,7 +353,7 @@ object Grammar {
 					)), "inter$(b:S,a:S):S$") :: Nil
 			}
 		
-		//--F[ Duration, Number ]
+		//--F[ Duration, Number ] : Duration
 		rtn = rtn ::: List[(Rule,String)](
 			(BinaryRule(Head.Duration, Head.Duration, Head.Number, hack2(
 				(d:Duration,n:Int) => d*n
@@ -359,7 +363,7 @@ object Grammar {
 				)), "n*D")
 			)
 		
-		//--F[ Duration ]
+		//--F[ Duration ] : Duration
 		val durationFn = List[(Duration=>Duration,String)](
 				(fuzzify,"fuzzify") 
 			)
@@ -405,7 +409,7 @@ object Grammar {
 		
 		//--F[ Range ] : Range
 		val rangeToRangeFn = List[(Range=>Range,String)](
-				(PM, "_>>12H")
+				(PM, "+12H")
 			)
 		rtn = rtn ::: rangeToRangeFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
@@ -423,6 +427,14 @@ object Grammar {
 				(BinaryRule(Head.Range, Head.Range, Head.F_R2R, hack2(
 					(r:Range,fn:Range=>Range) => fn(r)
 					)), "$f_{r}:R$") :: Nil
+				//(right apply -- seq)
+				(BinaryRule(Head.Sequence, Head.F_R2R, Head.Sequence, hack2(
+					(fn:Range=>Range,r:Sequence) => fn(r)
+					)), "$f_{s}:S$") ::
+				//(left apply -- seq)
+				(BinaryRule(Head.Sequence, Head.Sequence, Head.F_R2R, hack2(
+					(r:Sequence,fn:Range=>Range) => fn(r)
+					)), "$f_{s}:S$") :: Nil
 			}
 		
 		//--Type Raises

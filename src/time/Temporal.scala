@@ -1586,9 +1586,14 @@ object DurationUnit extends Enumeration {
 //------------------------------------------------------------------------------
 object Lex {
 	object LexUtil {
+		def moh(iArg:Int):Time=>Time = (t:Time) => {
+			val i:Int = if(iArg < 0) t.base.getHourOfDay else iArg
+			Time(t.base.withMinuteOfHour(i).withSecondOfMinute(0))
+		}
 		def hod(iArg:Int):Time=>Time = (t:Time) => {
 			val i:Int = if(iArg < 0) t.base.getHourOfDay else iArg
-			Time(t.base.withHourOfDay(i).withMinuteOfHour(0).withSecondOfMinute(0))
+			Time(t.base.withHourOfDay( i ).
+				withMinuteOfHour(0).withSecondOfMinute(0))
 		}
 		def dow(iArg:Int):Time=>Time = (t:Time) => {
 			val i:Int = if(iArg < 0) t.base.getDayOfWeek else iArg
@@ -1674,9 +1679,13 @@ object Lex {
 	val SUN:Sequence = mkDOW(7)
 	//--OTHER DurationS
 	def HOD(i:Int) = new RepeatedRange(
-		LexUtil.hod(i-1), 
+		LexUtil.hod(i % 12), 
 		Range(Duration(Hours.ONE)), 
-		Duration(Days.ONE)).name("HOD("+i+")")
+		Duration(Days.ONE)).name("HOD("+(i%12)+")")
+	def MOH(i:Int) = new RepeatedRange(
+		LexUtil.moh(i), 
+		Range(Duration(Minutes.ONE)), 
+		Duration(Hours.ONE)).name("MOD("+i+")")
 	def DOW(i:Int) = new RepeatedRange(
 		LexUtil.dow(i), 
 		Range(Duration(Days.ONE)), 

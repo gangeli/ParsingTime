@@ -52,7 +52,7 @@ class Source extends DatabaseObject {
 // LIBRARIES
 //------------------------------------------------------------------------------
 object DataLib {
-	val Tm = """^T([0-9]{1,2})([0-9]{1,2})$""".r
+	val Tm = """^T([0-9]{1,2})([0-9]{1,2})?$""".r
 	val Year = """^([0-9]{2,4})$""".r
 	val YearMonth = """^([0-9]{4})-?([0-9]{1,2})$""".r
 	val YearMonthDayHourMin = 
@@ -72,8 +72,12 @@ object DataLib {
 		val str = timex.trim.replaceAll("""\s+""","")
 		val pass1 = str match {
 			case Tm(hr,min) => 
-				val base = ground.withHourOfDay(hr.toInt).withMinuteOfHour(min.toInt)
-				(base, base.plusMinutes(1))
+				val base = ground.withHourOfDay(hr.toInt).
+					withMinuteOfHour(if(min == null || min.equals("")) 0 else min.toInt)
+				(base, 
+					if(min == null || min.equals("")){ base.plusHours(1) }
+					else{ base.plusMinutes(1) }
+				)
 			case Year(y) =>
 				val (yr,dur) = y.length match {
 					case 2 => (1900 + y.toInt, 1)
