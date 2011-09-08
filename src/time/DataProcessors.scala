@@ -348,7 +348,7 @@ object DataLib {
 		val origTokens=sent.get[java.util.List[CoreLabel],TokensAnnotation](TOKENS)
 		val retok = origTokens.foldRight(List[CoreLabel]()){ 
 				(word:CoreLabel,soFar:List[CoreLabel]) =>
-			val orig = word.current
+			val orig = word.originalText
 			val baseOffset = word.beginPosition
 			val finalOffsetGold = word.endPosition
 			val (lastTerm,otherTerms,finalOffset)
@@ -425,8 +425,8 @@ object DataLib {
 		DataLib.relinkTimexes(sent)
 		//(set current annotation)
 		tokens.foreach{ (num:CoreLabel) =>
-			if(num.current == null || num.current.equals("")){
-				num.setCurrent(num.word)
+			if(num.originalText == null || num.originalText.equals("")){
+				num.setOriginalText(num.word)
 			}
 		}
 //		//(dump numbers -- debug)
@@ -799,8 +799,8 @@ object TempEval2Task {
 			label.set(classOf[CharacterOffsetBeginAnnotation], 
 				new java.lang.Integer(offset))
 			label.set(classOf[CharacterOffsetEndAnnotation], 
-				new java.lang.Integer(offset+label.current.length))
-				offset += label.current.length
+				new java.lang.Integer(offset+label.originalText.length))
+				offset += label.originalText.length
 			label
 		}.toArray
 	}
@@ -933,9 +933,9 @@ object TempEval2Task {
 					val tokens = tokenize(str,offset).toList
 					if(tokens.length > 0){
 						val word = tokens.map{ _.word }.mkString(" ")
-						val current = tokens.map{ _.current }.mkString("")
+						val current = tokens.map{ _.originalText }.mkString("")
 						tokens(0).setWord(word)
-						tokens(0).setCurrent(current)
+						tokens(0).setOriginalText(current)
 						tokens(0).setEndPosition(tokens(tokens.length-1).endPosition)
 					}
 					labels.add(tokens(0))
@@ -1064,7 +1064,7 @@ object DataProcessor {
 		tokens.foreach{ (tok:CoreLabel) =>
 			val begin = tok.beginPosition
 			val end = tok.endPosition
-			val word = tok.current
+			val word = tok.originalText
 			val check = text.substring(begin,end)
 			assert(word.equals(check), "Word '" + word + "' maps to '" + check + "'")
 		}

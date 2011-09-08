@@ -140,13 +140,20 @@ object U {
 		}
 	}
 
-	def safeLn(d:Double) = {
+	def safeLn(d:Double):Double = {
 		assert(!d.isNaN, "Taking the log of NaN")
 		assert(d >= 0, "Taking the log of a negative number")
 		if(d == 0.0){ 
 			Double.NegativeInfinity
 		} else { 
 			scala.math.log(d) 
+		}
+	}
+	def safeLn(d:Double,fallback:Double):Double = {
+		if(d.isNaN){
+			safeLn(fallback)
+		} else {
+			safeLn(d)
 		}
 	}
 

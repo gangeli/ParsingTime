@@ -1903,13 +1903,14 @@ object CKYParser {
 			U.safeLn( 0.1 )
 		} else {
 			ruleLogProb(rule) + 
-				U.safeLn( pWordGivenRule(rid2WordGivenRuleIndices(rule.rid)).prob(w) )
+				U.safeLn( pWordGivenRule(rid2WordGivenRuleIndices(rule.rid)).prob(w),
+					1.0 / G.W.asInstanceOf[Double] )
 		}
 	}
 	def ruleLogProb(rule:CkyRule):Double = {
 		rule.rids.foldLeft(0.0){ (logScore:Double,rid:Int) => 
 			val (headID,multID) = rid2RuleGivenHeadIndices(rid)
-			logScore + U.safeLn(pRuleGivenHead(headID).prob(multID))
+			logScore + U.safeLn(pRuleGivenHead(headID).prob(multID),0.01)
 		}
 	}
 
