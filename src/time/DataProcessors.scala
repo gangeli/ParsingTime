@@ -724,7 +724,10 @@ abstract class TempEval2RetokTask extends Task[CoreMapDatum] {
 		}
 		println("TAGGING " + lang)
 		val lemma = new MorphaAnnotator(false)
-		val pos = new POSTaggerAnnotator(false)
+		val pos = new POSTaggerAnnotator(
+			System.getenv("HOME") +
+				"/lib/data/bidirectional-distsim-wsj-0-18.tagger",
+			false)
 		(0 until d.numExamples).foreach{ case (docIndex:Int) =>
 			//(process)
 			val map:Annotation 

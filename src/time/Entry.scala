@@ -160,19 +160,19 @@ object U {
 	def rand:Double = G.random.nextDouble
 	def randInt(begin:Int,end:Int):Int = G.random.nextInt(end-begin)+begin
 
-	private val isInt = """^(\-?[0-9]+)$""".r
-	private val canInt = """^(\-?[0-9]+\.0+)$""".r
+	private val IsInt = """^(\-?[0-9]+)$""".r
+	private val CanInt = """^\-?[0-9]+(\.0+)?(E[0-9]+)?$""".r
 	def isInt(str:String):Boolean = {
 		str match {
-			case isInt(e) => true
-			case canInt(e) => true
+			case IsInt(e) => true
+			case CanInt(e,f) => true
 			case _ => false
 		}
 	}
 	def str2int(str:String):Int = {
 		str match {
-			case isInt(e) => str.toInt
-			case canInt(e) => str.toDouble.toInt
+			case IsInt(e) => str.toInt
+			case CanInt(e,f) => str.toDouble.toInt
 			case _ => throw new IllegalArgumentException("Not an integer: " + str)
 		}
 	}
