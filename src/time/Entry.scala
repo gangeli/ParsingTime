@@ -8,6 +8,9 @@ import scala.util.matching.Regex
 //(java)
 import java.io.StringReader
 import java.text.DecimalFormat
+import java.util.concurrent.Executors
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.TimeUnit
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(stanford)
@@ -69,10 +72,11 @@ object U {
 		lst.reverse
 	}
 	
-	private val isNumTerm = """^--NUM(\([0-9]+\))?.*--$""".r
+	private val IsNumTerm = """^--.*?(NUM).*?--$""".r
+	private val HasNum = """^(.*?)([0-9]+)(.*?)$""".r
 	def isNum(w:Int) = {
 		w2str(w) match {
-			case isNumTerm(e) => true
+			case IsNumTerm(e) => true
 			case _ => false
 		}
 	}
@@ -91,9 +95,18 @@ object U {
 	def str2w(str:String):Int = str2w(str,NumberType.NONE)
 	def str2w(str:String,numType:NumberType.Value):Int = {
 		if(numType != NumberType.NONE) {
-			mkNum(str,numType) 
+			val w = mkNum(str,numType) 
+			assert(isNum(w), "Not recognized as number: " + w2str(w))
+			w
 		} else {
-			G.wordIndexer.addAndGetIndex(str)
+			str match {
+				case HasNum(prefix,num,suffix) =>
+					val w = G.wordIndexer.addAndGetIndex(
+						"--["+prefix+"]NUM("+num.length+")["+suffix+"]--")
+					assert(isNum(w), "Not recognized as number: " + w2str(w))
+					w
+				case _ => G.wordIndexer.addAndGetIndex(str)
+			}
 		}
 	}
 	def str2wTest(str:String):Int = str2wTest(str,NumberType.NONE)
@@ -366,17 +379,16 @@ class Score {
 //------------------------------------------------------------------------------
 // DATA STORES
 //------------------------------------------------------------------------------
-case class Data(train:DataStore,dev:DataStore,test:DataStore){
+case class Data(train:DataStore,eval:DataStore){
 	def noopLoop:Unit = {
 		train.eachExample( (s,i) => (Array[Parse](),f=>{}) )
-		dev.eachExample( (s,i) => (Array[Parse](),f=>{}) )
-		test.eachExample( (s,i) => (Array[Parse](),f=>{}) )
+		eval.eachExample( (s,i) => (Array[Parse](),f=>{}) )
 	}
 }
 
 trait DataStore {
-
 	def eachExample(fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score
+	def name:String
 	def handleParse(
 			parses:Array[Parse], 
 			gold:Temporal, 
@@ -441,32 +453,56 @@ trait DataStore {
 	}
 }
 
-class SimpleTimexStore(timexes:Array[Timex],test:Boolean) extends DataStore{
+class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String) 
+		extends DataStore{
+	override def name:String = theName+{if(test){"-eval"}else{"-train"}}
 	override def eachExample( 
 			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
+		//(vars)
 		val score:Score = new Score
+		val shouldThread:Boolean = Execution.numThreads > 1
 		//--Iterate
 		//(timing variables)
-		val watch:Stopwatch = new Stopwatch
-		watch.start
 		var parseTime:Double = 0.0
 		var evalTime:Double = 0.0
-		//(iterate over timexes)
-		timexes
+		//(create runnables)
+		startTrack("Creating Tasks")
+		val tasks:Array[Runnable] = timexes
 				.filter{ (t:Timex) => test || U.timexOK(t.tid) }
-				.foreach{ (t:Timex) =>
+				.map{ (t:Timex) =>
 			assert(t.words(test).length > 0, "Timex has no words: " + t)
 			//(variables)
 			val sent = Sentence(t.tid,t.words(test),t.pos(test),t.nums)
-			startTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
-			//(parse)
-			val (parses,feedback) = fn(sent, t.tid)
-			parseTime += watch.lap
-			//(score)
-			val best:Temporal
-				= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
-			evalTime += watch.lap
-			endTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
+			new Runnable {
+				override def run:Unit = {
+					//(init)
+					startTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
+					val watch:Stopwatch = new Stopwatch
+					watch.start
+					//(parse)
+					val (parses,feedback) = fn(sent, t.tid)
+					parseTime += watch.lap //not strictly threadsafe
+					//(score)
+					val best:Temporal
+						= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
+					//(cleanup)
+					evalTime += watch.lap //not stirctly threadsafe
+					endTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
+					if(shouldThread){ finishThread }
+				}
+			}
+		}
+		endTrack("Creating Tasks")
+		//(run runnables)
+		if(shouldThread){
+			val exec = Executors.newFixedThreadPool(Execution.numThreads)
+			startThreads("Parsing")
+			tasks.foreach{ (r:Runnable) => exec.submit(r) }
+			exec.shutdown
+			exec.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
+			endThreads("Parsing")
+		} else {
+			tasks.foreach{ (r:Runnable) => r.run }
 		}
 		//--Return
 		log("Timing: [parse] " + G.df.format(parseTime) +
@@ -477,22 +513,42 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean) extends DataStore{
 }
 
 object SimpleTimexStore {
-	def apply(dataset:TimeDataset):Data = {
+	def apply(train:O.DataInfo,eval:O.DataInfo):Data = {
+		println("INPUT: /workspace/time/aux/coremap/tempeval2-english" +
+							{if(O.retokenize) "-retok" else "" } +
+							{if(O.collapseNumbers) "-numbers" else "" })
+		def mkDataset(info:O.DataInfo):Array[Timex] = {
+			info.source match {
+				case O.DataSource.English => new TimeDataset(
+					new SerializedCoreMapDataset(
+						System.getenv("HOME") + 
+							"/workspace/time/aux/coremap/tempeval2-english" +
+							{if(O.retokenize) "-retok" else "" } +
+							{if(O.collapseNumbers) "-numbers" else "" }
+					).slice(info.begin,info.end)).timexes
+				case O.DataSource.NYT => new TimeDataset(
+					new SerializedCoreMapDataset(
+						System.getenv("HOME") + 
+							"/workspace/time/aux/processedNYT/"
+					).slice(info.begin,info.end)).timexes
+				case _ => throw fail("Unknown dataset")
+			}
+		}
 		startTrack("Loading Timexes")
 		//(log)
-		log(FORCE,"* train: " + O.train)
-		log(FORCE,{if(O.devTest) "*" else " "} + "   dev: " + O.dev)
-		log(FORCE,{if(!O.devTest) "*" else " "} + "  test: " + O.test)
+		log(FORCE,"train: " + train)
+		log(FORCE,{if(O.devTest){ "dev:   " } else{ "test:  " }} + eval )
 		//(make data)
 		log("creating data")
-		val data = Data(
-			new SimpleTimexStore(
-				dataset.slice(O.train.minInclusive,O.train.maxExclusive).timexes,false),
-			new SimpleTimexStore(
-				dataset.slice(O.dev.minInclusive,O.dev.maxExclusive).timexes,true),
-			new SimpleTimexStore(
-				dataset.slice(O.test.minInclusive,O.test.maxExclusive).timexes,true)
-			)
+		val data = 
+			if(train.source == O.DataSource.Toy || eval.source == O.DataSource.Toy){
+				ToyData.STANDARD
+			} else {
+				Data(
+					new SimpleTimexStore(mkDataset(train),false,train.source.toString),
+					new SimpleTimexStore(mkDataset(eval),true,eval.source.toString)
+				)
+			}
 		//(loop over data to read everything)
 		startTrack("NOOP loop")
 		data.noopLoop
@@ -538,6 +594,7 @@ object ToyData {
 	private val friday_neg1 = ("friday",Parse(DOW(1)(todaysDate,-1)))
 
 	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
+		override def name:String = "toy"
 		override def eachExample( 
 				fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 			val score:Score = new Score
@@ -570,7 +627,7 @@ object ToyData {
 	}
 
 	def TODAY_ONLY:Data = {
-		Data(store(today).internWords,store(today),NONE)
+		Data(store(today).internWords,store(today))
 	}
 	
 	def STANDARD:Data = {
@@ -597,8 +654,7 @@ object ToyData {
 				today
 				).internWords,
 			//--Test
-			store(lastMonth),
-			NONE)
+			store(lastMonth))
 	}
 }
 
@@ -612,18 +668,6 @@ class Entry {
 //------
 // INIT
 //------
-	def mkDataFilename:String = {
-		{O.data match {
-			case O.DataSource.English => 
-				"aux/coremap/tempeval2-english" +
-					{ if(O.retokenize) "-retok" else "" } + 
-					{ if(O.collapseNumbers) "-numbers" else "" }
-			case O.DataSource.NYT =>
-				"aux/processedNYT"
-			case _ => throw fail("Data source not implemented: " + this.data) }
-		}
-	}
-
 	def init:Entry = {
 		startTrack("Initializing")
 		//--Initialize JodaTime
@@ -633,16 +677,7 @@ class Entry {
 		//(dataset)
 		forceTrack("loading dataset")
 		//(timexes)
-		this.data = O.data match {
-			case O.DataSource.Toy => 
-				startTrack("Toy Data")
-				val data = ToyData.STANDARD
-				endTrack("Toy Data")
-				data
-			case _ =>
-				SimpleTimexStore(
-					new TimeDataset(new SerializedCoreMapDataset(mkDataFilename)))
-		}
+		this.data = SimpleTimexStore(O.train,if(O.devTest) O.dev else O.test)
 		endTrack("loading dataset")
 		//--Create Parser
 		startTrack("Creating Parser")
@@ -681,9 +716,6 @@ class Entry {
 		log(FORCE,"train.averank: " +	trainScores(trainScores.length-1).avePos)
 		log(FORCE,"train.inbeam: " + trainScores(trainScores.length-1).percentParsable)
 		log(FORCE,"train.score: " + trainScores(trainScores.length-1).aveScore())
-		if(O.data != O.DataSource.Toy){
-			trainScores(trainScores.length-1).tempeval("train")
-		}
 		endTrack("train")
 		//(test)
 		val s = if(O.devTest) "dev" else "test"
@@ -696,9 +728,6 @@ class Entry {
 		log(FORCE,s+".averank: "+ testScore.avePos)
 		log(FORCE,s+".inbeam: "+ testScore.percentParsable)
 		log(FORCE,s+".score: "+ testScore.aveScore())
-		if(O.data != O.DataSource.Toy){
-			testScore.tempeval(s)
-		}
 		endTrack(s)
 		endTrack("Results")
 		//--Debug dump
@@ -722,7 +751,6 @@ class Entry {
 
 object Entry {
 	def main(args:Array[String]):Unit = {
-		Execution.changeLogInterface(new StanfordExecutionLogInterface())
 		//--Exec
 		Execution.exec(new Runnable(){
 			override def run:Unit = {
@@ -742,7 +770,8 @@ object Entry {
 					}
 				}
 			}
-		}, args)
+		}, args, new StanfordExecutionLogInterface)
 	}
 }
 
+	

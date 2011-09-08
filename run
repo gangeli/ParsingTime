@@ -18,7 +18,7 @@ env!(
 	o('Xrunhprof:cpu=samples'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx1500M'),
+	o('Xmx3000M'),
 	o('ea'),
 	'time.Entry',
 
@@ -35,8 +35,8 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		o('rulePrior', 0.01),
-		o('lexPrior', 0.01),
+		o('rulePrior', 0.00001),
+		o('lexPrior', 0.00001),
 #		selo(2, 'smoothing',
 #			'none',
 #			'addOne',
@@ -59,7 +59,7 @@ env!(
 			'Gaussian'),
 		selo(@timeDistribution,'timeDistributionParams',
 			'[]',
-			'[1.0,0.5]',
+			'[1.0,1.0]',
 			'[0.0,1.0]'),
 		selo(0,'timeDistributionScope', 'Global', 'Local'),
 		selo(0,'lexTagMethod',
@@ -72,7 +72,7 @@ env!(
 #		o('hardEM'),
 		# <training>
 		o('beam', 100),
-		o('iters', 20),
+		o('iters', 1),
 		o('scoreBeam', 5),
 		o('maxSearchTime', 10000),
 		#<params>
@@ -95,26 +95,16 @@ env!(
 #		o('instantAsDay'),
 
 		# -- DATA --
-		selo(2,'data',
-			'Toy',
-			'English',
-			'NYT'),
+		o('train', 'NYT[0,10]'),
+		o('dev',   'NYT[10,20]'),
+#		o('train', 'English[0,142]'),
+#		o('dev',   'English[142,162]'),
+		o('test',  'English[162,182]'), #real test data
+		o('devTest'),                   #uncomment for real test
+
 		o('retokenize'),
 		o('collapseNumbers'),
 		o('bucketNumbers'),
-
-		o('train', '1-11'),
-		o('dev', '11-16'),
-
-		o('train', '0-142'),  # ENGLISH
-		o('dev', '142-162'),  # ENGLISH
-		o('test', '162-182'), # ENGLISH
-		
-		o('train', '0-142'),  # ENGLISH
-		o('dev', '142-162'),  # ENGLISH
-		o('test', '162-182'), # ENGLISH
-
-		o('devTest', true),
 
 		# -- DEBUG --
 		#(general)
@@ -122,7 +112,7 @@ env!(
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
-		o('badTimexes', 'aux/bad.txt'),
+#		o('badTimexes', 'aux/bad.txt'),
 #		o('printAllParses'),
 #		o('printFailures'),
 #		o('cacheTemporalComputations',false),
@@ -134,6 +124,7 @@ env!(
 			'console',
 			'crf',
 			'goldTagRead'),
+		o('numThreads','1'), #BROKEN FOR NOW
 
 		# -- BOOTSTRAPING --
 		#(exec options)

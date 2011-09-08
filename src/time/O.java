@@ -1,19 +1,49 @@
 package time;
 
+import java.util.regex.*;
+import java.lang.reflect.Type;
+
 import org.goobs.exec.Option;
 import org.goobs.stats.Dirichlet;
+import org.goobs.utils.Decodable;
 
 public class O {
 	public static enum Distribution{ Point, Multinomial, Gaussian }
 	public static enum Scope{ Global, Local }
 
+	//--Data Info
+	private static Pattern DATA 
+		= Pattern.compile("([a-zA-Z]+)\\[([0-9]+),([0-9]+)\\]");
+	public static enum DataSource{ Toy, English, NYT }
+	public static class DataInfo implements Decodable{
+		public DataSource source;
+		public int begin;
+		public int end;
+		private DataInfo(){}
+		public Decodable decode(String encoded, Type[] typeParams) {
+			Matcher m = DATA.matcher(encoded);
+			if(!m.find()){ 
+				throw new IllegalArgumentException("Invalid format: " + encoded);
+			}
+			this.source = DataSource.valueOf(m.group(1));
+			this.begin = Integer.parseInt(m.group(2));
+			this.end = Integer.parseInt(m.group(3));
+			return this;
+		}
+		public String encode() {
+			return this.source.toString()+"["+this.begin+","+this.end+"]";
+		}
+		@Override
+		public String toString(){ return encode(); }
+	}
+
 	//--I/O
 	@Option(name="train", gloss="Training range", required=true)
-	public static org.goobs.utils.Range train;
+	public static DataInfo train;
 	@Option(name="dev", gloss="Development range", required=true)
-	public static org.goobs.utils.Range dev;
+	public static DataInfo dev;
 	@Option(name="test", gloss="Test range", required=true)
-	public static org.goobs.utils.Range test;
+	public static DataInfo test;
 	@Option(name="devTest", gloss="Report on development set")
 	public static boolean devTest = false;
 	@Option(name="retokenize", gloss="Tokenize on - and /")
@@ -22,9 +52,6 @@ public class O {
 	public static boolean collapseNumbers = false;
 	@Option(name="bucketNumbers", gloss="Bucket --NUM-- terms into num. digits")
 	public static boolean bucketNumbers = false;
-	public static enum DataSource{ Toy, English, NYT }
-	@Option(name="data", gloss="Data source to use")
-	public static DataSource data = DataSource.English;
 
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")

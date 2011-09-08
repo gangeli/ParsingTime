@@ -1,8 +1,11 @@
 package time
 
+import java.util.concurrent.locks.ReentrantLock
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable.PriorityQueue
 import scala.collection.mutable.HashSet
+import scala.collection.mutable.HashMap
 
 import Lex._
 import ParseConversions._
@@ -165,7 +168,7 @@ object Grammar {
 			(HOUR,"Hour:D")) else List[(Duration,String)]()} :::
 		List[(Duration,String)](
 			(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
-			(AYEAR,"Year:D"))
+			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"CENTURY:D"))
 	//(sequences)
 	val sequences = 
 		(1 to 7).map(i=>(DOW(i).dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
@@ -378,9 +381,9 @@ object Grammar {
 					)), "$f_{d}:D$") :: Nil
 			}
 		
-		//--F[ Range ]
+		//--F[ Range ] : Duration
 		val rangeToDurationFn = List[(Range=>Duration,String)](
-				(norm,"norm") 
+				(norm,"norm")
 			)
 		rtn = rtn ::: rangeToDurationFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
@@ -398,6 +401,19 @@ object Grammar {
 				(BinaryRule(Head.Duration, Head.Range, Head.F_R2D, hack2(
 					(r:Range,fn:Range=>Duration) => fn(r)
 					)), "$f_{r}:D$") :: Nil
+			}
+		
+		//--F[ Range ] : Range
+		val rangeToRangeFn = List[(Range=>Range,String)](
+				(PM, "_>>12H")
+			)
+		rtn = rtn ::: rangeToRangeFn.foldLeft(List[(Rule,String)]()){ case 
+					(soFar:List[(Rule,String)],
+						(fn:(Range=>Range),
+						 str:String )) =>
+				//(intro)
+				(UnaryRule(Head.F_R2R, Head.Word, hack((w:Int) => fn
+					)),str+"$(-:R):R$") :: soFar
 			} ::: {
 				//(right apply)
 				(BinaryRule(Head.Range, Head.F_R2R, Head.Range, hack2(
@@ -792,12 +808,12 @@ trait Parser {
 	def report:Unit = {}
 	def cycle(data:DataStore,iters:Int,feedback:Boolean=true):Array[Score]
 	def run(data:Data,iters:Int):(Array[Score],Score) = {
-		startTrack("Training")
+		startTrack("Training ("+data.train.name+")")
 		val train = cycle(data.train,iters)
-		endTrack("Training")
-		startTrack("Testing")
-		val test = cycle(if(O.devTest) data.dev else data.test, 1, false)(0)
-		endTrack("Testing")
+		endTrack("Training ("+data.train.name+")")
+		startTrack("Testing ("+data.eval.name+")")
+		val test = cycle(data.eval, 1, false)(0)
+		endTrack("Testing ("+data.eval.name+")")
 		startTrack("Parser State")
 		report
 		endTrack("Parser State")
@@ -808,16 +824,20 @@ trait Parser {
 trait StandardParser extends Parser {
 	def beginIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {}
 	def endIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {}
-	def parse(iter:Int, sent:Sentence, feedback:Boolean,sid:Int
+	def parse(iter:Int, sent:Sentence, feedback:Boolean,sid:String
 		):(Array[Parse],Feedback=>Any)
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			startTrack("Iteration " + i)
+			//(begin)
 			beginIteration(i,feedback,data)
+			//(run)
 			val score = data.eachExample{ (sent:Sentence,id:Int) => 
-				parse(i, sent, feedback, id)
+				parse(i, sent, feedback, data.name+":"+id)
 			}
+			//(end)
 			endIteration(i,feedback,data)
+			//(score)
 			log(""+score)
 			log(""+score.reportK)
 			if(O.printFailures){
@@ -1020,7 +1040,7 @@ object CKYParser {
 	//-----
 	//(guessed parses)
 	private case class GuessInfo
-			(sid:Int,parse:ParseTree,score:Double,sent:Sentence){
+			(sid:String,parse:ParseTree,score:Double,sent:Sentence){
 		var correct=true; def wrong:GuessInfo = {correct = false; this}
 		var feedback:Feedback=null
 		def feedback(f:Feedback):GuessInfo = { feedback=f; this }
@@ -1793,49 +1813,57 @@ object CKYParser {
 	type RulePairList = Array[RuleList]
 	type Chart = Array[Array[RulePairList]]
 	
-	val makeChart:(Int,Int)=>Chart = { //start,length,split
-		var largestChart = new Chart(0)
-		var largestBeam = 0
-		(inputLength:Int,inputBeam:Int) => {
-			//--Make Chart
-			val chart = if(inputLength > largestChart.length || 
-					inputBeam > largestBeam){ 
-				val len = math.max(inputLength, largestChart.length)
-				val beam = math.max(inputBeam, largestBeam)
-				//(create)
-				largestChart = (0 until len).map{ (start:Int) =>            //begin
-					assert(len-start > 0, "bad length end on start "+start+" len "+len)
-					(0 until (len-start)).map{ (length:Int) =>                //length
-						assert(Head.values.size > 0, "bad rules end")
-						(0 to 1).map{ (arity:Int) =>                            //arity
-							(0 until Head.values.size).map{ (rid:Int) =>          //rules
-								assert(beam > 0, "bad kbest end")
-								new BestList((0 until beam).map{ (kbestItem:Int) => //kbest
-									new ChartElem
-								}.toArray, beam) //convert to arrays
+	val makeChart:Long=>((Int,Int)=>Chart) = {
+		val chartMap = new HashMap[Long,(Int,Int)=>Chart]
+		(thread:Long) =>
+			if(chartMap.contains(thread)){
+				chartMap(thread)
+			} else {
+				var largestChart = new Chart(0)
+				var largestBeam = 0
+				val fn = (inputLength:Int,inputBeam:Int) => {
+					//--Make Chart
+					val chart = if(inputLength > largestChart.length || 
+							inputBeam > largestBeam){ 
+						val len = math.max(inputLength, largestChart.length)
+						val beam = math.max(inputBeam, largestBeam)
+						//(create)
+						largestChart = (0 until len).map{ (start:Int) =>            //begin
+							assert(len-start > 0,"bad length end on start "+start+" len "+len)
+							(0 until (len-start)).map{ (length:Int) =>                //length
+								assert(Head.values.size > 0, "bad rules end")
+								(0 to 1).map{ (arity:Int) =>                            //arity
+									(0 until Head.values.size).map{ (rid:Int) =>          //rules
+										assert(beam > 0, "bad kbest end")
+										new BestList((0 until beam).map{ (kbestItem:Int) => //kbest
+											new ChartElem
+										}.toArray, beam) //convert to arrays
+									}.toArray
+								}.toArray
 							}.toArray
 						}.toArray
-					}.toArray
-				}.toArray
-				//(return)
-				largestChart
-			} else {
-				//(cached)
-				largestChart
-			}
-			//--Reset Chart
-			for(start <- 0 until inputLength){
-				for(len <- 0 until chart(start).length){
-					for(head <- 0 until chart(start)(len).length){
-						chart(start)(len)(UNARY)(head).reset(inputBeam)
-						chart(start)(len)(BINARY)(head).reset(inputBeam)
-						assert( chart(start)(len)(UNARY)(head) !=
-							chart(start)(len)(BINARY)(head), "corrupted chart")
+						//(return)
+						largestChart
+					} else {
+						//(cached)
+						largestChart
 					}
-				}
-			}
-			//--Return
-			chart
+					//--Reset Chart
+					for(start <- 0 until inputLength){
+						for(len <- 0 until chart(start).length){
+							for(head <- 0 until chart(start)(len).length){
+								chart(start)(len)(UNARY)(head).reset(inputBeam)
+								chart(start)(len)(BINARY)(head).reset(inputBeam)
+								assert( chart(start)(len)(UNARY)(head) !=
+									chart(start)(len)(BINARY)(head), "corrupted chart")
+							}
+						}
+					}
+					//--Return
+					chart
+					}
+			chartMap(thread) = fn
+			fn
 		}
 	}
 	
@@ -1918,7 +1946,7 @@ class CKYParser extends StandardParser{
 	def cky[T](sent:Sentence,beam:Int):Array[ParseTree] = {
 		assert(sent.length > 0, "Sentence of length 0 cannot be parsed")
 		//--Create Chart
-		val chart = makeChart(sent.length,beam)
+		val chart = makeChart(Thread.currentThread.getId)(sent.length,beam)
 		assert(chart.length >= sent.length, "Chart is too small")
 		//--Lex
 		//(get probability function)
@@ -2136,7 +2164,8 @@ class CKYParser extends StandardParser{
 								guess=g.parseVal.ground(g.feedback.grounding).toString,
 								gold=Parse(Head.ROOT,g.feedback.ref)
 									.ground(g.feedback.grounding).toString,
-								ground=g.feedback.grounding.toString
+								ground=g.feedback.grounding.toString,
+								score=g.score
 							))
 					} else {
 						//(case: sentence is UNK)
@@ -2199,7 +2228,10 @@ class CKYParser extends StandardParser{
 		}
 	}
 
-	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:Int
+	val parseLock = new ReentrantLock
+	val updates = new java.io.FileWriter(Execution.touch("updates"))
+
+	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:String
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
 		//(run CKY)
@@ -2251,6 +2283,7 @@ class CKYParser extends StandardParser{
 			O.kbestCKYAlgorithm = saveAlg
 		}
 
+		parseLock.lock
 		//--Debug (begin)
 		//(presentation)
 		val b = new StringBuilder //debug start
@@ -2261,6 +2294,7 @@ class CKYParser extends StandardParser{
 		//(return)
 		val rtn = (	parses, 
 			(feedback:Feedback) => {
+				parseLock.lock
 				log(if(feedback.isCorrect) "correct" 
 				    else "missed ("+feedback.correct.length + " in beam)")
 				//(best guess)
@@ -2269,11 +2303,14 @@ class CKYParser extends StandardParser{
 				guesses = {if(feedback.isCorrect) guess else guess.wrong} ::
 					guesses.tail //note: tail to remove 'no result' guess
 				//(normalization constant)
+				var hasNonzeroTerm:Boolean = false
 				val totalProb:Double = feedback.correct.foldLeft(0.0){
 						case (soFar:Double,(index:Int,offset:Int,score:Double)) =>
 					assert(!math.exp(scored(index)._3).isNaN, "NaN score")
 					assert(math.exp(scored(index)._3) <= 1.0, "invalid probability")
+					if(math.exp(scored(index)._3) > 0.0){ hasNonzeroTerm = true; }
 					soFar + math.exp(scored(index)._3) }
+				assert(totalProb > 0.0 || !hasNonzeroTerm, "Probability underflow!")
 				val correctCount:Double = feedback.correct.length.asInstanceOf[Double]
 				//--Update Function
 				def update(index:Int,offset:Int) = {
@@ -2281,23 +2318,24 @@ class CKYParser extends StandardParser{
 					val parse = trees(index)
 					startTrack("Correct: " + temporal)
 					//(get raw count)
-					val raw:Double = 
+					val logRaw:Double = 
 						if(O.hardEM) 1.0
-						else math.exp(scored(index)._3) *
-						     scored(index)._2.prob(
-								 	Range(feedback.grounding,feedback.grounding),offset)
-					assert(raw >= 0.0 && raw <= 1.0, "invalid raw count: " + raw)
+						else scored(index)._3 +
+						     U.safeLn(scored(index)._2.prob(
+								 	Range(feedback.grounding,feedback.grounding),offset))
+					assert(logRaw <= 0.0, "invalid raw log count: " + logRaw)
 					//(normalize score)
 					val count:Double = O.ckyCountNormalization match {
-						case O.CkyCountNormalization.none => raw
+						case O.CkyCountNormalization.none => math.exp(logRaw)
 						case O.CkyCountNormalization.uniform => 1.0 / correctCount
-						case O.CkyCountNormalization.proportional => raw / correctCount
+						case O.CkyCountNormalization.proportional => 
+							math.exp(logRaw - U.safeLn(correctCount))
 						case O.CkyCountNormalization.distribution => {
 							assert(!totalProb.isNaN, "Total Probability is NaN")
 							if(totalProb == 0.0){
 								1.0 / correctCount
 							} else {
-								raw / totalProb
+								math.exp(logRaw) / totalProb
 							}
 						}
 					}
@@ -2315,12 +2353,18 @@ class CKYParser extends StandardParser{
 								val (hid,multI) = rid2RuleGivenHeadIndices(rid)
 								ruleESS(hid).updateEStep(multI,count) 
 								//((update lex))
+								try{
+									updates.write(RULES_STR(rid)+"\t"+U.w2str(sent.words(i))+
+										"\t"+count+"\n")
+								} catch {
+									case (e:Exception) => e.printStackTrace
+								}
 								val lexI = rid2WordGivenRuleIndices(rid)
 								lexESS(lexI).updateEStep(sent.words(i),count)
 							}
 						)
 					//(append guesses)
-					corrects = GuessInfo(identifier,parse,score,sent) :: corrects
+					corrects = GuessInfo(identifier,parse,logRaw,sent) :: corrects
 					//(update time)
 					val ground = Range(feedback.grounding,feedback.grounding)
 					timesToNormalize = {() => { temporal.traverse(ground,offset,
@@ -2339,7 +2383,8 @@ class CKYParser extends StandardParser{
 							guess=parses(index).ground(feedback.grounding).toString,
 							gold=Parse(Head.ROOT,feedback.ref)
 								.ground(feedback.grounding).toString,
-							ground=feedback.grounding.toString
+							ground=feedback.grounding.toString,
+							score=logRaw
 						))
 					//(end)
 					endTrack("Correct: " + temporal)
@@ -2371,6 +2416,7 @@ class CKYParser extends StandardParser{
 						if(bestI >= 0){ update(bestI,bestOffset) }
 					case _ => throw fail("Unknown case")
 				}
+				parseLock.unlock
 				endTrack("Update")
 			}
 		)
@@ -2383,6 +2429,7 @@ class CKYParser extends StandardParser{
 		writer.write(b.toString)
 		writer.close
 		//--Return
+		parseLock.unlock
 		rtn
 	}
 }

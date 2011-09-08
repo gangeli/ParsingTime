@@ -75,7 +75,8 @@ trait Temporal {
 			def iterator:Iterator[(TraverseFn,E)] = backwardIterator(ground)
 		}
 	}
-	final def distribution(ground:GroundedRange):Iterable[(Temporal,Double,Int)] = {
+	final def distribution(ground:GroundedRange
+			):Iterable[(Temporal,Double,Int)] = {
 		var leftPointer = -1;
 		var rightPointer = 0;
 		new Iterable[(Temporal,Double,Int)]{
@@ -566,11 +567,19 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	override def <<(diff:Duration):Range 
 		= new UngroundedRange(normVal,beginOffset-diff)
 
-	override def <|(diff:Duration):Range 
-		= new UngroundedRange(diff,beginOffset-diff)
+	override def <|(diff:Duration):Range
+		= if(diff.isInstanceOf[FuzzyDuration]){
+			new UngroundedRange(Duration.NEG_INFINITE,beginOffset)
+		} else {
+			new UngroundedRange(diff*(-1),beginOffset)
+		}
 
 	override def |>(diff:Duration):Range 
-		= new UngroundedRange(diff,beginOffset+normVal)
+		= if(diff.isInstanceOf[FuzzyDuration]){
+			new UngroundedRange(Duration.INFINITE,beginOffset+normVal)
+		} else {
+			new UngroundedRange(diff,beginOffset+normVal)
+		}
 
 	override def |<(diff:Duration):Range 
 		= new UngroundedRange(diff,beginOffset)
@@ -1644,10 +1653,13 @@ object Lex {
 	val MONTH:Duration = new GroundedDuration(Months.ONE)
 	val QUARTER:Duration = new GroundedDuration(Months.THREE)
 	val AYEAR:Duration = new GroundedDuration(Years.ONE)
+	val ADECADE:Duration = new GroundedDuration(Years.ONE)*10
+	val ACENTURY:Duration = new GroundedDuration(Years.ONE)*100
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
 	val ALL_TIME:Range = Range(Time.DAWN_OF,Time.END_OF)
+	val PM:Range=>Range = _ >> HOUR*12
 	//--Day of Week
 	private def mkDOW(i:Int) = new RepeatedRange(
 		LexUtil.dow(i), 

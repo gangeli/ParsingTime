@@ -55,9 +55,8 @@ object DataLib {
 	val Tm = """^T([0-9]{1,2})([0-9]{1,2})$""".r
 	val Year = """^([0-9]{2,4})$""".r
 	val YearMonth = """^([0-9]{4})-?([0-9]{1,2})$""".r
-	val YearMonthDay = """^([0-9]{4})-?([0-9]{1,2})-?([0-9]{1,2})$""".r
-	val YearMonthDayHour = 
-		"""^([0-9]{4})-?([0-9]{1,2})-?([0-9]{1,2})T?([0-9]{1,2})?$""".r
+	val YearMonthDayHourMin = 
+		"""^([0-9]{4})-?([0-9]{1,2})-?([0-9]{1,2})T?([0-9]{1,2})?([0-9]{1,2})?$""".r
 	val YearMonthDayTime = 
 		"""^([0-9]{4})-?([0-9]{1,2})-?([0-9]{1,2})T?(MO|AF|EV|NI)?$""".r
 	val YearWeekWE = """^([0-9]{4})-?W([0-9]{1,2})-?(WE)?$""".r
@@ -86,13 +85,20 @@ object DataLib {
 			case YearMonth(year,month) => 
 				val base = new DateTime( year.toInt, month.toInt,1,0,0,0,0)
 				(base, base.plusMonths(1))
-			case YearMonthDay(year,month,day) => 
-				val base = new DateTime(year.toInt,month.toInt,day.toInt,0,0,0,0)
-				(base, base.plusDays(1))
-			case YearMonthDayHour(year,month,day,hour) => 
+			case YearMonthDayHourMin(year,month,day,hour,min) => 
+				val hr = if(hour == null || hour.equals("")){ 0 }else{ hour.toInt-1 }
+				val mn = if(min == null || min.equals("")){ 0 }else{ min.toInt }
 				val base = 
-					new DateTime(year.toInt,month.toInt,day.toInt,hour.toInt-1,0,0,0)
-				(base, base.plusHours(1))
+					new DateTime(year.toInt,month.toInt,day.toInt,hr,mn,0,0)
+				(base, 
+					if(mn != 0){
+						base.plusMinutes(1)
+					} else if(hr != 0){
+						base.plusHours(1)
+					} else {
+						base.plusDays(1)
+					}
+				)
 			case YearMonthDayTime(year,month,day,time) => 
 				val base = time match {
 					case "MO" => new DateTime(year.toInt,month.toInt,day.toInt,8,0,0,0)
@@ -105,14 +111,26 @@ object DataLib {
 		}
 		val pass2 = if(pass1 != null) pass1 else str match {
 			case YearWeekWE(year,week,we) =>
-				val (base,dur) = we match {
+				val base = we match {
 					case "WE" => 
-						(new DateTime(year.toInt,1,1,0,0,0,0).
-							withWeekOfWeekyear(week.toInt).withDayOfWeek(6), 2)
-					case _ => (new DateTime(year.toInt,1,1,0,0,0,0).
-							withWeekOfWeekyear(week.toInt), 7)
+						val b = new DateTime
+						b.withYear(year.toInt).
+							withWeekOfWeekyear(week.toInt).
+							withDayOfWeek(6).
+							withMillisOfDay(0)
+					case _ => 
+						val b = new DateTime
+						b.withYear(year.toInt).
+							withWeekOfWeekyear(week.toInt).
+							withDayOfWeek(1).
+							withMillisOfDay(0)
 				}
-				(base, base.plusDays(dur))
+				(base,
+					we match{ 
+						case "WE" => base.plusDays(2)
+						case _ => base.plusWeeks(1)
+					}
+				)
 			case YearQuarter(year,quarter) =>
 				val base = new DateTime(year.toInt,(quarter.toInt-1)*3+1,1,0,0,0,0)
 				(base,base.plusMonths(3))
@@ -183,7 +201,7 @@ object DataLib {
 			case (begin:DateTime,end:String) =>
 				Array[String]("RANGE",begin.toString,end)
 			case (begin:Period,fuzzy:Boolean) =>
-				def mkVal(i:Int) = if(fuzzy) "x" else ""+i
+				def mkVal(i:Int) = if(fuzzy && i != 0) "x" else ""+i
 				Array[String]("PERIOD",
 					mkVal(begin.getYears),
 					mkVal(begin.getMonths),
@@ -356,6 +374,16 @@ object DataLib {
 									TempEval2Task.tokenize("/",offset+tok.length).toList
 								} else {
 									toks ::: TempEval2Task.tokenize("/",offset).toList
+								},
+								offset+tok.length+1)
+							//(tokenize on /)
+							case ':' => (new StringBuilder,
+								if(tok.length > 0){
+									toks :::
+									TempEval2Task.tokenize(tok.toString,offset).toList :::
+									TempEval2Task.tokenize(":",offset+tok.length).toList
+								} else {
+									toks ::: TempEval2Task.tokenize(":",offset).toList
 								},
 								offset+tok.length+1)
 							//(part of a token)
@@ -1050,6 +1078,10 @@ object DataProcessor {
 			case "init" => TempEval2Task.init(args.slice(1,args.length))
 			case "retok" => TempEval2Task.retok(args.slice(1,args.length))
 			case "numbers" => TempEval2Task.numbers(args.slice(1,args.length))
+			case "all" => 
+				TempEval2Task.init(args.slice(1,args.length))
+				TempEval2Task.retok(Array[String](args(2)))
+				TempEval2Task.numbers(Array[String](args(2)))
 			case _ => exit("Unknown task: " + args(0))
 		}
 	}

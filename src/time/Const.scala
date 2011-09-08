@@ -36,8 +36,8 @@ nil){ |slide| slide.label('title').signature(1).titleSpacing(u(0)) }
 """
 }
 
-def SLIDE(id:Int,correct:Boolean,
-	tree:String,guess:String,gold:String,ground:String) = 
+def SLIDE(id:String,correct:Boolean,
+	tree:String,guess:String,gold:String,ground:String,score:Double) = 
 """
 ################################################################################
 # Datum """+id+"""
@@ -49,13 +49,13 @@ slide!('Datum """+id+""" ("""+
 	Parse.new(fstr('"""+tree+"""')).constituency,
 	'',
 	left,
-	'\blue{Guess:} """+guess+"""',
+	'\blue{Guess:} """+guess+""" ["""+G.df.format(score)+"""]',
 	'\green{Gold:} """+gold+"""',
 	'Grounding: """+ground+"""',
 nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
 """
 
-def AUTO_MISS(id:Int,sent:Sentence,gold:Any) = 
+def AUTO_MISS(id:String,sent:Sentence,gold:Any) = 
 """
 ################################################################################
 # Datum """+id+"""

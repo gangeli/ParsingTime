@@ -10,7 +10,7 @@ import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
 import edu.stanford.nlp.ling.CoreAnnotations._
-import edu.stanford.nlp.util.logging.Redwood._
+import edu.stanford.nlp.util.logging.Redwood.Static._
 
 import org.joda.time.DateTime
 import org.joda.time.Period
@@ -90,14 +90,18 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 				val tokens:JList[CoreLabel] =
 					sent.get[JList[CoreLabel],TokensAnnotation](
 					classOf[TokensAnnotation])
-				assert(tokens != null, " No tokens for " + sent)
+				val origTokens:JList[CoreLabel] =
+					sent.get[JList[CoreLabel],OriginalTokensAnnotation](
+					classOf[OriginalTokensAnnotation])
+				assert(tokens != null, "No tokens for " + sent)
 				val tokenList:List[CoreLabel] = tokens.map{ x => x }.toList
+				val origTokenList:List[CoreLabel] = origTokens.map{ x => x }.toList
 				val timexes:JList[CoreMap] = 
 					sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
 					classOf[TimeExpressionsAnnotation])
 				if(timexes != null){
 					timexes.foreach{ (timex:CoreMap) =>  //for each timex
-						val tmx = new Timex(index,timex,tokenList,pubTime)
+						val tmx = new Timex(index,timex,origTokenList,tokenList,pubTime)
 						rtn = tmx :: rtn
 						index += 1
 						log(tmx)
@@ -111,14 +115,24 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 	}
 }
 
-class Timex(index:Int,time:CoreMap,sent:List[CoreLabel],pubTime:Time) {
+case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
+		sent:List[CoreLabel],pubTime:Time) {
 	private val span:List[CoreLabel] = {
 		val begin = time.get[java.lang.Integer,BeginIndexAnnotation](
 							classOf[BeginIndexAnnotation])
 		val end = time.get[java.lang.Integer,EndIndexAnnotation](
 							classOf[EndIndexAnnotation])
-		assert(end > begin, "Range is invalid: " + time)
-		sent.slice(begin,end)
+		val origBegin = time.get[java.lang.Integer,OriginalBeginIndexAnnotation](
+							classOf[OriginalBeginIndexAnnotation])
+		val origEnd = time.get[java.lang.Integer,OriginalEndIndexAnnotation](
+							classOf[OriginalEndIndexAnnotation])
+		if(end <= begin){
+			warn("Retokenized range is invalid: " + begin + " to " + end)
+			assert(origBegin < origEnd, "Range is invalid: " + time)
+			origSent.slice(origBegin,origEnd)
+		} else {
+			sent.slice(begin,end)
+		}
 	}
 
 	private def numType(str:String):NumberType.Value = {
@@ -145,7 +159,7 @@ class Timex(index:Int,time:CoreMap,sent:List[CoreLabel],pubTime:Time) {
 			val w = if(t != NumberType.NONE){ numVal.toString } else { lbl.word }
 			//(get word)
 			if(test) {
-				U.str2w(w, t) 
+				U.str2wTest(w, t) 
 			} else {
 				U.str2w(w, t)
 			}
