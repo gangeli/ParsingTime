@@ -22,12 +22,6 @@ import edu.stanford.nlp.util.logging.Redwood.Static._
 //------------------------------------------------------------------------------
 // GRAMMAR
 //------------------------------------------------------------------------------
-//object Head extends Enumeration {
-//	type V = Value
-//	val ROOT, Word, Number,
-//		Time, Range, Duration, Sequence,
-//		F_RR, F_RD, F_RS, F_R2R, F_R2D, F_D, NIL = Value
-//}
 
 case class Nonterminal(name:Symbol,id:Int){
 	var isPreterminal = false
@@ -44,6 +38,9 @@ object Nonterminal {
 	def apply(name:Symbol):Nonterminal = {
 		valueMap(name)
 	}
+	def apply(name:String):Nonterminal = {
+		apply(Symbol(name))
+	}
 	def apply(name:Symbol, t:Symbol):Nonterminal = {
 		nextId += 1
 		val term = new Nonterminal(name,nextId)
@@ -54,20 +51,58 @@ object Nonterminal {
 		}
 		register(term)
 	}
+	def fromShort(short:String):Nonterminal = fromShort(Symbol(short))
+	def fromShort(short:Symbol):Nonterminal = {
+		short match {
+			case 'R => Nonterminal('Range)
+			case 'S => Nonterminal('Sequence)
+			case 'D => Nonterminal('Duration)
+			case _ => throw fail("No such short form: " + short)
+		}
+	}
+
+	//--Create Nonterminals
+	val ranges = List("R","S")
+	val durations = List("D","S")
+	//(root)
 	Nonterminal('ROOT, 'none)
+	//(lex)
 	Nonterminal('Word, 'preterminal)
 	Nonterminal('Number, 'preterminal)
-	Nonterminal('Time, 'none)
+	Nonterminal('NIL, 'preterminal)
+	//(basic types)
 	Nonterminal('Range, 'none)
 	Nonterminal('Duration, 'none)
 	Nonterminal('Sequence, 'none)
-	Nonterminal('F_RR2R, 'none)
-	Nonterminal('F_RD2R, 'none)
-	Nonterminal('F_RS2R, 'none)
-	Nonterminal('F_R2R, 'none)
-	Nonterminal('F_R2D, 'none)
-	Nonterminal('F_D2D, 'none)
-	Nonterminal('NIL, 'preterminal)
+	//(arity-2 functions)
+	//((like rd2r))
+	val fn2 = ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
+			case (soFar:List[(Nonterminal,Symbol,Symbol)],r:String) =>
+		durations.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
+				case (soFar:List[(Nonterminal,Symbol,Symbol)],d:String) =>
+			( Nonterminal(Symbol("F_"+r+d+"2"+r), 'none),Symbol(r),Symbol(d)) :: soFar
+		}
+	} ::: 
+	//((like rr2r))
+	ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
+			case (soFar:List[(Nonterminal,Symbol,Symbol)],r1:String) =>
+		ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
+				case (soFar:List[(Nonterminal,Symbol,Symbol)],r2:String) =>
+			(Nonterminal(Symbol("F_"+r1+r2+"2"+r1),'none),
+				Symbol(r1),Symbol(r2)) :: soFar
+		}
+	}
+	//(arity-1 functions)
+	//((like r2r))
+	val fn1 = ranges.foldLeft(List[(Nonterminal,Symbol)]()){
+			case (soFar:List[(Nonterminal,Symbol)],r:String) =>
+		(Nonterminal(Symbol("F_"+r+"2"+r), 'none),Symbol(r)) :: soFar
+	} ::: 
+	//((like d2d))
+	durations.foldLeft(List[(Nonterminal,Symbol)]()){
+			case (soFar:List[(Nonterminal,Symbol)],d:String) =>
+		(Nonterminal(Symbol("F_"+d+"2"+d), 'none),Symbol(d)) :: soFar
+	}
 }
 
 
@@ -290,322 +325,197 @@ object Grammar {
 				"century(n):R")
 			)
 
-		//--F[ Range, Duration ] : Range
-		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
-			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight"),
-			(catLeft,"catLeft"),(catRight,"catRight"),
-			(shrinkBegin,"shrinkBegin"),(shrinkEnd,"shrinkEnd")
-			)
-		val rangeSequenceFn = List[((Range,Duration)=>Range,String)](
-			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight")
-			)
-		rtn = rtn ::: rangeDurationFn.foldLeft(List[(Rule,String)]()){ case 
-					(soFar:List[(Rule,String)],
-						(fn:((Range,Duration)=>Range),
-						 str:String)) =>
-				//(intro)
-				(UnaryRule(Nonterminal('F_RD2R), Nonterminal('Word), hack((w:Int) => fn
-					)),str+"$(-:R,-:D):R$") :: soFar
-			} ::: rangeSequenceFn.foldLeft(List[(Rule,String)]()){ case 
-					(soFar:List[(Rule,String)],
-						(fn:((Range,Duration)=>Range),
-						 str:String)) =>
-				//(into -- sequence)
-				(UnaryRule(Nonterminal('F_RS2R), Nonterminal('Word), hack((w:Int) => fn
-					)),str+"$(-:R,-:S):R$") :: soFar
-			}  ::: {
-				//(right apply)
-				(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_RD2R), 
-					Nonterminal('Duration), hack2(
-					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
-					)),"$f(-:R,d:D):R$") ::
-				(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_RS2R), 
-					Nonterminal('Sequence), hack2(
-					(fn:(Range,Duration)=>Range,d:Sequence) => fn(_:Range,d)
-					)),"$f(-:R,d:S):R$") ::
-				//(left apply)
-				(BinaryRule(Nonterminal('F_R2R), Nonterminal('Duration), 
-					Nonterminal('F_RD2R), hack2(
-					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-					)), "$f(-:R,d:D):R$") :: 
-				(BinaryRule(Nonterminal('F_R2R), Nonterminal('Sequence), 
-					Nonterminal('F_RS2R), hack2(
-					(d:Sequence,fn:(Range,Duration)=>Range) => fn(_:Range,d)
-					)), "$f(-:R,d:S):R$") :: Nil
-			} ::: {
-				//(right apply -- ref augmented)
-				(BinaryRule(Nonterminal('Range), Nonterminal('F_RD2R), 
-					Nonterminal('Duration), hack2(
-					(fn:(Range,Duration)=>Range,d:Duration) => fn(REF,d)
-					)),"$f(ref:R,d:D):R$") ::
-				(BinaryRule(Nonterminal('Range), Nonterminal('F_RS2R), 
-					Nonterminal('Sequence), hack2(
-					(fn:(Range,Duration)=>Range,d:Sequence) => fn(REF,d)
-					)),"$f(ref:R,d:S):R$") ::
-				//(left apply -- ref augmented)
-				(BinaryRule(Nonterminal('Range), Nonterminal('Duration), 
-					Nonterminal('F_RD2R), hack2(
-					(d:Duration,fn:(Range,Duration)=>Range) => fn(REF,d)
-					)), "$f(d:D,ref:R):R$") ::
-				(BinaryRule(Nonterminal('Range), Nonterminal('Sequence), 
-					Nonterminal('F_RS2R), hack2(
-					(d:Sequence,fn:(Range,Duration)=>Range) => fn(REF,d)
-					)), "$f(d:S,ref:R):R$") :: Nil
+		//--Arity 2 Functions
+		//(util)
+		case class F2Info[A,B](
+			fn:(_<:A,_<:B)=>_<:A,name:String,validA:List[Symbol],validB:List[Symbol])
+		//(define)
+		val function2 = List[F2Info[Temporal,Temporal]](
+			F2Info(shiftLeft,"shiftLeft",List('R,'S),List('D,'S)),     //last/ago
+			F2Info(shiftRight,"shiftRight",List('R,'S),List('D,'S)),   //next/from now
+			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D,'S)), //first
+			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D,'S)),   //last
+			F2Info(catLeft,"catLeft",List('R),List('D,'S)),            //past
+			F2Info(catRight,"catRight",List('R),List('D,'S)),          //coming
+			F2Info(cons,"cons",List('R,'S),List('R,'S))                //from...until
+		)
+		//(intro)
+		function2.foreach{ (info:F2Info[Temporal,Temporal]) =>
+			//(for every argA...)
+			rtn = rtn ::: info.validA.foldLeft(List[(Rule,String)]()){ 
+					case (soFarOuter:List[(Rule,String)],a:Symbol) =>
+				//(for every argB...)
+				soFarOuter ::: info.validB.foldLeft(List[(Rule,String)]()){
+						case (soFarInner:List[(Rule,String)],b:Symbol) =>
+					//(create rule)
+					val rule = (UnaryRule(Nonterminal("F_"+a.name+b.name+"2"+a.name),
+						Nonterminal('Word),
+						hack((w:Int) => info.fn)),
+						info.name+"$(-:"+a+",-:"+b+"):"+a+"$" )
+					//(append rule)
+					rule :: soFarInner
+				}
 			}
-		
-		//--F[ Range, Range ] : Range //TODO should work with sequences too?
-		                              // e.g. "after Thursday => cons(THU,INF)
-		val rangeRangeFn = List[((Range,Range)=>Range,String)](
-			(cons,"cons")
-			)
-		rtn = rtn ::: rangeRangeFn.foldLeft(List[(Rule,String)]()){ case 
-					(soFar:List[(Rule,String)],
-						(fn:((Range,Range)=>Range),
-						 str:String)) =>
-				//(intro)
-				(UnaryRule(Nonterminal('F_RR2R), Nonterminal('Word), hack((w:Int) => fn
-					)),str+"$(-:R,-:R):R$") :: soFar
-			} ::: {
-				//(right apply)
-				(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_RR2R), 
-					Nonterminal('Range), hack2(
-					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
-					)),"$f(-:R,r:R):R$") ::
-				//(left apply)
-				(BinaryRule(Nonterminal('F_R2R), Nonterminal('Range), 
-					Nonterminal('F_RR2R), hack2(
-					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
-					)), "$f(-:R,r:R):R$") :: Nil
-			} ::: {
-				//(right apply -- ref augmented left)
-				(BinaryRule(Nonterminal('Range), Nonterminal('F_RR2R), 
-					Nonterminal('Range), hack2(
-					(fn:(Range,Range)=>Range,r:Range) => fn(REF,r)
-					)),"$f(ref:R,r:R):R$") ::
-				//(left apply -- ref augmented left)
-				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-					Nonterminal('F_RR2R), hack2(
-					(r:Range,fn:(Range,Range)=>Range) => fn(REF,r)
-					)), "$f(r:R,ref:R):R$") ::
-				//(right apply -- ref augmented right)
-				(BinaryRule(Nonterminal('Range), Nonterminal('F_RR2R), 
-					Nonterminal('Range), hack2(
-					(fn:(Range,Range)=>Range,r:Range) => fn(r,REF)
-					)),"$f(ref:R,r:R):R$") ::
-				//(left apply -- ref augmented right)
-				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-					Nonterminal('F_RR2R), hack2(
-					(r:Range,fn:(Range,Range)=>Range) => fn(r,REF)
-					)), "$f(r:R,ref:R):R$") :: Nil
-			} ::: {
-				//(intersect in order)
-				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-					Nonterminal('Range), hack2(
-					(a:Range,b:Range) => a ^ b
-					)), "inter$(a:R,b:R):R$") ::
-				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-					Nonterminal('Sequence), hack2(
-					(a:Range,b:Sequence) => a ^ b
-					)), "inter$(a:R,b:S):R$") ::
-				(BinaryRule(Nonterminal('Range), Nonterminal('Sequence), 
-					Nonterminal('Range), hack2(
-					(a:Sequence,b:Range) => a ^ b
-					)), "inter$(a:S,b:R):R$") ::
-				(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
-					Nonterminal('Sequence), hack2(
-					(a:Sequence,b:Sequence) => a ^ b
-					)), "inter$(a:S,b:S):S$") ::
-				//(intersect reverse)
-				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-					Nonterminal('Range), hack2(
-					(a:Range,b:Range) => b ^ a
-					)), "inter$(b:R,a:R):R$") ::
-				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-					Nonterminal('Sequence), hack2(
-					(a:Range,b:Sequence) => b ^ a
-					)), "inter$(b:R,a:S):R$") ::
-				(BinaryRule(Nonterminal('Range), Nonterminal('Sequence), 
-					Nonterminal('Range), hack2(
-					(a:Sequence,b:Range) => b ^ a
-					)), "inter$(b:S,a:R):R$") ::
-				(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
-					Nonterminal('Sequence), hack2(
-					(a:Sequence,b:Sequence) => b ^ a
-					)), "inter$(b:S,a:S):S$") :: Nil
+		}
+		//(apply)
+		rtn = rtn ::: {
+			Nonterminal.fn2.foldLeft(List[(Rule,String)]()){
+					case (soFar:List[(Rule,String)],(fn:Nonterminal,a:Symbol,b:Symbol)) =>
+//				//(consume A on the left)
+//				( BinaryRule(
+//					Nonterminal(Symbol("F_"+b.name+"2"+a.name)),               //head
+//					Nonterminal.fromShort(a),                                  //left
+//					fn,                                                        //right
+//					hack2((a:Temporal,fn:(Temporal,Temporal)=>Temporal) =>     //function
+//						fn(a,_:Temporal)) ),
+//				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
+//				//(consume A on the right)
+//				( BinaryRule(
+//					Nonterminal(Symbol("F_"+b.name+"2"+a.name)),               //head
+//					fn,                                                        //left
+//					Nonterminal.fromShort(a),                                  //right
+//					hack2((fn:(Temporal,Temporal)=>Temporal,a:Temporal) =>     //function
+//						fn(a,_:Temporal)) ),
+//				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
+				//(consume B on the left)
+				( BinaryRule(
+					Nonterminal(Symbol("F_"+a.name+"2"+a.name)),               //head
+					Nonterminal.fromShort(b),                                  //left
+					fn,                                                        //right
+					hack2((b:Temporal,fn:(Temporal,Temporal)=>Temporal) =>     //function
+						fn(_:Temporal,b)) ),
+				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+				//(consume B on the right)
+				( BinaryRule(
+					Nonterminal(Symbol("F_"+a.name+"2"+a.name)),               //head
+					fn,                                                        //left
+					Nonterminal.fromShort(b),                                  //right
+					hack2((fn:(Temporal,Temporal)=>Temporal,b:Temporal) =>     //function
+						fn(_:Temporal,b)) ),
+				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+				Nil
 			}
+		}
+		//(ref augmented apply)
+		rtn = rtn ::: Nonterminal.fn2.filter{
+				case (fn:Nonterminal,a:Symbol,b:Symbol) => a == 'R || b == 'R
+			}.foldLeft(List[(Rule,String)]()){
+				case (soFar:List[(Rule,String)],(fn:Nonterminal,a:Symbol,b:Symbol))=>
+			if(b == 'R){
+				//(consume A on the left -- B is Range)
+				( BinaryRule(
+					Nonterminal.fromShort(a),                                  //head
+					Nonterminal.fromShort(a),                                  //left
+					fn,                                                        //right
+					hack2((a:Temporal,fn:(Temporal,Range)=>Temporal) =>        //function
+						fn(a,REF)) ),
+				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
+				//(consume A on the right -- B is Range)
+				( BinaryRule(
+					Nonterminal.fromShort(a),                                  //head
+					fn,                                                        //left
+					Nonterminal.fromShort(a),                                  //right
+					hack2((fn:(Temporal,Range)=>Temporal,a:Temporal) =>        //function
+						fn(a,REF)) ),
+				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
+				Nil
+			} else {List[(Rule,String)]()} :::
+			{if(a == 'R){
+				//(consume B on the left -- A is Range)
+				( BinaryRule(
+					Nonterminal.fromShort(a),                                  //head
+					Nonterminal.fromShort(b),                                  //left
+					fn,                                                        //right
+					hack2((b:Temporal,fn:(Range,Temporal)=>Temporal) =>        //function
+						fn(REF,b)) ),
+				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+				//(consume B on the right -- A is Range)
+				( BinaryRule(
+					Nonterminal.fromShort(a),                                  //head
+					fn,                                                        //left
+					Nonterminal.fromShort(b),                                  //right
+					hack2((fn:(Range,Temporal)=>Temporal,b:Temporal) =>        //function
+						fn(REF,b)) ),
+				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+				Nil
+			} else { Nil } }
+		}
 		
-		//--F[ Duration, Number ] : Duration
+		//--Arity 1 Functions
+		//(util)
+		case class F1Info[A](
+			fn:(_<:A)=>_<:A,name:String,validA:List[Symbol])
+		//(define)
+		val function1 = List[F1Info[Temporal]](
+			F1Info(fuzzify,"fuzzify",List('D))     //around
+		)
+		//(intro)
+		function1.foreach{ (info:F1Info[Temporal]) =>
+			//(for every argA...)
+			rtn = rtn ::: info.validA.foldLeft(List[(Rule,String)]()){ 
+					case (soFarOuter:List[(Rule,String)],a:Symbol) =>
+				//(create rule)
+				val rule = (UnaryRule(Nonterminal("F_"+a.name+"2"+a.name),
+					Nonterminal('Word),
+					hack((w:Int) => info.fn)),
+					info.name+"$(-:"+a+"):"+a+"$" )
+				//(append rule)
+				rule :: soFarOuter
+			}
+		}
+		//(apply)
+		rtn = rtn ::: {
+			Nonterminal.fn1.foldLeft(List[(Rule,String)]()){
+					case (soFar:List[(Rule,String)],(fn:Nonterminal,a:Symbol)) =>
+				//(consume A on the left)
+				( BinaryRule(
+					Nonterminal.fromShort(a),                                  //head
+					Nonterminal.fromShort(a),                                  //left
+					fn,                                                        //right
+					hack2((a:Temporal,fn:(Temporal)=>Temporal) => fn(a)) ),    //function
+				"$f(x:"+a.name+"):"+a.name+"$") ::                           //name
+				//(consume A on the right)
+				( BinaryRule(
+					Nonterminal.fromShort(a),                                  //head
+					fn,                                                        //left
+					Nonterminal.fromShort(a),                                  //right
+					hack2((fn:(Temporal)=>Temporal,a:Temporal) => fn(a)) ),    //function
+				"$f(x:"+a.name+"):"+a.name+"$") ::                           //name
+				Nil
+			}
+		}
+		
+		//--Multiply Duration
 		rtn = rtn ::: List[(Rule,String)](
-			(BinaryRule(Nonterminal('Duration), Nonterminal('Duration), 
-				Nonterminal('Number), hack2(
+			(BinaryRule(Nonterminal('Duration), 
+				Nonterminal('Duration), Nonterminal('Number), hack2(
 				(d:Duration,n:Int) => d*n
 				)), "D*n"),
-			(BinaryRule(Nonterminal('Duration), Nonterminal('Number), 
-				Nonterminal('Duration), hack2(
+			(BinaryRule(Nonterminal('Duration), 
+				Nonterminal('Number), Nonterminal('Duration), hack2(
 				(n:Int,d:Duration) => d*n
 				)), "n*D")
 			)
-		
-		//--F[ Duration ] : Duration
-		val durationFn = List[(Duration=>Duration,String)](
-				(fuzzify,"fuzzify") 
-			)
-		rtn = rtn ::: durationFn.foldLeft(List[(Rule,String)]()){ case 
-					(soFar:List[(Rule,String)],
-						(fn:(Duration=>Duration),
-						 str:String )) =>
-				//(intro)
-				(UnaryRule(Nonterminal('F_D2D), Nonterminal('Word), hack((w:Int) => fn
-					)),str+"$(-:D):D$") :: soFar
-			} ::: {
-				//(right apply)
-				(BinaryRule(Nonterminal('Duration), Nonterminal('F_D2D), 
-					Nonterminal('Duration), hack2(
-					(fn:Duration=>Duration,d:Duration) => fn(d)
-					)), "$f_{d}:D$") ::
-				//(left apply)
-				(BinaryRule(Nonterminal('Duration), Nonterminal('Duration), 
-					Nonterminal('F_D2D), hack2(
-					(d:Duration,fn:Duration=>Duration) => fn(d)
-					)), "$f_{d}:D$") :: Nil
-			}
-		
-		//--F[ Range ] : Duration
-		val rangeToDurationFn = List[(Range=>Duration,String)](
-				(norm,"norm")
-			)
-		rtn = rtn ::: rangeToDurationFn.foldLeft(List[(Rule,String)]()){ case 
-					(soFar:List[(Rule,String)],
-						(fn:(Range=>Duration),
-						 str:String )) =>
-				//(intro)
-				(UnaryRule(Nonterminal('F_R2D), Nonterminal('Word), hack((w:Int) => fn
-					)),str+"$(-:R):D$") :: soFar
-			} ::: {
-				//(right apply)
-				(BinaryRule(Nonterminal('Duration), Nonterminal('F_R2D), 
-					Nonterminal('Range), hack2(
-					(fn:Range=>Duration,r:Range) => fn(r)
-					)), "$f_{r}:D$") ::
-				//(left apply)
-				(BinaryRule(Nonterminal('Duration), Nonterminal('Range), 
-					Nonterminal('F_R2D), hack2(
-					(r:Range,fn:Range=>Duration) => fn(r)
-					)), "$f_{r}:D$") :: Nil
-			}
-		
-		//--F[ Range ] : Range
-		val rangeToRangeFn = List[(Range=>Range,String)](
-				(PM, "+12H")
-			)
-		rtn = rtn ::: rangeToRangeFn.foldLeft(List[(Rule,String)]()){ case 
-					(soFar:List[(Rule,String)],
-						(fn:(Range=>Range),
-						 str:String )) =>
-				//(intro)
-				(UnaryRule(Nonterminal('F_R2R), Nonterminal('Word), hack((w:Int) => fn
-					)),str+"$(-:R):R$") :: soFar
-			} ::: {
-				//(right apply)
-				(BinaryRule(Nonterminal('Range), Nonterminal('F_R2R), 
-					Nonterminal('Range), hack2(
-					(fn:Range=>Range,r:Range) => fn(r)
-					)), "$f_{r}:R$") ::
-				//(left apply)
-				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-					Nonterminal('F_R2R), hack2(
-					(r:Range,fn:Range=>Range) => fn(r)
-					)), "$f_{r}:R$") :: Nil
-				//(right apply -- seq)
-				(BinaryRule(Nonterminal('Sequence), Nonterminal('F_R2R), 
-					Nonterminal('Sequence), hack2(
-					(fn:Range=>Range,r:Sequence) => fn(r)
-					)), "$f_{s}:S$") ::
-				//(left apply -- seq)
-				(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
-					Nonterminal('F_R2R), hack2(
-					(r:Sequence,fn:Range=>Range) => fn(r)
-					)), "$f_{s}:S$") :: Nil
-			}
-		
-		//--Type Raises
-//		rtn = rtn ::: List[(Rule,String)]( 
-//			//(now augmentation (arity 2))
-//			(UnaryRule(Nonterminal('F_D), Nonterminal('F_RD), hack( 
-//				(f:(Range,Duration)=>Range) => f(Range(REF,REF),_:Duration) 
-//				)),"$f(ref:R,-:D):R$"),
-//			(UnaryRule(Nonterminal('F_R), Nonterminal('F_RR), hack( 
-//				(f:(Range,Range)=>Range) => f(Range(REF,REF),_:Range) 
-//				)),"$f(ref:R,-:R):R$"),
-//			(UnaryRule(Nonterminal('F_R), Nonterminal('F_RR), hack( 
-//				(f:(Range,Range)=>Range) => f(_:Range,Range(REF,REF)) 
-//				)),"$f(-:R,ref:R):R$"),
-//			//(implicit intersect)
-//			(UnaryRule(Nonterminal('F_R), Nonterminal('Range), hack(
-//				(r:Range) => intersect(r,_:Range)
-//				)),"intersect$(ref:R,-:R):R$"),
-//			//(sequence grounding)
-//			(UnaryRule(Nonterminal('Range), Nonterminal('Sequence), hack( 
-//				(s:Sequence) => s
-//				)),"$d:R$")
-//			)
+
+		//--Intersect
+		rtn = rtn ::: Nonterminal.ranges.foldLeft(List[(Rule,String)]()){
+				case (soFar:List[(Rule,String)],r:String) =>
+			(BinaryRule(Nonterminal.fromShort(r), 
+				Nonterminal.fromShort(r),Nonterminal.fromShort(r),
+				hack2( (r1:Range,r2:Range) => r1 ^ r2)), 
+			"$r:"+r+" \\wedge r:"+r+"$") :: soFar
+		}
 
 		//--NIL Identities
-		rtn = rtn ::: List[(Rule,String)]( 
-			//(range)
-			(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
-				Nonterminal('NIL), hack2( 
-				(r:Range,n:NIL) => r
-				)),"$r:R$"),
-			(BinaryRule(Nonterminal('Range), Nonterminal('NIL), 
-				Nonterminal('Range), hack2( 
-				(n:NIL,r:Range) => r
-				)),"$r:R$"),
-			//(duration)
-			(BinaryRule(Nonterminal('Duration), Nonterminal('Duration), 
-				Nonterminal('NIL), hack2( 
-				(d:Duration,n:NIL) => d
-				)),"$d:D$"),
-			(BinaryRule(Nonterminal('Duration), Nonterminal('NIL), 
-				Nonterminal('Duration), hack2( 
-				(n:NIL,d:Duration) => d
-				)),"$d:D$"),
-			//(sequence)
-			(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
-				Nonterminal('NIL), hack2( 
-				(s:Sequence,n:NIL) => s
-				)),"$s:S$"),
-			(BinaryRule(Nonterminal('Sequence), Nonterminal('NIL), 
-				Nonterminal('Sequence), hack2( 
-				(n:NIL,s:Sequence) => s
-				)),"$s:S$"),
-			//(f_range)
-			(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_R2R), 
-				Nonterminal('NIL), hack2( 
-				(f:Range=>Range,n:NIL) => f
-				)),"$f(-:R):R$"),
-			(BinaryRule(Nonterminal('F_R2R), Nonterminal('NIL), 
-				Nonterminal('F_R2R), hack2( 
-				(n:NIL,f:Range=>Range) => f
-				)),"$f(-:R):R$"),
-			(BinaryRule(Nonterminal('F_R2D), Nonterminal('F_R2D), 
-				Nonterminal('NIL), hack2( 
-				(f:Range=>Duration,n:NIL) => f
-				)),"$f(-:R):D$"),
-			(BinaryRule(Nonterminal('F_R2D), Nonterminal('NIL), 
-				Nonterminal('F_R2D), hack2( 
-				(n:NIL,f:Range=>Duration) => f
-				)),"$f(-:R):D$"),
-			//(f_duration)
-			(BinaryRule(Nonterminal('F_D2D), Nonterminal('F_D2D), 
-				Nonterminal('NIL), hack2( 
-				(f:Duration=>Range,n:NIL) => f
-				)),"$f(-:D):R$"),
-			(BinaryRule(Nonterminal('F_D2D), Nonterminal('NIL), 
-				Nonterminal('F_D2D), hack2( 
-				(n:NIL,f:Duration=>Range) => f
-				)),"$f(-:D):R$")
-			)
+		rtn = rtn ::: Nonterminal.values.filter{ (x:Nonterminal) =>
+					x.isPreterminal && x != Nonterminal('NIL) }.
+				foldLeft(List[(Rule,String)]()){
+				case (soFar:List[(Rule,String)],term:Nonterminal) => 
+			(BinaryRule(term,term,Nonterminal('NIL),
+				hack2( (x:Any,n:NIL) => x)),"$x:"+term.name+"$") ::
+			(BinaryRule(term,Nonterminal('NIL),term,
+				hack2( (n:NIL,x:Any) => x)),"$x:"+term.name+"$") :: soFar
+		}
 
 		//--Return
 		rtn.foreach{ case (r:Rule,s:String) => r.setStr(s) }
@@ -641,7 +551,8 @@ object Grammar {
 	val NIL_RID:Int = {
 		val matches:Array[(Rule,Int)] 
 			= RULES.zipWithIndex.filter{ _._1.head == Nonterminal('NIL) }
-		assert(matches.length == 1, "invalid nil rule count (should be 1)")
+		assert(matches.length == 1, 
+			"invalid nil rule count (should be 1, not " + matches.length + ")")
 		matches(0)._2
 	}
 
