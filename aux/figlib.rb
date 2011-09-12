@@ -74,7 +74,6 @@ class Parse
 			@input = input
 		else
 			@input = @@parser.parse(input)
-			puts to_s
 		end
 	end
 	def to_s

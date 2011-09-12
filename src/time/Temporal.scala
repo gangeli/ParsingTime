@@ -1,7 +1,6 @@
 package time
 
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
 
 import org.joda.time._
 
@@ -18,6 +17,7 @@ import Temporal.{TraverseFn,TraverseTask}
 // TEMPORAL
 //------------------------------------------------------------------------------
 trait Temporal {
+
 	import Temporal.isInt
 	//(get values)
 	def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)
@@ -478,46 +478,20 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 
 	override def !(dur:Duration):Range = {
 		import Lex.{AYEAR,QUARTER,MONTH,WEEK,DAY,HOUR,MIN,SEC}
-		def yr(t:DateTime):Time = {
-			new Time(t.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0))
-		}
-		def hr(t:Time):Time = {
-			new Time(t.base.withMinuteOfHour(0).withSecondOfMinute(0)
-				.withMillisOfSecond(0))
-		}
-		def qr(t:Time):Time = {
-			val month0 = t.base.getMonthOfYear-1
-			new Time(t.base.withMonthOfYear( month0-(month0%3)+1 )
-				.withDayOfMonth(1).withMillisOfDay(0))
-		}
-		val (base,diff) = dur.smallestUnit match {
-			case DurationUnit.MILLENIUM => 
-				val b = begin.base
-				( yr(b.withYear(b.getYear-(b.getYear%1000))), AYEAR*1000 )
-			case DurationUnit.CENTURY => 
-				val b = begin.base
-				( yr(b.withYear(b.getYear-(b.getYear%100))),AYEAR*100)
-			case DurationUnit.DECADE => 
-				val b = begin.base
-				( yr(b.withYear(b.getYear-(b.getYear%10))), AYEAR*10)
-			case DurationUnit.YEAR => 
-				( yr(begin.base), AYEAR)
-			case DurationUnit.QUARTER => 
-				( qr(begin), QUARTER )
-			case DurationUnit.MONTH => 
-				( new Time(begin.base.withDayOfMonth(1).withMillisOfDay(0)), MONTH)
-			case DurationUnit.WEEK => 
-				( new Time(begin.base.withDayOfWeek(1).withMillisOfDay(0)), WEEK)
-			case DurationUnit.DAY => 
-				( new Time(begin.base.withMillisOfDay(0)), DAY)
-			case DurationUnit.HOUR => 
-				( hr(begin), HOUR)
-			case DurationUnit.MINUTE => 
-				( new Time(begin.base.withSecondOfMinute(0).withMillisOfSecond(0)), MIN)
-			case DurationUnit.SECOND => 
-				( new Time(begin.base.withMillisOfSecond(0)), SEC)
-			case DurationUnit.ZERO =>
-				( begin, Duration.ZERO )
+		val base = begin.canonical(dur)
+		val diff = dur.smallestUnit match {
+			case DurationUnit.MILLENIUM => AYEAR*1000
+			case DurationUnit.CENTURY => AYEAR*100
+			case DurationUnit.DECADE => AYEAR*10
+			case DurationUnit.YEAR => AYEAR
+			case DurationUnit.QUARTER => QUARTER
+			case DurationUnit.MONTH => MONTH
+			case DurationUnit.WEEK => WEEK
+			case DurationUnit.DAY => DAY
+			case DurationUnit.HOUR => HOUR
+			case DurationUnit.MINUTE => MIN
+			case DurationUnit.SECOND => SEC
+			case DurationUnit.ZERO => Duration.ZERO
 		}
 		new GroundedRange(base,base+diff)
 	}
@@ -924,22 +898,28 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 			}
 	override def *(n:Int):Duration = {
 		import DurationUnit._
-		var p = base.toPeriod
-		new GroundedDuration( units.foldLeft(Period.ZERO){ 
-			case (soFar:Period,term:DurationUnit.Value) => term match {
-				case MILLENIUM => soFar.plusYears((p.getYears/1000)*n)
-				case CENTURY => soFar.plusYears((p.getYears%1000)*n)
-				case DECADE => soFar.plusYears((p.getYears%100)*n)
-				case YEAR => soFar.plusYears((p.getYears%10)*n)
-				case QUARTER => soFar.plusMonths(p.getMonths*n)
-				case MONTH => soFar.plusMonths(p.getMonths*n)
-				case WEEK => soFar.plusWeeks(p.getWeeks*n)
-				case DAY => soFar.plusDays(p.getDays*n)
-				case HOUR => soFar.plusHours(p.getHours*n)
-				case MINUTE => soFar.plusMinutes(p.getMinutes*n)
-				case SECOND => soFar.plusSeconds(p.getSeconds*n)
-			}
-		} )
+		try{
+			var p = base.toPeriod
+			new GroundedDuration( units.foldLeft(Period.ZERO){ 
+				case (soFar:Period,term:DurationUnit.Value) => term match {
+					case MILLENIUM => soFar.plusYears((p.getYears/1000)*n)
+					case CENTURY => soFar.plusYears((p.getYears%1000)*n)
+					case DECADE => soFar.plusYears((p.getYears%100)*n)
+					case YEAR => soFar.plusYears((p.getYears%10)*n)
+					case QUARTER => soFar.plusMonths(p.getMonths*n)
+					case MONTH => soFar.plusMonths(p.getMonths*n)
+					case WEEK => soFar.plusWeeks(p.getWeeks*n)
+					case DAY => soFar.plusDays(p.getDays*n)
+					case HOUR => soFar.plusHours(p.getHours*n)
+					case MINUTE => soFar.plusMinutes(p.getMinutes*n)
+					case SECOND => soFar.plusSeconds(p.getSeconds*n)
+				}
+			} )
+		} catch {
+			case (e:ArithmeticException) =>
+				if(n > 0){ Duration.INFINITE }
+				else { Duration.NEG_INFINITE }
+		}
 	}
 
 	override def units:Array[DurationUnit.Value] = {
@@ -1003,7 +983,7 @@ class FuzzyDuration(val base:Duration) extends Duration {
 
 	override def +(diff:Duration):Duration = new FuzzyDuration( this.base + diff )
 	override def -(diff:Duration):Duration = new FuzzyDuration( this.base - diff )
-	override def *(n:Int):Duration         = this.base * n
+	override def *(n:Int):Duration         = new FuzzyDuration( this.base * n )
 
 	override def units:Array[DurationUnit.Value] 
 		= Array[DurationUnit.Value](base.largestUnit)
@@ -1380,6 +1360,42 @@ case class Time(base:DateTime) {
 
 	def hasTime:Boolean = base.getMillisOfDay > 0
 
+
+	def canonical(dur:Duration):Time = {
+		def yr(t:DateTime):Time = {
+			new Time(t.withMonthOfYear(1).withDayOfMonth(1).withMillisOfDay(0))
+		}
+		def hr(t:Time):Time = {
+			new Time(t.base.withMinuteOfHour(0).withSecondOfMinute(0)
+				.withMillisOfSecond(0))
+		}
+		def qr(t:Time):Time = {
+			val month0 = t.base.getMonthOfYear-1
+			new Time(t.base.withMonthOfYear( month0-(month0%3)+1 )
+				.withDayOfMonth(1).withMillisOfDay(0))
+		}
+		dur.smallestUnit match {
+			case DurationUnit.MILLENIUM => 
+				yr(base.withYear(base.getYear-(base.getYear%1000)))
+			case DurationUnit.CENTURY => 
+				yr(base.withYear(base.getYear-(base.getYear%100)))
+			case DurationUnit.DECADE => 
+				yr(base.withYear(base.getYear-(base.getYear%10)))
+			case DurationUnit.YEAR => yr(base)
+			case DurationUnit.QUARTER => qr(this)
+			case DurationUnit.MONTH => 
+				new Time(base.withDayOfMonth(1).withMillisOfDay(0))
+			case DurationUnit.WEEK => 
+				new Time(base.withDayOfWeek(1).withMillisOfDay(0))
+			case DurationUnit.DAY => new Time(base.withMillisOfDay(0))
+			case DurationUnit.HOUR => hr(this)
+			case DurationUnit.MINUTE => 
+				new Time(base.withSecondOfMinute(0).withMillisOfSecond(0))
+			case DurationUnit.SECOND => new Time(base.withMillisOfSecond(0))
+			case DurationUnit.ZERO => this
+		}
+	}
+
 	def +(diff:Duration):Time = {
 		val diffMillis = diff.seconds*1000
 		val baseMillis = base.getMillis
@@ -1652,16 +1668,39 @@ object Lex {
 		}
 	}
 	//--Durations
-	val SEC:Duration = new GroundedDuration(Seconds.ONE)
-	val MIN:Duration = new GroundedDuration(Minutes.ONE)
-	val HOUR:Duration = new GroundedDuration(Hours.ONE)
-	val DAY:Duration = new GroundedDuration(Days.ONE)
-	val WEEK:Duration = new GroundedDuration(Weeks.ONE)
-	val MONTH:Duration = new GroundedDuration(Months.ONE)
-	val QUARTER:Duration = new GroundedDuration(Months.THREE)
+	val ASEC:Duration = new GroundedDuration(Seconds.ONE)
+	val AMIN:Duration = new GroundedDuration(Minutes.ONE)
+	val AHOUR:Duration = new GroundedDuration(Hours.ONE)
+	val ADAY:Duration = new GroundedDuration(Days.ONE)
+	val AWEEK:Duration = new GroundedDuration(Weeks.ONE)
+	val AMONTH:Duration = new GroundedDuration(Months.ONE)
+	val AQUARTER:Duration = new GroundedDuration(Months.THREE)
 	val AYEAR:Duration = new GroundedDuration(Years.ONE)
 	val ADECADE:Duration = new GroundedDuration(Years.ONE)*10
 	val ACENTURY:Duration = new GroundedDuration(Years.ONE)*100
+	//--Duration Sequences
+	val SEC:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(ASEC),Range(ASEC),ASEC)
+	val MIN:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(AMIN),Range(AMIN),AMIN)
+	val HOUR:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(AHOUR),Range(AHOUR),AHOUR)
+	val DAY:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(ADAY),Range(ADAY),ADAY)
+	val WEEK:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(AWEEK),Range(AWEEK),AWEEK)
+	val MONTH:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(AMONTH),Range(AMONTH),AMONTH)
+	val QUARTER:Sequence 
+		= new RepeatedRange((t:Time) => 
+			t.canonical(AQUARTER),Range(AQUARTER),AQUARTER)
+	val YEAR:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(AYEAR),Range(AYEAR),AYEAR)
+	val DECADE:Sequence 
+		= new RepeatedRange((t:Time) => t.canonical(ADECADE),Range(ADECADE),ADECADE)
+	val CENTURY:Sequence 
+		= new RepeatedRange((t:Time) => 
+			t.canonical(ACENTURY),Range(ACENTURY),ACENTURY) 
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)

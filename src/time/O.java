@@ -52,6 +52,8 @@ public class O {
 	public static boolean collapseNumbers = false;
 	@Option(name="bucketNumbers", gloss="Bucket --NUM-- terms into num. digits")
 	public static boolean bucketNumbers = false;
+	@Option(name="ignoreCase", gloss="Ignore the case of words")
+	public static boolean ignoreCase = false;
 
 	//--PARSING
 	@Option(name="beam", gloss="Search Beam Size (memory will be 2*this)")

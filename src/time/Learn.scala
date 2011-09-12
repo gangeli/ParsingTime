@@ -8,19 +8,12 @@ import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
 
 import Lex._
-import ParseConversions._
 
 import org.goobs.exec.Execution
-import org.goobs.slib.Def
 import org.goobs.stanford.JavaNLP._
 import org.goobs.stats._
 
-import edu.stanford.nlp.stats.ClassicCounter
-import edu.stanford.nlp.stats.TwoDimensionalCounter
-import edu.stanford.nlp.stats.Counter
-import edu.stanford.nlp.stats.Counters
 import edu.stanford.nlp.util.CoreMap
-import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ie.crf.CRFClassifier
 import edu.stanford.nlp.sequences.SeqClassifierFlags
 import edu.stanford.nlp.sequences.FeatureFactory
@@ -31,10 +24,41 @@ import edu.stanford.nlp.util.logging.Redwood.Static._
 //------------------------------------------------------------------------------
 object Head extends Enumeration {
 	type V = Value
-	val ROOT, Word, Number, 
-		Time, Range, Duration, Sequence, 
+	val ROOT, Word, Number,
+		Time, Range, Duration, Sequence,
 		F_RR, F_RD, F_RS, F_R2R, F_R2D, F_D, NIL = Value
 }
+
+case class Nonterminal(name:Symbol,id:Int)
+object Nonterminal {
+	private var nextId = -1
+	var values:Array[Nonterminal] = Array[Nonterminal]()
+	def register(head:Nonterminal):Nonterminal = {
+		values = (values.toList ::: List[Nonterminal](head)).toArray
+		head
+	}
+	def apply(name:Symbol) = {
+		nextId += 1
+		register(new Nonterminal(name,nextId))
+	}
+	Nonterminal('ROOT)
+	Nonterminal('Word)
+	Nonterminal('Number)
+	Nonterminal('Time)
+	Nonterminal('Range)
+	Nonterminal('Duration)
+	Nonterminal('Sequence)
+	Nonterminal('F_RR2R)
+	Nonterminal('F_RD2R)
+	Nonterminal('F_RS2R)
+	Nonterminal('F_R2R)
+	Nonterminal('F_R2D)
+	Nonterminal('F_D2D)
+	Nonterminal('NIL)
+}
+
+
+
 trait Rule {
 	// -- Must Override --
 	def apply(arg:Any):Any
@@ -164,16 +188,21 @@ object Grammar {
 		)
 	//(durations)
 	val durations = 
-		{if(O.useTime) List[(Duration,String)]((SEC,"Sec:D"),(MIN,"Min:D"),
-			(HOUR,"Hour:D")) else List[(Duration,String)]()} :::
+		{if(O.useTime) List[(Duration,String)]((ASEC,"Sec:D"),(AMIN,"Min:D"),
+			(AHOUR,"Hour:D")) else List[(Duration,String)]()} :::
 		List[(Duration,String)](
-			(DAY,"Day:D"),(WEEK,"Week:D"),(MONTH,"Month:D"),(QUARTER,"Quarter:D"),
+			(ADAY,"Day:D"),(AWEEK,"Week:D"),(AMONTH,"Month:D"),(AQUARTER,"Quarter:D"),
 			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"CENTURY:D"))
 	//(sequences)
 	val sequences = 
 		(1 to 7).map(i=>(DOW(i).dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
 		(1 to 12).map(i=>(MOY(i).dense.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
 		(1 to 4).map(i=>(QOY(i).dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
+		{if(O.useTime) List[(Sequence,String)]((SEC,"Sec:S"),(MIN,"Min:S"),
+			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
+		List[(Sequence,String)](
+			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
+			(YEAR,"Year:S"),(DECADE,"Decade:S"),(CENTURY,"CENTURY:S")) :::
 		Nil
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
@@ -233,27 +262,28 @@ object Grammar {
 			)
 
 		//--F[ Range, Duration ] : Range
-		val rangeDurationFn = List[((Range,Duration)=>Range,String,Boolean)](
-			(shiftLeft,"shiftLeft",true),(shiftRight,"shiftRight",true),
-			(cannonicalLeft,"shiftLeft!",false),(cannonicalRight,"shiftRight!",false),
-			(canonicalize,"canon.",false),
-			(catLeft,"catLeft",false),(catRight,"catRight",false),
-			(shrinkBegin,"shrinkBegin",false),(shrinkEnd,"shrinkEnd",false)
+		val rangeDurationFn = List[((Range,Duration)=>Range,String)](
+			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight"),
+			(catLeft,"catLeft"),(catRight,"catRight"),
+			(shrinkBegin,"shrinkBegin"),(shrinkEnd,"shrinkEnd")
+			)
+		val rangeSequenceFn = List[((Range,Duration)=>Range,String)](
+			(shiftLeft,"shiftLeft"),(shiftRight,"shiftRight")
 			)
 		rtn = rtn ::: rangeDurationFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
 						(fn:((Range,Duration)=>Range),
-						 str:String,
-						 seqAlso:Boolean)) =>
+						 str:String)) =>
 				//(intro)
 				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
-					)),str+"$(-:R,-:D):R$") :: 
-					{if(seqAlso){
-						(UnaryRule(Head.F_RS, Head.Word, hack((w:Int) => fn
-							)),str+"$(-:R,-:S):R$") :: soFar
-					} else {
-						soFar
-					}}
+					)),str+"$(-:R,-:D):R$") :: soFar
+			} ::: rangeSequenceFn.foldLeft(List[(Rule,String)]()){ case 
+					(soFar:List[(Rule,String)],
+						(fn:((Range,Duration)=>Range),
+						 str:String)) =>
+				//(into -- sequence)
+				(UnaryRule(Head.F_RS, Head.Word, hack((w:Int) => fn
+					)),str+"$(-:R,-:S):R$") :: soFar
 			}  ::: {
 				//(right apply)
 				(BinaryRule(Head.F_R2R, Head.F_RD, Head.Duration, hack2(
@@ -850,8 +880,8 @@ trait StandardParser extends Parser {
 			//(end)
 			endIteration(i,feedback,data)
 			//(score)
-			log(""+score)
-			log(""+score.reportK)
+			log(FORCE,BOLD,YELLOW,""+score)
+			log(FORCE,YELLOW,""+score.reportK)
 			if(O.printFailures){
 				startTrack("failures")
 				score.reportFailures{ (str:String) => log(FORCE,str) }
@@ -1114,7 +1144,7 @@ object CKYParser {
 		= pRuleGivenHead.map{ _.newStatistics(O.rulePrior) }
 
 	private val (pWordGivenRule,rid2WordGivenRuleIndices)
-			:(Array[Multinomial[Int]],Array[Int]) = { //TODO fixme
+			:(Array[Multinomial[Int]],Array[Int]) = {
 		val mapping = (0 until RULES.length).map{ x => -1 }.toArray
 		val distributions:Array[Multinomial[Int]]
 				= RULES.zipWithIndex
@@ -1653,7 +1683,7 @@ object CKYParser {
 		private def lazyNext:Boolean = {
 			assert(isLazy, "Lazy next called on non-lazy structure")
 			if(lazyNextFn == null){ lazyNextFn = mkLazyNext }
-			lazyNextFn()
+			lazyNextFn(Unit)
 		}
 		private def mkLazyNext:Unit=>Boolean = {
 			assert(isLazy, "mkLazy called on non-lazy structure")
@@ -1680,9 +1710,9 @@ object CKYParser {
 					else 0
 				}
 			}
-			var pq = new PriorityQueue[DataSource]
-			var seen = new HashSet[Int]
-			var seenUnary = new HashSet[Int]
+			val pq = new PriorityQueue[DataSource]
+			val seen = new HashSet[Int]
+			val seenUnary = new HashSet[Int]
 //			var seen = new Array[Boolean](lazyArray.length*capacity*capacity)
 //			var seenUnary = new Array[Boolean](lazyArray.length*capacity)
 			//(enqueue method)
@@ -2108,7 +2138,7 @@ class CKYParser extends StandardParser{
 		//(best rules)
 		forceTrack("rule scores (top by head)")
 		Head.values.foreach{ (head:Head.Value) =>
-			log(FORCE, head + " -> " + 
+			log(FORCE,DIM, head + " -> " + 
 				pRuleGivenHead(head.id).toString( new KeyPrinter[Int]{
 					override def format(index:Int):String = {
 						(0 until RULES.length).foreach{ (rid:Int) =>
@@ -2128,7 +2158,7 @@ class CKYParser extends StandardParser{
 		(0 until RULES.length).foreach{ (rid:Int) =>
 			val id = rid2WordGivenRuleIndices(rid)
 			if(id >= 0){
-				log(FORCE, RULES_STR(rid) + " -> " + 
+				log(FORCE,DIM,RULES_STR(rid) + " -> " + 
 					pWordGivenRule(id).toString( new KeyPrinter[Int]{
 						override def format(w:Int):String = U.w2str(w)
 					}))
@@ -2148,7 +2178,7 @@ class CKYParser extends StandardParser{
 			}
 		}
 		if(unreachableWords > 0){
-			log(FORCE,"WARNING: " + 
+			log(FORCE,RED,"WARNING: " + 
 				unreachableWords + " rule->words with 0 probability")
 		} else {
 			log(FORCE,"no zero probability words")

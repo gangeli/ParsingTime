@@ -1,29 +1,21 @@
 package time
 
 //(scala)
-import scala.util.Sorting._
-import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
-import scala.util.matching.Regex
 //(java)
-import java.io.StringReader
 import java.text.DecimalFormat
 import java.util.concurrent.Executors
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(stanford)
-import edu.stanford.nlp.util.logging.Redwood
 import edu.stanford.nlp.util.logging.Redwood.Static._
 //(lib)
 import org.goobs.slib.Def
-import org.goobs.testing._
 import org.goobs.exec.Execution
 import org.goobs.utils.Indexer
 import org.goobs.utils.MetaClass
 import org.goobs.utils.Stopwatch
-import org.goobs.testing.ResultLogger
 import org.goobs.stanford.SerializedCoreMapDataset
 import org.goobs.stanford.StanfordExecutionLogInterface
 import org.goobs.stats.CountStore
@@ -105,7 +97,12 @@ object U {
 						"--["+prefix+"]NUM("+num.length+")["+suffix+"]--")
 					assert(isNum(w), "Not recognized as number: " + w2str(w))
 					w
-				case _ => G.wordIndexer.addAndGetIndex(str)
+				case _ => 
+					if(O.ignoreCase) {
+						G.wordIndexer.addAndGetIndex(str.toLowerCase)
+					} else {
+						G.wordIndexer.addAndGetIndex(str)
+					}
 			}
 		}
 	}
