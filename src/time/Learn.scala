@@ -22,39 +22,52 @@ import edu.stanford.nlp.util.logging.Redwood.Static._
 //------------------------------------------------------------------------------
 // GRAMMAR
 //------------------------------------------------------------------------------
-object Head extends Enumeration {
-	type V = Value
-	val ROOT, Word, Number,
-		Time, Range, Duration, Sequence,
-		F_RR, F_RD, F_RS, F_R2R, F_R2D, F_D, NIL = Value
-}
+//object Head extends Enumeration {
+//	type V = Value
+//	val ROOT, Word, Number,
+//		Time, Range, Duration, Sequence,
+//		F_RR, F_RD, F_RS, F_R2R, F_R2D, F_D, NIL = Value
+//}
 
-case class Nonterminal(name:Symbol,id:Int)
+case class Nonterminal(name:Symbol,id:Int){
+	var isPreterminal = false
+}
 object Nonterminal {
 	private var nextId = -1
+	val valueMap = new HashMap[Symbol,Nonterminal]
 	var values:Array[Nonterminal] = Array[Nonterminal]()
 	def register(head:Nonterminal):Nonterminal = {
 		values = (values.toList ::: List[Nonterminal](head)).toArray
+		valueMap(head.name) = head
 		head
 	}
-	def apply(name:Symbol) = {
-		nextId += 1
-		register(new Nonterminal(name,nextId))
+	def apply(name:Symbol):Nonterminal = {
+		valueMap(name)
 	}
-	Nonterminal('ROOT)
-	Nonterminal('Word)
-	Nonterminal('Number)
-	Nonterminal('Time)
-	Nonterminal('Range)
-	Nonterminal('Duration)
-	Nonterminal('Sequence)
-	Nonterminal('F_RR2R)
-	Nonterminal('F_RD2R)
-	Nonterminal('F_RS2R)
-	Nonterminal('F_R2R)
-	Nonterminal('F_R2D)
-	Nonterminal('F_D2D)
-	Nonterminal('NIL)
+	def apply(name:Symbol, t:Symbol):Nonterminal = {
+		nextId += 1
+		val term = new Nonterminal(name,nextId)
+		t match {
+			case 'preterminal => term.isPreterminal = true
+			case 'none => //noop
+			case _ => throw fail("Unknown nonterminal type: " + t)
+		}
+		register(term)
+	}
+	Nonterminal('ROOT, 'none)
+	Nonterminal('Word, 'preterminal)
+	Nonterminal('Number, 'preterminal)
+	Nonterminal('Time, 'none)
+	Nonterminal('Range, 'none)
+	Nonterminal('Duration, 'none)
+	Nonterminal('Sequence, 'none)
+	Nonterminal('F_RR2R, 'none)
+	Nonterminal('F_RD2R, 'none)
+	Nonterminal('F_RS2R, 'none)
+	Nonterminal('F_R2R, 'none)
+	Nonterminal('F_R2D, 'none)
+	Nonterminal('F_D2D, 'none)
+	Nonterminal('NIL, 'preterminal)
 }
 
 
@@ -64,28 +77,28 @@ trait Rule {
 	def apply(arg:Any):Any
 	def apply(arg1:Any, arg2:Any):Any
 	def arity:Int
-	def head:Head.Value
-	def accepts(a:Head.Value):Boolean
-	def accepts(a:Head.Value,b:Head.Value):Boolean
+	def head:Nonterminal
+	def accepts(a:Nonterminal):Boolean
+	def accepts(a:Nonterminal,b:Nonterminal):Boolean
 	
 	// -- Can Override --
 	def validInput(w:Int) = isLex
 	def setStr(str:String) = {}
 
-	private var leftChild:Head.Value = null
-	private var rightChild:Head.Value = null
+	private var leftChild:Nonterminal = null
+	private var rightChild:Nonterminal = null
 	private def cacheRule:Unit = {
 		if(leftChild != null){ return; }
 		if(arity == 1){
-			Head.values.foreach{ (child:Head.Value) =>
+			Nonterminal.values.foreach{ (child:Nonterminal) =>
 				if(accepts(child)){
 					assert(leftChild == null, "Multiple accepted inputs for rule")
 					this.leftChild = child
 				}
 			}
 		} else if(arity == 2){
-			Head.values.foreach{ (left:Head.Value) =>
-				Head.values.foreach{ (right:Head.Value) =>
+			Nonterminal.values.foreach{ (left:Nonterminal) =>
+				Nonterminal.values.foreach{ (right:Nonterminal) =>
 					if(accepts(left,right)){
 						assert(leftChild==null && rightChild==null,
 							"Multiple accepted inputs for rule")
@@ -100,24 +113,23 @@ trait Rule {
 		assert(leftChild != null, "No accepted inputs for rule")
 		assert(arity == 1 || rightChild != null, "No accepted inputs for rule")
 	}
-	def left:Head.Value = { cacheRule; return leftChild; }
-	def right:Head.Value = {
+	def left:Nonterminal = { cacheRule; return leftChild; }
+	def right:Nonterminal = {
 		 assert(arity == 2, "Bad arity"); cacheRule; return rightChild;
 	}
-	def child:Head.Value = {
+	def child:Nonterminal = {
 		assert(arity == 1, "Bad arity"); cacheRule; return leftChild;
 	}
-	def isLex:Boolean = 
-		(arity == 1 && (child == Head.Word || child == Head.Number))
+	def isLex:Boolean = (arity == 1 && child.isPreterminal)
 
 	def signature:String = {
 		val children:String = if(arity == 1){
-				val a:Array[Head.Value] = Head.values.filter( v => accepts(v) ).toArray
+				val a:Array[Nonterminal] = Nonterminal.values.filter( v => accepts(v) ).toArray
 				a(0).toString
 			} else {
 				var str = "<unknown>"
-				Head.values.foreach( v1 => {
-					Head.values.foreach( v2 => {
+				Nonterminal.values.foreach( v1 => {
+					Nonterminal.values.foreach( v2 => {
 						if(accepts(v1,v2)){
 							str = "" + v1 + "," + v2
 						}
@@ -130,8 +142,8 @@ trait Rule {
 }
 
 case class UnaryRule(
-		out:Head.Value,
-		in:Head.Value,
+		out:Nonterminal,
+		in:Nonterminal,
 		fn:Any=>Any ) extends Rule {
 	private var checkValid:Int=>Boolean = (i:Int) => true
 	private var str:String = null; override def setStr(str:String) = this.str=str;
@@ -140,29 +152,29 @@ case class UnaryRule(
 		= throw fail("binary apply to unary rule")
 	override def validInput(w:Int):Boolean = isLex && checkValid(w)
 	def arity:Int = 1
-	def head:Head.Value = out
-	def accepts(a:Head.Value):Boolean = a == in
-	def accepts(a:Head.Value,b:Head.Value):Boolean = false
+	def head:Nonterminal = out
+	def accepts(a:Nonterminal):Boolean = a == in
+	def accepts(a:Nonterminal,b:Nonterminal):Boolean = false
 	def ensureValidity(fn:Int=>Boolean):UnaryRule = { checkValid = fn; this }
 	override def toString:String = if(str != null){
 			str
 		} else {
-			""+out+{if(in==Head.Word) "["+this(0)+"]" else ""}+"->"+in
+			""+out+{if(in.isPreterminal) "["+this(0)+"]" else ""}+"->"+in
 		}
 }
 case class BinaryRule(
-		out:Head.Value,
-		in1:Head.Value,
-		in2:Head.Value,
+		out:Nonterminal,
+		in1:Nonterminal,
+		in2:Nonterminal,
 		fn:(Any,Any)=>Any) extends Rule {
 	private var str:String = null; override def setStr(str:String) = this.str=str;
 	override def apply(arg:Any)
 		= throw fail("unary apply to binary rule")
 	override def apply(arg1:Any,arg2:Any):Any = fn(arg1,arg2)
 	def arity:Int = 2
-	def head:Head.Value = out
-	def accepts(a:Head.Value):Boolean = false
-	def accepts(a:Head.Value,b:Head.Value):Boolean = (a == in1) && (b == in2)
+	def head:Nonterminal = out
+	def accepts(a:Nonterminal):Boolean = false
+	def accepts(a:Nonterminal,b:Nonterminal):Boolean = (a == in1) && (b == in2)
 	override def toString:String = if(str != null){
 			str
 		} else {
@@ -212,51 +224,68 @@ object Grammar {
 		var rtn = List[(Rule,String)]()
 		//--Lex
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
-			(UnaryRule(Head.Range, Head.Word, hack((w:Int) => r)), s) }
+			(UnaryRule(Nonterminal('Range), 
+				Nonterminal('Word), hack((w:Int) => r)), s) }
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
-			(UnaryRule(Head.Duration, Head.Word, hack((w:Int) => d)), s) }
+			(UnaryRule(Nonterminal('Duration), 
+				Nonterminal('Word), hack((w:Int) => d)), s) }
 		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
-			(UnaryRule(Head.Sequence, Head.Word, hack((w:Int) => d)), s) }
+			(UnaryRule(Nonterminal('Sequence), 
+				Nonterminal('Word), hack((w:Int) => d)), s) }
 		//(nil)
 		rtn = rtn ::: List[(Rule,String)](
-			(UnaryRule(Head.NIL, Head.Word, hack((w:Int) => new NIL)), "nil") )
+			(UnaryRule(Nonterminal('NIL), Nonterminal('Word), 
+				hack((w:Int) => new NIL)), "nil") )
 		//(numbers)
 		rtn = rtn ::: List[(Rule,String)](
-			(UnaryRule(Head.Number, Head.Number, hack((num:Int) =>  num )),
+			(UnaryRule(Nonterminal('Number), Nonterminal('Number), 
+				hack((num:Int) =>  num )),
 				"NUM"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  MOH(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  MOH(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w < 60 ),
 				"moh(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  HOD(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  HOD(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 24 ),
 				"hod(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOW(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  DOW(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 7 ),
 				"dow(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOM(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  DOM(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 31 ),
 				"dom(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  WOY(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  WOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 52 ),
 				"woy(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  MOY(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  MOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 12 ),
 				"moy(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  QOY(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  QOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 4 ),
 				"qoy(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  YOC(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  YOC(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w < 100 ),
 				"yoc(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  DOC(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  DOC(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w < 10 ),
 				"doc(n):S"),
-			(UnaryRule(Head.Sequence, Head.Number, hack((num:Int) =>  YOD(num) ))
+			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
+				hack((num:Int) =>  YOD(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w < 10 ),
 				"yod(n):S"),
-			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  THEYEAR(num) )),
+			(UnaryRule(Nonterminal('Range), Nonterminal('Number), 
+				hack((num:Int) =>  THEYEAR(num) )),
 				"year(n):R"),
-			(UnaryRule(Head.Range, Head.Number, hack((num:Int) =>  CENTURY(num) ))
+			(UnaryRule(Nonterminal('Range), Nonterminal('Number), 
+				hack((num:Int) =>  CENTURY(num) ))
 				.ensureValidity( (w:Int) => w > -100 && w < 100 ),
 				"century(n):R")
 			)
@@ -275,43 +304,51 @@ object Grammar {
 						(fn:((Range,Duration)=>Range),
 						 str:String)) =>
 				//(intro)
-				(UnaryRule(Head.F_RD, Head.Word, hack((w:Int) => fn
+				(UnaryRule(Nonterminal('F_RD2R), Nonterminal('Word), hack((w:Int) => fn
 					)),str+"$(-:R,-:D):R$") :: soFar
 			} ::: rangeSequenceFn.foldLeft(List[(Rule,String)]()){ case 
 					(soFar:List[(Rule,String)],
 						(fn:((Range,Duration)=>Range),
 						 str:String)) =>
 				//(into -- sequence)
-				(UnaryRule(Head.F_RS, Head.Word, hack((w:Int) => fn
+				(UnaryRule(Nonterminal('F_RS2R), Nonterminal('Word), hack((w:Int) => fn
 					)),str+"$(-:R,-:S):R$") :: soFar
 			}  ::: {
 				//(right apply)
-				(BinaryRule(Head.F_R2R, Head.F_RD, Head.Duration, hack2(
+				(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_RD2R), 
+					Nonterminal('Duration), hack2(
 					(fn:(Range,Duration)=>Range,d:Duration) => fn(_:Range,d)
 					)),"$f(-:R,d:D):R$") ::
-				(BinaryRule(Head.F_R2R, Head.F_RS, Head.Sequence, hack2(
+				(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_RS2R), 
+					Nonterminal('Sequence), hack2(
 					(fn:(Range,Duration)=>Range,d:Sequence) => fn(_:Range,d)
 					)),"$f(-:R,d:S):R$") ::
 				//(left apply)
-				(BinaryRule(Head.F_R2R, Head.Duration, Head.F_RD, hack2(
+				(BinaryRule(Nonterminal('F_R2R), Nonterminal('Duration), 
+					Nonterminal('F_RD2R), hack2(
 					(d:Duration,fn:(Range,Duration)=>Range) => fn(_:Range,d)
 					)), "$f(-:R,d:D):R$") :: 
-				(BinaryRule(Head.F_R2R, Head.Sequence, Head.F_RS, hack2(
+				(BinaryRule(Nonterminal('F_R2R), Nonterminal('Sequence), 
+					Nonterminal('F_RS2R), hack2(
 					(d:Sequence,fn:(Range,Duration)=>Range) => fn(_:Range,d)
 					)), "$f(-:R,d:S):R$") :: Nil
 			} ::: {
 				//(right apply -- ref augmented)
-				(BinaryRule(Head.Range, Head.F_RD, Head.Duration, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('F_RD2R), 
+					Nonterminal('Duration), hack2(
 					(fn:(Range,Duration)=>Range,d:Duration) => fn(REF,d)
 					)),"$f(ref:R,d:D):R$") ::
-				(BinaryRule(Head.Range, Head.F_RS, Head.Sequence, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('F_RS2R), 
+					Nonterminal('Sequence), hack2(
 					(fn:(Range,Duration)=>Range,d:Sequence) => fn(REF,d)
 					)),"$f(ref:R,d:S):R$") ::
 				//(left apply -- ref augmented)
-				(BinaryRule(Head.Range, Head.Duration, Head.F_RD, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Duration), 
+					Nonterminal('F_RD2R), hack2(
 					(d:Duration,fn:(Range,Duration)=>Range) => fn(REF,d)
 					)), "$f(d:D,ref:R):R$") ::
-				(BinaryRule(Head.Range, Head.Sequence, Head.F_RS, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Sequence), 
+					Nonterminal('F_RS2R), hack2(
 					(d:Sequence,fn:(Range,Duration)=>Range) => fn(REF,d)
 					)), "$f(d:S,ref:R):R$") :: Nil
 			}
@@ -326,69 +363,85 @@ object Grammar {
 						(fn:((Range,Range)=>Range),
 						 str:String)) =>
 				//(intro)
-				(UnaryRule(Head.F_RR, Head.Word, hack((w:Int) => fn
+				(UnaryRule(Nonterminal('F_RR2R), Nonterminal('Word), hack((w:Int) => fn
 					)),str+"$(-:R,-:R):R$") :: soFar
 			} ::: {
 				//(right apply)
-				(BinaryRule(Head.F_R2R, Head.F_RR, Head.Range, hack2(
+				(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_RR2R), 
+					Nonterminal('Range), hack2(
 					(fn:(Range,Range)=>Range,r:Range) => fn(_:Range,r)
 					)),"$f(-:R,r:R):R$") ::
 				//(left apply)
-				(BinaryRule(Head.F_R2R, Head.Range, Head.F_RR, hack2(
+				(BinaryRule(Nonterminal('F_R2R), Nonterminal('Range), 
+					Nonterminal('F_RR2R), hack2(
 					(r:Range,fn:(Range,Range)=>Range) => fn(_:Range,r)
 					)), "$f(-:R,r:R):R$") :: Nil
 			} ::: {
 				//(right apply -- ref augmented left)
-				(BinaryRule(Head.Range, Head.F_RR, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('F_RR2R), 
+					Nonterminal('Range), hack2(
 					(fn:(Range,Range)=>Range,r:Range) => fn(REF,r)
 					)),"$f(ref:R,r:R):R$") ::
 				//(left apply -- ref augmented left)
-				(BinaryRule(Head.Range, Head.Range, Head.F_RR, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+					Nonterminal('F_RR2R), hack2(
 					(r:Range,fn:(Range,Range)=>Range) => fn(REF,r)
 					)), "$f(r:R,ref:R):R$") ::
 				//(right apply -- ref augmented right)
-				(BinaryRule(Head.Range, Head.F_RR, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('F_RR2R), 
+					Nonterminal('Range), hack2(
 					(fn:(Range,Range)=>Range,r:Range) => fn(r,REF)
 					)),"$f(ref:R,r:R):R$") ::
 				//(left apply -- ref augmented right)
-				(BinaryRule(Head.Range, Head.Range, Head.F_RR, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+					Nonterminal('F_RR2R), hack2(
 					(r:Range,fn:(Range,Range)=>Range) => fn(r,REF)
 					)), "$f(r:R,ref:R):R$") :: Nil
 			} ::: {
 				//(intersect in order)
-				(BinaryRule(Head.Range, Head.Range, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+					Nonterminal('Range), hack2(
 					(a:Range,b:Range) => a ^ b
 					)), "inter$(a:R,b:R):R$") ::
-				(BinaryRule(Head.Range, Head.Range, Head.Sequence, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+					Nonterminal('Sequence), hack2(
 					(a:Range,b:Sequence) => a ^ b
 					)), "inter$(a:R,b:S):R$") ::
-				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Sequence), 
+					Nonterminal('Range), hack2(
 					(a:Sequence,b:Range) => a ^ b
 					)), "inter$(a:S,b:R):R$") ::
-				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
+				(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
+					Nonterminal('Sequence), hack2(
 					(a:Sequence,b:Sequence) => a ^ b
 					)), "inter$(a:S,b:S):S$") ::
 				//(intersect reverse)
-				(BinaryRule(Head.Range, Head.Range, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+					Nonterminal('Range), hack2(
 					(a:Range,b:Range) => b ^ a
 					)), "inter$(b:R,a:R):R$") ::
-				(BinaryRule(Head.Range, Head.Range, Head.Sequence, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+					Nonterminal('Sequence), hack2(
 					(a:Range,b:Sequence) => b ^ a
 					)), "inter$(b:R,a:S):R$") ::
-				(BinaryRule(Head.Range, Head.Sequence, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Sequence), 
+					Nonterminal('Range), hack2(
 					(a:Sequence,b:Range) => b ^ a
 					)), "inter$(b:S,a:R):R$") ::
-				(BinaryRule(Head.Sequence, Head.Sequence, Head.Sequence, hack2(
+				(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
+					Nonterminal('Sequence), hack2(
 					(a:Sequence,b:Sequence) => b ^ a
 					)), "inter$(b:S,a:S):S$") :: Nil
 			}
 		
 		//--F[ Duration, Number ] : Duration
 		rtn = rtn ::: List[(Rule,String)](
-			(BinaryRule(Head.Duration, Head.Duration, Head.Number, hack2(
+			(BinaryRule(Nonterminal('Duration), Nonterminal('Duration), 
+				Nonterminal('Number), hack2(
 				(d:Duration,n:Int) => d*n
 				)), "D*n"),
-			(BinaryRule(Head.Duration, Head.Number, Head.Duration, hack2(
+			(BinaryRule(Nonterminal('Duration), Nonterminal('Number), 
+				Nonterminal('Duration), hack2(
 				(n:Int,d:Duration) => d*n
 				)), "n*D")
 			)
@@ -402,15 +455,17 @@ object Grammar {
 						(fn:(Duration=>Duration),
 						 str:String )) =>
 				//(intro)
-				(UnaryRule(Head.F_D, Head.Word, hack((w:Int) => fn
+				(UnaryRule(Nonterminal('F_D2D), Nonterminal('Word), hack((w:Int) => fn
 					)),str+"$(-:D):D$") :: soFar
 			} ::: {
 				//(right apply)
-				(BinaryRule(Head.Duration, Head.F_D, Head.Duration, hack2(
+				(BinaryRule(Nonterminal('Duration), Nonterminal('F_D2D), 
+					Nonterminal('Duration), hack2(
 					(fn:Duration=>Duration,d:Duration) => fn(d)
 					)), "$f_{d}:D$") ::
 				//(left apply)
-				(BinaryRule(Head.Duration, Head.Duration, Head.F_D, hack2(
+				(BinaryRule(Nonterminal('Duration), Nonterminal('Duration), 
+					Nonterminal('F_D2D), hack2(
 					(d:Duration,fn:Duration=>Duration) => fn(d)
 					)), "$f_{d}:D$") :: Nil
 			}
@@ -424,15 +479,17 @@ object Grammar {
 						(fn:(Range=>Duration),
 						 str:String )) =>
 				//(intro)
-				(UnaryRule(Head.F_R2D, Head.Word, hack((w:Int) => fn
+				(UnaryRule(Nonterminal('F_R2D), Nonterminal('Word), hack((w:Int) => fn
 					)),str+"$(-:R):D$") :: soFar
 			} ::: {
 				//(right apply)
-				(BinaryRule(Head.Duration, Head.F_R2D, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Duration), Nonterminal('F_R2D), 
+					Nonterminal('Range), hack2(
 					(fn:Range=>Duration,r:Range) => fn(r)
 					)), "$f_{r}:D$") ::
 				//(left apply)
-				(BinaryRule(Head.Duration, Head.Range, Head.F_R2D, hack2(
+				(BinaryRule(Nonterminal('Duration), Nonterminal('Range), 
+					Nonterminal('F_R2D), hack2(
 					(r:Range,fn:Range=>Duration) => fn(r)
 					)), "$f_{r}:D$") :: Nil
 			}
@@ -446,23 +503,27 @@ object Grammar {
 						(fn:(Range=>Range),
 						 str:String )) =>
 				//(intro)
-				(UnaryRule(Head.F_R2R, Head.Word, hack((w:Int) => fn
+				(UnaryRule(Nonterminal('F_R2R), Nonterminal('Word), hack((w:Int) => fn
 					)),str+"$(-:R):R$") :: soFar
 			} ::: {
 				//(right apply)
-				(BinaryRule(Head.Range, Head.F_R2R, Head.Range, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('F_R2R), 
+					Nonterminal('Range), hack2(
 					(fn:Range=>Range,r:Range) => fn(r)
 					)), "$f_{r}:R$") ::
 				//(left apply)
-				(BinaryRule(Head.Range, Head.Range, Head.F_R2R, hack2(
+				(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+					Nonterminal('F_R2R), hack2(
 					(r:Range,fn:Range=>Range) => fn(r)
 					)), "$f_{r}:R$") :: Nil
 				//(right apply -- seq)
-				(BinaryRule(Head.Sequence, Head.F_R2R, Head.Sequence, hack2(
+				(BinaryRule(Nonterminal('Sequence), Nonterminal('F_R2R), 
+					Nonterminal('Sequence), hack2(
 					(fn:Range=>Range,r:Sequence) => fn(r)
 					)), "$f_{s}:S$") ::
 				//(left apply -- seq)
-				(BinaryRule(Head.Sequence, Head.Sequence, Head.F_R2R, hack2(
+				(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
+					Nonterminal('F_R2R), hack2(
 					(r:Sequence,fn:Range=>Range) => fn(r)
 					)), "$f_{s}:S$") :: Nil
 			}
@@ -470,21 +531,21 @@ object Grammar {
 		//--Type Raises
 //		rtn = rtn ::: List[(Rule,String)]( 
 //			//(now augmentation (arity 2))
-//			(UnaryRule(Head.F_D, Head.F_RD, hack( 
+//			(UnaryRule(Nonterminal('F_D), Nonterminal('F_RD), hack( 
 //				(f:(Range,Duration)=>Range) => f(Range(REF,REF),_:Duration) 
 //				)),"$f(ref:R,-:D):R$"),
-//			(UnaryRule(Head.F_R, Head.F_RR, hack( 
+//			(UnaryRule(Nonterminal('F_R), Nonterminal('F_RR), hack( 
 //				(f:(Range,Range)=>Range) => f(Range(REF,REF),_:Range) 
 //				)),"$f(ref:R,-:R):R$"),
-//			(UnaryRule(Head.F_R, Head.F_RR, hack( 
+//			(UnaryRule(Nonterminal('F_R), Nonterminal('F_RR), hack( 
 //				(f:(Range,Range)=>Range) => f(_:Range,Range(REF,REF)) 
 //				)),"$f(-:R,ref:R):R$"),
 //			//(implicit intersect)
-//			(UnaryRule(Head.F_R, Head.Range, hack(
+//			(UnaryRule(Nonterminal('F_R), Nonterminal('Range), hack(
 //				(r:Range) => intersect(r,_:Range)
 //				)),"intersect$(ref:R,-:R):R$"),
 //			//(sequence grounding)
-//			(UnaryRule(Head.Range, Head.Sequence, hack( 
+//			(UnaryRule(Nonterminal('Range), Nonterminal('Sequence), hack( 
 //				(s:Sequence) => s
 //				)),"$d:R$")
 //			)
@@ -492,44 +553,56 @@ object Grammar {
 		//--NIL Identities
 		rtn = rtn ::: List[(Rule,String)]( 
 			//(range)
-			(BinaryRule(Head.Range, Head.Range, Head.NIL, hack2( 
+			(BinaryRule(Nonterminal('Range), Nonterminal('Range), 
+				Nonterminal('NIL), hack2( 
 				(r:Range,n:NIL) => r
 				)),"$r:R$"),
-			(BinaryRule(Head.Range, Head.NIL, Head.Range, hack2( 
+			(BinaryRule(Nonterminal('Range), Nonterminal('NIL), 
+				Nonterminal('Range), hack2( 
 				(n:NIL,r:Range) => r
 				)),"$r:R$"),
 			//(duration)
-			(BinaryRule(Head.Duration, Head.Duration, Head.NIL, hack2( 
+			(BinaryRule(Nonterminal('Duration), Nonterminal('Duration), 
+				Nonterminal('NIL), hack2( 
 				(d:Duration,n:NIL) => d
 				)),"$d:D$"),
-			(BinaryRule(Head.Duration, Head.NIL, Head.Duration, hack2( 
+			(BinaryRule(Nonterminal('Duration), Nonterminal('NIL), 
+				Nonterminal('Duration), hack2( 
 				(n:NIL,d:Duration) => d
 				)),"$d:D$"),
 			//(sequence)
-			(BinaryRule(Head.Sequence, Head.Sequence, Head.NIL, hack2( 
+			(BinaryRule(Nonterminal('Sequence), Nonterminal('Sequence), 
+				Nonterminal('NIL), hack2( 
 				(s:Sequence,n:NIL) => s
 				)),"$s:S$"),
-			(BinaryRule(Head.Sequence, Head.NIL, Head.Sequence, hack2( 
+			(BinaryRule(Nonterminal('Sequence), Nonterminal('NIL), 
+				Nonterminal('Sequence), hack2( 
 				(n:NIL,s:Sequence) => s
 				)),"$s:S$"),
 			//(f_range)
-			(BinaryRule(Head.F_R2R, Head.F_R2R, Head.NIL, hack2( 
+			(BinaryRule(Nonterminal('F_R2R), Nonterminal('F_R2R), 
+				Nonterminal('NIL), hack2( 
 				(f:Range=>Range,n:NIL) => f
 				)),"$f(-:R):R$"),
-			(BinaryRule(Head.F_R2R, Head.NIL, Head.F_R2R, hack2( 
+			(BinaryRule(Nonterminal('F_R2R), Nonterminal('NIL), 
+				Nonterminal('F_R2R), hack2( 
 				(n:NIL,f:Range=>Range) => f
 				)),"$f(-:R):R$"),
-			(BinaryRule(Head.F_R2D, Head.F_R2D, Head.NIL, hack2( 
+			(BinaryRule(Nonterminal('F_R2D), Nonterminal('F_R2D), 
+				Nonterminal('NIL), hack2( 
 				(f:Range=>Duration,n:NIL) => f
 				)),"$f(-:R):D$"),
-			(BinaryRule(Head.F_R2D, Head.NIL, Head.F_R2D, hack2( 
+			(BinaryRule(Nonterminal('F_R2D), Nonterminal('NIL), 
+				Nonterminal('F_R2D), hack2( 
 				(n:NIL,f:Range=>Duration) => f
 				)),"$f(-:R):D$"),
 			//(f_duration)
-			(BinaryRule(Head.F_D, Head.F_D, Head.NIL, hack2( 
+			(BinaryRule(Nonterminal('F_D2D), Nonterminal('F_D2D), 
+				Nonterminal('NIL), hack2( 
 				(f:Duration=>Range,n:NIL) => f
 				)),"$f(-:D):R$"),
-			(BinaryRule(Head.F_D, Head.NIL, Head.F_D, hack2( 
+			(BinaryRule(Nonterminal('F_D2D), Nonterminal('NIL), 
+				Nonterminal('F_D2D), hack2( 
 				(n:NIL,f:Duration=>Range) => f
 				)),"$f(-:D):R$")
 			)
@@ -550,12 +623,16 @@ object Grammar {
 
 		//-ROOT
 		rtn = rtn ::: List[UnaryRule](
-			UnaryRule(Head.ROOT, Head.Range, hack((r:Range) => r)),
-			UnaryRule(Head.ROOT, Head.Duration, hack((d:Duration) => d)),
-			UnaryRule(Head.ROOT, Head.Sequence, hack((s:Range) => s)) //note: range
+			UnaryRule(Nonterminal('ROOT), Nonterminal('Range), 
+				hack((r:Range) => r)),
+			UnaryRule(Nonterminal('ROOT), Nonterminal('Duration), 
+				hack((d:Duration) => d)),
+			UnaryRule(Nonterminal('ROOT), Nonterminal('Sequence), 
+				hack((s:Range) => s)) //note: range
 			) ::: { if(O.allowPartialTime)
 				List[UnaryRule]( 
-					UnaryRule(Head.ROOT, Head.F_R2R, hack((fn:Range=>Range) => fn))
+					UnaryRule(Nonterminal('ROOT), Nonterminal('F_R2R), 
+						hack((fn:Range=>Range) => fn))
 				) else List[UnaryRule]() }
 		//--Return
 		rtn.toArray
@@ -563,7 +640,7 @@ object Grammar {
 
 	val NIL_RID:Int = {
 		val matches:Array[(Rule,Int)] 
-			= RULES.zipWithIndex.filter{ _._1.head == Head.NIL }
+			= RULES.zipWithIndex.filter{ _._1.head == Nonterminal('NIL) }
 		assert(matches.length == 1, "invalid nil rule count (should be 1)")
 		matches(0)._2
 	}
@@ -581,15 +658,15 @@ object Grammar {
 		rtn
 	}
 
-	case class Closure(head:Head.Value,child:Head.Value,rules:Array[Int])
+	case class Closure(head:Nonterminal,child:Nonterminal,rules:Array[Int])
 
 	private def computeClosures(raw:Array[Rule]):Array[Closure] = {
 		//--Construct Graph
-		case class Node(head:Head.Value,var neighbors:List[(Node,Int)]){
-			def this(head:Head.Value) = this(head,List[(Node,Int)]())
+		case class Node(head:Nonterminal,var neighbors:List[(Node,Int)]){
+			def this(head:Nonterminal) = this(head,List[(Node,Int)]())
 			def addNeighbor(n:Node,rid:Int) = { neighbors = (n,rid)::neighbors }
 			def search(seen:Array[Boolean],backtrace:List[Int],
-					tick:(Head.Value,List[Int])=>Any):Unit = {
+					tick:(Nonterminal,List[Int])=>Any):Unit = {
 				//(overhead)
 				if(seen(head.id)){ 
 					throw new IllegalStateException("Cyclic unaries for: " + head)
@@ -608,10 +685,10 @@ object Grammar {
 			}
 		}
 		//(populate graph)
-		val graph = Head.values.toArray.map{ new Node(_) }
+		val graph = Nonterminal.values.toArray.map{ new Node(_) }
 		UNARIES.foreach{ case (r,rid) => 
-			assert(r.head != Head.Word, "Unary headed by a Word")
-			if(r.child != Head.Word && r.child != Head.Number){ //don't add lex rules
+			assert(r.head != Nonterminal('Word), "Unary headed by a Word")
+			if(!r.child.isPreterminal){ //don't add lex rules
 				graph(r.head.id).addNeighbor(graph(r.child.id),rid) 
 			}
 		}
@@ -619,7 +696,7 @@ object Grammar {
 		var closures = List[Closure]()
 		graph.foreach{ (start:Node) => 
 			start.search(new Array[Boolean](graph.length), List[Int](),
-				(child:Head.Value,backtrace:List[Int]) => {
+				(child:Nonterminal,backtrace:List[Int]) => {
 					//(format backtrace)
 					val rules:Array[Int] = backtrace.reverse.toArray
 					assert(RULES(rules(0)).head == start.head, "bad head")
@@ -708,7 +785,7 @@ trait Tree[A]{
 		b.toString
 	}
 }
-trait ParseTree extends Tree[Head.Value] {
+trait ParseTree extends Tree[Nonterminal] {
 	//<<Common Methods>>
 	private def cleanParseString(
 			indent:Int,b:StringBuilder,sent:Sentence,i:Int):Int = {
@@ -756,7 +833,7 @@ trait ParseTree extends Tree[Head.Value] {
 	def maxDepth:Int = throw fail() //TODO implement something reasonable here
 	//<<Overrides>>
 	override def children:Array[ParseTree]
-	def evaluate(sent:Sentence):(Head.Value,Temporal,Double)
+	def evaluate(sent:Sentence):(Nonterminal,Temporal,Double)
 	def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit //lexFn: (rid,w)=>Any
 }
 
@@ -837,8 +914,8 @@ case class Parse(value:Temporal){
 }
 
 object Parse {
-	def apply(parseType:Head.Value,parseValue:Temporal):Parse = {
-		assert(parseType == Head.ROOT, "No parse for non-root node")
+	def apply(parseType:Nonterminal,parseValue:Temporal):Parse = {
+		assert(parseType == Nonterminal('ROOT), "No parse for non-root node")
 		new Parse(parseValue)
 	}
 }
@@ -1086,7 +1163,7 @@ object CKYParser {
 		var correct=true; def wrong:GuessInfo = {correct = false; this}
 		var feedback:Feedback=null
 		def feedback(f:Feedback):GuessInfo = { feedback=f; this }
-		def parseVal:Parse = Parse(Head.ROOT,parse.evaluate(sent)._2)
+		def parseVal:Parse = Parse(Nonterminal('ROOT),parse.evaluate(sent)._2)
 		def isFailedParse:Boolean = { parse == null }
 	}
 	private var corrects = List[GuessInfo]()
@@ -1121,7 +1198,7 @@ object CKYParser {
 			:(Array[Multinomial[Int]],Array[(Int,Int)]) = {
 		val mapping = (0 until RULES.length).map{ x => (-1,0) }.toArray
 		val distributions:Array[Multinomial[Int]]
-				= Head.values.map{ (head:Head.Value) =>
+				= Nonterminal.values.map{ (head:Nonterminal) =>
 			//((create structures))
 			RULES.zipWithIndex.filter{ _._1.head == head }.map{ _._2 }
 					.zipWithIndex.foreach{ case (rid:Int,index:Int) =>
@@ -1179,8 +1256,8 @@ object CKYParser {
 	//-----
 	case class CkyRule(
 			arity:Int,
-			head:Head.Value,
-			childOrNull:Head.Value,
+			head:Nonterminal,
+			childOrNull:Nonterminal,
 			rids:Array[Int]) {
 		def rid:Int = {
 			if(rids.length > 1){ 
@@ -1190,7 +1267,7 @@ object CKYParser {
 		}
 		def rule:Rule = (RULES(rid))
 		def rules:Array[Rule] = rids.map{ RULES(_) }
-		def child:Head.Value = {
+		def child:Nonterminal = {
 			assert(arity == 1, "child only defined for unary rules")
 			assert(childOrNull != null, "something went very wrong")
 			childOrNull
@@ -1230,7 +1307,7 @@ object CKYParser {
 		def isNil:Boolean = (term == null)
 
 		// -- ParseTree Properties --
-		override def head:Head.Value = {
+		override def head:Nonterminal = {
 			assert(term != null,"taking head of null rule"); 
 			term.head
 		}
@@ -1248,7 +1325,7 @@ object CKYParser {
 			}
 		}
 		private def evaluateHelper(sent:Sentence,i:Int
-				):(Int,(Head.Value,Any) ) = {
+				):(Int,(Nonterminal,Any) ) = {
 			assert(term != null, "evaluating null rule")
 			if(term.arity == 1) {
 				//(case: unary rule)
@@ -1257,10 +1334,10 @@ object CKYParser {
 					if(isLeaf){ //<--Base Case (leaf node)
 						if(U.isNum(sent.words(i))){
 							//(case: number)
-							(i+1,(Head.Number,sent.nums(i)))
+							(i+1,(Nonterminal('Number),sent.nums(i)))
 						} else {
 							//(case: word)
-							(i+1,(Head.Word,sent.words(i)))
+							(i+1,(Nonterminal('Word),sent.words(i)))
 						}
 					} else {
 						left.evaluateHelper(sent,i)
@@ -1286,8 +1363,8 @@ object CKYParser {
 				throw new IllegalStateException("Invalid cky term")
 			}
 		}
-		private var evalCache:(Head.Value,Temporal,Double) = null
-		override def evaluate(sent:Sentence):(Head.Value,Temporal,Double) = {
+		private var evalCache:(Nonterminal,Temporal,Double) = null
+		override def evaluate(sent:Sentence):(Nonterminal,Temporal,Double) = {
 			if(evalCache == null){
 				val (length,(tag,value)) = evaluateHelper(sent,0)
 				assert(length == sent.length, 
@@ -1873,9 +1950,9 @@ object CKYParser {
 						largestChart = (0 until len).map{ (start:Int) =>            //begin
 							assert(len-start > 0,"bad length end on start "+start+" len "+len)
 							(0 until (len-start)).map{ (length:Int) =>                //length
-								assert(Head.values.size > 0, "bad rules end")
+								assert(Nonterminal.values.size > 0, "bad rules end")
 								(0 to 1).map{ (arity:Int) =>                            //arity
-									(0 until Head.values.size).map{ (rid:Int) =>          //rules
+									(0 until Nonterminal.values.size).map{ (rid:Int) =>          //rules
 										assert(beam > 0, "bad kbest end")
 										new BestList((0 until beam).map{ (kbestItem:Int) => //kbest
 											new ChartElem
@@ -1918,7 +1995,7 @@ object CKYParser {
 		assert(end > begin+1, "Chart access error: bad end: " + begin + ", " + end)
 		assert(begin >= 0, "Chart access error: negative values: " + begin)
 		assert(head >= 0, "Chart access error: bad head: " + head)
-		assert(head < Head.values.size, "Chart access error: bad head: " + head)
+		assert(head < Nonterminal.values.size, "Chart access error: bad head: " + head)
 		assert(t == 0 || t == 1, "must be one of UNARY/BINARY")
 		//(access)
 		chart(begin)(end-begin-1)(t)(head)
@@ -1927,7 +2004,7 @@ object CKYParser {
 		//(asserts)
 		assert(elem >= 0, "Chart access error: negative value: " + elem)
 		assert(head >= 0, "Chart access error: bad head: " + head)
-		assert(head < Head.values.size, "Chart access error: bad head: " + head)
+		assert(head < Nonterminal.values.size, "Chart access error: bad head: " + head)
 		chart(elem)(0)(t)(head)
 	}
 	
@@ -1941,7 +2018,7 @@ object CKYParser {
 		assert(rule.arity == 1, "Lex with binary rule")
 		assert(w < G.W || w == G.UNK, "Word is out of range: " + w)
 		assert(rule.isLex,"Lex probability accessed on non-lex rule")
-		if(O.freeNils && rule.head == Head.NIL){
+		if(O.freeNils && rule.head == Nonterminal('NIL)){
 			U.safeLn( 0.1 )
 		} else {
 			ruleLogProb(rule) + 
@@ -1964,8 +2041,8 @@ object CKYParser {
 			//(get candidate parses)
 			val candidates = CKY_LEX
 				.filter{ (term:CkyRule) =>
-					(  (term.child == Head.Word && !U.isNum(word)) ||     //is word rule
-					   (term.child == Head.Number && U.isNum(word)) ) &&  //is number rule
+					(  (term.child==Nonterminal('Word) && !U.isNum(word)) ||//is word rule
+					   (term.child==Nonterminal('Number) && U.isNum(word)) ) &&//is number rule
 					term.validInput( if(U.isNum(word)) num else word ) }  //is in range
 				.map{ (term:CkyRule) => (term, lexLogProb(word,pos,term)) }
 			//(yield)
@@ -2018,7 +2095,7 @@ class CKYParser extends StandardParser{
 		for(elem <- 0 until sent.length) {
 			if(O.paranoid){
 				var count:Int = 0
-				Head.values.foreach{ head:Head.Value => 
+				Nonterminal.values.foreach{ head:Nonterminal => 
 					count += lex(chart,elem,head.id).length
 				}
 				assert(count > 0, "Word " + elem + 
@@ -2060,7 +2137,7 @@ class CKYParser extends StandardParser{
 				}
 				//(post-update tasks)
 				if(O.kbestCKYAlgorithm < 3) {
-					Head.values.foreach { head => 
+					Nonterminal.values.foreach { head => 
 						gram(chart,begin,end,head.id,BINARY).ensureEvaluated
 						gram(chart,begin,end,head.id,UNARY).ensureEvaluated
 					}
@@ -2069,8 +2146,8 @@ class CKYParser extends StandardParser{
 		}
 		//--Return
 		Array.concat(
-			gram(chart,0,sent.length,Head.ROOT.id,UNARY).toArray,
-			gram(chart,0,sent.length,Head.ROOT.id,BINARY).toArray
+			gram(chart,0,sent.length,Nonterminal('ROOT).id,UNARY).toArray,
+			gram(chart,0,sent.length,Nonterminal('ROOT).id,BINARY).toArray
 			).map{ x => x.deepclone }
 	}
 
@@ -2137,7 +2214,7 @@ class CKYParser extends StandardParser{
 		//--Debug Print
 		//(best rules)
 		forceTrack("rule scores (top by head)")
-		Head.values.foreach{ (head:Head.Value) =>
+		Nonterminal.values.foreach{ (head:Nonterminal) =>
 			log(FORCE,DIM, head + " -> " + 
 				pRuleGivenHead(head.id).toString( new KeyPrinter[Int]{
 					override def format(index:Int):String = {
@@ -2198,14 +2275,14 @@ class CKYParser extends StandardParser{
 					//(case: no parses for sentence)
 					b.append(Const.AUTO_MISS(g.sid,g.sent,ref))
 				} else {
-					if(Parse(Head.ROOT,g.feedback.ref) != null){
+					if(Parse(Nonterminal('ROOT),g.feedback.ref) != null){
 						assert(g.feedback != null, "No feedback stored with " + g)
 						assert(g.feedback.grounding != null, "No grounding stored with "+g)
 						//(case: parsed sentence)
 						b.append(Const.SLIDE(
 								id=g.sid, correct=g.correct, tree=g.parse.asParseString(g.sent),
 								guess=g.parseVal.ground(g.feedback.grounding).toString,
-								gold=Parse(Head.ROOT,g.feedback.ref)
+								gold=Parse(Nonterminal('ROOT),g.feedback.ref)
 									.ground(g.feedback.grounding).toString,
 								ground=g.feedback.grounding.toString,
 								score=g.score
@@ -2227,8 +2304,8 @@ class CKYParser extends StandardParser{
 	override def report = reportInternal(true)
 
 	private def isEquivalentOutput(
-			guess:Array[(Head.Value,Temporal,Double)],
-			gold:Array[(Head.Value,Temporal,Double)]   ):(Boolean,String) = {
+			guess:Array[(Nonterminal,Temporal,Double)],
+			gold:Array[(Nonterminal,Temporal,Double)]   ):(Boolean,String) = {
 		if(guess.length != gold.length){ return (false,"different lengths") }
 		//--Set Equality
 		def setEquality(begin:Int,end:Int):(Boolean,String) = {
@@ -2287,7 +2364,7 @@ class CKYParser extends StandardParser{
 			assert(trees(0).equals(singleBest(0)), "parse doesn't match single-best")
 		}
 		//(convert to parses)
-		val scored:Array[(Head.Value,Temporal,Double)]
+		val scored:Array[(Nonterminal,Temporal,Double)]
 			= trees.map{ _.evaluate(sent) }
 		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
 		parses.zipWithIndex.foreach{ case (p:Parse,i:Int) =>
@@ -2424,7 +2501,7 @@ class CKYParser extends StandardParser{
 					b.append(Const.SLIDE(
 							id=identifier, correct=true, tree=parse.asParseString(sent),
 							guess=parses(index).ground(feedback.grounding).toString,
-							gold=Parse(Head.ROOT,feedback.ref)
+							gold=Parse(Nonterminal('ROOT),feedback.ref)
 								.ground(feedback.grounding).toString,
 							ground=feedback.grounding.toString,
 							score=logRaw
