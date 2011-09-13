@@ -22,7 +22,7 @@ trait SearchState{
 	def assertDequeueable:Boolean = true
 }
 
-class Search[S <: SearchState : Manifest](store:Search.Store[S]){
+class Search[S <: SearchState : Manifest](store:Search.Store[S]) {
 	val storeLock = new Lock
 	val SINK = new SearchState{
 		override def children = List[SearchState]()
@@ -31,7 +31,67 @@ class Search[S <: SearchState : Manifest](store:Search.Store[S]){
 		override def cost = java.lang.Double.POSITIVE_INFINITY
 		override def heuristic:Double = 0
 	}
-	
+
+	//TODO this method is nasty; also storeLock is never released
+	def iterable(start:S,timeout:Int):Iterable[(S,Int)] = new Iterable[(S,Int)] {
+		override def iterator:Iterator[(S,Int)] = new Iterator[(S,Int)] {
+			//--Iterator State
+			private var nxt:(S,Int) = null
+			private var nextReady = false
+			//--Search State
+			//(startup)
+			storeLock.acquire
+			store.clear
+			store.enqueue(start)
+			//(initialize loop)
+			private var shouldContinue:Boolean = true
+			private var count = 0
+			//--Search
+			private def findNext:(S,Int) = {
+				while(shouldContinue && !store.isEmpty) {
+					//(get head)
+					val node:S = store.dequeue
+					assert(node.assertDequeueable, ""+node+" is not dequeuable")
+					count += 1
+					//(timeout)
+					if(count >= timeout){ shouldContinue = false }
+					//(add children)
+					if(shouldContinue){
+						node.children.foreach( (s:SearchState) => {
+							try{
+								assert(s.assertEnqueueable, ""+s+" is not pushable")
+								store.enqueue(s.asInstanceOf[S]) //add
+							} catch {
+								case (ex:ClassCastException) => 
+									throw new SearchException(
+										"Child has bad type: " + s.getClass())
+							}
+						})
+					}
+					//(return head if ok)
+					if(node.isEndState){ 
+						return (node, count) 
+					}
+				}
+				return null
+			}
+			//--Iterator Methods
+			override def hasNext:Boolean = {
+				if(nextReady){ nxt != null }
+				else{ 
+					nxt = findNext 
+					nextReady = true
+					nxt != null 
+				}
+			}
+			override def next:(S,Int) = {
+				if(!hasNext){ throw new NoSuchElementException }
+				else{ nxt }
+			}
+		}
+	}
+	def iterable(start:S):Iterable[(S,Int)] = iterable(start,Int.MaxValue)
+
 	def search(
 			start:S,
 			result:(S,Int)=>Boolean,
@@ -75,7 +135,7 @@ class Search[S <: SearchState : Manifest](store:Search.Store[S]){
 	}
 	
 	def search(start:S,result:(S,Int)=>Boolean):Int
-		= search(start,result,java.lang.Integer.MAX_VALUE)
+		= search(start,result,Int.MaxValue)
 	def search(start:S):Array[S] = {
 		var results = List[S]()
 		search(start, (result:S,count:Int) => {
