@@ -13,8 +13,7 @@ trait SearchState{
 	//(minimal override)
 	def children:List[SearchState]
 	//(suggested overrides)
-	def isEndState:Boolean = !hasChildren
-	def hasChildren:Boolean = children.length > 0
+	def isEndState:Boolean = children.length == 0
 	def cost:Double = 0.0
 	def heuristic:Double = 0.0
 	//(debug overrides)
@@ -27,7 +26,6 @@ class Search[S <: SearchState : Manifest](store:Search.Store[S]) {
 	val SINK = new SearchState{
 		override def children = List[SearchState]()
 		override def isEndState = true
-		override def hasChildren = true
 		override def cost = java.lang.Double.POSITIVE_INFINITY
 		override def heuristic:Double = 0
 	}
@@ -86,7 +84,7 @@ class Search[S <: SearchState : Manifest](store:Search.Store[S]) {
 			}
 			override def next:(S,Int) = {
 				if(!hasNext){ throw new NoSuchElementException }
-				else{ nxt }
+				else{ nextReady = false; nxt }
 			}
 		}
 	}

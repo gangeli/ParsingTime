@@ -744,7 +744,7 @@ object Range {
 	def intersect(back:Boolean,
 			a:Iterable[(TraverseFn,GroundedRange)],
 			b:Iterable[(TraverseFn,GroundedRange)]
-			):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
+				):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
 		var diff:Duration = Duration.INFINITE
 		def mkNext(left:OverlapState,right:OverlapState
 				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
