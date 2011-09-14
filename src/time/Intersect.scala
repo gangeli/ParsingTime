@@ -1,6 +1,8 @@
 package time
 
 import scala.util.Random
+import scala.collection.mutable.Map
+import scala.collection.mutable.HashMap
 
 
 
@@ -31,6 +33,31 @@ object RepeatedTerm {
 }
 
 
+//------------------------------------------------------------------------------
+// SOME UTILITIES
+//------------------------------------------------------------------------------
+class IteratorMap[A <: {def index:Int}](iter:Iterator[A]) extends Map[Int,A] {
+	private val mapImpl:HashMap[Int,A] = new HashMap[Int,A]
+	override def += (kv:(Int,A)) = {
+		throw new UnsupportedOperationException("Cannot add to iterable map")
+	}
+	override def -= (k:Int) = {
+		throw new UnsupportedOperationException("Cannot remove from iterable map")
+	}
+	override def get (key:Int):Option[A] = {
+		while(!mapImpl.contains(key)){
+			val value = iter.next
+			mapImpl(value.index) = value
+		}
+		mapImpl.get(key)
+	}
+	override def iterator:Iterator[(Int,A)] = {
+		(1 until Int.MaxValue).iterator.map{ case (i:Int) =>
+			if(i % 2 == 0){ (i/2, apply( i/2 )) }
+			else { ((i-1)/2, apply( -(i-1)/2 )) }
+		}
+	}
+}
 
 
 //------------------------------------------------------------------------------
@@ -46,16 +73,18 @@ trait ProvidesIntersectables[A <: Intersectable] {
 	def intersectable(offset:Long):A
 }
 
+case class Intersection(index:Int,a:Long,b:Long,origin:(Long,Long))
+
 object Intersect {
 	def intersect[A <: Intersectable](
 			sourceA:ProvidesIntersectables[A],
-			sourceB:ProvidesIntersectables[A]):Iterator[(Long,Long)] = {
+			sourceB:ProvidesIntersectables[A]):Iterator[Intersection] = {
 		//--Pruning State
 		var min:Long = 0
 		var max:Long = 0
 		//--Search State
-		case class TermSearchState(a:Long,b:Long,step:Long,dir:Int) 
-				extends SearchState {
+		case class TermSearchState(a:Long,b:Long,step:Long,dir:Int,
+				origin:Option[(Long,Long)]) extends SearchState {
 			private var cachedA:A = null.asInstanceOf[A]
 			private var cachedB:A = null.asInstanceOf[A]
 			private def ensureTerms:Unit = {
@@ -68,6 +97,7 @@ object Intersect {
 			}
 			override def children:List[SearchState] = {
 				ensureTerms
+				val isMatch = this.isEndState
 				//--Invalid State
 				if(  (dir > 0 && cachedA.begin < max && cachedB.begin < max) ||
 				     (dir < 0 && cachedA.end   > min && cachedB.end   > min)    ) {
@@ -92,7 +122,14 @@ object Intersect {
 						}
 					if(exists && !isImpossible){
 						//(create candidate)
-						val cand = TermSearchState(aI,bI,theStep,dir) 
+						val cand = if(isMatch){
+								origin match {
+									case Some(o) => TermSearchState(aI,bI,theStep,dir,origin) 
+									case None => TermSearchState(aI,bI,theStep,dir,Some((aI,bI)))
+								}
+							} else {
+								TermSearchState(aI,bI,theStep,dir,None) 
+							}
 						cand.ensureTerms
 						//(check if candidate jumps too far)
 						val jumpedOver = moving match {
@@ -216,10 +253,23 @@ object Intersect {
 			}
 		}
 		//--Iterable
+		var matchesPos = -1
+		var matchesNeg = 0
 		Search[TermSearchState](Search.UNIFORM_COST)
-			.iterable(TermSearchState(0L,0L,1L,0)).iterator
-			.map{ case (state:TermSearchState,count:Int) => (state.a, state.b) }
+			.iterable(TermSearchState(0L,0L,1L,0,None)).iterator
+			.map{ case (state:TermSearchState,count:Int) => 
+				val index 
+					= if(state.dir >= 0){ matchesPos += 1; matchesPos }
+					  else{ matchesNeg -= 1; matchesNeg }
+				state.origin match {
+					case Some(o) => Intersection(index,state.a,state.b,o)
+					case None => Intersection(index,state.a,state.b,(state.a,state.b))
+				}
+			}
 	}
+
+
+
 
 	def main(args:Array[String]) = {
 		def inter(a:Term,b:Term):Term = {
@@ -232,10 +282,10 @@ object Intersect {
 		println("Source A: " + sourceA)
 		println("Source B: " + sourceB)
 		intersect(sourceA,sourceB).slice(0,100)
-				.foreach{ case (a:Long,b:Long) =>
-			val vA = sourceA.intersectable(a)
-			val vB = sourceB.intersectable(b)
-			println("Match: " + a + " and " + b + "     :: " + inter(vA,vB))
+				.foreach{ (info:Intersection) =>
+			val vA = sourceA.intersectable(info.a)
+			val vB = sourceB.intersectable(info.b)
+			println("Match: "+info.a+" and "+info.b+"     :: "+inter(vA,vB))
 			println("  " + vA + " " + vB)
 		}
 		println("DONE")

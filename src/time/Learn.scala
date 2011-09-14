@@ -336,8 +336,8 @@ object Grammar {
 			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D,'S)), //first
 			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D,'S)),   //last
 			F2Info(catLeft,"catLeft",List('R),List('D,'S)),            //past
-			F2Info(catRight,"catRight",List('R),List('D,'S)),          //coming
-			F2Info(cons,"cons",List('R,'S),List('R,'S))                //from...until
+			F2Info(catRight,"catRight",List('R),List('D,'S))          //coming
+//			F2Info(cons,"cons",List('R,'S),List('R,'S))                //from...until
 		)
 		//(intro)
 		function2.foreach{ (info:F2Info[Temporal,Temporal]) =>
@@ -813,8 +813,8 @@ case class Parse(value:Temporal){
 		}
 		//--Map Iterator
 		value.distribution(ground).iterator.map{
-				case (guess:Temporal,score:Double,offset:Int) =>
-			(diff(gold,guess,false),score,offset)
+				case (guess:Temporal,score:Double,offset:Long) =>
+			(diff(gold,guess,false),score,offset.toInt)
 		}
 	}
 	
@@ -2399,12 +2399,12 @@ class CKYParser extends StandardParser{
 					//(update time)
 					val ground = Range(feedback.grounding,feedback.grounding)
 					timesToNormalize = {() => { temporal.traverse(ground,offset,
-							(term:Temporal,trueOffset:Int,originOffset:Int)=>{
+							(term:Temporal,trueOffset:Long,originOffset:Long)=>{
 								term.runM
 							})
 						}} :: timesToNormalize
 					temporal.traverse(ground,offset,
-						(term:Temporal,trueOffset:Int,originOffset:Int) => {
+						(term:Temporal,trueOffset:Long,originOffset:Long) => {
 							term.updateE(ground,trueOffset,originOffset,
 								if(O.hardEM) 0.0 else U.safeLn(count) )
 						})

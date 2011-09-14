@@ -1,6 +1,8 @@
 package time
 
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.Map
+import scala.collection.mutable.ListMap
 
 import org.joda.time._
 
@@ -20,15 +22,15 @@ trait Temporal {
 
 	import Temporal.isInt
 	//(get values)
-	def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)
-	def prob(ground:GroundedRange,offset:Int):Double
-	def exists(ground:GroundedRange,offset:Int):Boolean = { offset == 0 }
+	def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)
+	def prob(ground:GroundedRange,offset:Long):Double
+	def exists(ground:GroundedRange,offset:Long):Boolean = { offset == 0 }
 	//(learn distribution)
 	def updateE(ground:GroundedRange,
-		offset:Int,originOffset:Int,logprob:Double):Unit = {}
+		offset:Long,originoffset:Long,logprob:Double):Unit = {}
 	def runM:Unit = {}
 	
-	final def traverse(ground:GroundedRange,offset:Int,	
+	final def traverse(ground:GroundedRange,offset:Long,	
 			fn:TraverseTask):Unit = {
 		val (feedback,rtn):(TraverseFn,Temporal) = evaluate(ground,offset)
 		feedback(fn)
@@ -37,7 +39,7 @@ trait Temporal {
 	//(helper functions)
 	final def forwardIterator[E <: Temporal](ground:GroundedRange
 			):BufferedIterator[(TraverseFn,E)] = {
-		var rightPointer:Int = 0;
+		var rightPointer:Long = 0;
 		new Iterator[(TraverseFn,E)]{
 			def hasNext:Boolean = Temporal.this.exists(ground,rightPointer)
 			def next:(TraverseFn,E) = {
@@ -51,7 +53,7 @@ trait Temporal {
 	}
 	final def backwardIterator[E <: Temporal](ground:GroundedRange
 			):BufferedIterator[(TraverseFn,E)]={
-		var leftPointer:Int = 0; //NOTE: will both hit zero
+		var leftPointer:Long = 0; //NOTE: will both hit zero
 		new Iterator[(TraverseFn,E)]{
 			def hasNext:Boolean = Temporal.this.exists(ground,leftPointer)
 			def next:(TraverseFn,E) = {
@@ -76,16 +78,16 @@ trait Temporal {
 		}
 	}
 	final def distribution(ground:GroundedRange
-			):Iterable[(Temporal,Double,Int)] = {
+			):Iterable[(Temporal,Double,Long)] = {
 		var leftPointer = -1;
 		var rightPointer = 0;
-		new Iterable[(Temporal,Double,Int)]{
-			def iterator:Iterator[(Temporal,Double,Int)]
-					= new Iterator[(Temporal,Double,Int)]{
+		new Iterable[(Temporal,Double,Long)]{
+			def iterator:Iterator[(Temporal,Double,Long)]
+					= new Iterator[(Temporal,Double,Long)]{
 				def hasNext:Boolean
 					= Temporal.this.exists(ground,leftPointer) || 
 					  Temporal.this.exists(ground,rightPointer)
-				def next:(Temporal,Double,Int) = {
+				def next:(Temporal,Double,Long) = {
 					assert(hasNext, "Calling next when there is no next")
 					val pLeft = prob(ground,leftPointer)
 					val pRight = prob(ground,rightPointer)
@@ -111,7 +113,7 @@ trait Temporal {
 		}
 	}
 	
-	final def apply[E <: Temporal](ground:GroundedRange,offset:Int):E = {
+	final def apply[E <: Temporal](ground:GroundedRange,offset:Long):E = {
 		val (feedback,rtn) = evaluate[E](ground,offset)
 		rtn
 	}
@@ -127,7 +129,7 @@ trait Temporal {
 	}
 	final def apply[E <: Temporal](ground:Time):Temporal
 		= apply(new GroundedRange(ground,ground))
-	final def apply[E <: Temporal](ground:Time,offset:Int):Temporal
+	final def apply[E <: Temporal](ground:Time,offset:Long):Temporal
 		= apply(new GroundedRange(ground,ground),offset)
 
 	final def all(ground:GroundedRange):Array[Temporal] = {
@@ -212,7 +214,11 @@ trait Temporal {
 }
 
 object Temporal {
-	type TraverseTask = (Temporal,Int,Int)=>Unit
+	//(term, true_offset, origin_offset)
+	//  true_offset: the offset of the temporal
+	//  origin_offset: the offset to calculate differences from
+	//     i.e. 
+	type TraverseTask = (Temporal,Long,Long)=>Unit
 	type TraverseFn = TraverseTask=>Unit
 	def fnCat( a:TraverseFn, b:TraverseFn ) = {
 		(fn:TraverseTask)=> {
@@ -288,92 +294,92 @@ trait Range extends Temporal{
 	def >>!(dur:Duration):Range = (this >> dur) ! dur
 
 
-	private def composite[E <: Temporal](
-			str:String,
-			other:Range,
-			fn:(Boolean,Iterable[(TraverseFn,E)],Iterable[(TraverseFn,E)])=>
-				Iterable[((TraverseFn,GroundedRange),Int,Int)]
-				):CompositeRange = {
-		import Range.TemporalInfo
-		var cacheBackward:TemporalInfo = null
-		var cacheForward:TemporalInfo = null
-		var cacheCond:Range = null
-		def ensureCache(ground:GroundedRange) = {
-			if(cacheForward == null  || ground != cacheCond){
-				cacheCond = ground
-				cacheForward = Range.iter2traverse(fn(
-						false, //forwards search
-						this.forwardIterable(ground),
-						other.forwardIterable(ground)
-					).iterator)
-				cacheBackward = 
-					Range.iter2traverse(fn(
-						true, //backwards search
-						this.backwardIterable(ground),
-						other.backwardIterable(ground)
-					).iterator)
-			}
-			val rtn = (cacheForward,cacheBackward)
-			if(!O.cacheTemporalComputations){
-				cacheForward = null
-				cacheBackward = null
-				cacheCond = null
-			}
-			rtn
-		}
-		new CompositeRange(
-			//(new apply)
-			(ground:GroundedRange,offset:Int) => {
-				val (forward,backward) = ensureCache(ground)
-				if(offset == 0) {
-					if(forward.exists(0)){
-						forward.traverse(0)
-					} else if(backward.exists(0)){
-						backward.traverse(0)
-					} else {
-						( (fn:TraverseTask) => {}, new NoTime)
-					}
-				} else if(offset > 0){
-					forward.traverse(offset)
-				} else {
-					backward.traverse(-offset)
-				}
-			},
-			//(new prob)
-			(ground:GroundedRange,offset:Int) => this.prob(ground,offset),
-			//(new exists)
-			(ground:GroundedRange,offset:Int) => {
-				val (forward,backward) = ensureCache(ground)
-				if(offset == 0) {
-					val existForward = forward.exists(0)
-					if(existForward){
-						existForward
-					} else {
-						backward.exists(0)
-					}
-				} else if(offset > 0){
-					forward.exists(offset)
-				} else {
-					backward.exists(-offset)
-				}
-			},
-			{if(this.norm < other.norm) this.norm else other.norm} ,
-			List[String]("("+this + ") "+str+" (" + other+")")
-		)
-	}
+//	private def composite[E <: Temporal](
+//			str:String,
+//			other:Range,
+//			fn:(Boolean,Iterable[(TraverseFn,E)],Iterable[(TraverseFn,E)])=>
+//				Iterable[((TraverseFn,GroundedRange),Int,Int)]
+//				):CompositeRange = {
+//		import Range.TemporalInfo
+//		var cacheBackward:TemporalInfo = null
+//		var cacheForward:TemporalInfo = null
+//		var cacheCond:Range = null
+//		def ensureCache(ground:GroundedRange) = {
+//			if(cacheForward == null  || ground != cacheCond){
+//				cacheCond = ground
+//				cacheForward = Range.iter2traverse(fn(
+//						false, //forwards search
+//						this.forwardIterable(ground),
+//						other.forwardIterable(ground)
+//					).iterator)
+//				cacheBackward = 
+//					Range.iter2traverse(fn(
+//						true, //backwards search
+//						this.backwardIterable(ground),
+//						other.backwardIterable(ground)
+//					).iterator)
+//			}
+//			val rtn = (cacheForward,cacheBackward)
+//			if(!O.cacheTemporalComputations){
+//				cacheForward = null
+//				cacheBackward = null
+//				cacheCond = null
+//			}
+//			rtn
+//		}
+//		new CompositeRange(
+//			//(new apply)
+//			(ground:GroundedRange,offset:Long) => {
+//				val (forward,backward) = ensureCache(ground)
+//				if(offset == 0) {
+//					if(forward.exists(0)){
+//						forward.traverse(0)
+//					} else if(backward.exists(0)){
+//						backward.traverse(0)
+//					} else {
+//						( (fn:TraverseTask) => {}, new NoTime)
+//					}
+//				} else if(offset > 0){
+//					forward.traverse(offset)
+//				} else {
+//					backward.traverse(-offset)
+//				}
+//			},
+//			//(new prob)
+//			(ground:GroundedRange,offset:Long) => this.prob(ground,offset),
+//			//(new exists)
+//			(ground:GroundedRange,offset:Long) => {
+//				val (forward,backward) = ensureCache(ground)
+//				if(offset == 0) {
+//					val existForward = forward.exists(0)
+//					if(existForward){
+//						existForward
+//					} else {
+//						backward.exists(0)
+//					}
+//				} else if(offset > 0){
+//					forward.exists(offset)
+//				} else {
+//					backward.exists(-offset)
+//				}
+//			},
+//			{if(this.norm < other.norm) this.norm else other.norm} ,
+//			List[String]("("+this + ") "+str+" (" + other+")")
+//		)
+//	}
 
-	def cons(other:Range):Range = {
-		(this, other) match {
-			case (a:Range,b:NoTime) => new NoTime
-			case (a:GroundedRange,b:GroundedRange) => 
-				if(a.begin < b.end){ new GroundedRange(a.begin,b.end) }
-				else { new NoTime }
-			case _ => composite("cons",other,
-				Range.cons(_:Boolean,
-					_:Iterable[(TraverseFn,GroundedRange)],
-					_:Iterable[(TraverseFn,GroundedRange)]))
-		}
-	}
+//	def cons(other:Range):Range = {
+//		(this, other) match {
+//			case (a:Range,b:NoTime) => new NoTime
+//			case (a:GroundedRange,b:GroundedRange) => 
+//				if(a.begin < b.end){ new GroundedRange(a.begin,b.end) }
+//				else { new NoTime }
+//			case _ => composite("cons",other,
+//				Range.cons(_:Boolean,
+//					_:Iterable[(TraverseFn,GroundedRange)],
+//					_:Iterable[(TraverseFn,GroundedRange)]))
+//		}
+//	}
 
 	def ^(other:Range):Range = {
 		(this, other) match {
@@ -384,24 +390,22 @@ trait Range extends Temporal{
 				)
 			case (a:GroundedRange,b:RepeatedRange) => b.intersect(a) //shortcut
 			case (a:RepeatedRange,b:GroundedRange) => a.intersect(b) //.
-			case _ => composite("^",other,
-				Range.intersect(_:Boolean,
-					_:Iterable[(TraverseFn,GroundedRange)],
-					_:Iterable[(TraverseFn,GroundedRange)]))
+			case _ => Range.intersectSearch(this,other)
 		}
 	}
+
 }
 
 // ----- COMPOSITE RANGE -----
 class CompositeRange( 
-			applyFn:(GroundedRange,Int)=>(TraverseFn,GroundedRange),
-			probFn:(GroundedRange,Int)=>Double,
-			existsFn:(GroundedRange,Int)=>Boolean,
+			applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange),
+			probFn:(GroundedRange,Long)=>Double,
+			existsFn:(GroundedRange,Long)=>Boolean,
 			theNorm:GroundedDuration,
 			ops:List[String]
 		) extends Sequence {
 	
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		val (tFn,rtn) = applyFn(ground,offset)
 		assert(rtn.isInstanceOf[GroundedRange], "Composite ungrounded")
 		rtn match {
@@ -410,8 +414,8 @@ class CompositeRange(
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	}
-	override def prob(ground:GroundedRange,offset:Int):Double = probFn(ground,offset)
-	override def exists(ground:GroundedRange,offset:Int):Boolean = existsFn(ground,offset)
+	override def prob(ground:GroundedRange,offset:Long):Double = probFn(ground,offset)
+	override def exists(ground:GroundedRange,offset:Long):Boolean = existsFn(ground,offset)
 
 	override def +(diff:Duration):Duration 
 		= extend((r:GroundedRange) => Range(r.begin,r.end + diff), norm+diff, "+")
@@ -435,14 +439,14 @@ class CompositeRange(
 
 	private def extend(fn:GroundedRange=>Range, newNorm:Duration, op:String) = {
 		new CompositeRange( 
-			(ground:GroundedRange,offset:Int) => { 
+			(ground:GroundedRange,offset:Long) => { 
 				val (tFn,rtn) = this.applyFn(ground,offset)
 				(Temporal.fnCat(tFn, 
 					(task:TraverseTask) => task(this,offset,0)),
 				fn(rtn).asInstanceOf[GroundedRange]  )
 			},
-			(ground:GroundedRange,offset:Int) => this.probFn(ground,offset),
-			(ground:GroundedRange,offset:Int) => this.existsFn(ground,offset),
+			(ground:GroundedRange,offset:Long) => this.probFn(ground,offset),
+			(ground:GroundedRange,offset:Long) => this.existsFn(ground,offset),
 			newNorm.interval,
 			op :: this.ops
 		)
@@ -455,7 +459,7 @@ class CompositeRange(
 
 // ----- GROUNDED RANGE -----
 class GroundedRange(val begin:Time,val end:Time) extends Range {
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){
 			this match{ 
 				case (e:E) => ( (fn:TraverseTask) => fn(this,offset,0), e )
@@ -465,7 +469,7 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 			throw new TimeException("GroundedRange given nonzero offset: "+offset)
 		}
 	}
-	override def prob(ground:GroundedRange,offset:Int):Double
+	override def prob(ground:GroundedRange,offset:Long):Double
 	 = if(offset == 0){ 1.0 } else{ 0.0 }
 
 	
@@ -512,7 +516,7 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 // ----- UNGROUNDED RANGE -----
 class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 		) extends Range{
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){ 
 			val gr:GroundedRange = 
 				if(normVal eq Duration.NEG_INFINITE){
@@ -534,7 +538,7 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 			throw new TimeException("UngroundedRange given nonzero offset: "+offset)
 		}
 	}
-	override def prob(ground:GroundedRange,offset:Int):Double
+	override def prob(ground:GroundedRange,offset:Long):Double
 		= if(offset == 0){ 1.0 } else{ 0.0 }
 
 	override def >>(diff:Duration):Range 
@@ -567,7 +571,7 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	
 	override def !(dur:Duration):Range = {
 		new CompositeRange(
-				(ground:GroundedRange,offset:Int) => {
+				(ground:GroundedRange,offset:Long) => {
 					val (tFn,grounded):(TraverseFn,GroundedRange) 
 						= this.evaluate(ground,offset)
 					grounded match {
@@ -577,8 +581,8 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 						case _ => throw new IllegalArgumentException("Runtime Type Error")
 					}
 				},
-				this.prob(_:GroundedRange,_:Int),
-				this.exists(_:GroundedRange,_:Int),
+				this.prob(_:GroundedRange,_:Long),
+				this.exists(_:GroundedRange,_:Long),
 				dur.interval,
 				List[String](this + " ! " + dur)
 			)
@@ -605,47 +609,50 @@ object Range {
 		= new GroundedRange(Time(begin),Time(end))
 	def apply(begin:DateTime) 
 		= new GroundedRange(Time(begin),Time(begin))
-	def apply(begin:Range,end:Range) = begin cons end
+	def apply(begin:GroundedRange,end:GroundedRange):Range = apply(
+			{if(begin.begin < end.begin) begin.begin else end.begin},
+			{if(begin.end < end.end) begin.end else end.end})
+
 	def apply(norm:Duration) = new UngroundedRange(norm,Duration.ZERO)
 	def apply(norm:Period) = new UngroundedRange(Duration(norm),Duration.ZERO)
 
-	case class TemporalInfo(
-			traverse:Int=>(TraverseFn,GroundedRange),
-			offset:Int=>(Int,Int),
-			exists:Int=>Boolean )
-
-	def iter2traverse(
-			iter:Iterator[((TraverseFn,GroundedRange),Int,Int)]
-			):TemporalInfo = {
-		val buffer = new ArrayBuffer[((TraverseFn,GroundedRange),Int,Int)]()
-		TemporalInfo(
-			(in:Int) => {
-				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
-				if(in < buffer.length){ 
-					val (rtn,leftI,rightI) = buffer(in)
-					rtn
-				}else{ 
-					throw new IllegalArgumentException("Out of bounds index: " + in +
-					" (has next? " + iter.hasNext + ")")
-				}
-			},
-			(in:Int) => {
-				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
-				if(in < buffer.length){ (buffer(in)._2,buffer(in)._3) } 
-				else{ throw new IllegalArgumentException("Out of bounds index: " + in +
-					" (has next? " + iter.hasNext + ")") }
-			},
-			(in:Int) => {
-				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
-				in < buffer.length
-			}
-		)
-	}
+//	case class TemporalInfo(
+//			traverse:Long=>(TraverseFn,GroundedRange),
+//			offset:Long=>(Long,Long),
+//			exists:Long=>Boolean )
+//
+//	def iter2traverse(
+//			iter:Iterator[((TraverseFn,GroundedRange),Long,Long)]
+//			):TemporalInfo = {
+//		val buffer = new ArrayBuffer[((TraverseFn,GroundedRange),Long,Long)]()
+//		TemporalInfo(
+//			(in:Int) => {
+//				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
+//				if(in < buffer.length) { 
+//					val (rtn,leftI,rightI) = buffer(in)
+//					rtn
+//				} else { 
+//					throw new IllegalArgumentException("Out of bounds index: " + in +
+//					" (has next? " + iter.hasNext + ")")
+//				}
+//			},
+//			(in:Int) => {
+//				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
+//				if(in < buffer.length){ (buffer(in)._2,buffer(in)._3) } 
+//				else{ throw new IllegalArgumentException("Out of bounds index: " + in +
+//					" (has next? " + iter.hasNext + ")") }
+//			},
+//			(in:Int) => {
+//				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
+//				in < buffer.length
+//			}
+//		)
+//	}
 
 	def mkBegin(a:Time,b:Time) = if(a < b) b else a
 	def mkEnd(a:Time,b:Time) = if(a < b) a else b
 
-	case class OverlapState(origin:Int,offset:Int,
+	case class OverlapState(origin:Long,offset:Long,
 			nextVal:(TraverseFn,GroundedRange),
 			iter:BufferedIterator[(TraverseFn,GroundedRange)]) {
 		def this(iter:BufferedIterator[(TraverseFn,GroundedRange)])
@@ -669,11 +676,11 @@ object Range {
 			b:Iterable[(TraverseFn,GroundedRange)],
 			mkNext:(OverlapState,OverlapState)=>
 				((TraverseFn,GroundedRange),OverlapState,OverlapState)
-			):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
+			):Iterable[((TraverseFn,GroundedRange),Long,Long)] = {
 		
-		new Iterable[((TraverseFn,GroundedRange),Int,Int)]{
-			def iterator:Iterator[((TraverseFn,GroundedRange),Int,Int)] = {
-				new Iterator[((TraverseFn,GroundedRange),Int,Int)]{
+		new Iterable[((TraverseFn,GroundedRange),Long,Long)]{
+			def iterator:Iterator[((TraverseFn,GroundedRange),Long,Long)] = {
+				new Iterator[((TraverseFn,GroundedRange),Long,Long)]{
 					private val iterA = a.iterator.buffered
 					private val iterB = b.iterator.buffered
 					private var (theNext,leftState,rightState)
@@ -685,7 +692,7 @@ object Range {
 							}
 					override def hasNext:Boolean 
 						= theNext != null
-					override def next:((TraverseFn,GroundedRange),Int,Int) = {
+					override def next:((TraverseFn,GroundedRange),Long,Long) = {
 						if(theNext == null){ throw new NoSuchElementException }
 						val rtn=(theNext,leftState.offset,rightState.offset)
 						val (n,lS,rS) = mkNext(leftState,rightState)
@@ -698,114 +705,203 @@ object Range {
 		
 	}
 
-	def cons(back:Boolean,
-			a:Iterable[(TraverseFn,GroundedRange)],
-			b:Iterable[(TraverseFn,GroundedRange)]
-			):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
-		var diff:Duration = Duration.INFINITE
-		def mkNext(left:OverlapState,right:OverlapState
-				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
-			val nullVal = (null,null,null)
-			if(left.nextVal==null || right.nextVal==null){
-				//(case: an iterator is empty)
-				nullVal
-			} else if(right.nextRange.end < left.nextRange.begin){
-				//(case: B is behind)
-				//((convergence check))
-				val lastDiff = diff
-				diff = (left.nextRange.begin-right.nextRange.end)
-				if(!(diff < lastDiff)){ nullVal } //case: not converging
-				//((movement))
-				else if(!back && right.iter.hasNext)
-					{ mkNext(left,right.increment.markOrigin) }
-				else if(back && left.iter.hasNext)
-					{ mkNext(left.increment.markOrigin,right) }
-				else { nullVal }
-			} else {
-				//(case: overlap)
-				val (fnLeft,rtnLeft) = left.nextVal
-				val (fnRight,rtnRight) = right.nextVal
-				val rtn = (
-							(fn:TraverseTask) => { 
-								fnLeft( (term:Temporal,offset:Int,orig:Int) => {
-									fn(term,offset,if(back){-left.origin}else{left.origin}) })
-								fnRight( (term:Temporal,offset:Int,orig:Int) => {
-									fn(term,offset,if(back){-right.origin}else{right.origin}) })
-							},
-							new GroundedRange(rtnLeft.begin,rtnRight.end)
-						)
-				//(update iterator)
-				(rtn,left.increment,right)
-			}
-		}
-		mknext2iterable(a,b,mkNext(_,_))
-	}
+//	def cons(back:Boolean,
+//			a:Iterable[(TraverseFn,GroundedRange)],
+//			b:Iterable[(TraverseFn,GroundedRange)]
+//			):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
+//		var diff:Duration = Duration.INFINITE
+//		def mkNext(left:OverlapState,right:OverlapState
+//				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
+//			val nullVal = (null,null,null)
+//			if(left.nextVal==null || right.nextVal==null){
+//				//(case: an iterator is empty)
+//				nullVal
+//			} else if(right.nextRange.end < left.nextRange.begin){
+//				//(case: B is behind)
+//				//((convergence check))
+//				val lastDiff = diff
+//				diff = (left.nextRange.begin-right.nextRange.end)
+//				if(!(diff < lastDiff)){ nullVal } //case: not converging
+//				//((movement))
+//				else if(!back && right.iter.hasNext)
+//					{ mkNext(left,right.increment.markOrigin) }
+//				else if(back && left.iter.hasNext)
+//					{ mkNext(left.increment.markOrigin,right) }
+//				else { nullVal }
+//			} else {
+//				//(case: overlap)
+//				val (fnLeft,rtnLeft) = left.nextVal
+//				val (fnRight,rtnRight) = right.nextVal
+//				val rtn = (
+//							(fn:TraverseTask) => { 
+//								fnLeft( (term:Temporal,offset:Long,orig:Int) => {
+//									fn(term,offset,if(back){-left.origin}else{left.origin}) })
+//								fnRight( (term:Temporal,offset:Long,orig:Int) => {
+//									fn(term,offset,if(back){-right.origin}else{right.origin}) })
+//							},
+//							new GroundedRange(rtnLeft.begin,rtnRight.end)
+//						)
+//				//(update iterator)
+//				(rtn,left.increment,right)
+//			}
+//		}
+//		mknext2iterable(a,b,mkNext(_,_))
+//	}
 
-	def intersect(back:Boolean,
-			a:Iterable[(TraverseFn,GroundedRange)],
-			b:Iterable[(TraverseFn,GroundedRange)]
-				):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
-		var diff:Duration = Duration.INFINITE
-		def mkNext(left:OverlapState,right:OverlapState
-				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
-			val nullVal = (null,null,null)
-			if(left.nextVal==null || right.nextVal==null){
-				//(case: an iterator is empty)
-				nullVal
-			} else if(left.nextRange.end <= right.nextRange.begin) {
-				//(case: A is before)
-				//((overhead for divergence))
-				val lastDiff = diff
-				diff = (right.nextRange.begin-left.nextRange.end)
-				if(!(diff < lastDiff)){ nullVal } //case: not converging
-				//((movement))
-				else if(!back && left.iter.hasNext)
-					{ mkNext(left.increment.markOrigin,right) } 
-				else if(back && right.iter.hasNext)
-					{ mkNext(left,right.increment.markOrigin) } 
-				else { nullVal } //case: relevant iterator is empty
-			} else if(right.nextRange.end <= left.nextRange.begin){
-				//(case: B is before)
-				//((overhead for divergence))
-				val lastDiff = diff
-				diff = left.nextRange.begin-right.nextRange.end
-				if(!(diff < lastDiff)){ nullVal } //case: not converging
-				//((movement))
-				else if(!back && right.iter.hasNext)
-					{ mkNext(left,right.increment.markOrigin) } 
-				else if(back && left.iter.hasNext)
-					{ mkNext(left.increment.markOrigin,right) } 
-				else { nullVal } //case: relevant iterator is empty
-			} else {
-				//(case: overlap)
-				diff = Duration.INFINITE //reset convergence criteria
-				val (fnLeft,rtnLeft) = left.nextVal
-				val (fnRight,rtnRight) = right.nextVal
-				val rtn = (
-							(fn:TraverseTask) => { 
-								fnLeft( (term:Temporal,offset:Int,orig:Int) => {
-									fn(term,offset,if(back){-left.origin}else{left.origin}) })
-								fnRight( (term:Temporal,offset:Int,orig:Int) => {
-									fn(term,offset,if(back){-right.origin}else{right.origin}) })
-							},
-							new GroundedRange(
-								mkBegin(rtnLeft.begin,rtnRight.begin),
-								mkEnd(rtnLeft.end,rtnRight.end)
-							)
-						)
-				//(update iterator)
-				if(left.iter.hasNext && !(left.iter.head._2.begin>right.nextRange.end)){
-					//(case: A can jump again)
-					(rtn,left.increment,right)
-				} else {
-					//(case: B can either jump, or we jump it anyways)
-					(rtn,left,right.increment)
+		def intersectSearch(rA:Range,rB:Range):CompositeRange = {
+			//--Classes
+			case class RangeTerm(r:GroundedRange) extends Intersectable{
+				override def begin:Long = r.begin.base.getMillis
+				override def end:Long = r.end.base.getMillis
+			}
+			case class RangeSource(r:Range,ground:GroundedRange) 
+					extends ProvidesIntersectables[RangeTerm]{
+				override def has(offset:Long):Boolean = r.exists(ground,offset)
+				override def intersectable(offset:Long):RangeTerm = {
+					val (fn,rng) = r.evaluate(ground,offset.toInt)
+					RangeTerm(rng)
 				}
 			}
+			//--Search State
+			val stateMap = new ListMap[GroundedRange,IteratorMap[Intersection]]
+			//--Get Info
+			val info:(GroundedRange,Long)=>(TraverseFn,GroundedRange,Double,Boolean) = 
+			(ground:GroundedRange,offset:Long) => {
+				//(get map)
+				val map = if(stateMap.contains( ground )){
+					stateMap( ground )
+				} else {
+					val sourceA = RangeSource(rA,ground)
+					val sourceB = RangeSource(rB,ground)
+					val iter = new IteratorMap( Intersect.intersect(sourceA,sourceB) )
+					stateMap( ground ) = iter
+					iter
+				}
+				//(create info)
+				assert(offset < Int.MaxValue && offset > Int.MinValue,
+					"Wildly innapropriate offset. Don't do that.")
+				val intersect = map(offset.toInt)
+				assert(rA.exists(ground,intersect.a), 
+					"Intersect returned nonexistent range for A")
+				assert(rB.exists(ground,intersect.b), 
+					"Intersect returned nonexistent range for B")
+				val (fnA,grA):(TraverseFn,GroundedRange) =
+					rA.evaluate(ground,intersect.a)
+				val probA = rA.prob(ground,intersect.a)
+				val (fnB,grB):(TraverseFn,GroundedRange) = 
+					rB.evaluate(ground,intersect.b)
+				val probB = rB.prob(ground,intersect.b)
+				val (originA,originB) = intersect.origin
+				//(return)
+				( (fn:TraverseTask) => {
+						fnA( (term:Temporal,offset:Long,orig:Long) => {
+							fn(grA,intersect.a,originA) })
+						fnB( (term:Temporal,offset:Long,orig:Long) => {
+							fn(grB,intersect.b,originB) })
+						
+					}, //<-- traverse function
+					new GroundedRange(
+						Range.mkBegin(grA.begin,grB.begin),
+						Range.mkEnd(grA.end,grB.end)
+					), //<-- temporal
+					probA*probB, //<-- probability
+					true) //<-- exists
+			}
+			//--Create Functions
+			//(apply)
+			val applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange) =
+				(g:GroundedRange,offset:Long) => {
+					val (fn,gr,prob,exists) = info(g,offset)
+					(fn,gr)
+				}
+			//(probability)
+			val probFn:(GroundedRange,Long)=>Double = 
+				(g:GroundedRange,offset:Long) => {
+					val (fn,gr,prob,exists) = info(g,offset)
+					prob
+				}
+			//(exists)
+			val existsFn:(GroundedRange,Long)=>Boolean = 
+				(g:GroundedRange,offset:Long) => {
+					val (fn,gr,prob,exists) = info(g,offset)
+					exists
+				}
+			//--Create Misc
+			//(norm)
+			val normA = rA.norm
+			val normB = rA.norm
+			val norm = if(normA < normB) normA else normB
+			//(string)
+			val ops = List[String]("("+rA+") ^ ("+rB+")")
+			//--Return
+			new CompositeRange(applyFn,probFn,existsFn,norm,ops)
 		}
-		//(call the bloody function)
-		mknext2iterable(a,b,mkNext(_,_))
-	}
+
+//	def intersect(back:Boolean,
+//			a:Iterable[(TraverseFn,GroundedRange)],
+//			b:Iterable[(TraverseFn,GroundedRange)]
+//				):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
+//		var diff:Duration = Duration.INFINITE
+//		def mkNext(left:OverlapState,right:OverlapState
+//				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
+//			val nullVal = (null,null,null)
+//			if(left.nextVal==null || right.nextVal==null){
+//				//(case: an iterator is empty)
+//				nullVal
+//			} else if(left.nextRange.end <= right.nextRange.begin) {
+//				//(case: A is before)
+//				//((overhead for divergence))
+//				val lastDiff = diff
+//				diff = (right.nextRange.begin-left.nextRange.end)
+//				if(!(diff < lastDiff)){ nullVal } //case: not converging
+//				//((movement))
+//				else if(!back && left.iter.hasNext)
+//					{ mkNext(left.increment.markOrigin,right) } 
+//				else if(back && right.iter.hasNext)
+//					{ mkNext(left,right.increment.markOrigin) } 
+//				else { nullVal } //case: relevant iterator is empty
+//			} else if(right.nextRange.end <= left.nextRange.begin){
+//				//(case: B is before)
+//				//((overhead for divergence))
+//				val lastDiff = diff
+//				diff = left.nextRange.begin-right.nextRange.end
+//				if(!(diff < lastDiff)){ nullVal } //case: not converging
+//				//((movement))
+//				else if(!back && right.iter.hasNext)
+//					{ mkNext(left,right.increment.markOrigin) } 
+//				else if(back && left.iter.hasNext)
+//					{ mkNext(left.increment.markOrigin,right) } 
+//				else { nullVal } //case: relevant iterator is empty
+//			} else {
+//				//(case: overlap)
+//				diff = Duration.INFINITE //reset convergence criteria
+//				val (fnLeft,rtnLeft) = left.nextVal
+//				val (fnRight,rtnRight) = right.nextVal
+//				val rtn = (
+//							(fn:TraverseTask) => { 
+//								fnLeft( (term:Temporal,offset:Long,orig:Int) => {
+//									fn(term,offset,if(back){-left.origin}else{left.origin}) })
+//								fnRight( (term:Temporal,offset:Long,orig:Int) => {
+//									fn(term,offset,if(back){-right.origin}else{right.origin}) })
+//							},
+//							new GroundedRange(
+//								mkBegin(rtnLeft.begin,rtnRight.begin),
+//								mkEnd(rtnLeft.end,rtnRight.end)
+//							)
+//						)
+//				//(update iterator)
+//				if(left.iter.hasNext && !(left.iter.head._2.begin>right.nextRange.end)){
+//					//(case: A can jump again)
+//					(rtn,left.increment,right)
+//				} else {
+//					//(case: B can either jump, or we jump it anyways)
+//					(rtn,left,right.increment)
+//				}
+//			}
+//		}
+//		//(call the bloody function)
+//		mknext2iterable(a,b,mkNext(_,_))
+//	}
 }
 
 //------------------------------------------------------------------------------
@@ -813,7 +909,7 @@ object Range {
 //------------------------------------------------------------------------------
 // ----- DURATION -----
 trait Duration extends Temporal {
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){
 			this match {
 				case (e:E) => 
@@ -826,7 +922,7 @@ trait Duration extends Temporal {
 		}
 		else{ throw new TimeException("Duration given nonzero offset: "+offset) }
 	}
-	override def prob(ground:GroundedRange,offset:Int):Double
+	override def prob(ground:GroundedRange,offset:Long):Double
 		= if(offset == 0){ 1.0 } else{ 0.0 }
 
 	def interval:GroundedDuration
@@ -1025,7 +1121,7 @@ object Duration {
 //------------------------------------------------------------------------------
 // ----- SEQUENCE -----
 trait Sequence extends Range with Duration {
-	override def exists(ground:GroundedRange,offset:Int) = true
+	override def exists(ground:GroundedRange,offset:Long) = true
 	override def equals(o:Any):Boolean = this eq o.asInstanceOf[AnyRef]
 }
 
@@ -1070,7 +1166,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 			},
 			interv)
 	
-	private def diff(ground:GroundedRange,offset:Int,originOffset:Int):Double = {
+	private def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double = {
 		val realGround:Time = if(bound == null) ground.begin else bound.begin
 		//(important markers)
 		val origin:GroundedRange = this.apply(ground,0)
@@ -1085,7 +1181,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		distance/interv
 	}
 	
-	override def exists(ground:GroundedRange,offset:Int):Boolean = {
+	override def exists(ground:GroundedRange,offset:Long):Boolean = {
 		if(bound == null){ true }
 		else{
 			val guess:GroundedRange = apply(ground,offset)
@@ -1093,7 +1189,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		}
 	}
 	
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		var cache:Temporal = null; var cacheCond:Range = null
 		val term = if( cache == null || ground != cacheCond) {
 				//(update cache condition)
@@ -1109,8 +1205,11 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 					}
 				//(snap beginning)
 				val begin:Time = 
-					if(bound == null){ snapFn(beginT+interv*offset) } //interv first
-					else{ snapFn(beginT+interv*offset) } //^ note above
+					if(offset > Int.MaxValue){ Time.END_OF }
+					else if(offset < Int.MinValue){ Time.DAWN_OF }
+					else if(bound == null){ snapFn(beginT+interv*offset.toInt) } 
+						//^ interv first
+					else{ snapFn(beginT+interv*offset.toInt) } //^ note above
 				//(ground the time)
 				val rtn = new GroundedRange(
 					begin+base.beginOffset,
@@ -1136,7 +1235,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 	}
 
 
-	override def prob(ground:GroundedRange,offset:Int):Double = {
+	override def prob(ground:GroundedRange,offset:Long):Double = {
 		if(this.distribution == null)
 			{ this.distribution = updater._2(this.toString,false) }
 		val cand:Double = this.distribution( offset, diff(ground,offset,0) )
@@ -1146,7 +1245,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 
 
 	override def updateE(
-			ground:GroundedRange,offset:Int,originOffset:Int,logprob:Double):Unit = {
+			ground:GroundedRange,offset:Long,originOffset:Long,logprob:Double):Unit={
 		val (e,m) = updater
 		val diff:Double = this.diff(ground,offset,originOffset)
 		val str="E-Step [" + this + "]: offset=["+offset+" origin "+originOffset+
@@ -1207,15 +1306,15 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 
 // ----- OBJECT SEQUENCE -----
 object RepeatedRange {
-	type Distribution = (Int,Double)=>Double
-	type Updater = ((Int,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
+	type Distribution = (Long,Double)=>Double
+	type Updater = ((Long,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
 
 	def mkGaussianUpdater:Updater = {
 		var data:List[(Double,Double)] = List[(Double,Double)]()
 		var dist:Distribution = null
 		var seenE:Boolean = false
 		//(updateE)
-		val e = (o:Int,x:Double,logprob:Double) => { 
+		val e = (o:Long,x:Double,logprob:Double) => { 
 			assert(logprob <= 0.0, "Invalid log probability: " + logprob)
 			data = (x,logprob) :: data 
 			seenE = true
@@ -1256,12 +1355,12 @@ object RepeatedRange {
 				//(clear data)
 				data = List[(Double,Double)]()
 				//(distribution)
-//				dist = (offset:Int,x:Double) => {
+//				dist = (offset:Long,x:Double) => {
 //					1.0 / math.sqrt(2.0*math.Pi*sigmasq) * 
 //						math.exp( -1.0*(x-mu)*(x-mu) / (2.0*sigmasq) ) //<--value
 //				}
 				val distribImpl = new NormalDistributionImpl(mu,math.sqrt(sigmasq))
-				dist = (offset:Int,x:Double) => {
+				dist = (offset:Long,x:Double) => {
 					distribImpl.cumulativeProbability(x+1.0)-
 					distribImpl.cumulativeProbability(x)               //<--CDF
 				}
@@ -1275,11 +1374,11 @@ object RepeatedRange {
 	lazy val gaussianUpdater:Updater = mkGaussianUpdater
 
 	def mkMultinomialUpdater:Updater = {
-		var data = new ClassicCounter[Int]()
+		var data = new ClassicCounter[Long]()
 		var dist:Distribution = null
 		var seenE:Boolean = false
 		//(updateE)
-		val e:(Int,Double,Double)=>Unit = (o:Int,x:Double,logprob:Double) => { 
+		val e:(Long,Double,Double)=>Unit = (o:Long,x:Double,logprob:Double) => { 
 			assert(logprob <= 0.0, "Invalid log probability: " + logprob)
 			data.incrementCount(o,math.exp(logprob))
 			seenE = true
@@ -1297,15 +1396,15 @@ object RepeatedRange {
 				}
 				//(normalize)
 				Counters.normalize(data)
-				val counts:Counter[Int] = data
-				data = new ClassicCounter[Int]()
+				val counts:Counter[Long] = data
+				data = new ClassicCounter[Long]()
 				//(debug)
 				if(dist != null){
 					val str = "Normalize ["+tag+"] " + counts
 					if(O.printAllParses){ log(FORCE,str) } else { log(str) }
 				}
 				//(distribution)
-				dist = (offset:Int,x:Double) => counts.getCount(offset)
+				dist = (offset:Long,x:Double) => counts.getCount(offset)
 			}
 			seenE = false
 			dist
@@ -1318,10 +1417,10 @@ object RepeatedRange {
 
 	lazy val pointUpdater:Updater = {
 		//(updateE)
-		val e:(Int,Double,Double)=>Unit = (o:Int,x:Double,logprob:Double) => { }
+		val e:(Long,Double,Double)=>Unit = (o:Long,x:Double,logprob:Double) => { }
 		//(runM)
 		val m = (tag:String,update:Boolean) => 
-			{(offset:Int,x:Double) => if(offset == 0){ 1.0 } else { 0.0 }}
+			{(offset:Long,x:Double) => if(offset == 0){ 1.0 } else { 0.0 }}
 		//(return)
 		(e,m)
 	}
@@ -1537,14 +1636,14 @@ class TimeException(s:String,e:Throwable) extends RuntimeException(s,e) {
 
 // ----- NO TIME -----
 class NoTime extends GroundedRange(Time.DAWN_OF,Time.END_OF) with Sequence {
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		this match {
 			case (e:E) => ( (fn:TraverseTask) => fn(this,offset,0), e )
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	}
-	override def prob(ground:GroundedRange,offset:Int):Double = 0.0
-	override def exists(ground:GroundedRange,offset:Int):Boolean = false
+	override def prob(ground:GroundedRange,offset:Long):Double = 0.0
+	override def exists(ground:GroundedRange,offset:Long):Boolean = false
 
 	override def interval:GroundedDuration = new GroundedDuration(Seconds.ZERO)
 	override def seconds:Long = 0L
@@ -1573,7 +1672,7 @@ class UnkTime extends NoTime {
 
 // ----- PARTIAL TIME -----
 class PartialTime(fn:Range=>Range) extends Temporal {
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Int):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		val resolved:Range = fn(Range(Time.DAWN_OF,Time.END_OF))
 		val (tFn,grounded):(TraverseFn,GroundedRange) 
 			= resolved.evaluate(ground,offset)
@@ -1583,9 +1682,9 @@ class PartialTime(fn:Range=>Range) extends Temporal {
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	}
-	override def prob(ground:GroundedRange,offset:Int):Double
+	override def prob(ground:GroundedRange,offset:Long):Double
 		= fn(Range(Time.DAWN_OF,Time.END_OF)).prob(ground,offset)
-	override def exists(ground:GroundedRange,offset:Int):Boolean
+	override def exists(ground:GroundedRange,offset:Long):Boolean
 		= fn(Range(Time.DAWN_OF,Time.END_OF)).exists(ground,offset)
 }
 object PartialTime {
@@ -1786,7 +1885,7 @@ object Lex {
 	//(intersect two ranges)
 	val intersect:(Range,Range)=>Range = _ ^ _
 	//(concatenate two ranges -- outer)
-	val cons:(Range,Range)=>Range = _.cons(_)
+//	val cons:(Range,Range)=>Range = _.cons(_)
 	//(concatenate two ranges -- inner)
 	//TODO
 
