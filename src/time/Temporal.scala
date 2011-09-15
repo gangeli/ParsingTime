@@ -90,7 +90,7 @@ trait Temporal {
 				val pLeft = prob(ground,leftPointer)
 				val pRight = prob(ground,rightPointer)
 				if(Temporal.this.exists(ground,leftPointer) && 
-						(pLeft > pRight || !Temporal.this.exists(ground,rightPointer))) {
+						(pLeft >= pRight || !Temporal.this.exists(ground,rightPointer))) {
 					val rtn:Temporal = apply(ground,leftPointer)
 					assert(!rtn.isInstanceOf[NoTime], 
 						"NoTime in distribution (hasNext: "+hasNext+")")
@@ -411,7 +411,8 @@ class CompositeRange(
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	}
-	override def prob(ground:GroundedRange,offset:Long):Double = probFn(ground,offset)
+	override def prob(ground:GroundedRange,offset:Long):Double 
+		= super.prob(ground,offset) * probFn(ground,offset)
 	override def exists(ground:GroundedRange,offset:Long):Boolean = existsFn(ground,offset)
 
 	override def +(diff:Duration):Duration 
@@ -793,17 +794,23 @@ object Range {
 				} else {
 					//(create info)
 					val intersect = map(offset.toInt)
+					val (originA,originB) = intersect.origin
 					assert(rA.exists(ground,intersect.a), 
 						"Intersect returned nonexistent range for A")
 					assert(rB.exists(ground,intersect.b), 
 						"Intersect returned nonexistent range for B")
+					//((term A))
 					val (fnA,grA):(TraverseFn,GroundedRange) =
 						rA.evaluate(ground,intersect.a)
-					val probA = rA.prob(ground,intersect.a)
+					val (fnOriginA,grOriginA):(TraverseFn,GroundedRange) =
+						rA.evaluate(ground,originA)
+					val probA = rA.prob(grOriginA,intersect.a-originA)
+					//((term B))
 					val (fnB,grB):(TraverseFn,GroundedRange) = 
 						rB.evaluate(ground,intersect.b)
-					val probB = rB.prob(ground,intersect.b)
-					val (originA,originB) = intersect.origin
+					val (fnOriginB,grOriginB):(TraverseFn,GroundedRange) =
+						rB.evaluate(ground,originB)
+					val probB = rB.prob(ground,intersect.b-originB)
 					//(return)
 					( (fn:TraverseTask) => {
 							fnA( (term:Temporal,offset:Long,orig:Long) => {
@@ -1134,23 +1141,32 @@ object Duration {
 //------------------------------------------------------------------------------
 // ----- SEQUENCE -----
 trait Sequence extends Range with Duration {
+	import Sequence.{Updater,Distribution}
 	override def exists(ground:GroundedRange,offset:Long) = true
 	override def equals(o:Any):Boolean = this eq o.asInstanceOf[AnyRef]
-}
 
-// ----- REPEATED RANGE -----
-class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
-		bound:GroundedRange) extends Sequence {
-	import RepeatedRange.{Updater,Distribution}
-
-	private var isSparse:Boolean = true
-	def dense:RepeatedRange = { this.isSparse = false; this }
-	private lazy val updater:Updater = {
+	// -- RECOMMENDED OVERRIDES --
+	def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double = {
+		//(get points)
+		val origin:GroundedRange = this.apply(ground,0)
+		val virtualOrigin:GroundedRange = this.apply(ground,originOffset)
+		val location:GroundedRange = this.apply(ground,offset)
+		//(distance)
+		val distance
+			= (origin.begin-ground.begin)+(location.begin-virtualOrigin.begin)
+		//(return)
+		distance/norm
+	}
+	def isSparse:Boolean = true
+	
+	
+	// -- EM --
+	protected lazy val updater:Updater = {
 		//(overhead)
 		import O.Distribution._
 		import O.Scope._
-		import RepeatedRange.{pointUpdater,multinomialUpdater,gaussianUpdater}
-		import RepeatedRange.{mkMultinomialUpdater,mkGaussianUpdater}
+		import Sequence.{pointUpdater,multinomialUpdater,gaussianUpdater}
+		import Sequence.{mkMultinomialUpdater,mkGaussianUpdater}
 		//(routing)
 		O.timeDistribution match {
 			case Point => pointUpdater
@@ -1166,7 +1182,34 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 				}
 		}
 	}
-	private var distribution:Distribution = null
+	protected var distrib:Distribution = null
+
+
+	override def updateE(
+			ground:GroundedRange,offset:Long,originOffset:Long,logprob:Double):Unit={
+		val (e,m) = updater
+		val diff:Double = this.diff(ground,offset,originOffset)
+		val str="E-Step [" + this + "]: offset=["+offset+" origin "+originOffset+
+			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
+		if(O.printAllParses){ log(FORCE,str) } else { log(str) }
+		assert(!logprob.isNaN, "NaN probability")
+		e( offset-originOffset, diff, logprob )
+	}
+
+	override def runM:Unit = {
+		val (e,m) = updater
+		this.distrib = m(if(isSparse){"general"}else{this.toString},true)
+	}
+}
+
+// ----- REPEATED RANGE -----
+class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
+		bound:GroundedRange) extends Sequence {
+
+	//isSparse is true if this range is rare and should use the global stats
+	private var isSparseVal = true
+	override def isSparse:Boolean = isSparseVal
+	def dense:RepeatedRange = { this.isSparseVal = false; this }
 
 	def this(snapFn:Time=>Time,base:UngroundedRange,interv:Duration) 
 		= this(snapFn,base,interv,null)
@@ -1179,7 +1222,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 			},
 			interv)
 	
-	private def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double = {
+	override def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double={
 		val realGround:Time = if(bound == null) ground.begin else bound.begin
 		//(important markers)
 		val origin:GroundedRange = this.apply(ground,0)
@@ -1193,6 +1236,7 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 			realGround)
 		distance/interv
 	}
+	
 	
 	override def exists(ground:GroundedRange,offset:Long):Boolean = {
 		if(bound == null){ true }
@@ -1249,29 +1293,13 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 
 
 	override def prob(ground:GroundedRange,offset:Long):Double = {
-		if(this.distribution == null)
-			{ this.distribution = updater._2(this.toString,false) }
-		val cand:Double = this.distribution( offset, diff(ground,offset,0) )
+		if(this.distrib == null)
+			{ this.distrib = updater._2(this.toString,false) }
+		val cand:Double = this.distrib( offset, diff(ground,offset,0) )
 		assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
 		cand
 	}
 
-
-	override def updateE(
-			ground:GroundedRange,offset:Long,originOffset:Long,logprob:Double):Unit={
-		val (e,m) = updater
-		val diff:Double = this.diff(ground,offset,originOffset)
-		val str="E-Step [" + this + "]: offset=["+offset+" origin "+originOffset+
-			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
-		if(O.printAllParses){ log(FORCE,str) } else { log(str) }
-		assert(!logprob.isNaN, "NaN probability")
-		e( offset-originOffset, diff, logprob )
-	}
-
-	override def runM:Unit = {
-		val (e,m) = updater
-		this.distribution = m(if(isSparse){"general"}else{this.toString},true)
-	}
 
 	
 	def intersect(range:GroundedRange) = {
@@ -1324,7 +1352,10 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 }
 
 // ----- OBJECT SEQUENCE -----
-object RepeatedRange {
+object Sequence {
+	def apply(snapFn:Time=>Time,norm:Duration,interval:Duration)
+		= new RepeatedRange(snapFn,Range(norm),interval)
+	
 	type Distribution = (Long,Double)=>Double
 	type Updater = ((Long,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
 
@@ -1443,14 +1474,6 @@ object RepeatedRange {
 		//(return)
 		(e,m)
 	}
-}
-
-object Sequence {
-	def apply(snapFn:Time=>Time,norm:Duration,interval:Duration)
-		= new RepeatedRange(snapFn,Range(norm),interval)
-
-	val geomP:Double = 0.5
-	val expLambda:Double = 1.0
 
 	
 }
@@ -1799,26 +1822,36 @@ object Lex {
 	//--Duration Sequences
 	val SEC:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(ASEC),Range(ASEC),ASEC)
+			.dense
 	val MIN:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AMIN),Range(AMIN),AMIN)
+			.dense
 	val HOUR:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AHOUR),Range(AHOUR),AHOUR)
+			.dense
 	val DAY:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(ADAY),Range(ADAY),ADAY)
+			.dense
 	val WEEK:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AWEEK),Range(AWEEK),AWEEK)
+			.dense
 	val MONTH:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AMONTH),Range(AMONTH),AMONTH)
+			.dense
 	val QUARTER:Sequence 
 		= new RepeatedRange((t:Time) => 
 			t.canonical(AQUARTER),Range(AQUARTER),AQUARTER)
+			.dense
 	val YEAR:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AYEAR),Range(AYEAR),AYEAR)
+			.dense
 	val DECADE:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(ADECADE),Range(ADECADE),ADECADE)
+			.dense
 	val CENTURY:Sequence 
 		= new RepeatedRange((t:Time) => 
 			t.canonical(ACENTURY),Range(ACENTURY),ACENTURY) 
+			.dense
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
