@@ -78,36 +78,33 @@ trait Temporal {
 		}
 	}
 	final def distribution(ground:GroundedRange
-			):Iterable[(Temporal,Double,Long)] = {
+			):Iterator[(Temporal,Double,Long)] = {
 		var leftPointer = -1;
 		var rightPointer = 0;
-		new Iterable[(Temporal,Double,Long)]{
-			def iterator:Iterator[(Temporal,Double,Long)]
-					= new Iterator[(Temporal,Double,Long)]{
-				def hasNext:Boolean
-					= Temporal.this.exists(ground,leftPointer) || 
-					  Temporal.this.exists(ground,rightPointer)
-				def next:(Temporal,Double,Long) = {
-					assert(hasNext, "Calling next when there is no next")
-					val pLeft = prob(ground,leftPointer)
-					val pRight = prob(ground,rightPointer)
-					if(Temporal.this.exists(ground,leftPointer) && 
-							(pLeft > pRight || !Temporal.this.exists(ground,rightPointer))) {
-						val rtn:Temporal = apply(ground,leftPointer)
-						assert(!rtn.isInstanceOf[NoTime], 
-							"NoTime in distribution (hasNext: "+hasNext+")")
-						leftPointer -= 1
-						(rtn,pLeft,leftPointer+1)
-					} else if(Temporal.this.exists(ground,rightPointer)){
-						val rtn:Temporal = apply(ground,rightPointer)
-						assert(!rtn.isInstanceOf[NoTime], 
-							"NoTime in distribution (hasNext: "+hasNext+")")
-						rightPointer += 1
-						(rtn,pRight,rightPointer-1)
-					} else {
-						assert(!hasNext, "Inconsistent iterator")
-						throw new NoSuchElementException()
-					}
+		new Iterator[(Temporal,Double,Long)]{
+			def hasNext:Boolean
+				= Temporal.this.exists(ground,leftPointer) || 
+				  Temporal.this.exists(ground,rightPointer)
+			def next:(Temporal,Double,Long) = {
+				assert(hasNext, "Calling next when there is no next")
+				val pLeft = prob(ground,leftPointer)
+				val pRight = prob(ground,rightPointer)
+				if(Temporal.this.exists(ground,leftPointer) && 
+						(pLeft > pRight || !Temporal.this.exists(ground,rightPointer))) {
+					val rtn:Temporal = apply(ground,leftPointer)
+					assert(!rtn.isInstanceOf[NoTime], 
+						"NoTime in distribution (hasNext: "+hasNext+")")
+					leftPointer -= 1
+					(rtn,pLeft,leftPointer+1)
+				} else if(Temporal.this.exists(ground,rightPointer)){
+					val rtn:Temporal = apply(ground,rightPointer)
+					assert(!rtn.isInstanceOf[NoTime], 
+						"NoTime in distribution (hasNext: "+hasNext+")")
+					rightPointer += 1
+					(rtn,pRight,rightPointer-1)
+				} else {
+					assert(!hasNext, "Inconsistent iterator")
+					throw new NoSuchElementException()
 				}
 			}
 		}
@@ -750,16 +747,23 @@ object Range {
 
 		def intersectSearch(rA:Range,rB:Range):CompositeRange = {
 			//--Classes
-			case class RangeTerm(r:GroundedRange) extends Intersectable{
-				override def begin:Long = r.begin.base.getMillis
-				override def end:Long = r.end.base.getMillis
+			case class RangeTerm(r:GroundedRange,ground:GroundedRange
+					) extends Intersectable{
+				override def begin:Long 
+					= r.begin.base.getMillis-ground.begin.base.getMillis
+				override def end:Long 
+					= r.end.base.getMillis-ground.begin.base.getMillis
+				override def toString:String = r.toString+" {"+begin+","+end+"}"
 			}
 			case class RangeSource(r:Range,ground:GroundedRange) 
 					extends ProvidesIntersectables[RangeTerm]{
-				override def has(offset:Long):Boolean = r.exists(ground,offset)
+				override def has(offset:Long):Boolean = {
+					r.exists(ground,offset)
+				}
 				override def intersectable(offset:Long):RangeTerm = {
-					val (fn,rng) = r.evaluate(ground,offset.toInt)
-					RangeTerm(rng)
+					val (fn,rng):(TraverseFn,GroundedRange) 
+						= r.evaluate(ground,offset.toInt)
+					RangeTerm(rng,ground)
 				}
 			}
 			//--Search State
@@ -767,6 +771,8 @@ object Range {
 			//--Get Info
 			val info:(GroundedRange,Long)=>(TraverseFn,GroundedRange,Double,Boolean) = 
 			(ground:GroundedRange,offset:Long) => {
+				assert(offset < Int.MaxValue && offset > Int.MinValue,
+					"Wildly innapropriate offset. Don't do that.")
 				//(get map)
 				val map = if(stateMap.contains( ground )){
 					stateMap( ground )
@@ -777,35 +783,42 @@ object Range {
 					stateMap( ground ) = iter
 					iter
 				}
-				//(create info)
-				assert(offset < Int.MaxValue && offset > Int.MinValue,
-					"Wildly innapropriate offset. Don't do that.")
-				val intersect = map(offset.toInt)
-				assert(rA.exists(ground,intersect.a), 
-					"Intersect returned nonexistent range for A")
-				assert(rB.exists(ground,intersect.b), 
-					"Intersect returned nonexistent range for B")
-				val (fnA,grA):(TraverseFn,GroundedRange) =
-					rA.evaluate(ground,intersect.a)
-				val probA = rA.prob(ground,intersect.a)
-				val (fnB,grB):(TraverseFn,GroundedRange) = 
-					rB.evaluate(ground,intersect.b)
-				val probB = rB.prob(ground,intersect.b)
-				val (originA,originB) = intersect.origin
-				//(return)
-				( (fn:TraverseTask) => {
-						fnA( (term:Temporal,offset:Long,orig:Long) => {
-							fn(grA,intersect.a,originA) })
-						fnB( (term:Temporal,offset:Long,orig:Long) => {
-							fn(grB,intersect.b,originB) })
-						
-					}, //<-- traverse function
-					new GroundedRange(
-						Range.mkBegin(grA.begin,grB.begin),
-						Range.mkEnd(grA.end,grB.end)
-					), //<-- temporal
-					probA*probB, //<-- probability
-					true) //<-- exists
+				//(early exit)
+				if(!map.contains(offset.toInt)) {
+					( (fn:TraverseTask) => (term:Temporal,offset:Long,orig:Long) => {},
+					  new NoTime,
+					  0.0,
+						false
+					)
+				} else {
+					//(create info)
+					val intersect = map(offset.toInt)
+					assert(rA.exists(ground,intersect.a), 
+						"Intersect returned nonexistent range for A")
+					assert(rB.exists(ground,intersect.b), 
+						"Intersect returned nonexistent range for B")
+					val (fnA,grA):(TraverseFn,GroundedRange) =
+						rA.evaluate(ground,intersect.a)
+					val probA = rA.prob(ground,intersect.a)
+					val (fnB,grB):(TraverseFn,GroundedRange) = 
+						rB.evaluate(ground,intersect.b)
+					val probB = rB.prob(ground,intersect.b)
+					val (originA,originB) = intersect.origin
+					//(return)
+					( (fn:TraverseTask) => {
+							fnA( (term:Temporal,offset:Long,orig:Long) => {
+								fn(grA,intersect.a,originA) })
+							fnB( (term:Temporal,offset:Long,orig:Long) => {
+								fn(grB,intersect.b,originB) })
+							
+						}, //<-- traverse function
+						new GroundedRange(
+							Range.mkBegin(grA.begin,grB.begin),
+							Range.mkEnd(grA.end,grB.end)
+						), //<-- temporal
+						probA*probB, //<-- probability
+						true) //<-- exists
+				}
 			}
 			//--Create Functions
 			//(apply)
@@ -1300,7 +1313,13 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
 	private var name:String = this.base.toString + " every " + interv
 	def name(n:String):RepeatedRange = {this.name = n; this}
-	override def toString:String = name
+	override def toString:String = {
+		if(bound == null){
+			name
+		} else {
+			this.base.toString + " in " + bound
+		}
+	}
 	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
 }
 

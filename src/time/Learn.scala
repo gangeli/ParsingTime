@@ -812,7 +812,7 @@ case class Parse(value:Temporal){
 			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}
 		//--Map Iterator
-		value.distribution(ground).iterator.map{
+		value.distribution(ground).map{
 				case (guess:Temporal,score:Double,offset:Long) =>
 			(diff(gold,guess,false),score,offset.toInt)
 		}

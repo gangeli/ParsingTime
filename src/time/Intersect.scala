@@ -45,8 +45,9 @@ class IteratorMap[A <: {def index:Int}](iter:Iterator[A]) extends Map[Int,A] {
 		throw new UnsupportedOperationException("Cannot remove from iterable map")
 	}
 	override def get (key:Int):Option[A] = {
-		while(!mapImpl.contains(key)){
+		while(iter.hasNext && !mapImpl.contains(key)){
 			val value = iter.next
+//			println("Setting " + value.index + " to " + value)
 			mapImpl(value.index) = value
 		}
 		mapImpl.get(key)
@@ -80,8 +81,8 @@ object Intersect {
 			sourceA:ProvidesIntersectables[A],
 			sourceB:ProvidesIntersectables[A]):Iterator[Intersection] = {
 		//--Pruning State
-		var min:Long = 0
-		var max:Long = 0
+		var min:Long = Long.MaxValue
+		var max:Long = Long.MinValue
 		//--Search State
 		case class TermSearchState(a:Long,b:Long,step:Long,dir:Int,
 				origin:Option[(Long,Long)]) extends SearchState {
@@ -97,12 +98,13 @@ object Intersect {
 			}
 			override def children:List[SearchState] = {
 				ensureTerms
-				val isMatch = this.isEndState
 				//--Invalid State
 				if(  (dir > 0 && cachedA.begin < max && cachedB.begin < max) ||
 				     (dir < 0 && cachedA.end   > min && cachedB.end   > min)    ) {
+//					println("  (invalid " + min + " " + max + ")")
 					return List[SearchState]()
 				}
+				val isMatch = this.isEndState
 				//--Propose Child
 				def propose(aI:Long,bI:Long,theStep:Long,dir:Int,moving:Symbol
 						):TermSearchState = {
@@ -147,16 +149,18 @@ object Intersect {
 										cand.cachedB.begin > cand.cachedA.end 
 									} else if(dir < 0){ 
 										cachedB.begin > cachedA.end &&
-										cachedB.end < cachedA.begin 
+										cand.cachedB.end < cand.cachedA.begin 
 									} else { false }
 								case _ => throw new IllegalArgumentException
 							}
-						if(jumpedOver){
-							null
-						} else {
+//						if(jumpedOver){
+//							println("  jumped over: " + cand)
+//							null
+//						} else {
 							cand // finally, it's ok!
-						}
+//						}
 					} else {
+//						println("  impossible: " + aI + " " + bI + " " + exists + " " + !isImpossible)
 						null
 					}
 				}
@@ -177,7 +181,9 @@ object Intersect {
 					lst = propose(a,b-(step*2),step*2,-1,'B) :: lst
 				}
 				//--Return
-				lst.filter{ _ != null }
+				val rtn = lst.filter{ _ != null }
+//				println("  ["  + isMatch + "] " + rtn)
+				rtn
 			}
 			override def isEndState:Boolean = {
 				//(ensure terms)
@@ -200,12 +206,12 @@ object Intersect {
 				val isEnd = aInB || bInA || bTailsA || aTailsB
 				//(update cache)
 				if(isEnd){
-					var posCand:Long = 0
-					if(posCand< cachedA.begin){ posCand = cachedA.begin }
-					if(posCand< cachedB.begin){ posCand = cachedB.begin }
-					var negCand:Long = 0
-					if(0-negCand < 0-cachedA.end){ negCand = cachedA.end }
-					if(0-negCand < 0-cachedB.end){ negCand = cachedB.end }
+					var posCand:Long = Long.MinValue
+					if(cachedA.begin > posCand){ posCand = cachedA.begin }
+					if(cachedB.begin > posCand){ posCand = cachedB.begin }
+					var negCand:Long = Long.MaxValue
+					if(cachedA.end < negCand){ negCand = cachedA.end }
+					if(cachedB.end < negCand){ negCand = cachedB.end }
 					min = math.min(min,negCand)
 					max = math.max(max,posCand)
 				}
@@ -237,6 +243,8 @@ object Intersect {
 				step > 0
 			}
 			override def assertDequeueable:Boolean = {
+				ensureTerms
+//				println(this + " " + cachedA + " " + cachedB)
 				true
 			}
 			override def toString:String = {
@@ -253,13 +261,16 @@ object Intersect {
 			}
 		}
 		//--Iterable
-		var matchesPos = -1
+		var isFirst = true
+		var matchesPos = 0
 		var matchesNeg = 0
-		Search[TermSearchState](Search.UNIFORM_COST)
+		Search[TermSearchState](Search.cache(Search.UNIFORM_COST))
 			.iterable(TermSearchState(0L,0L,1L,0,None)).iterator
 			.map{ case (state:TermSearchState,count:Int) => 
+//				println("MATCHED " + state)
 				val index 
-					= if(state.dir >= 0){ matchesPos += 1; matchesPos }
+					= if(isFirst) { isFirst = false; 0 }
+					  else if(state.dir >= 0){ matchesPos += 1; matchesPos }
 					  else{ matchesNeg -= 1; matchesNeg }
 				state.origin match {
 					case Some(o) => Intersection(index,state.a,state.b,o)
@@ -275,8 +286,8 @@ object Intersect {
 		def inter(a:Term,b:Term):Term = {
 			new Term(math.max(a.begin,b.begin),math.min(a.end,b.end))
 		}
-		val sourceA:RepeatedTerm = new RepeatedTerm(315569260L,3155692600L,-3155692600L/2)
-		val sourceB:RepeatedTerm = new RepeatedTerm(86400L,86400L,0)
+		val sourceA:RepeatedTerm = new RepeatedTerm(5, 100, 500)
+		val sourceB:RepeatedTerm = new RepeatedTerm(3,50,100)
 //		val sourceA:RepeatedTerm = RepeatedTerm()
 //		val sourceB:RepeatedTerm = RepeatedTerm()
 		println("Source A: " + sourceA)
@@ -285,8 +296,10 @@ object Intersect {
 				.foreach{ (info:Intersection) =>
 			val vA = sourceA.intersectable(info.a)
 			val vB = sourceB.intersectable(info.b)
+			println("---------------------------")
 			println("Match: "+info.a+" and "+info.b+"     :: "+inter(vA,vB))
 			println("  " + vA + " " + vB)
+			println("---------------------------")
 		}
 		println("DONE")
 	}
