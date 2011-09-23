@@ -27,6 +27,7 @@ import edu.stanford.nlp.process.PTBTokenizer
 import edu.stanford.nlp.process.CoreLabelTokenFactory
 import edu.stanford.nlp.process.WhitespaceTokenizer
 import edu.stanford.nlp.io.IOUtils
+import edu.stanford.nlp.time.TimeAnnotations._
 
 import org.goobs.database._
 import org.goobs.testing.Dataset

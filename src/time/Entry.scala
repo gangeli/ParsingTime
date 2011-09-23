@@ -195,8 +195,12 @@ object U {
 	def intStore(capacity:Int):CountStore[Int] = {
 		val counts:Array[Double] = new Array[Double](capacity)
 		new CountStore[Int] {
+			var totalCnt:Double = 0.0
 			override def getCount(key:Int):Double = counts(key)
-			override def setCount(key:Int,count:Double):Unit = { counts(key) = count }
+			override def setCount(key:Int,count:Double):Unit = { 
+				totalCnt += count - counts(key)
+				counts(key) = count 
+			}
 			override def emptyCopy:CountStore[Int] = intStore(capacity)
 			override def clone:CountStore[Int] = {
 				super.clone
@@ -222,6 +226,7 @@ object U {
 					override def remove:Unit = {}
 				}
 			}
+			override def totalCount:Double = totalCnt
 		}
 	}
 			
