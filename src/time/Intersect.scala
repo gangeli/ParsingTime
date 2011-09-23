@@ -4,6 +4,10 @@ import scala.util.Random
 import scala.collection.mutable.Map
 import scala.collection.mutable.HashMap
 
+import edu.stanford.nlp.util.logging.Redwood.Static._
+
+//TODO: take out timeout
+//TODO: can jump into middle of intersection on accident
 
 
 
@@ -47,8 +51,12 @@ class IteratorMap[A <: {def index:Int}](iter:Iterator[A]) extends Map[Int,A] {
 	override def get (key:Int):Option[A] = {
 		while(iter.hasNext && !mapImpl.contains(key)){
 			val value = iter.next
-//			println("Setting " + value.index + " to " + value)
+//			println("***********Setting " + value.index + " to " + value)
 			mapImpl(value.index) = value
+			if(key < 0 && value.index > 10*(-key)){
+				warn("never reached key: " + key)
+				return mapImpl.get(0) //TODO hack for, e.g. only pos. terms in SEC^YOC
+			}
 		}
 		mapImpl.get(key)
 	}
@@ -85,6 +93,9 @@ object Intersect {
 		//--Pruning State
 		var min:Long = Long.MaxValue
 		var max:Long = Long.MinValue
+		var zeroDiff:Long = 0L
+		zeroDiff = (new TermSearchState(0L,0L)).offsetBetween //compiler hax
+//		println("ZERO DIFF: " + zeroDiff)
 		//--Search State
 		case class TermSearchState(a:Long,b:Long,step:Long,dir:Int,moving:Symbol,
 				origin:Option[(Long,Long)],minDist:DistInfo) extends SearchState {
@@ -94,44 +105,56 @@ object Intersect {
 
 			private var cachedA:A = null.asInstanceOf[A]
 			private var cachedB:A = null.asInstanceOf[A]
-			private def ensureTerms:Unit = {
+			private def ensureTerms:Boolean = {
 				if(cachedA == null){
+					if(!sourceA.has(a)){ return false }
 					cachedA = sourceA.intersectable(a)
 				}
 				if(cachedB == null){
+					if(!sourceB.has(b)){ return false }
 					cachedB = sourceB.intersectable(b)
 				}
+				true
 			}
 			override def children:List[SearchState] = {
-				ensureTerms
+				if(!ensureTerms){ return List[SearchState]() }
+				def sameDiff(d1:Long,d2:Long):Boolean = {
+					((d1 <= 0 && d2 <= 0) || (d1 >= 0 && d2 >= 0)) && 
+					math.abs(d1-d2) < (0.05*math.abs(d1)).toLong &&
+					math.abs(d1-d2) < (0.05*math.abs(d2)).toLong
+				}
+				//(save match)
+				val isMatch = this.isEndState
 				//--Invalid State
 				//(already past here)
 				if(  (dir > 0 && cachedA.begin < max && cachedB.begin < max) ||
 				     (dir < 0 && cachedA.end   > min && cachedB.end   > min)    ) {
-//					println("  (invalid " + min + " " + max + ")")
+//					println("    (outranged " + min + " " + max + ")")
 					return List[SearchState]()
 				}
 				//(insufficient progress)
-				if(minDist.aMoved && minDist.bMoved && distanceBetween >= minDist.dist){
+				if(a == b){
+//					println("    diff: " + offsetBetween)
+				}
+				if(!isMatch && a == b && a != 0L && sameDiff(offsetBetween,zeroDiff)){
+//					println("    (no progress " + offsetBetween + " " + zeroDiff + ")")
 					return List[SearchState]()
 				}
 				//--Propose Child
-				//(save match)
-				val isMatch = this.isEndState
 				//(propose function)
 				def propose(aI:Long,bI:Long,theStep:Long,dir:Int,moving:Symbol
-						):TermSearchState = {
+						):Option[TermSearchState] = {
 					//(target exists)
 					val exists = sourceA.has(aI) && sourceB.has(bI) && theStep > 0
 					//(moving in impossible direction)
 					val isImpossible = moving match {
 							case 'A =>
-								if(dir > 0){ cachedA.begin > cachedB.end }
-								else if(dir < 0){ cachedA.end < cachedB.begin }
+								if(dir > 0){ cachedA.begin >= cachedB.end }
+								else if(dir < 0){ cachedA.end <= cachedB.begin }
 								else { false }
 							case 'B =>
-								if(dir > 0){ cachedB.begin > cachedA.end }
-								else if(dir < 0){ cachedB.end < cachedA.begin }
+								if(dir > 0){ cachedB.begin >= cachedA.end }
+								else if(dir < 0){ cachedB.end <= cachedA.begin }
 								else { false }
 							case _ => throw new IllegalArgumentException
 						}
@@ -161,40 +184,44 @@ object Intersect {
 							} else {
 								TermSearchState(aI,bI,theStep,dir,moving,None, newDist) 
 							}
-						cand.ensureTerms
-						//(check if candidate jumps too far)
-						val jumpedOver = moving match {
-								case 'A =>
-									if(dir > 0){ 
-										cachedA.end < cachedB.begin &&
-										cand.cachedA.begin > cand.cachedB.end
-									} else if(dir < 0) {
-										cachedA.begin > cachedB.end &&
-										cand.cachedA.end < cand.cachedB.begin
-									} else { false }
-								case 'B =>
-									if(dir > 0){ 
-										cachedB.end < cachedA.begin &&
-										cand.cachedB.begin > cand.cachedA.end 
-									} else if(dir < 0){ 
-										cachedB.begin > cachedA.end &&
-										cand.cachedB.end < cand.cachedA.begin 
-									} else { false }
-								case _ => throw new IllegalArgumentException
+						if(cand.ensureTerms){
+							//(check if candidate jumps too far)
+							val jumpedOver = moving match {
+									case 'A =>
+										if(dir > 0){ 
+											cachedA.end < cachedB.begin &&
+											cand.cachedA.begin > cand.cachedB.end
+										} else if(dir < 0) {
+											cachedA.begin > cachedB.end &&
+											cand.cachedA.end < cand.cachedB.begin
+										} else { false }
+									case 'B =>
+										if(dir > 0){ 
+											cachedB.end < cachedA.begin &&
+											cand.cachedB.begin > cand.cachedA.end 
+										} else if(dir < 0){ 
+											cachedB.begin > cachedA.end &&
+											cand.cachedB.end < cand.cachedA.begin 
+										} else { false }
+									case _ => throw new IllegalArgumentException
+								}
+							if(jumpedOver && false){
+//								println("  jumped over: " + this + "; cand: " + cand)
+								None
+							} else {
+								Some(cand) // finally, it's ok!
 							}
-//						if(jumpedOver){
-//							println("  jumped over: " + cand)
-//							null
-//						} else {
-							cand // finally, it's ok!
-//						}
+						} else {
+//							println("  cand does not exist")
+							None
+						}
 					} else {
 //						println("  impossible: " + aI + " " + bI + " " + exists + " " + !isImpossible)
-						null
+						None
 					}
 				}
 				//--Create Children
-				var lst = List[TermSearchState]()
+				var lst = List[Option[TermSearchState]]()
 				if(dir >= 0){
 					//(forwards)
 					lst = propose(a+1,b,1L,1,'A) :: lst
@@ -218,13 +245,13 @@ object Intersect {
 					}
 				}
 				//--Return
-				val rtn = lst.filter{ _ != null }
-//				if(dir < 0){ println("    ["  + isMatch + "] " + rtn) }
-				rtn
+				val rtn = lst.filter{ _ match{ case None => false case _ => true } }
+//				println("      ["  + isMatch + "] " + rtn)
+				rtn.map{ _.orNull }
 			}
 			override def isEndState:Boolean = {
 				//(ensure terms)
-				ensureTerms
+				if(!ensureTerms){ return false }
 				//(check intersect cases)
 				val aInB:Boolean = 
 					cachedA.begin >= cachedB.begin &&
@@ -259,15 +286,19 @@ object Intersect {
 				//(return)
 				isEnd
 			}
-			private def distanceBetween:Long = {
-				ensureTerms
+			def distanceBetween:Long = {
+				if(!ensureTerms){ return Long.MaxValue }
 				if(isEndState) { 0L }
-					else if(cachedA.end < cachedB.begin){ cachedB.begin - cachedA.end }
-					else if(cachedB.end < cachedA.begin){ cachedA.begin - cachedB.end }
+					else if(cachedA.end < cachedB.begin) { cachedB.begin - cachedA.end }
+					else if(cachedB.end < cachedA.begin) { cachedA.begin - cachedB.end }
 					else { 0L }
 			}
-			private def distanceOffset:Long = {
-				ensureTerms
+			def offsetBetween:Long = {
+				if(!ensureTerms){ return Long.MaxValue }
+				cachedB.begin - cachedA.begin
+			}
+			def distanceOffset:Long = {
+				if(!ensureTerms){ return Long.MaxValue }
 				math.max(
 					//((distance from origin to A))
 					if(cachedA.begin > 0) { cachedA.begin }
@@ -284,12 +315,16 @@ object Intersect {
 				step > 0
 			}
 			override def assertDequeueable:Boolean = {
-				ensureTerms
-//				if(dir < 0){ println("  " + this )}// + " " + cachedA + " " + cachedB) }
+//				ensureTerms
+//				println("" + this + ": " + offsetBetween) 
+//				try{
+//					Thread.sleep(10)
+//				} catch{
+//					case _ => //noop
+//				}
 				true
 			}
 			override def toString:String = {
-				ensureTerms
 				"{"+a+","+b+":"+step+","+
 				{if(dir > 0) " -> " else if(dir < 0) " <- " else " <-> "}+"}"
 			}
@@ -306,7 +341,7 @@ object Intersect {
 		var matchesPos = 0
 		var matchesNeg = 0
 		Search[TermSearchState](Search.cache(Search.UNIFORM_COST))
-			.iterable(new TermSearchState(0L,0L)).iterator
+			.iterable(new TermSearchState(0L,0L),1000).iterator
 			.map{ case (state:TermSearchState,count:Int) => 
 //				println("MATCHED " + state)
 				val index 

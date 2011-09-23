@@ -414,13 +414,14 @@ trait DataStore {
 			}
 		//--Score Parses
 		startTrack("Evaluating")
+//		log(FORCE,"ground: " + grounding)
 		val scores:Array[ScoreElem] 
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
 			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
 				val ground:GroundedRange 
 					= if(O.guessRange){ grounding.guessRange }
 					  else{ Range(grounding,grounding) }
-				log(FORCE,parse)
+//				log(FORCE,parse)
 				soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
 						ScoreElem(i,offset,isExact(diff),diff,prob)

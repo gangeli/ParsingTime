@@ -239,17 +239,20 @@ object Grammar {
 			(AHOUR,"Hour:D")) else List[(Duration,String)]()} :::
 		List[(Duration,String)](
 			(ADAY,"Day:D"),(AWEEK,"Week:D"),(AMONTH,"Month:D"),(AQUARTER,"Quarter:D"),
-			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"CENTURY:D"))
+			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"CENTURY:D")
+			)
 	//(sequences)
 	val sequences = 
 		(1 to 7).map(i=>(DOW(i).dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
 		(1 to 12).map(i=>(MOY(i).dense.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
 		(1 to 4).map(i=>(QOY(i).dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
-		{if(O.useTime) List[(Sequence,String)]((SEC,"Sec:S"),(MIN,"Min:S"),
+		{if(O.useTime) List[(Sequence,String)](
+			(SEC,"Sec:S"),(MIN,"Min:S"),
 			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
 		List[(Sequence,String)](
 			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
-			(YEAR,"Year:S"),(DECADE,"Decade:S"),(CENTURY,"CENTURY:S")) :::
+			(YEAR,"Year:S"),(DECADE,"Decade:S"),(CENTURY,"Century:S")
+			) :::
 		Nil
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
@@ -2372,6 +2375,8 @@ class CKYParser extends StandardParser{
 					}
 					assert(correctCount > 0, "updating with no corrects?")
 					assert(!count.isNaN, "Trying to incorporate NaN count")
+					assert(O.rulePrior.isZero || O.lexPrior.isZero || 
+						count > Double.NegativeInfinity, "Parse has zero probability")
 					//(count rules) NOTE: E-STEP HERE
 					trees(index).traverse( 
 							{(rid:Int) =>

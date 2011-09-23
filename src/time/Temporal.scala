@@ -260,6 +260,12 @@ object Temporal {
 			interpreter.interpret(
 				"org.joda.time.DateTimeZone.setDefault(org.joda.time.DateTimeZone.UTC);"
 			)
+			interpreter.interpret("""
+				def f(t:Temporal) = {
+					t.distribution(Range(ground,ground))
+						.slice(0,10).foreach{ x => println(x) }
+				}
+			""")
 			reader = new JLineReader(new JLineCompletion(interpreter))
 		}
 		//--Loop
@@ -746,7 +752,7 @@ object Range {
 //		mknext2iterable(a,b,mkNext(_,_))
 //	}
 
-		def intersectSearch(rA:Range,rB:Range):CompositeRange = {
+		def intersectSearch(rA:Range,rB:Range):Range = {
 			//--Classes
 			case class RangeTerm(r:GroundedRange,ground:GroundedRange
 					) extends Intersectable{
@@ -767,10 +773,16 @@ object Range {
 					RangeTerm(rng,ground)
 				}
 			}
+			val noTerm:(TraverseFn,GroundedRange,Double,Boolean) = 
+					((fn:TraverseTask) => (term:Temporal,offset:Long,orig:Long)=>{},
+					  new NoTime,
+					  0.0,
+						false
+					)
 			//--Search State
 			val stateMap = new ListMap[GroundedRange,IteratorMap[Intersection]]
 			//--Get Info
-			val info:(GroundedRange,Long)=>(TraverseFn,GroundedRange,Double,Boolean) = 
+			val info:(GroundedRange,Long)=>(TraverseFn,GroundedRange,Double,Boolean) =
 			(ground:GroundedRange,offset:Long) => {
 				assert(offset < Int.MaxValue && offset > Int.MinValue,
 					"Wildly innapropriate offset. Don't do that.")
@@ -786,45 +798,46 @@ object Range {
 				}
 				//(early exit)
 				if(!map.contains(offset.toInt)) {
-					( (fn:TraverseTask) => (term:Temporal,offset:Long,orig:Long) => {},
-					  new NoTime,
-					  0.0,
-						false
-					)
+					noTerm
 				} else {
 					//(create info)
-					val intersect = map(offset.toInt)
-					val (originA,originB) = intersect.origin
-					assert(rA.exists(ground,intersect.a), 
-						"Intersect returned nonexistent range for A")
-					assert(rB.exists(ground,intersect.b), 
-						"Intersect returned nonexistent range for B")
-					//((term A))
-					val (fnA,grA):(TraverseFn,GroundedRange) =
-						rA.evaluate(ground,intersect.a)
-					val (fnOriginA,grOriginA):(TraverseFn,GroundedRange) =
-						rA.evaluate(ground,originA)
-					val probA = rA.prob(grOriginA,intersect.a-originA)
-					//((term B))
-					val (fnB,grB):(TraverseFn,GroundedRange) = 
-						rB.evaluate(ground,intersect.b)
-					val (fnOriginB,grOriginB):(TraverseFn,GroundedRange) =
-						rB.evaluate(ground,originB)
-					val probB = rB.prob(ground,intersect.b-originB)
-					//(return)
-					( (fn:TraverseTask) => {
-							fnA( (term:Temporal,offset:Long,orig:Long) => {
-								fn(grA,intersect.a,originA) })
-							fnB( (term:Temporal,offset:Long,orig:Long) => {
-								fn(grB,intersect.b,originB) })
-							
-						}, //<-- traverse function
-						new GroundedRange(
-							Range.mkBegin(grA.begin,grB.begin),
-							Range.mkEnd(grA.end,grB.end)
-						), //<-- temporal
-						probA*probB, //<-- probability
-						true) //<-- exists
+					val intersect = map.get(offset.toInt)
+					intersect match {
+					case Some(intersect) =>
+						val (originA,originB) = intersect.origin
+						if(rA.exists(ground,intersect.a) && rB.exists(ground,intersect.b)){
+							//^TODO this check really shouldn't have to be here
+							//((term A))
+							val (fnA,grA):(TraverseFn,GroundedRange) =
+								rA.evaluate(ground,intersect.a)
+							val (fnOriginA,grOriginA):(TraverseFn,GroundedRange) =
+								rA.evaluate(ground,originA)
+							val probA = rA.prob(grOriginA,intersect.a-originA)
+							//((term B))
+							val (fnB,grB):(TraverseFn,GroundedRange) = 
+								rB.evaluate(ground,intersect.b)
+							val (fnOriginB,grOriginB):(TraverseFn,GroundedRange) =
+								rB.evaluate(ground,originB)
+							val probB = rB.prob(ground,intersect.b-originB)
+							//(return)
+							( (fn:TraverseTask) => {
+									fnA( (term:Temporal,offset:Long,orig:Long) => {
+										fn(grA,intersect.a,originA) })
+									fnB( (term:Temporal,offset:Long,orig:Long) => {
+										fn(grB,intersect.b,originB) })
+									
+								}, //<-- traverse function
+								new GroundedRange(
+									Range.mkBegin(grA.begin,grB.begin),
+									Range.mkEnd(grA.end,grB.end)
+								), //<-- temporal
+								probA*probB, //<-- probability
+								true) //<-- exists
+						} else {
+							noTerm
+						}
+					case None => noTerm
+					}
 				}
 			}
 			//--Create Functions
@@ -843,8 +856,10 @@ object Range {
 			//(exists)
 			val existsFn:(GroundedRange,Long)=>Boolean = 
 				(g:GroundedRange,offset:Long) => {
-					val (fn,gr,prob,exists) = info(g,offset)
-					exists
+					info(g,offset) match {
+						case null => false 
+						case (fn,gr,prob,exists) => exists
+					}
 				}
 			//--Create Misc
 			//(norm)
@@ -1822,36 +1837,36 @@ object Lex {
 	//--Duration Sequences
 	val SEC:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(ASEC),Range(ASEC),ASEC)
-			.dense
+			.dense.name("everySecond")
 	val MIN:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AMIN),Range(AMIN),AMIN)
-			.dense
+			.dense.name("everyMinute")
 	val HOUR:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AHOUR),Range(AHOUR),AHOUR)
-			.dense
+			.dense.name("everyHour")
 	val DAY:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(ADAY),Range(ADAY),ADAY)
-			.dense
+			.dense.name("everyDay")
 	val WEEK:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AWEEK),Range(AWEEK),AWEEK)
-			.dense
+			.dense.name("everyWeek")
 	val MONTH:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AMONTH),Range(AMONTH),AMONTH)
-			.dense
+			.dense.name("everyMonth")
 	val QUARTER:Sequence 
 		= new RepeatedRange((t:Time) => 
 			t.canonical(AQUARTER),Range(AQUARTER),AQUARTER)
-			.dense
+			.dense.name("everyQuarter")
 	val YEAR:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(AYEAR),Range(AYEAR),AYEAR)
-			.dense
+			.dense.name("everyYear")
 	val DECADE:Sequence 
 		= new RepeatedRange((t:Time) => t.canonical(ADECADE),Range(ADECADE),ADECADE)
-			.dense
+			.dense.name("everyDecade")
 	val CENTURY:Sequence 
 		= new RepeatedRange((t:Time) => 
 			t.canonical(ACENTURY),Range(ACENTURY),ACENTURY) 
-			.dense
+			.dense.name("everyCentury")
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
