@@ -7,7 +7,6 @@ import scala.collection.mutable.HashMap
 import edu.stanford.nlp.util.logging.Redwood.Static._
 
 //TODO: take out timeout
-//TODO: can jump into middle of intersection on accident
 
 
 
@@ -85,7 +84,6 @@ trait ProvidesIntersectables[A <: Intersectable] {
 case class Intersection(index:Int,a:Long,b:Long,origin:(Long,Long))
 
 object Intersect {
-	private case class DistInfo(aMoved:Boolean,bMoved:Boolean,dist:Long)
 
 	def intersect[A <: Intersectable](
 			sourceA:ProvidesIntersectables[A],
@@ -98,9 +96,9 @@ object Intersect {
 //		println("ZERO DIFF: " + zeroDiff)
 		//--Search State
 		case class TermSearchState(a:Long,b:Long,step:Long,dir:Int,moving:Symbol,
-				origin:Option[(Long,Long)],minDist:DistInfo) extends SearchState {
+				origin:Option[(Long,Long)]) extends SearchState {
 			def this(a:Long,b:Long) 
-				= this(a,b,0L,0,'None,None,DistInfo(false,false,Long.MaxValue))
+				= this(a,b,0L,0,'None,None)
 
 
 			private var cachedA:A = null.asInstanceOf[A]
@@ -133,11 +131,13 @@ object Intersect {
 					return List[SearchState]()
 				}
 				//(insufficient progress)
-				if(a == b){
-//					println("    diff: " + offsetBetween)
-				}
 				if(!isMatch && a == b && a != 0L && sameDiff(offsetBetween,zeroDiff)){
 //					println("    (no progress " + offsetBetween + " " + zeroDiff + ")")
+					return List[SearchState]()
+				}
+				//(jumped into the middle)
+				if(isValidIntersect && step > 1){
+//					println("    Invalid end state: " + this)
 					return List[SearchState]()
 				}
 				//--Propose Child
@@ -159,30 +159,16 @@ object Intersect {
 							case _ => throw new IllegalArgumentException
 						}
 					if(exists && !isImpossible){
-						//(create "sufficient progress" term)
-						val distBetween:Long = distanceBetween
-						val newDist = 
-							if(isMatch){
-								DistInfo(false,false,Long.MaxValue)
-							} else if(distBetween < minDist.dist){
-								DistInfo(false,false,distBetween)
-							} else {
-								DistInfo(
-									minDist.aMoved || moving == 'A, 
-									minDist.bMoved || moving == 'B, 
-									minDist.dist)
-							}
 						//(create candidate)
 						val cand = if(isMatch){
 								origin match {
 									case Some(o) => 
-										TermSearchState(aI,bI,theStep,dir,moving,origin,newDist)
+										TermSearchState(aI,bI,theStep,dir,moving,origin)
 									case None => 
-										TermSearchState(aI,bI,theStep,dir,moving,
-											Some((aI,bI)), newDist)
+										TermSearchState(aI,bI,theStep,dir,moving,Some((aI,bI)))
 								}
 							} else {
-								TermSearchState(aI,bI,theStep,dir,moving,None, newDist) 
+								TermSearchState(aI,bI,theStep,dir,moving,None) 
 							}
 						if(cand.ensureTerms){
 							//(check if candidate jumps too far)
@@ -246,12 +232,10 @@ object Intersect {
 				}
 				//--Return
 				val rtn = lst.filter{ _ match{ case None => false case _ => true } }
-//				println("      ["  + isMatch + "] " + rtn)
+//				println("      ["  + isMatch + "] " + rtn.map{ _.orNull })
 				rtn.map{ _.orNull }
 			}
-			override def isEndState:Boolean = {
-				//(ensure terms)
-				if(!ensureTerms){ return false }
+			private def isValidIntersect:Boolean = {
 				//(check intersect cases)
 				val aInB:Boolean = 
 					cachedA.begin >= cachedB.begin &&
@@ -267,7 +251,13 @@ object Intersect {
 					cachedB.begin <= cachedA.begin &&
 					cachedA.begin < cachedB.end &&
 					cachedB.end <= cachedA.end
-				val isEnd = aInB || bInA || bTailsA || aTailsB
+				//(return)
+				aInB || bInA || bTailsA || aTailsB
+			}
+			override def isEndState:Boolean = {
+				//(ensure terms)
+				if(!ensureTerms){ return false }
+				val isEnd = isValidIntersect && step == 1
 				//(update cache)
 				if(isEnd){
 					var posCand:Long = Long.MinValue
@@ -316,7 +306,7 @@ object Intersect {
 			}
 			override def assertDequeueable:Boolean = {
 //				ensureTerms
-//				println("" + this + ": " + offsetBetween) 
+//				println("" + this) 
 //				try{
 //					Thread.sleep(10)
 //				} catch{
@@ -331,7 +321,7 @@ object Intersect {
 			override def hashCode:Int = (a ^ b).toInt
 			override def equals(o:Any):Boolean = {
 				o match {
-					case (s:TermSearchState) => s.a == a && s.b == b
+					case (s:TermSearchState) => s.a == a && s.b == b && s.step == step
 					case _ => false
 				}
 			}
@@ -362,20 +352,19 @@ object Intersect {
 		def inter(a:Term,b:Term):Term = {
 			new Term(math.max(a.begin,b.begin),math.min(a.end,b.end))
 		}
-		val sourceA:RepeatedTerm = new RepeatedTerm(5,100,500)
-		val sourceB:RepeatedTerm = new RepeatedTerm(3,50,100)
+		val sourceA:RepeatedTerm = new RepeatedTerm(1,1,0)
+		val sourceB:RepeatedTerm = new RepeatedTerm(5,10000,1000)
 //		val sourceA:RepeatedTerm = RepeatedTerm()
 //		val sourceB:RepeatedTerm = RepeatedTerm()
 		println("Source A: " + sourceA)
 		println("Source B: " + sourceB)
-		intersect(sourceA,sourceB).slice(0,100)
+		intersect(sourceA,sourceB).slice(0,10)
 				.foreach{ (info:Intersection) =>
 			val vA = sourceA.intersectable(info.a)
 			val vB = sourceB.intersectable(info.b)
 			println("---------------------------")
 			println("Match: "+info.a+" and "+info.b+"     :: "+inter(vA,vB))
 			println("  " + vA + " " + vB)
-			println("---------------------------")
 		}
 		println("DONE")
 	}
