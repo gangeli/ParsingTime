@@ -91,15 +91,19 @@ trait Temporal {
 				val pRight = prob(ground,rightPointer)
 				if(Temporal.this.exists(ground,leftPointer) && 
 						(pLeft >= pRight || !Temporal.this.exists(ground,rightPointer))) {
-					val rtn:Temporal = apply(ground,leftPointer)
+					assert(Temporal.this.exists(ground,leftPointer),"invalid if cond")
+					val rtn:Temporal = Temporal.this.apply(ground,leftPointer)
 					assert(!rtn.isInstanceOf[NoTime], 
-						"NoTime in distribution (hasNext: "+hasNext+")")
+						"NoTime in distribution (hasNext: "+hasNext+"): " + 
+							Temporal.this + " at " + leftPointer)
 					leftPointer -= 1
 					(rtn,pLeft,leftPointer+1)
 				} else if(Temporal.this.exists(ground,rightPointer)){
-					val rtn:Temporal = apply(ground,rightPointer)
+					assert(Temporal.this.exists(ground,rightPointer),"invalid if cond")
+					val rtn:Temporal = Temporal.this.apply(ground,rightPointer)
 					assert(!rtn.isInstanceOf[NoTime], 
-						"NoTime in distribution (hasNext: "+hasNext+")")
+						"NoTime in distribution (hasNext: "+hasNext+"): " + 
+							Temporal.this + " at " + rightPointer)
 					rightPointer += 1
 					(rtn,pRight,rightPointer-1)
 				} else {
@@ -408,7 +412,9 @@ class CompositeRange(
 			ops:List[String]
 		) extends Sequence {
 	
-	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
+	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long
+			):(TraverseFn,E)={
+		assert(existsFn(ground,offset),"Applying when exists is not satisfied (ev)")
 		val (tFn,rtn) = applyFn(ground,offset)
 		assert(rtn.isInstanceOf[GroundedRange], "Composite ungrounded")
 		rtn match {
@@ -841,12 +847,6 @@ object Range {
 				}
 			}
 			//--Create Functions
-			//(apply)
-			val applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange) =
-				(g:GroundedRange,offset:Long) => {
-					val (fn,gr,prob,exists) = info(g,offset)
-					(fn,gr)
-				}
 			//(probability)
 			val probFn:(GroundedRange,Long)=>Double = 
 				(g:GroundedRange,offset:Long) => {
@@ -856,10 +856,15 @@ object Range {
 			//(exists)
 			val existsFn:(GroundedRange,Long)=>Boolean = 
 				(g:GroundedRange,offset:Long) => {
-					info(g,offset) match {
-						case null => false 
-						case (fn,gr,prob,exists) => exists
-					}
+					val (fn,gr,prob,exists) = info(g,offset)
+					exists && !gr.isInstanceOf[NoTime]
+				}
+			//(apply)
+			val applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange) =
+				(g:GroundedRange,offset:Long) => {
+					val (fn,gr,prob,exists) = info(g,offset)
+					assert(existsFn(g,offset),"Applying when exists is not satisfied")
+					(fn,gr)
 				}
 			//--Create Misc
 			//(norm)

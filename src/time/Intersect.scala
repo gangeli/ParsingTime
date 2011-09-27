@@ -362,7 +362,7 @@ object Intersect {
 		def inter(a:Term,b:Term):Term = {
 			new Term(math.max(a.begin,b.begin),math.min(a.end,b.end))
 		}
-		val sourceA:RepeatedTerm = new RepeatedTerm(5, 100, 500)
+		val sourceA:RepeatedTerm = new RepeatedTerm(5,100,500)
 		val sourceB:RepeatedTerm = new RepeatedTerm(3,50,100)
 //		val sourceA:RepeatedTerm = RepeatedTerm()
 //		val sourceB:RepeatedTerm = RepeatedTerm()
