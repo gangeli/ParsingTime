@@ -6,10 +6,6 @@ import scala.collection.mutable.HashMap
 
 import edu.stanford.nlp.util.logging.Redwood.Static._
 
-//TODO: take out timeout
-
-
-
 
 case class Term(b:Long,e:Long) extends Intersectable {
 	override def begin:Long = b
@@ -39,7 +35,8 @@ object RepeatedTerm {
 //------------------------------------------------------------------------------
 // SOME UTILITIES
 //------------------------------------------------------------------------------
-class IteratorMap[A <: {def index:Int}](iter:Iterator[A]) extends Map[Int,A] {
+class IteratorMap[A <: {def index:Int}](
+		iterForward:Iterator[A],iterBackward:Iterator[A]) extends Map[Int,A] {
 	private val mapImpl:HashMap[Int,A] = new HashMap[Int,A]
 	override def += (kv:(Int,A)) = {
 		throw new UnsupportedOperationException("Cannot add to iterable map")
@@ -47,18 +44,16 @@ class IteratorMap[A <: {def index:Int}](iter:Iterator[A]) extends Map[Int,A] {
 	override def -= (k:Int) = {
 		throw new UnsupportedOperationException("Cannot remove from iterable map")
 	}
+
 	override def get (key:Int):Option[A] = {
-		while(iter.hasNext && !mapImpl.contains(key)){
-			val value = iter.next
-//			println("***********Setting " + value.index + " to " + value)
+		while(!mapImpl.contains(key) &&
+				((key>=0 && iterForward.hasNext) || (key<0 && iterBackward.hasNext))) {
+			val value = if(key >= 0){ iterForward.next } else { iterBackward.next }
 			mapImpl(value.index) = value
-			if(key < 0 && value.index > 10*(-key)){
-				warn("never reached key: " + key)
-				return mapImpl.get(0) //TODO hack for, e.g. only pos. terms in SEC^YOC
-			}
 		}
 		mapImpl.get(key)
 	}
+
 	override def iterator:Iterator[(Int,A)] = {
 		(1 until Int.MaxValue).iterator.map{ case (i:Int) =>
 			if(i % 2 == 0){ (i/2, apply( i/2 )) }
@@ -85,9 +80,23 @@ case class Intersection(index:Int,a:Long,b:Long,origin:(Long,Long))
 
 object Intersect {
 
+	def intersectForward[A <: Intersectable](
+			sourceA:ProvidesIntersectables[A],
+			sourceB:ProvidesIntersectables[A]):Iterator[Intersection]
+		= intersect(sourceA,sourceB,1)
+	def intersectBackward[A <: Intersectable](
+			sourceA:ProvidesIntersectables[A],
+			sourceB:ProvidesIntersectables[A]):Iterator[Intersection]
+		= intersect(sourceA,sourceB,-1)
 	def intersect[A <: Intersectable](
 			sourceA:ProvidesIntersectables[A],
-			sourceB:ProvidesIntersectables[A]):Iterator[Intersection] = {
+			sourceB:ProvidesIntersectables[A]):Iterator[Intersection]
+		= intersect(sourceA,sourceB,0)
+
+	private def intersect[A <: Intersectable](
+			sourceA:ProvidesIntersectables[A],
+			sourceB:ProvidesIntersectables[A],
+			initialDir:Int):Iterator[Intersection] = {
 		//--Pruning State
 		var min:Long = Long.MaxValue
 		var max:Long = Long.MinValue
@@ -97,8 +106,8 @@ object Intersect {
 		//--Search State
 		case class TermSearchState(a:Long,b:Long,step:Long,dir:Int,moving:Symbol,
 				origin:Option[(Long,Long)]) extends SearchState {
-			def this(a:Long,b:Long) 
-				= this(a,b,0L,0,'None,None)
+			def this(a:Long,b:Long) = this(a,b,0L,0,'None,None)
+			def this(a:Long,b:Long,dir:Int) = this(a,b,0L,dir,'None,None)
 
 
 			private var cachedA:A = null.asInstanceOf[A]
@@ -232,7 +241,11 @@ object Intersect {
 				}
 				//--Return
 				val rtn = lst.filter{ _ match{ case None => false case _ => true } }
-//				println("      ["  + isMatch + "] " + rtn.map{ _.orNull })
+//				println("  ["  + isMatch + "] " + rtn.map{ o =>
+//					val x = o.orNull
+//					x.ensureTerms
+//					(x.step,x.distanceBetween,x.cost)
+//				})
 				rtn.map{ _.orNull }
 			}
 			private def isValidIntersect:Boolean = {
@@ -277,18 +290,18 @@ object Intersect {
 				isEnd
 			}
 			def distanceBetween:Long = {
-				if(!ensureTerms){ return Long.MaxValue }
+				if(!ensureTerms){ return Long.MaxValue/2 }
 				if(isEndState) { 0L }
 					else if(cachedA.end < cachedB.begin) { cachedB.begin - cachedA.end }
 					else if(cachedB.end < cachedA.begin) { cachedA.begin - cachedB.end }
 					else { 0L }
 			}
 			def offsetBetween:Long = {
-				if(!ensureTerms){ return Long.MaxValue }
+				if(!ensureTerms){ return Long.MaxValue/2 }
 				cachedB.begin - cachedA.begin
 			}
 			def distanceOffset:Long = {
-				if(!ensureTerms){ return Long.MaxValue }
+				if(!ensureTerms){ return Long.MaxValue/2 }
 				math.max(
 					//((distance from origin to A))
 					if(cachedA.begin > 0) { cachedA.begin }
@@ -299,14 +312,16 @@ object Intersect {
 					else if(cachedB.end < 0){ -cachedB.end }
 					else { 0L })
 			}
-			override def cost:Double
-				= (distanceBetween+distanceOffset).toDouble
+			override def cost:Double = (distanceBetween+distanceOffset).toDouble
 			override def assertEnqueueable:Boolean = {
 				step > 0
 			}
 			override def assertDequeueable:Boolean = {
-//				ensureTerms
-//				println("" + this) 
+				ensureTerms
+				val beginA = if(cachedA != null){ cachedA.begin } else { -42 }
+				val endA = if(cachedA != null){ cachedA.end } else { -42 }
+				val beginB = if(cachedB != null){ cachedB.begin } else { -42 }
+//				edu.stanford.nlp.util.logging.Redwood.log(edu.stanford.nlp.util.logging.Redwood.FORCE,"" + this + " [" + beginA + "," + beginB + "] " + cost)
 //				try{
 //					Thread.sleep(10)
 //				} catch{
@@ -331,13 +346,13 @@ object Intersect {
 		var matchesPos = 0
 		var matchesNeg = 0
 		Search[TermSearchState](Search.cache(Search.UNIFORM_COST))
-			.iterable(new TermSearchState(0L,0L),1000).iterator
+			.iterable(new TermSearchState(0L,0L,initialDir),1000).iterator
 			.map{ case (state:TermSearchState,count:Int) => 
 //				println("MATCHED " + state)
 				val index 
 					= if(isFirst) { isFirst = false; 0 }
-					  else if(state.dir >= 0){ matchesPos += 1; matchesPos }
-					  else{ matchesNeg -= 1; matchesNeg }
+					  else if(state.dir >= 0) { matchesPos += 1; matchesPos }
+					  else { matchesNeg -= 1; matchesNeg }
 				state.origin match {
 					case Some(o) => Intersection(index,state.a,state.b,o)
 					case None => Intersection(index,state.a,state.b,(state.a,state.b))
