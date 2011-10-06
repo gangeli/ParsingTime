@@ -12,6 +12,7 @@ import org.joda.time.DateTimeZone
 import edu.stanford.nlp.util.logging.Redwood.Static._
 //(lib)
 import org.goobs.slib.Def
+import org.goobs.slib.Static._
 import org.goobs.exec.Execution
 import org.goobs.utils.Indexer
 import org.goobs.utils.MetaClass
@@ -48,6 +49,8 @@ object G {
 		}
 		wordIndexer.addAndGetIndex("--NUM("+digits+")"+suffix+"--")
 	}
+	val IsInt = """^(\-?[0-9]+)$""".r
+	val CanInt = """^\-?[0-9]+(\.0+)?(E[0-9]+)?$""".r
 
 }
 
@@ -157,19 +160,17 @@ object U {
 	def rand:Double = G.random.nextDouble
 	def randInt(begin:Int,end:Int):Int = G.random.nextInt(end-begin)+begin
 
-	private val IsInt = """^(\-?[0-9]+)$""".r
-	private val CanInt = """^\-?[0-9]+(\.0+)?(E[0-9]+)?$""".r
 	def isInt(str:String):Boolean = {
 		str match {
-			case IsInt(e) => true
-			case CanInt(e,f) => true
+			case G.IsInt(e) => true
+			case G.CanInt(e,f) => true
 			case _ => false
 		}
 	}
 	def str2int(str:String):Int = {
 		str match {
-			case IsInt(e) => str.toInt
-			case CanInt(e,f) => str.toDouble.toInt
+			case G.IsInt(e) => str.toInt
+			case G.CanInt(e,f) => str.toDouble.toInt
 			case _ => throw new IllegalArgumentException("Not an integer: " + str)
 		}
 	}
@@ -418,7 +419,6 @@ trait DataStore {
 				null
 			}
 		//--Score Parses
-		startTrack("Evaluating")
 		val scores:Array[ScoreElem] 
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
 			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
@@ -431,7 +431,6 @@ trait DataStore {
 					}.toList
 				rtn
 		}.toArray
-		endTrack("Evaluating")
 		//--Process Score
 		if(scores.length > 0){
 			//(get guess)
@@ -578,29 +577,30 @@ object ToyData {
 	private val NONE = ToyStore(Array[(String,Parse)]())
 	private def store(args:(String,Parse)*):ToyStore = ToyStore(args.toArray)
 	private val today = ("today",Parse(TODAY))
-	private val week = ("week",Parse(WEEK))
-	private val aWeek = ("a week",Parse(WEEK))
-	private val thisWeek = ("this week",Parse(REF ! WEEK))
-	private val lastWeekToday = ("last week today",Parse(REF <<! WEEK))
-	private val lastWeekNow = ("last week now",Parse(REF <<! WEEK))
-	private val lastWeek = ("last week",Parse(REF <<! WEEK))
-	private val pastWeek = ("past week",Parse(REF << WEEK))
-	private val thePastWeek = ("the past week",Parse(REF << WEEK))
-	private val pastMonths2 = ("past 2 months",Parse(REF << (MONTH*2)))
-	private val weeks2 = ("2 week",Parse(WEEK*2))
-	private val month = ("month",Parse(MONTH))
-	private val aMonth = ("a month",Parse(MONTH))
-	private val lastMonth = ("last month",Parse(REF <<! MONTH))
-	private val lastQuarter = ("last quarter",Parse(REF <<! QUARTER))
+	private val week = ("week",Parse(AWEEK))
+	private val aWeek = ("a week",Parse(AWEEK))
+	private val thisWeek = ("this week",Parse(REF ! AWEEK))
+	private val lastWeekToday = ("last week today",Parse(REF << WEEK))
+	private val lastWeekNow = ("last week now",Parse(REF << WEEK))
+	private val lastWeek = ("last week",Parse(REF << WEEK))
+	private val pastWeek = ("past week",Parse(REF << AWEEK))
+	private val thePastWeek = ("the past week",Parse(REF << AWEEK))
+	private val pastMonths2 = ("past 2 months",Parse(REF << (AMONTH*2)))
+	private val weeks2 = ("2 week",Parse(AWEEK*2))
+	private val month = ("month",Parse(AMONTH))
+	private val aMonth = ("a month",Parse(AMONTH))
+	private val lastMonth = ("last month",Parse(REF << MONTH))
+	private val thisMonth = ("this month",Parse(REF ! MONTH))
+	private val lastQuarter = ("last quarter",Parse(REF << QUARTER))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
-	private val months2 = ("2 months",Parse(MONTH*2))
+	private val months2 = ("2 months",Parse(AMONTH*2))
 	private val years2 = ("2 years",Parse(AYEAR*2))
 	private val april = ("april",Parse(MOY(4)))
 	private val april1776 = ("april 1776",Parse(MOY(4) ^ THEYEAR(1776)))
 	private val april2 = ("april 2",Parse(MOY(4) ^ DOM(2)))
 	private val ayear = ("a year",Parse(AYEAR))
-	private val lastYear = ("last year",Parse(REF <<! AYEAR))
+	private val lastYear = ("last year",Parse(REF << YEAR))
 	private val thisYear = ("this year",Parse(REF ! AYEAR))
 	private val monday = ("monday",Parse(DOW(1)(todaysDate,0)))
 	private val friday_neg1 = ("friday",Parse(DOW(1)(todaysDate,-1)))
@@ -612,7 +612,10 @@ object ToyData {
 			val score:Score = new Score
 			gold.zipWithIndex.foreach{ case ((sent:String,gold:Parse),id:Int) =>
 				//(variables)
-				val words = sent.split(" ").map{ (str:String) => U.str2wTest(str) }
+				val words = sent.split(" ").map{ (str:String) => 
+					U.str2wTest(str,
+						if(str matches G.CanInt) NumberType.NUMBER else NumberType.NONE)
+				}
 				val s = Sentence(
 					-1,
 					words, 
@@ -622,17 +625,24 @@ object ToyData {
 					)
 				if(!toys.contains(sent)){ toys(sent) = toys.size }
 				//(parse)
+				startTrack("Datum " + id + ": "+sent)
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
 				handleParse(parses,
 					gold.value(Range(todaysDate,todaysDate)),todaysDate,
 					score,s,feedback,null)
+				endTrack("Datum " + id + ": " + sent)
 			}
 			score
 		}
 		def internWords:ToyStore = {
 			gold.foreach{ case (sent:String,gold:Parse) =>
-				sent.split(" ").foreach{ (str:String) => U.str2w(str) }
+				sent.split(" ").foreach{ (str:String) => 
+					U.str2w(str, str match {
+						case G.CanInt(i) => NumberType.NUMBER
+						case _ => NumberType.NONE
+					}) 
+				}
 			}
 			this
 		}
@@ -646,10 +656,10 @@ object ToyData {
 		Data(
 			store(
 			//--Train
-				//(durations)
+//				//(durations)
 				week,aWeek,month,aMonth,ayear,weeks2,
-				//(cannonicals)
-				thisWeek,thisYear,
+//				//(cannonicals)
+				thisWeek,thisYear,thisMonth,
 				//(shifts -- standard)
 				lastWeek,lastYear,lastQuarter,
 				//(shifts -- noncannonical)

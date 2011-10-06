@@ -346,7 +346,7 @@ object Intersect {
 		var matchesPos = 0
 		var matchesNeg = 0
 		Search[TermSearchState](Search.cache(Search.UNIFORM_COST))
-			.iterable(new TermSearchState(0L,0L,initialDir),1000).iterator
+			.iterable(new TermSearchState(0L,0L,initialDir),10000).iterator
 			.map{ case (state:TermSearchState,count:Int) => 
 //				println("MATCHED " + state)
 				val index 

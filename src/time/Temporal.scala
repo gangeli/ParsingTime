@@ -299,7 +299,7 @@ trait Range extends Temporal{
 	def <<!(dur:Duration):Range = (this << dur) ! dur
 	def >>!(dur:Duration):Range = (this >> dur) ! dur
 
-	def neverIntersects:List[Range] = List[Range]()
+	def neverIntersects:List[Range=>Boolean] = List[Range=>Boolean]()
 
 //	def cons(other:Range):Range = {
 //		(this, other) match {
@@ -353,6 +353,15 @@ class CompositeRange(
 		= super.prob(ground,offset) * probFn(ground,offset)
 	override def exists(ground:GroundedRange,offset:Long):Boolean = existsFn(ground,offset)
 
+	// -- Prune Intersection --
+	private var neverIntersectsImpl = List[Range=>Boolean]()
+	def prohibitIntersectWith(lst:List[Range=>Boolean]):CompositeRange = {
+		neverIntersectsImpl = lst ::: neverIntersectsImpl
+		this
+	}
+	override def neverIntersects:List[Range=>Boolean] = neverIntersectsImpl
+	
+	// -- Range Functions --
 	override def +(diff:Duration):Duration 
 		= extend((r:GroundedRange) => Range(r.begin,r.end + diff), norm+diff, "+")
 	override def -(diff:Duration):Duration
@@ -685,6 +694,11 @@ object Range {
 //	}
 
 		def intersectSearch(rA:Range,rB:Range):Range = {
+			//--Explicit Pruning
+			if( !rA.neverIntersects.forall{ (f:Range=>Boolean) => !f(rB) } ||
+			    !rB.neverIntersects.forall{ (f:Range=>Boolean) => !f(rA) } ){
+				return new NoTime
+			}
 			//--Classes
 			case class RangeTerm(r:GroundedRange,ground:GroundedRange
 					) extends Intersectable{
@@ -803,73 +817,9 @@ object Range {
 			val ops = List[String]("("+rA+") ^ ("+rB+")")
 			//--Return
 			new CompositeRange(applyFn,probFn,existsFn,norm,ops)
+				.prohibitIntersectWith(rA.neverIntersects)
+				.prohibitIntersectWith(rB.neverIntersects)
 		}
-
-//	def intersect(back:Boolean,
-//			a:Iterable[(TraverseFn,GroundedRange)],
-//			b:Iterable[(TraverseFn,GroundedRange)]
-//				):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
-//		var diff:Duration = Duration.INFINITE
-//		def mkNext(left:OverlapState,right:OverlapState
-//				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
-//			val nullVal = (null,null,null)
-//			if(left.nextVal==null || right.nextVal==null){
-//				//(case: an iterator is empty)
-//				nullVal
-//			} else if(left.nextRange.end <= right.nextRange.begin) {
-//				//(case: A is before)
-//				//((overhead for divergence))
-//				val lastDiff = diff
-//				diff = (right.nextRange.begin-left.nextRange.end)
-//				if(!(diff < lastDiff)){ nullVal } //case: not converging
-//				//((movement))
-//				else if(!back && left.iter.hasNext)
-//					{ mkNext(left.increment.markOrigin,right) } 
-//				else if(back && right.iter.hasNext)
-//					{ mkNext(left,right.increment.markOrigin) } 
-//				else { nullVal } //case: relevant iterator is empty
-//			} else if(right.nextRange.end <= left.nextRange.begin){
-//				//(case: B is before)
-//				//((overhead for divergence))
-//				val lastDiff = diff
-//				diff = left.nextRange.begin-right.nextRange.end
-//				if(!(diff < lastDiff)){ nullVal } //case: not converging
-//				//((movement))
-//				else if(!back && right.iter.hasNext)
-//					{ mkNext(left,right.increment.markOrigin) } 
-//				else if(back && left.iter.hasNext)
-//					{ mkNext(left.increment.markOrigin,right) } 
-//				else { nullVal } //case: relevant iterator is empty
-//			} else {
-//				//(case: overlap)
-//				diff = Duration.INFINITE //reset convergence criteria
-//				val (fnLeft,rtnLeft) = left.nextVal
-//				val (fnRight,rtnRight) = right.nextVal
-//				val rtn = (
-//							(fn:TraverseTask) => { 
-//								fnLeft( (term:Temporal,offset:Long,orig:Int) => {
-//									fn(term,offset,if(back){-left.origin}else{left.origin}) })
-//								fnRight( (term:Temporal,offset:Long,orig:Int) => {
-//									fn(term,offset,if(back){-right.origin}else{right.origin}) })
-//							},
-//							new GroundedRange(
-//								mkBegin(rtnLeft.begin,rtnRight.begin),
-//								mkEnd(rtnLeft.end,rtnRight.end)
-//							)
-//						)
-//				//(update iterator)
-//				if(left.iter.hasNext && !(left.iter.head._2.begin>right.nextRange.end)){
-//					//(case: A can jump again)
-//					(rtn,left.increment,right)
-//				} else {
-//					//(case: B can either jump, or we jump it anyways)
-//					(rtn,left,right.increment)
-//				}
-//			}
-//		}
-//		//(call the bloody function)
-//		mknext2iterable(a,b,mkNext(_,_))
-//	}
 }
 
 //------------------------------------------------------------------------------
@@ -1222,7 +1172,7 @@ trait Sequence extends Range with Duration {
 }
 
 // ----- REPEATED RANGE -----
-class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
+case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 		bound:GroundedRange) extends Sequence {
 
 	//isSparse is true if this range is rare and should use the global stats
@@ -1240,6 +1190,16 @@ class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,interv:Duration,
 				case _ => throw new IllegalArgumentException("Runtime Type Error")
 			},
 			interv)
+
+	override def neverIntersects:List[Range=>Boolean] = List[Range=>Boolean](
+			(cand:Range) => cand match {
+				case (rr:RepeatedRange) => 
+					!(rr eq this) && //TODO somewhat hacky (relies on strict equality)
+					rr.interv == this.interv &&
+					rr.base == this.base
+				case _ => false
+			}
+		) 
 	
 	override def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double={
 		val realGround:Time = if(bound == null) ground.begin else bound.begin
@@ -1604,8 +1564,8 @@ case class Time(base:DateTime) {
 	}
 
 	def -(other:Time):Duration = {
-		assert(this.equals(Time.DAWN_OF) || this != Time.DAWN_OF, "eq check")
-		assert(this.equals(Time.END_OF) || this != Time.END_OF, "eq check")
+		assert(this.equals(Time.DAWN_OF) || !(this eq Time.DAWN_OF), "eq check")
+		assert(this.equals(Time.END_OF) || !(this eq Time.END_OF), "eq check")
 		val tM:Long = this.base.toInstant.getMillis
 		val oM:Long = other.base.toInstant.getMillis
 		if(this eq Time.DAWN_OF){

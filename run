@@ -37,6 +37,7 @@ env!(
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
 		o('rulePrior', 0.001),
 		o('lexPrior', 0.0001),
+		o('nilWordPrior', 0.0001),
 		selo(1,'ckyCountType',
 			'all',
 			'bestAll',
@@ -61,12 +62,12 @@ env!(
 			'CRF',
 			'GOLD'),
 		selo(0,'initMethod','uniform','random'),
-#		o('freeNils'),
+		o('freeNils'),
 #		o('allowPartialTime'),
 #		o('hardEM'),
 		# <training>
 		o('beam', 100),
-		o('iters', 20),
+		o('iters', 10),
 		o('scoreBeam', 5),
 		o('maxSearchTime', 10000),
 		#<params>
@@ -91,8 +92,9 @@ env!(
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),
 #		o('dev',   'NYT[1000,1100]'),
-		o('train', 'English[0,142]'),
-		o('dev',   'English[142,162]'),
+#		o('train', 'English[0,142]'),
+#		o('dev',   'English[142,162]'),
+		o('train', 'TOY'), o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
 

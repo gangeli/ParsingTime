@@ -24,8 +24,48 @@ import edu.stanford.nlp.util.logging.Redwood.Static._
 //------------------------------------------------------------------------------
 
 case class Nonterminal(name:Symbol,id:Int){
+	//--Extra Variables
 	var isPreterminal = false
+	//--Tagging Words
+	private var sent:Option[Sentence] = None
+	private var wordTag:Option[Array[Option[Int]]] = None
+	def tagWord(index:Int,w:Int):Nonterminal = {
+		wordTag match {
+			case Some(arr) => arr(index) = Some(w)
+			case None => throw fail("Tagging word without lock")
+		}
+		this
+	}
+	def tag(i:Int):Option[Int] = {
+		assert(sent != None, "Getting tag without lock")
+		wordTag match {
+			case Some(arr) => arr(i)
+			case None => None
+		}
+	}
+	def tag(i:Option[Int]):Option[Int] = {
+		i match {
+			case Some(index) => tag(index)
+			case None => None
+		}
+	}
+	def lock(s:Sentence):Nonterminal = {
+		assert(sent.orNull != s,"Already hold lock on lock")
+		sent = Some(s)
+		wordTag = Some((0 until s.length).map{ x => None }.toArray)
+		this
+	}
+	def unlock(s:Sentence):Nonterminal = { 
+		assert(sent.orNull == s,"Don't hold lock on unlock")
+		sent = None 
+		wordTag = None
+		this
+	}
+	//--Default Overrides
+	override def toString:String = "<"+name.name+">"
 }
+
+
 object Nonterminal {
 	private var nextId = -1
 	val valueMap = new HashMap[Symbol,Nonterminal]
@@ -60,6 +100,14 @@ object Nonterminal {
 			case _ => throw fail("No such short form: " + short)
 		}
 	}
+	def name(term:Nonterminal):String = {
+		term.name match {
+			case 'Range => "R"
+			case 'Duration => "D"
+			case 'Sequence => "S"
+			case _ => term.name.name
+		}
+	}
 
 	//--Create Nonterminals
 	val ranges = List("R","S")
@@ -81,7 +129,7 @@ object Nonterminal {
 		durations.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
 				case (soFar:List[(Nonterminal,Symbol,Symbol)],d:String) =>
 			( Nonterminal(Symbol("F_"+r+d+"2"+r), 'none),Symbol(r),Symbol(d)) :: soFar
-		}
+		} ::: soFar
 	} ::: 
 	//((like rr2r))
 	ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
@@ -90,7 +138,7 @@ object Nonterminal {
 				case (soFar:List[(Nonterminal,Symbol,Symbol)],r2:String) =>
 			(Nonterminal(Symbol("F_"+r1+r2+"2"+r1),'none),
 				Symbol(r1),Symbol(r2)) :: soFar
-		}
+		} ::: soFar
 	}
 	//(arity-1 functions)
 	//((like r2r))
@@ -103,6 +151,11 @@ object Nonterminal {
 			case (soFar:List[(Nonterminal,Symbol)],d:String) =>
 		(Nonterminal(Symbol("F_"+d+"2"+d), 'none),Symbol(d)) :: soFar
 	}
+	//--Error Checks
+	assert(
+		this.values.zipWithIndex.forall{ case (term:Nonterminal,id:Int) =>
+			term.id == id },
+		"Values array is out of order")
 }
 
 
@@ -381,7 +434,7 @@ object Grammar {
 //						fn(a,_:Temporal)) ),
 //				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
 				//(consume B on the left)
-				( BinaryRule(
+				{( BinaryRule(
 					Nonterminal(Symbol("F_"+a.name+"2"+a.name)),               //head
 					Nonterminal.fromShort(b),                                  //left
 					fn,                                                        //right
@@ -396,7 +449,7 @@ object Grammar {
 					hack2((fn:(Temporal,Temporal)=>Temporal,b:Temporal) =>     //function
 						fn(_:Temporal,b)) ),
 				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
-				Nil
+				Nil} ::: soFar
 			}
 		}
 		//(ref augmented apply)
@@ -404,7 +457,7 @@ object Grammar {
 				case (fn:Nonterminal,a:Symbol,b:Symbol) => a == 'R || b == 'R
 			}.foldLeft(List[(Rule,String)]()){
 				case (soFar:List[(Rule,String)],(fn:Nonterminal,a:Symbol,b:Symbol))=>
-			if(b == 'R){
+			{if(b == 'R){
 				//(consume A on the left -- B is Range)
 				( BinaryRule(
 					Nonterminal.fromShort(a),                                  //head
@@ -441,7 +494,7 @@ object Grammar {
 						fn(REF,b)) ),
 				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
 				Nil
-			} else { Nil } }
+			} else { Nil } }} ::: soFar
 		}
 		
 		//--Arity 1 Functions
@@ -471,7 +524,7 @@ object Grammar {
 			Nonterminal.fn1.foldLeft(List[(Rule,String)]()){
 					case (soFar:List[(Rule,String)],(fn:Nonterminal,a:Symbol)) =>
 				//(consume A on the left)
-				( BinaryRule(
+				{( BinaryRule(
 					Nonterminal.fromShort(a),                                  //head
 					Nonterminal.fromShort(a),                                  //left
 					fn,                                                        //right
@@ -484,7 +537,7 @@ object Grammar {
 					Nonterminal.fromShort(a),                                  //right
 					hack2((fn:(Temporal)=>Temporal,a:Temporal) => fn(a)) ),    //function
 				"$f(x:"+a.name+"):"+a.name+"$") ::                           //name
-				Nil
+				Nil} ::: soFar
 			}
 		}
 		
@@ -502,22 +555,26 @@ object Grammar {
 
 		//--Intersect
 		rtn = rtn ::: Nonterminal.ranges.foldLeft(List[(Rule,String)]()){
-				case (soFar:List[(Rule,String)],r:String) =>
-			(BinaryRule(Nonterminal.fromShort(r), 
-				Nonterminal.fromShort(r),Nonterminal.fromShort(r),
-				hack2( (r1:Range,r2:Range) => r1 ^ r2)), 
-			"$r:"+r+" \\wedge r:"+r+"$") :: soFar
+				case (soFar:List[(Rule,String)],rA:String) =>
+			Nonterminal.ranges.foldLeft(List[(Rule,String)]()){
+					case (soFarInner:List[(Rule,String)],rB:String) =>
+				val head = {if(rA == "R" || rB == "R") "R" else rA}
+				(BinaryRule(Nonterminal.fromShort(head), 
+					Nonterminal.fromShort(rA),Nonterminal.fromShort(rB),
+					hack2( (r1:Range,r2:Range) => r1 ^ r2)), 
+				"$a + b:"+head+"$") :: soFarInner
+			} ::: soFar
 		}
 
 		//--NIL Identities
 		rtn = rtn ::: Nonterminal.values.filter{ (x:Nonterminal) =>
-					x.isPreterminal && x != Nonterminal('NIL) }.
+					x != Nonterminal('NIL) && x != Nonterminal('ROOT) }.
 				foldLeft(List[(Rule,String)]()){
 				case (soFar:List[(Rule,String)],term:Nonterminal) => 
 			(BinaryRule(term,term,Nonterminal('NIL),
-				hack2( (x:Any,n:NIL) => x)),"$x:"+term.name+"$") ::
+				hack2( (x:Any,n:NIL) => x)),"$x:"+Nonterminal.name(term)+"$") ::
 			(BinaryRule(term,Nonterminal('NIL),term,
-				hack2( (n:NIL,x:Any) => x)),"$x:"+term.name+"$") :: soFar
+				hack2( (n:NIL,x:Any) => x)),"$x:"+Nonterminal.name(term)+"$") :: soFar
 		}
 
 		//--Return
@@ -534,7 +591,7 @@ object Grammar {
 		//--Named Rules
 		rtn = rtn ::: NAMED_RULES.map( _._1 ).toList
 
-		//-ROOT
+		//--ROOT
 		rtn = rtn ::: List[UnaryRule](
 			UnaryRule(Nonterminal('ROOT), Nonterminal('Range), 
 				hack((r:Range) => r)),
@@ -553,9 +610,12 @@ object Grammar {
 
 	val NIL_RID:Int = {
 		val matches:Array[(Rule,Int)] 
-			= RULES.zipWithIndex.filter{ _._1.head == Nonterminal('NIL) }
+			= RULES.zipWithIndex.filter{ case (r,rid) =>
+				r.head == Nonterminal('NIL) && r.arity == 1 && 
+				r.child == Nonterminal('Word) }
 		assert(matches.length == 1, 
-			"invalid nil rule count (should be 1, not " + matches.length + ")")
+			"invalid nil rule count (should be 1, not " + matches.length + ")" 
+				+ ": " + matches.map{ _._1 }.toList)
 		matches(0)._2
 	}
 
@@ -738,7 +798,9 @@ trait ParseTree extends Tree[Nonterminal] {
 	}
 	def lexRules:Array[Int] = {
 		var terms = List[Int]()
-		traverse( (rid:Int) => {}, (rid:Int,w:Int) => { terms = rid :: terms } )
+		traverse( 
+			(rid:Int,nilTag:Option[Int]) => {}, 
+			(rid:Int,w:Int) => { terms = rid :: terms } )
 		terms.reverse.toArray
 	}
 	//<<Possible Overrides>>
@@ -748,7 +810,8 @@ trait ParseTree extends Tree[Nonterminal] {
 	//<<Overrides>>
 	override def children:Array[ParseTree]
 	def evaluate(sent:Sentence):(Nonterminal,Temporal,Double)
-	def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit //lexFn: (rid,w)=>Any
+	def traverse(ruleFn:(Int,Option[Int])=>Any,lexFn:(Int,Int)=>Any):Unit 
+		//^ ruleFn: (rid,nilTag)=>Any, lexFn: (rid,w)=>Any
 }
 
 //-----
@@ -1144,21 +1207,28 @@ object CKYParser {
 						.map{ case ((r:Rule,rid:Int),termId) =>
 					mapping(rid) = termId
 					val dist = new Multinomial[Int](U.intStore(G.W+1))
-					(0 to G.W).foreach{ (w:Int) =>
-						dist.incrementCount(
-							w,
-							O.initMethod match {
-								case O.InitType.uniform => 1.0
-								case O.InitType.random => U.rand
-							}
-						)
+					O.initMethod match {
+						case O.InitType.uniform => dist.initUniform
+						case O.InitType.random => dist.initRandom
 					}
-					dist
 				}
 		(distributions,mapping)
 	}
 	private val lexESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
 		= pWordGivenRule.map{ _.newStatistics(O.lexPrior) }
+
+	private val pNilWordGivenNonterminal:Array[Multinomial[Int]] = {
+		Nonterminal.values.map{ (term:Nonterminal) => 
+			val dist = new Multinomial[Int](U.intStore(G.W+1))
+			O.initMethod match {
+				case O.InitType.uniform => dist.initUniform
+				case O.InitType.random => dist.initRandom
+			}
+		}
+	}
+	private val nilWordESS
+			:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
+		= pNilWordGivenNonterminal.map{ _.newStatistics(O.nilWordPrior) }
 
 	//(substructures)
 	private var tagger:CRFTagger = null
@@ -1196,10 +1266,11 @@ object CKYParser {
 			var logScore:Double, 
 			var term:CkyRule, 
 			var left:ChartElem,
-			var right:ChartElem) extends ParseTree {
+			var right:ChartElem,
+			var index:Option[Int]) extends ParseTree {
 		// -- CKY Properties --
-		def this() = this(Double.NegativeInfinity,null,null,null)
-		def this(logScore:Double,term:CkyRule) = this(logScore,term,null,null)
+		def this(index:Option[Int]) 
+			= this(Double.NegativeInfinity,null,null,null,index)
 		def apply(logScore:Double,term:CkyRule,left:ChartElem,right:ChartElem
 				):ChartElem = {
 			assert(logScore <= 0.0, "Setting ChartElem with bad log score: "+logScore)
@@ -1219,6 +1290,13 @@ object CKYParser {
 		}
 		def nilify:Unit = { logScore = Double.NaN; term = null }
 		def isNil:Boolean = (term == null)
+		def lexicalContent:Option[Int] = {
+			if(term.head == Nonterminal('NIL)){
+				term.head.tag(index)
+			} else {
+				None
+			}
+		}
 
 		// -- ParseTree Properties --
 		override def head:Nonterminal = {
@@ -1294,7 +1372,20 @@ object CKYParser {
 			evalCache
 		}
 		private def traverseHelper(i:Int,
-				ruleFn:Int=>Any,lexFn:(Int,Int)=>Any,up:()=>Any):Int = {
+				ruleFn:(Int,Option[Int])=>Any,lexFn:(Int,Int)=>Any,up:()=>Any,
+				reportNilTags:Boolean):Int = {
+			//--Helpers
+			def getNilTag:Option[Int] = {
+				(term.arity,left.lexicalContent) match {
+					case (_,Some(w)) =>
+						assert(right.lexicalContent==None, "combining 2 nils")
+						Some(w)
+					case (2,None) =>
+						right.lexicalContent
+					case _ => None
+				}
+			}
+			//--Traverse
 			assert(term != null, "evaluating null rule")
 			var stackDepth:Int = 0
 			val pos = if(term.arity == 1) {
@@ -1305,13 +1396,20 @@ object CKYParser {
 					lexFn(term.rid,i)
 					i + 1 //return
 				} else {
-					term.rids.foreach{ (rid:Int) => stackDepth+=1; ruleFn(rid) }
-					left.traverseHelper(i,ruleFn,lexFn,up) //return
+					term.rids.foreach{ (rid:Int) => 
+						stackDepth+=1; 
+						assert(!reportNilTags || getNilTag == None, "Tag on non-lex unary?")
+						ruleFn(rid,None) 
+					}
+					left.traverseHelper(i,ruleFn,lexFn,up,reportNilTags) //return
 				}
 			}else if(term.arity == 2){
-				term.rids.foreach{ (rid:Int) => stackDepth+=1; ruleFn(rid) }
-				val leftI = left.traverseHelper(i,ruleFn,lexFn,up)
-				right.traverseHelper(leftI,ruleFn,lexFn,up) //return
+				term.rids.foreach{ (rid:Int) => 
+					stackDepth+=1; 
+					ruleFn(rid,if(reportNilTags) getNilTag else None) 
+				}
+				val leftI = left.traverseHelper(i,ruleFn,lexFn,up,reportNilTags)
+				right.traverseHelper(leftI,ruleFn,lexFn,up,reportNilTags) //return
 			}else{
 				throw new IllegalStateException("Invalid cky term")
 			}
@@ -1319,8 +1417,10 @@ object CKYParser {
 			(0 until stackDepth).foreach{ (rid:Int) => up() }
 			pos
 		}
-		override def traverse(ruleFn:Int=>Any,lexFn:(Int,Int)=>Any):Unit = {
-			traverseHelper(0,ruleFn,lexFn,()=>{})
+		override def traverse(
+				ruleFn:(Int,Option[Int])=>Any,
+				lexFn:(Int,Int)=>Any):Unit = {
+			traverseHelper(0,ruleFn,lexFn,()=>{},true)
 		}
 		override def asParseString(sent:Sentence):String = {
 			val b = new StringBuilder
@@ -1330,7 +1430,7 @@ object CKYParser {
 			}
 			//(traverse)
 			traverseHelper(0,
-				(rid:Int) => {
+				(rid:Int,nilTag:Option[Int]) => {
 					b.append("(").append(clean(Grammar.RULES_STR(rid))).append(" ")
 				},
 				(rid:Int,w:Int) => {
@@ -1339,26 +1439,30 @@ object CKYParser {
 				},
 				() => {
 					b.append(") ")
-				})
+				},false)
 			b.toString
 		}
 		override def maxDepth:Int = {
 			var maxDepth = 0
 			var depth = 0
 			traverseHelper(0,
-				(rid:Int) => {depth += 1; maxDepth = math.max(depth,maxDepth) },
+				(rid:Int,nilTag:Option[Int]) => {
+					depth += 1
+					maxDepth = math.max(depth,maxDepth) 
+				},
 				(rid:Int,w:Int) => { },
-				() => { depth -= 1 })
+				() => { depth -= 1 },
+				false)
 			maxDepth+1 // +1 for lex terms
 		}
 		def deepclone:ChartElem = {
 			val leftClone = if(left == null) null else left.deepclone
 			val rightClone = if(right == null) null else right.deepclone
-			new ChartElem(logScore,term,leftClone,rightClone)
+			new ChartElem(logScore,term,leftClone,rightClone,index)
 		}
 		// -- Object Properties --
 		override def clone:ChartElem = {
-			new ChartElem(logScore,term,left,right)
+			new ChartElem(logScore,term,left,right,index)
 		}
 		override def equals(a:Any) = {
 			a match {
@@ -1700,12 +1804,12 @@ object CKYParser {
 					else if(this.score > that.score) 1
 					else 0
 				}
+				override def toString:String = "DataSource(score="+score+
+					",source="+source+",leftI="+leftI+",rightI="+rightI+")"
 			}
 			val pq = new PriorityQueue[DataSource]
 			val seen = new HashSet[Int]
 			val seenUnary = new HashSet[Int]
-//			var seen = new Array[Boolean](lazyArray.length*capacity*capacity)
-//			var seenUnary = new Array[Boolean](lazyArray.length*capacity)
 			//(enqueue method)
 			def enqueue(source:Int,lI:Int,rI:Int) = {
 				val (rule,left,right,score) = lazyArray(source)
@@ -1717,7 +1821,8 @@ object CKYParser {
 						              lI * capacity +
 									  	    rI			) ) ) )
 							){
-					val s:Double = if(right == null) {
+					//(score from cfg)
+					val cfgScore:Double = if(right == null) {
 							seenUnary( source*capacity + lI ) = true
 							left(lI).logScore+score(left(lI),null)
 						} else {
@@ -1726,7 +1831,22 @@ object CKYParser {
 												rI			) = true
 							left(lI).logScore+right(rI).logScore+score(left(lI),right(rI))
 						}
-					pq.enqueue( DataSource(s,source,lI,rI) ) //<--actual enqueue
+					//(score from lex completion)
+					val tagScore:Double = 
+						( left(lI).lexicalContent,
+						  if(right == null) None else right(rI).lexicalContent) match {
+						case (Some(leftTag),Some(rightTag)) => 
+							throw fail("Combining two nils!")
+						case (Some(tag),None) => 
+							U.safeLn(
+								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
+						case (None,Some(tag)) => 
+							U.safeLn(
+								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
+						case (None,None) => 0.0
+					}
+					//(actual enqueue)
+					pq.enqueue( DataSource(cfgScore+tagScore,source,lI,rI) )
 				}
 			}
 			//(initialize queue)
@@ -1866,10 +1986,12 @@ object CKYParser {
 							(0 until (len-start)).map{ (length:Int) =>                //length
 								assert(Nonterminal.values.size > 0, "bad rules end")
 								(0 to 1).map{ (arity:Int) =>                            //arity
-									(0 until Nonterminal.values.size).map{ (rid:Int) =>          //rules
+									Nonterminal.values.map{ (term:Nonterminal) =>         //rules
 										assert(beam > 0, "bad kbest end")
-										new BestList((0 until beam).map{ (kbestItem:Int) => //kbest
-											new ChartElem
+										new BestList((0 until beam).map{ (kbestItem:Int) =>  //kbest
+											new ChartElem(
+												if(length == 0 && term == Nonterminal('NIL)) Some(start)
+												else None)
 										}.toArray, beam) //convert to arrays
 									}.toArray
 								}.toArray
@@ -1958,7 +2080,13 @@ object CKYParser {
 					(  (term.child==Nonterminal('Word) && !U.isNum(word)) ||//is word rule
 					   (term.child==Nonterminal('Number) && U.isNum(word)) ) &&//is number rule
 					term.validInput( if(U.isNum(word)) num else word ) }  //is in range
-				.map{ (term:CkyRule) => (term, lexLogProb(word,pos,term)) }
+				.map{ (term:CkyRule) => 
+					//(a good lex rule)
+					if(term.head == Nonterminal('NIL)){
+						term.head.tagWord(elem,word)
+					}
+					(term, lexLogProb(word,pos,term)) 
+				}
 			//(yield)
 			var ok:Boolean = true
 			candidates.sortBy( - _._2).foreach{ case (term,score) => 
@@ -2095,6 +2223,12 @@ class CKYParser extends StandardParser{
 				pWordGivenRule(id) = lexESS(id).runMStep
 			}
 			endTrack("lex")
+			//(update nil consistency)
+			startTrack("nil tags")
+			(0 until pNilWordGivenNonterminal.length).foreach{ (id:Int) =>
+				pNilWordGivenNonterminal(id) = nilWordESS(id).runMStep
+			}
+			endTrack("nil tags")
 			//(update times)
 			startTrack("time")
 			timesToNormalize.foreach{ (fn:()=>Any) => fn() }
@@ -2145,7 +2279,7 @@ class CKYParser extends StandardParser{
 		}
 		endTrack("rule scores (top by head)")
 		//(best lex)
-		forceTrack("lex scores (top by head)")
+		forceTrack("lex scores (top by rule)")
 		(0 until RULES.length).foreach{ (rid:Int) =>
 			val id = rid2WordGivenRuleIndices(rid)
 			if(id >= 0){
@@ -2155,7 +2289,16 @@ class CKYParser extends StandardParser{
 					}))
 			}
 		}
-		endTrack("lex scores (top by head)")
+		endTrack("lex scores (top by rule)")
+		//(nil tags)
+		forceTrack("nil tags (top by head)")
+		Nonterminal.values.foreach{ (term:Nonterminal) =>
+			log(FORCE,DIM,term + " -> " + 
+				pNilWordGivenNonterminal(term.id).toString( new KeyPrinter[Int]{
+					override def format(w:Int):String = U.w2str(w)
+				}))
+		}
+		endTrack("nil tags (top by head)")
 		//(word reachability)
 		forceTrack("impossible words")
 		var unreachableWords:Int = 0
@@ -2268,6 +2411,7 @@ class CKYParser extends StandardParser{
 	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:String
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
+		Nonterminal('NIL).lock(sent)
 		//(run CKY)
 		val trees:Array[ParseTree] = cky(sent,O.beam)
 		//(check: single-best consistency)
@@ -2379,10 +2523,18 @@ class CKYParser extends StandardParser{
 						count > Double.NegativeInfinity, "Parse has zero probability")
 					//(count rules) NOTE: E-STEP HERE
 					trees(index).traverse( 
-							{(rid:Int) =>
+							{ (rid:Int,nilTag:Option[Int]) =>
 								//((update rule))
 								val (hid,multI) = rid2RuleGivenHeadIndices(rid)
 								ruleESS(hid).updateEStep(multI,count) 
+								//((update nil tag))
+								nilTag match {
+									case Some(w) => 
+										assert(RULES(rid).head != Nonterminal('ROOT),
+											"root from nil: " + trees(index))
+										nilWordESS(RULES(rid).head.id).updateEStep(w,count)
+									case None => //noop
+								}
 							},
 							{(rid:Int,i:Int) => 
 								//((update rule))
@@ -2453,6 +2605,7 @@ class CKYParser extends StandardParser{
 					case _ => throw fail("Unknown case")
 				}
 				parseLock.unlock
+				Nonterminal('NIL).unlock(sent)
 				endTrack("Update")
 			}
 		)

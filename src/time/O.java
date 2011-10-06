@@ -21,6 +21,12 @@ public class O {
 		public int end;
 		private DataInfo(){}
 		public Decodable decode(String encoded, Type[] typeParams) {
+			if(encoded.trim().equalsIgnoreCase("toy")){
+				this.source = DataSource.Toy;
+				this.begin = 0;
+				this.end = Integer.MAX_VALUE;
+				return this;
+			}
 			Matcher m = DATA.matcher(encoded);
 			if(!m.find()){ 
 				throw new IllegalArgumentException("Invalid format: " + encoded);
@@ -62,6 +68,8 @@ public class O {
 	public static Dirichlet<scala.Int> rulePrior = Dirichlet.ZERO();
 	@Option(name="lexPrior", gloss="Dirichlet prior for CKY lexical terms")
 	public static Dirichlet<scala.Int> lexPrior = Dirichlet.ZERO();
+	@Option(name="nilWordPrior", gloss="Dirichlet prior for CKY lexical terms")
+	public static Dirichlet<scala.Int> nilWordPrior = Dirichlet.ZERO();
 	@Option(name="useTime", gloss="Parse date and time both")
 	public static boolean useTime = false;
 	@Option(name="hardEM", gloss="Use hard rather than soft EM updates")
