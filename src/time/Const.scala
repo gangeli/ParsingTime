@@ -55,6 +55,23 @@ slide!('Datum """+id+""" ("""+
 nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
 """
 
+def DIFF(id:String,
+		guess:String,guessProbs:String,
+		gold:String,goldProbs:String) = {
+"""
+################################################################################
+# """+id+"""
+################################################################################
+slide!('Datum """+id+"""',
+	'',
+	center,
+	Parse.new(fstr('"""+guess+"""')).probabilities('"""+guessProbs+"""').constituency,
+	'\blue{(first correct)}',
+	Parse.new(fstr('"""+gold+"""')).probabilities('"""+goldProbs+"""').constituency,
+nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
+"""
+}
+
 def AUTO_MISS(id:String,sent:Sentence,gold:Any) = 
 """
 ################################################################################

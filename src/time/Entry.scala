@@ -397,8 +397,33 @@ case class Data(train:DataStore,eval:DataStore){
 }
 
 trait DataStore {
+	private var present:StringBuilder
+		= (new StringBuilder).append(Const.START_PRESENTATION("Debug"))
 	def eachExample(fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score
 	def name:String
+
+	def debug(sent:Sentence,vitterbi:Parse,firstCorrect:Parse):Unit = {
+		//(error checks)
+		assert(vitterbi.tree.orNull != None, "Parse (f) has no tree!")
+		assert(vitterbi.probs.orNull != None, "Parse (f) has no probs!")
+		assert(firstCorrect.tree.orNull != None, "Parse (c) has no tree!")
+		assert(firstCorrect.probs.orNull != None, "Parse (c) has no probs!")
+		//(append)
+		present.append(Const.DIFF(
+			id=name+sent.id,
+			guess=vitterbi.tree.orNull, guessProbs=vitterbi.probs.orNull,
+			gold=firstCorrect.tree.orNull, goldProbs=firstCorrect.probs.orNull
+		))
+	}
+
+	def debugEnd:Unit = {
+		present.append(Const.END_PRESENTATION)
+		val writer = new java.io.FileWriter(Execution.touch(name+".rb"))
+		writer.write(present.toString)
+		writer.close
+		present = (new StringBuilder).append(Const.START_PRESENTATION("Debug"))
+	}
+
 	def handleParse(
 			parses:Array[Parse], 
 			gold:Temporal, 
@@ -427,9 +452,19 @@ trait DataStore {
 					  else{ Range(grounding,grounding) }
 				val rtn = soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
-						ScoreElem(i,offset,isExact(diff),diff,prob)
+						ScoreElem(i,offset,isExact(diff),diff,parse.logProb+math.log(prob))
 					}.toList
 				rtn
+		}.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
+			if(b.prob == a.prob){
+				if(a.index == b.index){
+					b.offset.abs > a.offset.abs
+				} else {
+					b.index > a.index
+				}
+			} else {
+				b.prob < a.prob 
+			}
 		}.toArray
 		//--Process Score
 		if(scores.length > 0){
@@ -437,7 +472,7 @@ trait DataStore {
 			val bestGuess = scores(0)
 			//(is in beam?)
 			val correct = scores.filter{ (elem:ScoreElem) => 
-				assert(elem.prob >= 0.0 && elem.prob <= 1.0, "invalid probability")
+				assert(!elem.prob.isNaN && elem.prob <= 0.0, "invalid probability")
 				elem.exact }
 			//(record)
 			score.enter(bestGuess.exact,bestGuess.diff, 
@@ -445,6 +480,12 @@ trait DataStore {
 			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
 			score.store(sent,vitterbi,gold,bestGuess.exact,timex,grounding)
 			if(correct.length == 0){ score.logFailure(sent,gold,grounding) }
+			//(debug)
+			if(correct.length > 0
+					&& !(scores(0).index == correct(0).index && 
+						scores(0).offset == correct(0).offset)){
+				debug(sent,parses(scores(0).index),parses(correct(0).index))
+			}
 			//(feedback)
 			feedback(Feedback(
 				gold, 
@@ -516,6 +557,7 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String)
 			tasks.foreach{ (r:Runnable) => r.run }
 		}
 		//--Return
+		debugEnd
 		log("Timing: [parse] " + G.df.format(parseTime) +
 			"  [eval] " + G.df.format(evalTime) + 
 			" [parse/eval] " + G.df.format(parseTime/(parseTime+evalTime)) )
@@ -574,8 +616,9 @@ object ToyData {
 	import Lex._
 	private val toys = new HashMap[String,Int]
 
-	private val NONE = ToyStore(Array[(String,Parse)]())
-	private def store(args:(String,Parse)*):ToyStore = ToyStore(args.toArray)
+	private val NONE = ToyStore(Array[(String,Parse)](),false)
+	private def store(test:Boolean,args:(String,Parse)*):ToyStore 
+		= ToyStore(args.toArray,test)
 	private val today = ("today",Parse(TODAY))
 	private val week = ("week",Parse(AWEEK))
 	private val aWeek = ("a week",Parse(AWEEK))
@@ -610,8 +653,9 @@ object ToyData {
 	private val monday = ("monday",Parse(DOW(1)(todaysDate,0)))
 	private val friday_neg1 = ("friday",Parse(DOW(1)(todaysDate,-1)))
 
-	private case class ToyStore(gold:Array[(String,Parse)]) extends DataStore {
-		override def name:String = "toy"
+	private case class ToyStore(gold:Array[(String,Parse)],test:Boolean) 
+			extends DataStore {
+		override def name:String = if(test) "toy-dev" else "toy"
 		override def eachExample( 
 				fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 			val score:Score = new Score
@@ -622,7 +666,7 @@ object ToyData {
 						if(str matches G.CanInt) NumberType.NUMBER else NumberType.NONE)
 				}
 				val s = Sentence(
-					-1,
+					id,
 					words, 
 					words.map{ (w:Int) => U.str2posTest("UNK") },
 					sent.split(" ").map{ (str:String) =>
@@ -638,6 +682,7 @@ object ToyData {
 					score,s,feedback,null)
 				endTrack("Datum " + id + ": " + sent)
 			}
+			debugEnd
 			score
 		}
 		def internWords:ToyStore = {
@@ -654,12 +699,12 @@ object ToyData {
 	}
 
 	def TODAY_ONLY:Data = {
-		Data(store(today).internWords,store(today))
+		Data(store(false,today).internWords,store(true,today))
 	}
 	
 	def STANDARD:Data = {
 		Data(
-			store(
+			store(false,
 			//--Train
 				//(durations)
 				aWeek,aMonth,aQuarter,ayear,weeks2,
@@ -683,7 +728,7 @@ object ToyData {
 				today
 				).internWords,
 			//--Test
-			store(lastMonth))
+			store(true,lastMonth))
 	}
 }
 

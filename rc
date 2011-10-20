@@ -84,6 +84,30 @@ function p() {
 	cd out/$last && ruby parses.rb && evince present.pdf; cd -
 }
 
+function dt() {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	cd out/$last && ruby train.rb && evince present.pdf; cd -
+}
+
+function dd() {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	cd out/$last && ruby dev.rb && evince present.pdf; cd -
+}
+
+function dtoy() {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	cd out/$last && ruby toy.rb && evince present.pdf; cd -
+}
+
 function present() {
 	last=`ls out | sort -nr | head -n 1`
 	if [ "$1" -a "$2" ]; then

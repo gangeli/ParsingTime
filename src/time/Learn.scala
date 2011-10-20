@@ -62,7 +62,7 @@ case class Nonterminal(name:Symbol,id:Int){
 		this
 	}
 	//--Default Overrides
-	override def toString:String = "<"+name.name+">"
+	override def toString:String = name.name
 }
 
 
@@ -837,8 +837,11 @@ trait ParseTree extends Tree[Nonterminal] {
 //-----
 // Parse
 //-----
-case class Parse(value:Temporal){
-	var tree:String = ""
+case class Parse(value:Temporal,logProb:Double){
+	var tree:Option[String] = None
+	var probs:Option[String] = None
+	def this(value:Temporal) = this(value,0.0)
+
 	def scoreFrom(gold:Temporal,ground:GroundedRange
 			):Iterator[((Duration,Duration),Double,Int)]={
 		val INF = (Duration.INFINITE,Duration.INFINITE)
@@ -911,10 +914,14 @@ case class Parse(value:Temporal){
 }
 
 object Parse {
-	def apply(parseType:Nonterminal,parseValue:Temporal):Parse = {
+	def apply(parseType:Nonterminal,parseValue:Temporal,logProb:Double):Parse = {
 		assert(parseType == Nonterminal('ROOT), "No parse for non-root node")
-		new Parse(parseValue)
+		new Parse(parseValue,logProb)
 	}
+	def apply(parseType:Nonterminal,parseValue:Temporal):Parse
+		= apply(parseType,parseValue,0.0)
+	def apply(parseValue:Temporal):Parse
+		= apply(Nonterminal('ROOT),parseValue,0.0)
 }
 
 //-----
@@ -2403,7 +2410,7 @@ class CKYParser extends StandardParser{
 				if( !(begin until end).exists{ (j:Int) => 
 							val (guessH,guessV,guessS) = guess(i)
 							val (goldH,goldV,goldS) = gold(j)
-							Parse(guessH,guessV).equals( Parse(goldH,goldV) )
+							Parse(guessH,guessV,guessS).equals( Parse(goldH,goldV,goldS) )
 						} ) {
 					return (false, "no reference match for guess " + i)
 				}
@@ -2457,9 +2464,12 @@ class CKYParser extends StandardParser{
 		//(convert to parses)
 		val scored:Array[(Nonterminal,Temporal,Double)]
 			= trees.map{ _.evaluate(sent) }
-		val parses:Array[Parse] = scored.map{case (tag,parse,s) => Parse(tag,parse)}
+		val parses:Array[Parse] = scored.map{ case (tag,parse,s) => 
+			Parse(tag,parse,s)
+		}
 		parses.zipWithIndex.foreach{ case (p:Parse,i:Int) =>
-			p.tree = trees(i).asParseString(sent)
+			p.tree = Some(trees(i).asParseString(sent))
+			p.probs = Some(trees(i).asParseProbabilities(sent))
 		}
 		//(debug)
 		val str = 
@@ -2495,10 +2505,6 @@ class CKYParser extends StandardParser{
 		}
 
 		parseLock.lock
-		//--Debug (begin)
-		//(presentation)
-		val b = new StringBuilder //debug start
-		b.append(Const.START_PRESENTATION("Correct Parses, sid " + identifier))
 		//--Return / Feedback
 		//(add 'no result' guess)
 		guesses = GuessInfo(identifier,null,Double.NaN,sent).wrong :: guesses
@@ -2598,16 +2604,6 @@ class CKYParser extends StandardParser{
 							term.updateE(ground,trueOffset,originOffset,
 								if(O.hardEM) 0.0 else U.safeLn(count) )
 						})
-					//(debug)
-					b.append(Const.SLIDE(
-							id=identifier, correct=true, tree=parse.asParseString(sent),
-							probs=parse.asParseProbabilities(sent),
-							guess=parses(index).ground(feedback.grounding).toString,
-							gold=Parse(Nonterminal('ROOT),feedback.ref)
-								.ground(feedback.grounding).toString,
-							ground=feedback.grounding.toString,
-							score=logRaw
-						))
 					//(end)
 					endTrack("Correct: " + temporal)
 				}
@@ -2643,14 +2639,6 @@ class CKYParser extends StandardParser{
 				endTrack("Update")
 			}
 		)
-		//--Debug (end)
-		//(end presentation)
-		b.append(Const.END_PRESENTATION)
-		//(write presentation)
-		val writer = new java.io.FileWriter(
-			Execution.touch("iteration"+i+"/datum"+identifier+".rb"))
-		writer.write(b.toString)
-		writer.close
 		//--Return
 		parseLock.unlock
 		rtn
