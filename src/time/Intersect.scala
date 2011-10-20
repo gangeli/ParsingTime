@@ -4,7 +4,7 @@ import scala.util.Random
 import scala.collection.mutable.Map
 import scala.collection.mutable.HashMap
 
-import edu.stanford.nlp.util.logging.Redwood.Static._
+import edu.stanford.nlp.util.logging.Redwood.Util._
 
 
 case class Term(b:Long,e:Long) extends Intersectable {

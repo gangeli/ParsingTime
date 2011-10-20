@@ -36,8 +36,8 @@ nil){ |slide| slide.label('title').signature(1).titleSpacing(u(0)) }
 """
 }
 
-def SLIDE(id:String,correct:Boolean,
-	tree:String,guess:String,gold:String,ground:String,score:Double) = 
+def SLIDE(id:String,correct:Boolean,tree:String,probs:String,
+		guess:String,gold:String,ground:String,score:Double) = 
 """
 ################################################################################
 # Datum """+id+"""
@@ -46,7 +46,7 @@ slide!('Datum """+id+""" ("""+
 	{if(correct) """{\green correct}""" else """{\red incorrect}"""}+""")',
 	'',
 	center,
-	Parse.new(fstr('"""+tree+"""')).constituency,
+	Parse.new(fstr('"""+tree+"""')).probabilities('"""+probs+"""').constituency,
 	'',
 	left,
 	'\blue{Guess:} """+guess+""" ["""+G.df.format(score)+"""]',

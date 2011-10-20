@@ -17,7 +17,7 @@ import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ie.crf.CRFClassifier
 import edu.stanford.nlp.sequences.SeqClassifierFlags
 import edu.stanford.nlp.sequences.FeatureFactory
-import edu.stanford.nlp.util.logging.Redwood.Static._
+import edu.stanford.nlp.util.logging.Redwood.Util._
 
 //------------------------------------------------------------------------------
 // GRAMMAR
@@ -128,7 +128,8 @@ object Nonterminal {
 			case (soFar:List[(Nonterminal,Symbol,Symbol)],r:String) =>
 		durations.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
 				case (soFar:List[(Nonterminal,Symbol,Symbol)],d:String) =>
-			( Nonterminal(Symbol("F_"+r+d+"2"+r), 'none),Symbol(r),Symbol(d)) :: soFar
+			( Nonterminal(Symbol("F_{"+r+d+"}2"+r), 'none),Symbol(r),Symbol(d)
+				) :: soFar
 		} ::: soFar
 	} ::: 
 	//((like rr2r))
@@ -136,7 +137,7 @@ object Nonterminal {
 			case (soFar:List[(Nonterminal,Symbol,Symbol)],r1:String) =>
 		ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
 				case (soFar:List[(Nonterminal,Symbol,Symbol)],r2:String) =>
-			(Nonterminal(Symbol("F_"+r1+r2+"2"+r1),'none),
+			(Nonterminal(Symbol("F_{"+r1+r2+"}2"+r1),'none),
 				Symbol(r1),Symbol(r2)) :: soFar
 		} ::: soFar
 	}
@@ -144,12 +145,12 @@ object Nonterminal {
 	//((like r2r))
 	val fn1 = ranges.foldLeft(List[(Nonterminal,Symbol)]()){
 			case (soFar:List[(Nonterminal,Symbol)],r:String) =>
-		(Nonterminal(Symbol("F_"+r+"2"+r), 'none),Symbol(r)) :: soFar
+		(Nonterminal(Symbol("F_{"+r+"}2"+r), 'none),Symbol(r)) :: soFar
 	} ::: 
 	//((like d2d))
 	durations.foldLeft(List[(Nonterminal,Symbol)]()){
 			case (soFar:List[(Nonterminal,Symbol)],d:String) =>
-		(Nonterminal(Symbol("F_"+d+"2"+d), 'none),Symbol(d)) :: soFar
+		(Nonterminal(Symbol("F_{"+d+"}2"+d), 'none),Symbol(d)) :: soFar
 	}
 	//--Error Checks
 	assert(
@@ -392,7 +393,7 @@ object Grammar {
 			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D,'S)), //first
 			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D,'S)),   //last
 			F2Info(catLeft,"catLeft",List('R),List('D,'S)),            //past
-			F2Info(catRight,"catRight",List('R),List('D,'S))          //coming
+			F2Info(catRight,"catRight",List('R),List('D,'S))           //coming
 //			F2Info(cons,"cons",List('R,'S),List('R,'S))                //from...until
 		)
 		//(intro)
@@ -404,10 +405,10 @@ object Grammar {
 				soFarOuter ::: info.validB.foldLeft(List[(Rule,String)]()){
 						case (soFarInner:List[(Rule,String)],b:Symbol) =>
 					//(create rule)
-					val rule = (UnaryRule(Nonterminal("F_"+a.name+b.name+"2"+a.name),
+					val rule = (UnaryRule(Nonterminal("F_{"+a.name+b.name+"}2"+a.name),
 						Nonterminal('Word),
 						hack((w:Int) => info.fn)),
-						info.name+"$(-:"+a+",-:"+b+"):"+a+"$" )
+						info.name+"$(-:"+a.name+",-:"+b.name+"):"+a.name+"$" )
 					//(append rule)
 					rule :: soFarInner
 				}
@@ -435,7 +436,7 @@ object Grammar {
 //				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
 				//(consume B on the left)
 				{( BinaryRule(
-					Nonterminal(Symbol("F_"+a.name+"2"+a.name)),               //head
+					Nonterminal(Symbol("F_{"+a.name+"}2"+a.name)),               //head
 					Nonterminal.fromShort(b),                                  //left
 					fn,                                                        //right
 					hack2((b:Temporal,fn:(Temporal,Temporal)=>Temporal) =>     //function
@@ -443,7 +444,7 @@ object Grammar {
 				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
 				//(consume B on the right)
 				( BinaryRule(
-					Nonterminal(Symbol("F_"+a.name+"2"+a.name)),               //head
+					Nonterminal(Symbol("F_{"+a.name+"}2"+a.name)),               //head
 					fn,                                                        //left
 					Nonterminal.fromShort(b),                                  //right
 					hack2((fn:(Temporal,Temporal)=>Temporal,b:Temporal) =>     //function
@@ -453,8 +454,9 @@ object Grammar {
 			}
 		}
 		//(ref augmented apply)
-		rtn = rtn ::: Nonterminal.fn2.filter{
-				case (fn:Nonterminal,a:Symbol,b:Symbol) => a == 'R || b == 'R
+		rtn = rtn ::: Nonterminal.fn2.filter {
+				case (fn:Nonterminal,a:Symbol,b:Symbol) => 
+					a == 'R || b == 'R
 			}.foldLeft(List[(Rule,String)]()){
 				case (soFar:List[(Rule,String)],(fn:Nonterminal,a:Symbol,b:Symbol))=>
 			{if(b == 'R){
@@ -463,17 +465,17 @@ object Grammar {
 					Nonterminal.fromShort(a),                                  //head
 					Nonterminal.fromShort(a),                                  //left
 					fn,                                                        //right
-					hack2((a:Temporal,fn:(Temporal,Range)=>Temporal) =>        //function
-						fn(a,REF)) ),
-				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
+					hack2((a:Temporal,fn:(Temporal,Range)=>Temporal) => {      //function
+						fn(a,REF)}) ),
+				"$r:"+a.name+"$") ::                                         //name
 				//(consume A on the right -- B is Range)
 				( BinaryRule(
 					Nonterminal.fromShort(a),                                  //head
 					fn,                                                        //left
 					Nonterminal.fromShort(a),                                  //right
-					hack2((fn:(Temporal,Range)=>Temporal,a:Temporal) =>        //function
-						fn(a,REF)) ),
-				"$f(x:"+a.name+",-:"+b.name+"):"+a.name+"$") ::              //name
+					hack2((fn:(Temporal,Range)=>Temporal,a:Temporal) => {      //function
+						fn(a,REF)}) ),
+				"$r:"+a.name+"$") ::                                         //name
 				Nil
 			} else {List[(Rule,String)]()} :::
 			{if(a == 'R){
@@ -482,17 +484,17 @@ object Grammar {
 					Nonterminal.fromShort(a),                                  //head
 					Nonterminal.fromShort(b),                                  //left
 					fn,                                                        //right
-					hack2((b:Temporal,fn:(Range,Temporal)=>Temporal) =>        //function
-						fn(REF,b)) ),
-				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+					hack2((b:Temporal,fn:(Range,Temporal)=>Temporal) => {      //function
+						fn(REF,b)}) ),
+				"$r:"+a.name+"$") ::                                         //name
 				//(consume B on the right -- A is Range)
 				( BinaryRule(
 					Nonterminal.fromShort(a),                                  //head
 					fn,                                                        //left
 					Nonterminal.fromShort(b),                                  //right
-					hack2((fn:(Range,Temporal)=>Temporal,b:Temporal) =>        //function
-						fn(REF,b)) ),
-				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+					hack2((fn:(Range,Temporal)=>Temporal,b:Temporal) => {      //function
+						fn(REF,b)}) ),
+				"$r:"+a.name+"$") ::                                         //name
 				Nil
 			} else { Nil } }} ::: soFar
 		}
@@ -503,7 +505,9 @@ object Grammar {
 			fn:(_<:A)=>_<:A,name:String,validA:List[Symbol])
 		//(define)
 		val function1 = List[F1Info[Temporal]](
-			F1Info(fuzzify,"fuzzify",List('D))     //around
+			F1Info(fuzzify,"fuzzify",List('D)),                  //around
+			F1Info(move(_:Sequence,-1L),"moveLeft1",List('S)),   //last [sequence]
+			F1Info(move(_:Sequence,1L),"moveRight1",List('S))    //next [sequence]
 		)
 		//(intro)
 		function1.foreach{ (info:F1Info[Temporal]) =>
@@ -511,10 +515,10 @@ object Grammar {
 			rtn = rtn ::: info.validA.foldLeft(List[(Rule,String)]()){ 
 					case (soFarOuter:List[(Rule,String)],a:Symbol) =>
 				//(create rule)
-				val rule = (UnaryRule(Nonterminal("F_"+a.name+"2"+a.name),
+				val rule = (UnaryRule(Nonterminal("F_{"+a.name+"}2"+a.name),
 					Nonterminal('Word),
 					hack((w:Int) => info.fn)),
-					info.name+"$(-:"+a+"):"+a+"$" )
+					info.name+"$(-:"+a.name+"):"+a.name+"$" )
 				//(append rule)
 				rule :: soFarOuter
 			}
@@ -529,14 +533,14 @@ object Grammar {
 					Nonterminal.fromShort(a),                                  //left
 					fn,                                                        //right
 					hack2((a:Temporal,fn:(Temporal)=>Temporal) => fn(a)) ),    //function
-				"$f(x:"+a.name+"):"+a.name+"$") ::                           //name
+				"$x:"+a.name+"$") ::                                         //name
 				//(consume A on the right)
 				( BinaryRule(
 					Nonterminal.fromShort(a),                                  //head
 					fn,                                                        //left
 					Nonterminal.fromShort(a),                                  //right
 					hack2((fn:(Temporal)=>Temporal,a:Temporal) => fn(a)) ),    //function
-				"$f(x:"+a.name+"):"+a.name+"$") ::                           //name
+				"$x:"+a.name+"$") ::                                         //name
 				Nil} ::: soFar
 			}
 		}
@@ -554,7 +558,7 @@ object Grammar {
 			)
 
 		//--Intersect
-		rtn = rtn ::: Nonterminal.ranges.foldLeft(List[(Rule,String)]()){
+		rtn = rtn ::: Nonterminal.ranges.foldLeft(List[(Rule,String)]()) {
 				case (soFar:List[(Rule,String)],rA:String) =>
 			Nonterminal.ranges.foldLeft(List[(Rule,String)]()){
 					case (soFarInner:List[(Rule,String)],rB:String) =>
@@ -735,7 +739,8 @@ case class Feedback(ref:Temporal,grounding:Time,
 		correct.filter{ case (index,offset,score) => score == bestScore }.map{ 
 			case (index:Int,offset:Int,score:Double) => (index,offset) }
 	}
-	def isCorrect:Boolean = hasCorrect &&  bestIndex == 0
+	def isCorrect:Boolean = hasCorrect &&  bestIndex == 0 && 
+		bestOffset == ref.bestOffset(grounding)
 	def wasWrong:Boolean = (!hasCorrect || bestIndex != 0)
 	def correctCount:Int = correct.length
 	def correctCountDbl:Double = correctCount.asInstanceOf[Double]
@@ -762,11 +767,20 @@ trait Tree[A]{
 trait ParseTree extends Tree[Nonterminal] {
 	//<<Common Methods>>
 	private def cleanParseString(
+			headType:Symbol,
 			indent:Int,b:StringBuilder,sent:Sentence,i:Int):Int = {
 		for(i <- 0 until indent){ b.append("  ") }
+		val head:String = headType match {
+				case 'String => headString
+				case 'Probability => {
+					val prob = headProbability
+					assert(!prob.isNaN, "Rule has NaN probability")
+					assert(prob >= 0.0 && prob <= 1.0, "Rule has malformed probability")
+					G.df.format(prob)
+				}
+			}
 		if(isLeaf){
 			//--Case: Leaf
-			val head = headString
 			val tail = leafString(sent,i)
 			if(tail != null && !tail.equals("")){
 				b.append("(").append(head.replaceAll(" ","_")).append(" ")
@@ -781,11 +795,11 @@ trait ParseTree extends Tree[Nonterminal] {
 			var retI = i
 			val ch = children
 			//(write)
-			b.append("(").append(headString.replaceAll(" ","_"))
+			b.append("(").append(head.replaceAll(" ","_"))
 			for(i <- 0 until ch.length) {
 				val child:ParseTree = ch(i)
 				b.append("\n")
-				retI = child.cleanParseString(indent+1,b,sent,retI)
+				retI = child.cleanParseString(headType,indent+1,b,sent,retI)
 			}
 			b.append(")")
 			retI
@@ -793,7 +807,12 @@ trait ParseTree extends Tree[Nonterminal] {
 	}
 	def asParseString(sent:Sentence):String = {
 		val b = new StringBuilder
-		cleanParseString(0,b,sent,0)
+		cleanParseString('String,0,b,sent,0)
+		b.toString
+	}
+	def asParseProbabilities(sent:Sentence):String = {
+		val b = new StringBuilder
+		cleanParseString('Probability,0,b,sent,0)
 		b.toString
 	}
 	def lexRules:Array[Int] = {
@@ -805,6 +824,7 @@ trait ParseTree extends Tree[Nonterminal] {
 	}
 	//<<Possible Overrides>>
 	def headString:String = head.toString
+	def headProbability:Double = 1.0
 	def leafString(sent:Sentence,index:Int):String = sent(index)
 	def maxDepth:Int = throw fail() //TODO implement something reasonable here
 	//<<Overrides>>
@@ -1442,6 +1462,14 @@ object CKYParser {
 				},false)
 			b.toString
 		}
+		override def headProbability:Double = {
+			val subProbs:Double = 
+				if(term.isLex) { 0.0 }
+				else if(term.arity == 1) { left.logScore }
+				else { left.logScore + right.logScore }
+			val thisProb:Double = logScore - subProbs
+			math.exp(thisProb)
+		}
 		override def maxDepth:Int = {
 			var maxDepth = 0
 			var depth = 0
@@ -1846,7 +1874,11 @@ object CKYParser {
 						case (None,None) => 0.0
 					}
 					//(actual enqueue)
-					pq.enqueue( DataSource(cfgScore+tagScore,source,lI,rI) )
+					if(O.lexNils){
+						pq.enqueue( DataSource(cfgScore+tagScore,source,lI,rI) )
+					} else {
+						pq.enqueue( DataSource(cfgScore,source,lI,rI) )
+					}
 				}
 			}
 			//(initialize queue)
@@ -2055,7 +2087,7 @@ object CKYParser {
 		assert(w < G.W || w == G.UNK, "Word is out of range: " + w)
 		assert(rule.isLex,"Lex probability accessed on non-lex rule")
 		if(O.freeNils && rule.head == Nonterminal('NIL)){
-			U.safeLn( 0.1 )
+			U.safeLn( 1.0 )
 		} else {
 			ruleLogProb(rule) + 
 				U.safeLn( pWordGivenRule(rid2WordGivenRuleIndices(rule.rid)).prob(w),
@@ -2338,6 +2370,7 @@ class CKYParser extends StandardParser{
 						//(case: parsed sentence)
 						b.append(Const.SLIDE(
 								id=g.sid, correct=g.correct, tree=g.parse.asParseString(g.sent),
+								probs=g.parse.asParseProbabilities(g.sent),
 								guess=g.parseVal.ground(g.feedback.grounding).toString,
 								gold=Parse(Nonterminal('ROOT),g.feedback.ref)
 									.ground(g.feedback.grounding).toString,
@@ -2568,6 +2601,7 @@ class CKYParser extends StandardParser{
 					//(debug)
 					b.append(Const.SLIDE(
 							id=identifier, correct=true, tree=parse.asParseString(sent),
+							probs=parse.asParseProbabilities(sent),
 							guess=parses(index).ground(feedback.grounding).toString,
 							gold=Parse(Nonterminal('ROOT),feedback.ref)
 								.ground(feedback.grounding).toString,

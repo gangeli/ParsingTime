@@ -115,6 +115,8 @@ public class O {
 	public static int scoreBeam = 1;
 	@Option(name="freeNils", gloss="NIL from a word has probability 1.0 always")
 	public static boolean freeNils = false;
+	@Option(name="lexNils", gloss="NIL is tagged with its source word")
+	public static boolean lexNils = false;
 	//(crf)
 	@Option(name="crfKBest", gloss="Number of tags to use to approx. word dist.")
 	public static int crfKBest = 1000;

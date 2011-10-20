@@ -10,7 +10,7 @@ import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
 import edu.stanford.nlp.ling.CoreAnnotations._
-import edu.stanford.nlp.util.logging.Redwood.Static._
+import edu.stanford.nlp.util.logging.Redwood.Util._
 
 import org.joda.time.DateTime
 import org.joda.time.Period

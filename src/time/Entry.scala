@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(stanford)
-import edu.stanford.nlp.util.logging.Redwood.Static._
+import edu.stanford.nlp.util.logging.Redwood.Util._
 //(lib)
 import org.goobs.slib.Def
 import org.goobs.slib.Static._
@@ -525,7 +525,7 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String)
 
 object SimpleTimexStore {
 	def apply(train:O.DataInfo,eval:O.DataInfo):Data = {
-		println("INPUT: /workspace/time/aux/coremap/tempeval2-english" +
+		log("INPUT: /workspace/time/aux/coremap/tempeval2-english" +
 							{if(O.retokenize) "-retok" else "" } +
 							{if(O.collapseNumbers) "-numbers" else "" })
 		def mkDataset(info:O.DataInfo):Array[Timex] = {
@@ -579,19 +579,23 @@ object ToyData {
 	private val today = ("today",Parse(TODAY))
 	private val week = ("week",Parse(AWEEK))
 	private val aWeek = ("a week",Parse(AWEEK))
+	private val theWeek = ("the week",Parse(WEEK))
 	private val thisWeek = ("this week",Parse(REF ! AWEEK))
-	private val lastWeekToday = ("last week today",Parse(REF << WEEK))
-	private val lastWeekNow = ("last week now",Parse(REF << WEEK))
-	private val lastWeek = ("last week",Parse(REF << WEEK))
+	private val lastWeekToday = ("last week today",Parse(REF <<! WEEK))
+	private val lastWeekNow = ("last week now",Parse(REF <<! WEEK))
+	private val lastWeek = ("last week",Parse(REF <<! WEEK))
 	private val pastWeek = ("past week",Parse(REF << AWEEK))
 	private val thePastWeek = ("the past week",Parse(REF << AWEEK))
 	private val pastMonths2 = ("past 2 months",Parse(REF << (AMONTH*2)))
 	private val weeks2 = ("2 week",Parse(AWEEK*2))
-	private val month = ("month",Parse(AMONTH))
+	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(AMONTH))
-	private val lastMonth = ("last month",Parse(REF << MONTH))
-	private val thisMonth = ("this month",Parse(REF ! MONTH))
-	private val lastQuarter = ("last quarter",Parse(REF << QUARTER))
+	private val theMonth = ("the month",Parse(MONTH))
+	private val lastMonth = ("last month",Parse(REF <<! AMONTH))
+	private val thisMonth = ("this month",Parse(REF ! AMONTH))
+	private val quarter = ("quarter",Parse(QUARTER))
+	private val aQuarter = ("a quarter",Parse(AQUARTER))
+	private val lastQuarter = ("last quarter",Parse(REF <<! AQUARTER))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(AMONTH*2))
@@ -599,8 +603,9 @@ object ToyData {
 	private val april = ("april",Parse(MOY(4)))
 	private val april1776 = ("april 1776",Parse(MOY(4) ^ THEYEAR(1776)))
 	private val april2 = ("april 2",Parse(MOY(4) ^ DOM(2)))
+	private val year = ("year",Parse(YEAR))
 	private val ayear = ("a year",Parse(AYEAR))
-	private val lastYear = ("last year",Parse(REF << YEAR))
+	private val lastYear = ("last year",Parse(REF <<! YEAR))
 	private val thisYear = ("this year",Parse(REF ! AYEAR))
 	private val monday = ("monday",Parse(DOW(1)(todaysDate,0)))
 	private val friday_neg1 = ("friday",Parse(DOW(1)(todaysDate,-1)))
@@ -625,7 +630,7 @@ object ToyData {
 					)
 				if(!toys.contains(sent)){ toys(sent) = toys.size }
 				//(parse)
-				startTrack("Datum " + id + ": "+sent)
+				forceTrack("Datum " + id + ": "+sent)
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
 				handleParse(parses,
@@ -656,9 +661,11 @@ object ToyData {
 		Data(
 			store(
 			//--Train
-//				//(durations)
-				week,aWeek,month,aMonth,ayear,weeks2,
-//				//(cannonicals)
+				//(durations)
+				aWeek,aMonth,aQuarter,ayear,weeks2,
+				//(sequences)
+				week,month,quarter,year,
+				//(cannonicals)
 				thisWeek,thisYear,thisMonth,
 				//(shifts -- standard)
 				lastWeek,lastYear,lastQuarter,
@@ -666,8 +673,8 @@ object ToyData {
 				pastWeek,thePastWeek,pastMonths2,
 				//(numbers -- basic)
 				y1776,
-//				//(numbers -- complex)
-//				y17sp76,
+				//(numbers -- complex)
+				y17sp76,
 				//(sequences)
 				april,
 				//(intersects)
@@ -772,6 +779,7 @@ class Entry {
 }
 
 object Entry {
+	import edu.stanford.nlp.util.logging._
 	def main(args:Array[String]):Unit = {
 		//--Exec
 		Execution.exec(new Runnable(){
