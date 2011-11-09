@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.6.jar"
 JAR='time'
 		
-@timeDistribution = 1
+@timeDistribution = 2
 
 # -- RUN --
 env!( 
@@ -62,10 +62,11 @@ env!(
 			'CRF',
 			'GOLD'),
 		selo(0,'initMethod','uniform','random'),
-		o('freeNils'),
-		o('lexNils'),
 #		o('allowPartialTime'),
 #		o('hardEM'),
+#		o('freeNils'),
+#		o('lexNils'),
+#		o('includeRuleInLexProb'), # I think including this is correct...
 		# <training>
 		o('beam', 100),
 		o('iters', 10),
@@ -91,9 +92,9 @@ env!(
 #		o('instantAsDay'),
 
 		# -- DATA --
-#		o('train', 'NYT[0,100]'),		o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,142]'),		o('dev',   'English[142,162]'),
-		o('train', 'TOY'), o('dev', 'TOY'),
+#		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
+#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
 
@@ -110,9 +111,9 @@ env!(
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
 #		o('badTimexes', 'aux/bad.txt'),
-#		o('printAllParses'),
 #		o('printFailures'),
 #		o('cacheTemporalComputations',false),
+		o('printAllParses'),
 		o('todoHacks'),
 		o('reportK', 5),
 		#(debug programs)

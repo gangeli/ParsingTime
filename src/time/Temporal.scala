@@ -527,9 +527,10 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 
 	override def <|(diff:Duration):Range
 		= if(diff.isInstanceOf[FuzzyDuration]){
-			new UngroundedRange(Duration.NEG_INFINITE,beginOffset)
+			new UngroundedRange(Duration.INFINITE,Duration.NEG_INFINITE) 
+				//^ TODO wrong I think
 		} else {
-			new UngroundedRange(diff*(-1),beginOffset)
+			new UngroundedRange(diff,beginOffset-diff)
 		}
 
 	override def |>(diff:Duration):Range 
@@ -1197,7 +1198,7 @@ trait Sequence extends Range with Duration {
 		val diff:Double = this.diff(ground,offset,originOffset)
 		val str="E-Step [" + this + "]: offset=["+offset+" origin "+originOffset+
 			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
-		if(O.printAllParses){ log(FORCE,str) } else { log(str) }
+		if(O.printAllParses){ log(FORCE,str) } else { log(FORCE,str) }
 		assert(!logprob.isNaN, "NaN probability")
 		e( offset-originOffset, diff, logprob )
 	}
@@ -1256,7 +1257,7 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 	}
 
 	override def move(offset:Long):Sequence = {
-		new RepeatedRange(snapFn,base,interv,bound,moveOffset + offset)
+		new RepeatedRange(snapFn,base,interv,bound,moveOffset + offset).name(name)
 	}
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
@@ -1325,31 +1326,31 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 	
 	def intersect(range:GroundedRange) = {
 		if(this.bound == null){
-			new RepeatedRange(snapFn,base,interv,range,moveOffset)
+			new RepeatedRange(snapFn,base,interv,range,moveOffset).name(name)
 		} else {
 			val newBound:GroundedRange = (range ^ bound).asInstanceOf[GroundedRange]
-			new RepeatedRange(snapFn,base,interv,newBound,moveOffset)
+			new RepeatedRange(snapFn,base,interv,newBound,moveOffset).name(name)
 		}
 	}
 
 	override def >>(diff:Duration):Range 
 		= new RepeatedRange(snapFn, (base >> diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset)
+				interv, bound, moveOffset).name(name)
 	override def <<(diff:Duration):Range 
 		= new RepeatedRange(snapFn, (base << diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset)
+				interv, bound, moveOffset).name(name)
 	override def <|(diff:Duration):Range 
 		= new RepeatedRange(snapFn, (base <| diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset)
+				interv, bound, moveOffset).name(name)
 	override def |>(diff:Duration):Range 
 		= new RepeatedRange(snapFn, (base |> diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset)
+				interv, bound, moveOffset).name(name)
 	override def |<(diff:Duration):Range 
 		= new RepeatedRange(snapFn, (base |< diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset)
+				interv, bound, moveOffset).name(name)
 	override def >|(diff:Duration):Range 
 		= new RepeatedRange(snapFn, (base >| diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset)
+				interv, bound, moveOffset).name(name)
 	override def !(dur:Duration):Range = this
 	override def norm:GroundedDuration = interv.interval
 	
@@ -1360,17 +1361,22 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 
 	override def +(diff:Duration):Duration 
 		= new RepeatedRange(snapFn, base, interv + diff, bound, moveOffset)
+			.name(name)
 	override def -(diff:Duration):Duration 
 		= new RepeatedRange(snapFn, base, interv - diff, bound, moveOffset)
+			.name(name)
 	override def *(n:Long):Duration 
 		= new RepeatedRange(snapFn, base, interv * n, bound, moveOffset)
+			.name(name)
 	
 	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
 	private var name:String = this.base.toString + " every " + interv
 	def name(n:String):RepeatedRange = {this.name = n; this}
 	override def toString:String = {
 		if(bound == null){
-			name
+			name+{
+				if(moveOffset != 0L) {if(moveOffset > 0) "+" else ""}+moveOffset 
+				else "" }
 		} else {
 			this.base.toString + " in " + bound
 		}

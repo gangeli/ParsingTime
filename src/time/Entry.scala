@@ -444,19 +444,30 @@ trait DataStore {
 				null
 			}
 		//--Score Parses
+		if(O.printAllParses){ forceTrack("Scores") }
 		val scores:Array[ScoreElem] 
+			//(for each parse...)
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
 			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
 				val ground:GroundedRange 
 					= if(O.guessRange){ grounding.guessRange }
 					  else{ Range(grounding,grounding) }
+				val parseProb = parse.logProb
+				//(for each offset of parse...)
 				val rtn = soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
+						//(debug)
+						if(O.printAllParses){
+							log(FORCE,i+"["+offset+"] "+
+								(parse.logProb+math.log(prob))+" "+parse)
+						}
+						assert(parseProb == parse.logProb, "yes, I get strange bugs")
+						//(create parse)
 						ScoreElem(i,offset,isExact(diff),diff,parse.logProb+math.log(prob))
 					}.toList
 				rtn
 		}.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
-			if(b.prob == a.prob){
+			if( (b.prob - a.prob).abs < 1e-6 ){
 				if(a.index == b.index){
 					b.offset.abs > a.offset.abs
 				} else {
@@ -466,15 +477,25 @@ trait DataStore {
 				b.prob < a.prob 
 			}
 		}.toArray
+		if(O.printAllParses) { 
+			if(scores.length > 0){ log(FORCE,"best score: " + scores(0)) }
+			if(scores.length > 1){ log(FORCE,"      then: " + scores(1)) }
+			if(scores.length > 2){ log(FORCE,"      then: " + scores(2)) }
+			endTrack("Scores") 
+		}
 		//--Process Score
 		if(scores.length > 0){
 			//(get guess)
 			val bestGuess = scores(0)
+			assert(O.timeDistribution != O.Distribution.Point || 
+				bestGuess.offset == 0,
+				"Sanity check for time distribution")
 			//(is in beam?)
-			val correct = scores.filter{ (elem:ScoreElem) => 
+			val correct:Array[ScoreElem] = scores.filter{ (elem:ScoreElem) => 
 				assert(!elem.prob.isNaN && elem.prob <= 0.0, "invalid probability")
 				elem.exact }
 			//(record)
+			log(FORCE,"Entering " + bestGuess + " " + bestGuess.exact)
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)
 			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
@@ -486,6 +507,14 @@ trait DataStore {
 						scores(0).offset == correct(0).offset)){
 				debug(sent,parses(scores(0).index),parses(correct(0).index))
 			}
+			if(O.printAllParses){
+				forceTrack("Correct")
+				correct.foreach{ case (e:ScoreElem) => 
+					log(FORCE,"Guess: " + parses(e.index).value(grounding,e.offset) +
+						" Gold: " + gold + " [" + e + "]")
+				}
+				endTrack("Correct")
+			}
 			//(feedback)
 			feedback(Feedback(
 				gold, 
@@ -493,7 +522,8 @@ trait DataStore {
 				correct.map( elem => (elem.index,elem.offset,Score.score(elem.diff)) ),
 				scores.
 					filter( elem => !elem.exact ).
-					map( elem => (elem.index,elem.offset,Score.score(elem.diff)) )
+					map( elem => (elem.index,elem.offset,Score.score(elem.diff)) ),
+				bestGuess.exact
 				))
 		} else {
 			//(miss)
@@ -620,16 +650,16 @@ object ToyData {
 	private def store(test:Boolean,args:(String,Parse)*):ToyStore 
 		= ToyStore(args.toArray,test)
 	private val today = ("today",Parse(TODAY))
-	private val week = ("week",Parse(AWEEK))
+	private val week = ("week",Parse(WEEK(todaysDate)))
 	private val aWeek = ("a week",Parse(AWEEK))
-	private val theWeek = ("the week",Parse(WEEK))
+	private val theWeek = ("the week",Parse(WEEK(todaysDate)))
 	private val thisWeek = ("this week",Parse(REF ! AWEEK))
 	private val lastWeekToday = ("last week today",Parse(REF <<! WEEK))
 	private val lastWeekNow = ("last week now",Parse(REF <<! WEEK))
 	private val lastWeek = ("last week",Parse(REF <<! WEEK))
-	private val pastWeek = ("past week",Parse(REF << AWEEK))
-	private val thePastWeek = ("the past week",Parse(REF << AWEEK))
-	private val pastMonths2 = ("past 2 months",Parse(REF << (AMONTH*2)))
+	private val pastWeek = ("past week",Parse(REF <| AWEEK))
+	private val thePastWeek = ("the past week",Parse(REF <| AWEEK))
+	private val pastMonths2 = ("past 2 months",Parse(REF <| (AMONTH*2)))
 	private val weeks2 = ("2 week",Parse(AWEEK*2))
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(AMONTH))
@@ -706,25 +736,26 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,
-				//(sequences)
-				week,month,quarter,year,
-				//(cannonicals)
-				thisWeek,thisYear,thisMonth,
-				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,
-				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastMonths2,
-				//(numbers -- basic)
-				y1776,
-				//(numbers -- complex)
-				y17sp76,
-				//(sequences)
-				april,
-				//(intersects)
-				april1776,april2,
-				//(ref)
+				week,lastWeek,
+//				//(durations)
+//				aWeek,aMonth,aQuarter,ayear,weeks2,
+//				//(sequences)
+//				week,month,quarter,year,
+//				//(cannonicals)
+//				thisWeek,thisYear,thisMonth,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+//				//(numbers -- complex)
+//				y17sp76,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
+//				//(ref)
 				today
 				).internWords,
 			//--Test
@@ -774,10 +805,10 @@ class Entry {
 			= parser.run(this.data,O.iters)
 		endTrack("Running")
 		//--Process
-		startTrack("Results")
+		startTrack(BOLD,"Results")
 		val logger = Execution.getLogger();
 		//(train)
-		startTrack("train")
+		startTrack(BOLD,"train")
 		logger.setGlobalResult("train.accuracy",
 			trainScores(trainScores.length-1).accuracy)
 		logger.setGlobalResult("train.averank",
@@ -786,22 +817,26 @@ class Entry {
 			trainScores(trainScores.length-1).percentParsable)
 		logger.setGlobalResult("train.score",
 			trainScores(trainScores.length-1).aveScore())
-		log(FORCE,"train.accuracy: " + trainScores(trainScores.length-1).accuracy)
-		log(FORCE,"train.averank: " +	trainScores(trainScores.length-1).avePos)
-		log(FORCE,"train.inbeam: " + trainScores(trainScores.length-1).percentParsable)
-		log(FORCE,"train.score: " + trainScores(trainScores.length-1).aveScore())
+		log(FORCE,BOLD,YELLOW,"train.accuracy: " + 
+			trainScores(trainScores.length-1).accuracy)
+		log(FORCE,YELLOW,"train.averank: " +	
+			trainScores(trainScores.length-1).avePos)
+		log(FORCE,YELLOW,"train.inbeam: " + 
+			trainScores(trainScores.length-1).percentParsable)
+		log(FORCE,YELLOW,"train.score: " + 
+			trainScores(trainScores.length-1).aveScore())
 		endTrack("train")
 		//(test)
 		val s = if(O.devTest) "dev" else "test"
-		startTrack(s)
+		startTrack(BOLD,s)
 		logger.setGlobalResult(s+".accuracy", testScore.accuracy)
 		logger.setGlobalResult(s+".averank", testScore.avePos)
 		logger.setGlobalResult(s+".inbeam", testScore.percentParsable)
 		logger.setGlobalResult(s+".score", testScore.aveScore())
-		log(FORCE,s+".accuracy: "+ testScore.accuracy)
-		log(FORCE,s+".averank: "+ testScore.avePos)
-		log(FORCE,s+".inbeam: "+ testScore.percentParsable)
-		log(FORCE,s+".score: "+ testScore.aveScore())
+		log(FORCE,BOLD,YELLOW,s+".accuracy: "+ testScore.accuracy)
+		log(FORCE,YELLOW,s+".averank: "+ testScore.avePos)
+		log(FORCE,YELLOW,s+".inbeam: "+ testScore.percentParsable)
+		log(FORCE,YELLOW,s+".score: "+ testScore.aveScore())
 		endTrack(s)
 		endTrack("Results")
 		//--Debug dump

@@ -730,7 +730,8 @@ case class Sentence(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int]) {
 }
 case class Feedback(ref:Temporal,grounding:Time,
 		correct:Array[(Int,Int,Double)],
-		incorrect:Array[(Int,Int,Double)]) {
+		incorrect:Array[(Int,Int,Double)],
+		isCorrect:Boolean) {
 	def bestScore = correct(0)._3
 	def hasCorrect:Boolean = correct.length > 0
 	def bestIndex:Int = correct(0)._1
@@ -739,9 +740,7 @@ case class Feedback(ref:Temporal,grounding:Time,
 		correct.filter{ case (index,offset,score) => score == bestScore }.map{ 
 			case (index:Int,offset:Int,score:Double) => (index,offset) }
 	}
-	def isCorrect:Boolean = hasCorrect &&  bestIndex == 0 && 
-		bestOffset == ref.bestOffset(grounding)
-	def wasWrong:Boolean = (!hasCorrect || bestIndex != 0)
+	def wasWrong:Boolean = !isCorrect
 	def correctCount:Int = correct.length
 	def correctCountDbl:Double = correctCount.asInstanceOf[Double]
 }
@@ -867,11 +866,15 @@ case class Parse(value:Temporal,logProb:Double){
 				(guess-gold,Duration.ZERO)
 			//(case: grounded ranges)
 			case (gold:GroundedRange,guess:GroundedRange) => 
+				println("Ranges: " + guess + " " + gold)
 				if(guess.norm.seconds == 0 && gold.norm.seconds == 0){
+					println("  ->Instant")
 					(Duration.ZERO,guess.begin-gold.begin) //case: instant
 				} else if(O.instantAsDay && gold.norm.seconds == 0){
+					println("  ->As Day")
 					(guess.begin-gold.begin,guess.end-(gold.end+DAY))
 				} else {
+					println("  ->Normal")
 					assert(!guess.begin.equals(Time.DAWN_OF) || guess.begin==Time.DAWN_OF)
 					assert(!guess.end.equals(Time.END_OF) || guess.end==Time.END_OF)
 					if(guess.begin == Time.DAWN_OF && gold.begin != Time.DAWN_OF){
@@ -879,6 +882,8 @@ case class Parse(value:Temporal,logProb:Double){
 					} else if(guess.end == Time.END_OF && gold.end != Time.END_OF){
 						INF //case: end is pos_infinity
 					} else {
+						println("    sub begin " + (guess.begin) + " " + gold.begin + " " + (guess.begin-gold.begin))
+						println("    sub end " + (guess.end) + " " + gold.end + " " + (guess.end-gold.end))
 						(guess.begin-gold.begin,guess.end-gold.end) //case: can subtract
 					}
 				}
@@ -902,14 +907,19 @@ case class Parse(value:Temporal,logProb:Double){
 		}
 		//--Map Iterator
 		value.distribution(ground).map{
-				case (guess:Temporal,score:Double,offset:Long) =>
-			(diff(gold,guess,false),score,offset.toInt)
+				case (guess:Temporal,prob:Double,offset:Long) =>
+			assert(O.timeDistribution != O.Distribution.Point ||
+				offset == 0L ||
+				prob == 0.0,
+				"Time returned distribution when it shouldn't have: " 
+					+ guess + " (offset=" + offset + ") [prob=" + prob + "]")
+			(diff(gold,guess,false),prob,offset.toInt)
 		}
 	}
 	
 	def ground(ground:Time):Temporal
 		= if(value.exists(Range(ground,ground),0)){
-				value(Range(ground,ground),0)
+				value(Range(ground,ground))
 			} else { new NoTime }
 }
 
@@ -2096,7 +2106,7 @@ object CKYParser {
 		if(O.freeNils && rule.head == Nonterminal('NIL)){
 			U.safeLn( 1.0 )
 		} else {
-			ruleLogProb(rule) + 
+			if(O.includeRuleInLexProb){ ruleLogProb(rule) } else { 0.0 } + 
 				U.safeLn( pWordGivenRule(rid2WordGivenRuleIndices(rule.rid)).prob(w),
 					1.0 / G.W.asInstanceOf[Double] )
 		}
@@ -2472,9 +2482,10 @@ class CKYParser extends StandardParser{
 			p.probs = Some(trees(i).asParseProbabilities(sent))
 		}
 		//(debug)
+		val printBeam = if(O.printAllParses){ O.beam } else { 3 }
 		val str = 
 			"Guesses: " + 
-				scored.slice(0,3).map{ case (tag,parse,score) => 
+				scored.slice(0,printBeam).map{ case (tag,parse,score) => 
 					""+parse+"["+G.df.format(score)+"]"}.mkString(" or ")
 		if(O.printAllParses) {
 			log(FORCE,str)
