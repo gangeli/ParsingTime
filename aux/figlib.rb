@@ -21,7 +21,7 @@ class Parse
 		end
 	end
 	def leaf(a)
-		_("{\\it #{a}}")
+		_("\\textit{#{a}}")
 	end
 	def node(*args)
 		def vert(*args)
