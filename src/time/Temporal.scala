@@ -1262,6 +1262,7 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
 			):(TraverseFn,E)={
+		println("Evaluating " + this + " at " + ground + " and " + rawOffset + " moveoffset="+moveOffset)
 		val offset = rawOffset + moveOffset
 		var cache:Temporal = null; var cacheCond:Range = null
 		val term = if( cache == null || ground != cacheCond) {
@@ -1585,9 +1586,11 @@ case class Time(base:DateTime) {
 				new Time(base.plus(diff.interval.base))
 			} catch {
 				case (e:ArithmeticException) =>
-					new Time(base.plus(diffMillis)) //catch-all
+					new Time(base.plus(diffMillis))
 				case (e:org.joda.time.IllegalFieldValueException) =>
-					new Time(base.plus(diffMillis)) //catch-all
+					new Time(base.plus(diffMillis))
+				case (e:ArrayIndexOutOfBoundsException) =>
+					new Time(base.plus(diffMillis)) //TODO should not have to catch this
 			}
 		}
 	}
@@ -1607,9 +1610,11 @@ case class Time(base:DateTime) {
 				new Time(base.minus(diff.interval.base))
 			} catch {
 				case (e:ArithmeticException) =>
-					new Time(base.plus(diffMillis)) //catch-all
+					new Time(base.plus(diffMillis))
 				case (e:org.joda.time.IllegalFieldValueException) =>
-					new Time(base.minus(diffMillis)) //catch-all
+					new Time(base.minus(diffMillis))
+				case (e:ArrayIndexOutOfBoundsException) =>
+					new Time(base.minus(diffMillis)) //TODO should not have to catch this
 			}
 		}
 	}

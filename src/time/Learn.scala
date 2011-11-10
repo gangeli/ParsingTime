@@ -866,15 +866,11 @@ case class Parse(value:Temporal,logProb:Double){
 				(guess-gold,Duration.ZERO)
 			//(case: grounded ranges)
 			case (gold:GroundedRange,guess:GroundedRange) => 
-				println("Ranges: " + guess + " " + gold)
 				if(guess.norm.seconds == 0 && gold.norm.seconds == 0){
-					println("  ->Instant")
 					(Duration.ZERO,guess.begin-gold.begin) //case: instant
 				} else if(O.instantAsDay && gold.norm.seconds == 0){
-					println("  ->As Day")
 					(guess.begin-gold.begin,guess.end-(gold.end+DAY))
 				} else {
-					println("  ->Normal")
 					assert(!guess.begin.equals(Time.DAWN_OF) || guess.begin==Time.DAWN_OF)
 					assert(!guess.end.equals(Time.END_OF) || guess.end==Time.END_OF)
 					if(guess.begin == Time.DAWN_OF && gold.begin != Time.DAWN_OF){
@@ -882,8 +878,6 @@ case class Parse(value:Temporal,logProb:Double){
 					} else if(guess.end == Time.END_OF && gold.end != Time.END_OF){
 						INF //case: end is pos_infinity
 					} else {
-						println("    sub begin " + (guess.begin) + " " + gold.begin + " " + (guess.begin-gold.begin))
-						println("    sub end " + (guess.end) + " " + gold.end + " " + (guess.end-gold.end))
 						(guess.begin-gold.begin,guess.end-gold.end) //case: can subtract
 					}
 				}

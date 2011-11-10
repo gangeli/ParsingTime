@@ -63,7 +63,7 @@ end
 ################################################################################
 #slide!('test',
 #	urange('1 day',-1),
-#nil){ |slide| slide.label('test').signature(38) }
+#nil){ |slide| slide.label('test').signature(40) }
 
 ################################################################################
 # LIB
@@ -313,21 +313,44 @@ def may2011
 		]).constituency
 end
 
+def fridayDist
+	DataTable.new(:cellName => 'Probability',
+  :colName => 'Offset',
+  :colLabels => [
+		rtable(-2,time('10/28/11')).cjustify('c'),
+		rtable(-1,time('11/4/11')).cjustify('c'),
+		rtable(0,time('11/11/11')).cjustify('c'),
+		rtable(1,time('11/18/11')).cjustify('c'),
+		rtable(2,time('11/25/11')).cjustify('c')],
+  :contents => [[0.1], [0.2], [0.4], [0.15], [0.05]].transpose)
+end
+
 ################################################################################
-# INTRO
+# TITLE
 ################################################################################
-#TODO
+slide!('',
+	center,
+	rtable(
+		image('img/logo.jpg').scale(0.25),
+		_('Parsing Time').scale(2.0).color(darkblue),
+		_('Gabor Angeli'),
+	nil).rmargin(u(0.5)).cjustify('c'),
+	left,
+nil){ |slide| slide.label('title').signature(6) }
 
 ################################################################################
 # OUTLINE 
 ################################################################################
-slide!('Outline',
-	'Task Description',
-	'My Theory of Time',
-	'Parsing Methods',
-	'Data',
-	'Preliminary Results',
-nil){ |slide| slide.label('outline').signature(3) }
+slide!('\textbf{Outline}',
+	'','',
+	_('1. Task Description').color(darkblue),
+	'','',
+	_('2. Temporal Framework').color(darkblue),
+	'','',
+	_('3. Parsing and Training').color(darkblue),
+	'','',
+	_('4. Data and Results (preliminary)').color(darkblue),
+nil){ |slide| slide.label('outline').signature(7) }
 
 ################################################################################
 # TASK -- overview
@@ -363,7 +386,7 @@ slide!('\textbf{Task:} Overview',
 nil){ |slide| slide.label('task_overview').signature(26) }
 
 ################################################################################
-# TASK -- training
+# TASK -- approch
 ################################################################################
 
 slide!('\textbf{Task:} Approach',
@@ -564,6 +587,91 @@ slide!('\textbf{Time:} Sequences',
 nil){ |slide| slide.label('time_sequences').signature(9) }
 
 ################################################################################
+# TIME -- as lambda
+################################################################################
+slide!('\textbf{Time:} Primitives As Lambdas',
+	#times as functions
+	center,
+	describe(
+		['\texttt{Duration}', 'Known a-priori'],
+		['\texttt{Range}', ctable('$\lambda(\texttt{Time})$; e.g. ',phrase('Today'))],
+		['\texttt{Sequence}', ctable('$\lambda(\texttt{Time},\textrm{\red{offset}})$; e.g. ',phrase('[last/this/next] Friday'))],
+	nil),
+	left,
+	'',
+
+	#examples
+	_('For Example:').color(darkblue),
+	center,
+	table(
+		[ctable(time('Today'),'(',ground('Nov 10, 2011'),')'),
+			rarrow, time('Nov 10, 2011')],
+		[ctable(time('Friday'),'(',ground('Nov 10, 2011'),'\red{0})'),
+			rarrow, time('Nov 11, 2011')],
+		[ctable(time('Friday'),'(',ground('Nov 10, 2011'),'\red{-1})'),
+			rarrow, time('Nov 4, 2011')],
+		[ctable(time('Friday'),'(',ground('Nov 10, 2011'),'\red{1})'),
+			rarrow, time('Nov 18, 2011')],
+	nil),
+	left,
+	'','',
+	_('The offset in \texttt{Sequence} is not usually mentioned!').bold,
+
+
+nil){ |slide| slide.label('time_primitivesfxns').signature(7) }
+
+################################################################################
+# TIME -- as distribution
+################################################################################
+slide!('\textbf{Time:} Sequences As Distributions',
+	#main idea
+	center,
+	_('Define distribution over possible offsets').bold,
+	left,
+	'',
+	
+	#characterize distribution
+	_('Two Parts:').color(darkblue),
+	ind('Define origin point (offset=0)'),
+	ind(ind('Arbitrary function, hard coded in primitive')),
+	ind('Distribution monotonically decreases from origin'),
+
+	center,
+	phrase('Friday'),
+	barGraph(fridayDist).yrange(0,1).scale(0.6),
+	left,
+
+#	#distribution options
+#	_('Design Decisions').color(darkblue),
+
+nil){ |slide| slide.label('time_sequencedistribution').signature(15) }
+
+################################################################################
+# TIME -- distribution types
+################################################################################
+slide!('\textbf{Time:} Characterizing Distributions',
+	#global vs local
+	_('Single (global) distribution vs. Local distributions per primitive').color(darkblue),
+	ind(ctable('is ',time('Friday'),' distributed the same as ',time('2$^\textrm{nd}$'),'?')),
+	ind('Fine grained control, but sparsity concerns'),
+	
+	'',
+
+	#multinomial vs. gaussian
+	_('Multinomial of Gaussian (or other?)').color(darkblue),
+	ind('Multinomial can be more peaked; Gaussian more smoothed'),
+	ind('Gaussian can take \textit{distance} from reference as well'),
+	center,
+	ctable(
+		barGraph(fridayDist).yrange(0,1).scale(0.4),
+		'vs.',
+		image('img/gaussian.jpg').scale(0.55),
+	nil).rjustify('c').cmargin(u(0.5)),
+	left,
+	ind('Multinomial works better?'),
+nil){ |slide| slide.label('time_characterizingdistributions').signature(10) }
+
+################################################################################
 # TIME -- functions
 ################################################################################
 slide!('\textbf{Time:} Functions',
@@ -720,11 +828,279 @@ slide!('\textbf{Parsing:} Difficult Ambiguity',
 nil){ |slide| slide.label('parsing_hardambiguitysols').signature(12) }
 
 ################################################################################
-# Parsing -- nils
+# TRAINING - data
 ################################################################################
 slide!('\textbf{Training:} Data',
-	'TODO', #TODO finish me...
-nil){ |slide| slide.label('training_data').signature(0) }
+	#training
+	ctable(
+		_('At Training: ').color(darkblue),
+		'given: ',
+		ctable('$\left\{\right.($','$x$',',',time('$y$'), '$)\left.\right\}$'),
+	nil),
+	ind(ctable(
+			'Namely: ',
+			'$\left\{\right.($',
+			ctable('(',phrase('Phrase'),',',ground('Reference'),')'),
+			',',
+			time('Time'), 
+			'$)\left.\right\}$',
+		nil)),
+	ind('\textit{Not} given parse'),
+	ind('In general, parse is ambiguous from time'),
+	ind(ind(ctable(time('Nov 3 2011'),rarrow,phrase('Last Thursday')))),
+	ind(ind(ctable(time('Nov 3 2011'),rarrow,phrase('Week ago')))),
+	ind(ind(ctable(time('Nov 3 2011'),rarrow,phrase('First Thursday')))),
+	'','','',
+	#test
+	ctable(
+		_('At Test: ').color(darkblue),
+		'given ',
+		ctable('(',phrase('Phrase'),',',ground('Reference'),')'),
+		' find ',
+		time('Time'), 
+	nil),
+	ind(ctable('In fact, find $k$-best ',time('Time'),'s')),
+nil){ |slide| slide.label('training_data').signature(12) }
+
+################################################################################
+# TRAINING - parses
+################################################################################
+slide!('\textbf{Training:} Parsing',
+	center,
+	_('EM / bootstrapping like training of latent parses').bold,
+	left,
+	'','',
+
+	_('E-Step').color(darkblue),
+	ind(_('1. Find $k$-best parses using current model')),
+	ind(_('2. Take parses which resolve to the correct time')),
+	ind(_('3. Reweight their probabilities to sum to $1.0$')),
+	ind(_('4. Add reweighted counts to expected sufficient statistics')),
+	center,
+	'$
+		ess(c_1,c_2 \mid p) = \sum\limits_{(x,y) \in \sD}
+			\sum\limits_{\hat y \in \textrm{k-best}}
+				\frac{
+					\1(\hat y = y) \textrm{count}_{y}(p \rightarrow c_1,c_2) P(\hat y)
+				}{
+					\sum\limits_{y\' \in \textrm{k-best}} \1(y\' = y) P(y\')
+				}
+	$',
+	left,
+
+	_('M-Step').color(darkblue),
+	ind(_('Normalize counts, with some Dirichlet smoothing')),
+nil){ |slide| slide.label('training_parsing').signature(15) }
+
+################################################################################
+# TRAINING - times
+################################################################################
+slide!('\textbf{Training:} Times',
+	_('Same Idea As Parses').color(darkblue),
+	ind('Collect \textit{correct} parse trees weighted by their normalized score'),
+	'','','',
+	_('E-Step').color(darkblue),
+	ind('Each time was evaluated at an offset and reference'),
+	ind('\textbf{Multinomial:} Regular E-step for multinomials'),
+	ind('\textbf{Gaussian:} Update normalized distance from reference'),
+
+	_('M-Step').color(darkblue),
+	ind('Standard M-step; Dirichlet smoothing for multinomial'),
+
+nil){ |slide| slide.label('training_times').signature(5) }
+
+################################################################################
+# EVAL -- methods
+################################################################################
+slide!('\textbf{Evaluation:} Methods',
+	_('Score Highest Probability Grounded Time').color(darkblue),
+	ind('$P(t) = 
+		P_{\textrm{PCFG}}(\textrm{parse}) * 
+		P_{\textrm{Time}}(\textrm{trounded time} \mid \textrm{reference})$'),
+	ind(table(
+		[_('$P_{\textrm{PCFG}}$:'), 'The probability of the parse'],
+		[_('$P_{\textrm{Time}}$:'), 'The probability from the time\'s distribution'],
+	nil)),
+	ind('Take $\argmax P(t)$'),
+
+	_('Compute Difference From Gold').color(darkblue),
+	ind('Always scoring a \texttt{Duration} or (grounded) \texttt{Range}'),
+	ind(table(
+		[_('\texttt{Duration}:').bold,
+			'Absolute difference'],
+		['',ctable(time('1D'),'-',time('1W'),rarrow,time('6D')).rjustify('c')],
+		[_('\texttt{Range}:').bold,
+			'Sum Difference of Endpoints'],
+		['',ctable(range('11/10','11/11'),'-',range('11/9','11/11'),rarrow,time('1D')).rjustify('c')],
+	nil).cmargin(u(0.5))),
+
+	_('Correct if Difference is Zero').color(darkblue),
+
+nil){ |slide| slide.label('eval_methods').signature(11) }
+
+
+################################################################################
+# EVAL -- datasets
+################################################################################
+slide!('\textbf{Evaluation:} Datasets',
+	_('TempEval2 English').color(darkblue),
+	ind('182 documents'),
+	ind('$\approx$ 1500 time expressions'),
+
+	_('New York Times').color(darkblue),
+	ind('Automatically annotated with SUTime'),
+	ind('$\infty$ documents'),
+
+	_('Combination?').color(darkblue),
+	ind('Train NYT / Test NYT does well'),
+	ind('Train NYT / Test TempEval2 does not'),
+
+	_('More Interesting Expressions').color(darkblue),
+	ind('VerbMobil Meeting Scheduling \textit{(in progress)}'),
+	ind('Any Ideas?').bold,
+nil){ |slide| slide.label('eval_data').signature(3) }
+
+################################################################################
+# EVAL -- TempEval2
+################################################################################
+slide!('\textbf{Evaluation:} TempEval2 Results',
+	table(
+		[_('System').color(darkblue), 
+				rtable('Train','Correct').cjustify('c').color(darkblue), 
+				rtable('Train','Attempted').cjustify('c').color(darkblue),
+				rtable('Test','Correct').cjustify('c').color(darkblue), 
+				rtable('Test','Attempted').cjustify('c').color(darkblue)],
+		['','','','',''],
+		['GUTime', 0.67, 0.71, 0.68, 0.79],
+		['SUTime', '\textbf{0.75}', '\textbf{0.90}', 0.77, '\textbf{0.95}'],
+		['HeidelTime1', '?', '?', '\textbf{0.85}', 0.82],
+		['Me (good day)', 0.74, 1.0, 0.67, 1.0],
+		[_('Me (normal day)').color(darkblue).bold, 0.68, 1.0, 0.65, 1.0],
+	nil).cmargin(u(0.5)).rmargin(u(0.4)).cjustify('lcccc'),
+nil){ |slide| slide.label('eval_results').signature(16) }
+
+################################################################################
+# EVAL -- Dataset Oddities I
+################################################################################
+slide!('\textbf{Evaluation:} Impossible Annotations',
+	center,
+	_('4.5\% of annotations are impossible').bold,
+	left,
+	'','',
+	
+	_('Wrong Type').color(darkblue),
+	ind(table(
+		[phrase('last 24 hours'),rarrow,time('1D')],
+		[phrase('a day earlier'),rarrow,time('1D')],
+		[phrase('the last four months'),rarrow,time('4M')],
+	nil)),
+
+	'','','',
+
+	_('Fuzzy / Inconsistent').color(darkblue),
+	ind(table(
+		[phrase('next week'),rarrow,time('1998-WXX')],
+		[phrase('a few years ago'),rarrow,time('199X')],
+		[phrase('from time to time'),rarrow,time('The Future')],
+	nil)),
+nil){ |slide| slide.label('eval_impossible').signature(13) }
+
+################################################################################
+# EVAL -- Dataset Oddities II
+################################################################################
+slide!('\textbf{Evaluation:} Impossible Annotations',
+	center,
+	_('4.5\% of annotations are impossible').bold,
+	left,
+	'','',
+	
+	_('Wrong Given Reference').color(darkblue),
+	ind(ctable('e.g. ',phrase('Monday'),' refers to Monday too far away')),
+	
+	'','','',
+
+	_('Simply Wrong').color(darkblue),
+	ind(table(
+		[phrase('eighth day'),rarrow,time('Aug 15 1990')],
+		[phrase('Monday'),rarrow,time('XXXX-WXX-1TNI')],
+		[phrase('a few minutes'),rarrow,time('XM (months)')],
+	nil)),
+nil){ |slide| slide.label('eval_impossible2').signature(3) }
+
+################################################################################
+# EVAL -- Errors I
+################################################################################
+slide!('\textbf{Evaluation:} Common Errors',
+	#type errors
+	_('Type Errors').color(darkblue),
+	ind(table(
+		[phrase('week'),rarrow,
+		range('Nov 7 2011', 'Nov 14 2011').scale(0.6),
+		'gold: ', time('1W')],
+		[phrase('the week'),rarrow,
+		range('Nov 7 2011', 'Nov 14 2011').scale(0.6),
+		'gold: ', time('1W')],
+		nil).cmargin(u(0.5))),
+	ind('\textbf{Fix:} Lexicalize Nils better; more data'),
+	'',
+
+	#parsing ambiguity
+	_('Parsing Ambiguity').color(darkblue),
+	ind(ctable(time('DOM(6)'),' intersects with ',time('1996'))),
+	ind('\textbf{Fix:} Incorporate likelihood of time'),
+	'',
+	
+	#reference time confusion
+	_('Reference Time Confusion').color(darkblue),
+	ind('If you always publish on Thursday, Thursday parses as Today'),
+	ind('\textbf{Fix:} More (even automatically generated) data'),
+nil){ |slide| slide.label('eval_errors').signature(10) }
+
+################################################################################
+# EVAL -- Errors II
+################################################################################
+slide!('\textbf{Evaluation:} Common Errors',
+	#wrong decode
+	_('Wrong Vitterbi Decode').color(darkblue),
+	ind(ctable(
+		phrase('Monday'),rarrow,
+		range('Mar 16 1998', 'Mar 17 1998').scale(0.6),
+		'gold: ',range('Mar 23 1998', 'Mar 24 1998').scale(0.6)
+		).cmargin(u(0.5))),
+	ind('\textbf{Fix:} WONTFIX (getting into pragmatics)'),
+	'',
+	
+	#grammar deficiency
+	_('Grammar Deficiency').color(darkblue),
+	ind(ctable(phrase('minute and a half'),rarrow,time('1m30S'))),
+	ind('\textbf{Fix:} More primitives, e.g. +'),
+	ind('But, always going to miss something'),
+	
+nil){ |slide| slide.label('eval_errors2').signature(1) }
+
+################################################################################
+# CONCLUSION
+################################################################################
+slide!('\textbf{Conclusion}',
+	_('Takeaway Points').color(darkblue),
+	ind('Probabilistic $\rightarrow$ handles ambiguity, propagates uncertainty'),
+	ind('Compositionally parse time'),
+	ind('Synchronous grammar of \texttt{Types} and \textit{Function} applications'),
+	ind('EM/Bootstrapping training'),
+	'',
+
+	_('Results').color(darkblue),
+	ind('Work in progress!'),
+	ind('The future always looks bright'),
+
+	'','','',
+	center,
+	'Thank You!',
+	left,
+	
+nil){ |slide| slide.label('eval_conclusion').signature(4) }
+
+
 
 
 ################################################################################
