@@ -3,6 +3,18 @@
 require 'rfig/Presentation'
 require "#{ENV['HOME']}/workspace/time/aux/figlib.rb"
 
+"""
+	Point-based versus Interval-based semantics of time
+	'Temporal Semantics'
+	Look at TempEval2 guidelines
+
+	Reference in Time:Ranges is x=>x
+	Time: Primitives as Lambdas
+		explain how we find 0 point ('with respect to enclosing container')
+		reword 'offset not mentioned'
+	Training: Data better presentation of ambiguity
+"""
+
 #--Set Slide Style
 slideStyle = nil
 slideStyle = SlideStyle.new.border(1).borderColor(black)
@@ -188,6 +200,8 @@ def clock(txt,img)
 	nil)
 end
 def dom(n); calendar("$#{n}^{\\textrm{th}}$",'img/months.png'); end
+def domrd(n); calendar("$#{n}^{\\textrm{rd}}$",'img/months.png'); end
+def thursday; calendar('THU','img/months.png'); end
 def friday; calendar('FRI','img/months.png'); end
 def monday; calendar('MON','img/months.png'); end
 def tuesday; calendar('TUE','img/months.png'); end
@@ -330,7 +344,7 @@ slide!('',
 		_('Gabor Angeli'),
 	nil).rmargin(u(0.5)).cjustify('c'),
 	left,
-nil){ |slide| slide.label('title').signature(7) }
+nil){ |slide| slide.label('title').signature(8) }
 
 ################################################################################
 # OUTLINE 
@@ -353,7 +367,7 @@ slide!('\textbf{Task:} Overview',
 	'',
 	#task
 	center,
-	_('Resolve temporal pharses into their \textit{grounded} time,').bold,
+	_('Resolve temporal phrases into their \textit{grounded} time,').bold,
 	_('given a reference time').bold,
 	left,
 	'',
@@ -550,7 +564,7 @@ slide!('\textbf{Time:} Ranges',
 		['Yesterday', urange('1 day',-1)],
 		['Tomorrow', interval(ctable(now,time('+ 1 day')),'1 day','')],
 		['Today', urange('1 day')],
-		['Reference', urange('$\varnothing$')],
+		['Reference', range(now,now)],
 	nil),
 	left,
 nil){ |slide| slide.label('time_ranges').signature(20) }
@@ -626,10 +640,10 @@ slide!('\textbf{Time:} Primitives As Lambdas',
 	pause,
 
 	'','',
-	_('The offset in \texttt{Sequence} is not usually mentioned!').bold,
+	_('Pragmatic ambiguity is usually ambiguity in \texttt{Sequence} offset').bold,
 
 
-nil){ |slide| slide.label('time_primitivesfxns').signature(7) }
+nil){ |slide| slide.label('time_primitivesfxns').signature(8) }
 
 ################################################################################
 # TIME -- as distribution
@@ -645,15 +659,16 @@ slide!('\textbf{Time:} Sequences As Distributions',
 	#characterize distribution
 	_('Two Parts:').color(darkblue),
 	ind('Define origin point (offset=0)'),
-	ind(ind('Arbitrary function, hard coded in primitive')),
+	ind(ind('Find closest point in enclosing container')),
+	ind(ind(ctable(time('Friday'),rarrow,'\textit{Closest Friday this week}'))),
 	ind('Distribution monotonically decreases from origin'),
 	pause,
 
 	center,
 	phrase('Friday'),
-	barGraph(fridayDist).yrange(0,1).scale(0.6),
+	barGraph(fridayDist).yrange(0,1).scale(0.5),
 	left,
-nil){ |slide| slide.label('time_sequencedistribution').signature(15) }
+nil){ |slide| slide.label('time_sequencedistribution').signature(17) }
 
 ################################################################################
 # TIME -- distribution types
@@ -668,7 +683,7 @@ slide!('\textbf{Time:} Characterizing Distributions',
 
 	#multinomial vs. gaussian
 	_('Multinomial of Gaussian (or other?)').color(darkblue),
-	ind('Multinomial can be more peaked; Gaussian more smoothed'),
+	ind('Gaussian more smoothed'),
 	ind('Gaussian can take \textit{distance} from reference as well'),
 	center,
 	ctable(
@@ -727,12 +742,13 @@ nil){ |slide| slide.label('time_functions').signature(35) }
 slide!('\textbf{Time:} Function Application',
 	#typed functions
 	'Each function has a type signature',
-		ind('\textit{Arity 2 functions can behave as unaries with reference time}'),
 		ind('$f(\texttt{Range},\texttt{Duration}):\texttt{Range}$'),
 		ind('$f(\texttt{Sequence},\texttt{Duration}):\texttt{Sequence}$'),
 		ind('$f(\texttt{Range},\texttt{Range}):\texttt{Range}$'),
 		ind('$f(\texttt{Duration}):\texttt{Duration}$'),
 		ind('$\dots$'),
+		pause,
+		ind('\textit{Arity 2 functions can behave as unaries with reference time}'),
 	pause,
 
 	#compisitional
@@ -867,13 +883,50 @@ slide!('\textbf{Training:} Data',
 			'$)\left.\right\}$',
 		nil)),
 	pause,
-	ind('\textit{Not} given parse'),
+	ind('\textit{Not} given interpretation'),
+	
 	pause,
-	ind('In general, parse is ambiguous from time'),
-	ind(ind(ctable(time('Nov 3 2011'),rarrow,phrase('Last Thursday')))),
-	ind(ind(ctable(time('Nov 3 2011'),rarrow,phrase('Week ago')))),
-	ind(ind(ctable(time('Nov 3 2011'),rarrow,phrase('First Thursday')))),
-	'','','',
+	ind('In general, interpretation is ambiguous from time'),
+	ind(ind(ctable('( (',phrase('w1 w2'),',',ground('Nov 10 2011'),') , ',time('Nov 3 2011'), ')'))),
+	pause,
+
+	center,
+	staggeredOverlay(true,
+		#last thursday
+		ctable(
+			Parse.new(
+				[shiftLeft(thursday,1), 
+					[shiftLeft, 'w1'],
+					[thursday, 'w2'],
+				]
+			).constituency,
+			rarrow,
+			'e.g. \textit{last Thursday}',
+		nil).rjustify('c').cmargin(u(0.5)),
+		#week ago
+		ctable(
+			Parse.new(
+				[shiftLeft(now,'1 week'), 
+					['1W', 'w1'],
+					[shiftLeft, 'w2'],
+				]
+			).constituency,
+			rarrow,
+			'e.g. \textit{week ago}',
+		nil).rjustify('c').cmargin(u(0.5)),
+		#nov 3
+		ctable(
+			Parse.new(
+				[intersect(nov,domrd(3)), 
+					[nov, 'w1'],
+					[domrd(3), 'w2'],
+				]
+			).constituency,
+			rarrow,
+			'e.g. \textit{November 3}',
+		nil).rjustify('c').cmargin(u(0.5)),
+	nil),
+	left,
 	pause,
 
 	#test
@@ -886,7 +939,7 @@ slide!('\textbf{Training:} Data',
 	nil),
 	pause,
 	ind(ctable('In fact, find $k$-best ',time('Time'),'s')),
-nil){ |slide| slide.label('training_data').signature(12) }
+nil){ |slide| slide.label('training_data').signature(24) }
 
 ################################################################################
 # TRAINING - parses
@@ -947,16 +1000,16 @@ nil){ |slide| slide.label('training_times').signature(5) }
 # EVAL -- methods
 ################################################################################
 slide!('\textbf{Evaluation:} Methods',
-	_('Score Highest Probability Grounded Time').color(darkblue),
+	_('Score Highest Probability Grounded Range').color(darkblue),
 	ind('$P(t) = 
 		P_{\textrm{PCFG}}(\textrm{parse}) * 
-		P_{\textrm{Time}}(\textrm{trounded time} \mid \textrm{reference})$'),
+		P_{\textrm{Time}}(\textrm{grounded range} \mid \textrm{reference})$'),
 	ind(table(
 		[_('$P_{\textrm{PCFG}}$:'), 'The probability of the parse'],
 		[_('$P_{\textrm{Time}}$:'), 'The probability from the time\'s distribution'],
 	nil)),
 	pause,
-	ind('Take $\argmax P(t)$'),
+	ind('Take $\argmax P(t)$ (or, $\argmax P_{\textrm{PCFG}}$, then $\argmax P_{\textrm{Time}}$)'),
 	pause,
 
 	_('Compute Difference From Gold').color(darkblue),
@@ -975,7 +1028,7 @@ slide!('\textbf{Evaluation:} Methods',
 
 	_('Correct if Difference is Zero').color(darkblue),
 
-nil){ |slide| slide.label('eval_methods').signature(11) }
+nil){ |slide| slide.label('eval_methods').signature(13) }
 
 
 ################################################################################
@@ -984,7 +1037,7 @@ nil){ |slide| slide.label('eval_methods').signature(11) }
 slide!('\textbf{Evaluation:} Datasets',
 	_('TempEval2 English').color(darkblue),
 	ind('182 documents'),
-	ind('$\approx$ 1500 time expressions'),
+	ind('1208 time expressions'),
 	pause,
 
 	_('New York Times').color(darkblue),
@@ -1010,8 +1063,8 @@ slide!('\textbf{Evaluation:} TempEval2 Results',
 		[_('System').color(darkblue), 
 				rtable('Train','Correct').cjustify('c').color(darkblue), 
 				rtable('Train','Attempted').cjustify('c').color(darkblue),
-				rtable('Test','Correct').cjustify('c').color(darkblue), 
-				rtable('Test','Attempted').cjustify('c').color(darkblue)],
+				rtable('Dev','Correct').cjustify('c').color(darkblue), 
+				rtable('Dev','Attempted').cjustify('c').color(darkblue)],
 		['','','','',''],
 		['GUTime', 0.67, 0.71, 0.68, 0.79],
 		pause,
@@ -1020,9 +1073,9 @@ slide!('\textbf{Evaluation:} TempEval2 Results',
 		['HeidelTime1', '?', '?', '\textbf{0.85}', 0.82],
 		pause,
 		['Me (good day)', 0.74, 1.0, 0.67, 1.0],
-		[_('Me (normal day)').color(darkblue).bold, 0.68, 1.0, 0.65, 1.0],
-	nil).cmargin(u(0.5)).rmargin(u(0.4)).cjustify('lcccc'),
-nil){ |slide| slide.label('eval_results').signature(16) }
+		[_('Me (normal)').color(darkblue).bold, 0.68, 1.0, 0.65, 1.0],
+	nil).cmargin(u(0.5)).rmargin(u(0.4)).cjustify('lcccc').rjustify('r'),
+nil){ |slide| slide.label('eval_results').signature(18) }
 
 ################################################################################
 # EVAL -- Dataset Oddities I
@@ -1148,7 +1201,7 @@ slide!('\textbf{Conclusion}',
 
 	_('Results').color(darkblue),
 	ind('Work in progress!'),
-	ind('Not hopelessly numbers, with room for improvement'),
+	ind('Not hopeless numbers, with room for improvement'),
 	'','','',
 	pause,
 
