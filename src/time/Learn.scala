@@ -388,12 +388,12 @@ object Grammar {
 			fn:(_<:A,_<:B)=>_<:A,name:String,validA:List[Symbol],validB:List[Symbol])
 		//(define)
 		val function2 = List[F2Info[Temporal,Temporal]](
-			F2Info(shiftLeft,"shiftLeft",List('R,'S),List('D,'S)),     //last/ago
-			F2Info(shiftRight,"shiftRight",List('R,'S),List('D,'S)),   //next/from now
-			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D,'S)), //first
-			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D,'S)),   //last
-			F2Info(catLeft,"catLeft",List('R),List('D,'S)),            //past
-			F2Info(catRight,"catRight",List('R),List('D,'S))           //coming
+			F2Info(shiftLeft,"shiftLeft",List('R,'S),List('D)),        //last/ago
+			F2Info(shiftRight,"shiftRight",List('R,'S),List('D)),      //next/from now
+			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D)),    //first
+			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D)),      //last
+			F2Info(catLeft,"catLeft",List('R),List('D)),               //past
+			F2Info(catRight,"catRight",List('R),List('D))              //coming
 //			F2Info(cons,"cons",List('R,'S),List('R,'S))                //from...until
 		)
 		//(intro)
@@ -842,7 +842,7 @@ case class Parse(value:Temporal,logProb:Double){
 	def this(value:Temporal) = this(value,0.0)
 
 	def scoreFrom(gold:Temporal,ground:GroundedRange
-			):Iterator[((Duration,Duration),Double,Int)]={
+			):Iterator[((Duration,Duration),Double,Int)] = {
 		val INF = (Duration.INFINITE,Duration.INFINITE)
 		def diff(gold:Temporal,guess:Temporal,second:Boolean):(Duration,Duration) 
 				= (gold,guess) match {

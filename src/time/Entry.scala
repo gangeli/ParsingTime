@@ -449,10 +449,14 @@ trait DataStore {
 			//(for each parse...)
 			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
 			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
+				//(variables)
 				val ground:GroundedRange 
 					= if(O.guessRange){ grounding.guessRange }
 					  else{ Range(grounding,grounding) }
 				val parseProb = parse.logProb
+				//(timing)
+				val parseWatch:Stopwatch = new Stopwatch
+				parseWatch.start
 				//(for each offset of parse...)
 				val rtn = soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
 					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
@@ -465,6 +469,12 @@ trait DataStore {
 						//(create parse)
 						ScoreElem(i,offset,isExact(diff),diff,parse.logProb+math.log(prob))
 					}.toList
+				//(timing)
+				val lapTime = parseWatch.lap
+				if(lapTime > 100){
+					warn(""+parse.value+" took "+Stopwatch.formatTimeDifference(lapTime))
+				}
+				//(return)
 				rtn
 		}.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
 			if( (b.prob - a.prob).abs < 1e-6 ){
@@ -743,20 +753,20 @@ object ToyData {
 				//(sequences)
 				week,month,quarter,year,day,
 				//(cannonicals)
-//				thisWeek,thisYear,thisMonth,
+				thisWeek,thisYear,thisMonth,
 				//(shifts -- standard)
 				lastWeek,lastYear,lastQuarter,
-//				//(shifts -- noncannonical)
-//				pastWeek,thePastWeek,pastMonths2,
-//				//(numbers -- basic)
-//				y1776,
+				//(shifts -- noncannonical)
+				pastWeek,thePastWeek,pastMonths2,
+				//(numbers -- basic)
+				y1776,
 //				//(numbers -- complex)
 //				y17sp76,
-//				//(sequences)
-//				april,
-//				//(intersects)
-//				april1776,april2,
-//				//(ref)
+				//(sequences)
+				april,
+				//(intersects)
+				april1776,april2,
+				//(ref)
 				today
 			).internWords,
 			//--Test
