@@ -650,6 +650,7 @@ object ToyData {
 	private def store(test:Boolean,args:(String,Parse)*):ToyStore 
 		= ToyStore(args.toArray,test)
 	private val today = ("today",Parse(TODAY))
+	private val day = ("day",Parse(DAY(todaysDate)))
 	private val week = ("week",Parse(WEEK(todaysDate)))
 	private val aWeek = ("a week",Parse(AWEEK))
 	private val theWeek = ("the week",Parse(WEEK(todaysDate)))
@@ -705,6 +706,7 @@ object ToyData {
 				if(!toys.contains(sent)){ toys(sent) = toys.size }
 				//(parse)
 				forceTrack("Datum " + id + ": "+sent)
+				log("GOLD: " + gold.value(Range(todaysDate,todaysDate)))
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
 				handleParse(parses,
@@ -736,15 +738,14 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-				week,lastWeek,
-//				//(durations)
-//				aWeek,aMonth,aQuarter,ayear,weeks2,
-//				//(sequences)
-//				week,month,quarter,year,
-//				//(cannonicals)
+				//(durations)
+				aWeek,aMonth,aQuarter,ayear,weeks2,
+				//(sequences)
+				week,month,quarter,year,day,
+				//(cannonicals)
 //				thisWeek,thisYear,thisMonth,
-//				//(shifts -- standard)
-//				lastWeek,lastYear,lastQuarter,
+				//(shifts -- standard)
+				lastWeek,lastYear,lastQuarter,
 //				//(shifts -- noncannonical)
 //				pastWeek,thePastWeek,pastMonths2,
 //				//(numbers -- basic)
@@ -757,7 +758,7 @@ object ToyData {
 //				april1776,april2,
 //				//(ref)
 				today
-				).internWords,
+			).internWords,
 			//--Test
 			store(true,lastMonth))
 	}

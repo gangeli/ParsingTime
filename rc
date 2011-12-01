@@ -148,6 +148,9 @@ plot \"/tmp/data\" using 1:2 title 'Training' with linespoints, \\
 function r {
 	make $@ && ./run
 }
+function rp {
+	make && ./run && p
+}
 function cmd {
 	java -cp bin:etc/joda-time.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes time.Time
 }

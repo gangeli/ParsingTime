@@ -76,7 +76,11 @@ trait ProvidesIntersectables[A <: Intersectable] {
 	def intersectable(offset:Long):A
 }
 
-case class Intersection(index:Int,a:Long,b:Long,origin:(Long,Long))
+case class Intersection(index:Int,a:Long,b:Long,origin:(Long,Long)){
+	override def toString:String = {
+		"["+index+"] ("+a+","+b+") originating from " + origin
+	}
+}
 
 object Intersect {
 
@@ -106,8 +110,8 @@ object Intersect {
 		//--Search State
 		case class TermSearchState(a:Long,b:Long,step:Long,dir:Int,moving:Symbol,
 				origin:Option[(Long,Long)]) extends SearchState {
-			def this(a:Long,b:Long) = this(a,b,0L,0,'None,None)
-			def this(a:Long,b:Long,dir:Int) = this(a,b,0L,dir,'None,None)
+			def this(a:Long,b:Long) = this(a,b,1L,0,'None,None)
+			def this(a:Long,b:Long,dir:Int) = this(a,b,1L,dir,'None,None)
 
 
 			private var cachedA:A = null.asInstanceOf[A]
@@ -289,6 +293,7 @@ object Intersect {
 				//(return)
 				isEnd
 			}
+			
 			def distanceBetween:Long = {
 				if(!ensureTerms){ return Long.MaxValue/2 }
 				if(isEndState) { 0L }
@@ -346,7 +351,7 @@ object Intersect {
 		var matchesPos = 0
 		var matchesNeg = 0
 		Search[TermSearchState](Search.cache(Search.UNIFORM_COST))
-			.iterable(new TermSearchState(0L,0L,initialDir),10000).iterator
+			.iterable(new TermSearchState(0L,0L,initialDir),1000).iterator
 			.map{ case (state:TermSearchState,count:Int) => 
 //				println("MATCHED " + state)
 				val index 

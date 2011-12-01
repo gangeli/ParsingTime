@@ -339,10 +339,13 @@ trait Range extends Temporal{
 	def ^(other:Range):Range = {
 		(this, other) match {
 			case (a:Range,b:NoTime) => new NoTime
-			case (a:GroundedRange,b:GroundedRange) => new GroundedRange(
+			case (a:GroundedRange,b:GroundedRange) => 
+				val cand = new GroundedRange(
 					Range.mkBegin(a.begin,b.begin),
 					Range.mkEnd(a.end,b.end)
 				)
+				if(cand.end < cand.begin){ new NoTime }
+				else{ cand }
 			case (a:GroundedRange,b:RepeatedRange) => b.intersect(a) //shortcut
 			case (a:RepeatedRange,b:GroundedRange) => a.intersect(b) //.
 			case _ => Range.intersectSearch(this,other)
@@ -494,6 +497,10 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 // ----- UNGROUNDED RANGE -----
 class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 		) extends Range{
+	//(sanity checks)
+	assert(beginOffset < Duration.INFINITE && beginOffset > Duration.NEG_INFINITE,
+		"Ungrounded range with infinite offset")
+
 	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){ 
 			val gr:GroundedRange = 
@@ -519,32 +526,48 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	override def prob(ground:GroundedRange,offset:Long):Double
 		= if(offset == 0){ 1.0 } else{ 0.0 }
 
-	override def >>(diff:Duration):Range 
-		= new UngroundedRange(normVal,beginOffset+diff)
+	override def >>(diff:Duration):Range =
+		if(diff == Duration.INFINITE){ Range(Time.END_OF, Time.END_OF) }
+		else if(diff == Duration.NEG_INFINITE){ Range(Time.DAWN_OF, Time.DAWN_OF) }
+		else { new UngroundedRange(normVal,beginOffset+diff) }
 
-	override def <<(diff:Duration):Range 
-		= new UngroundedRange(normVal,beginOffset-diff)
+	override def <<(diff:Duration):Range =
+		if(diff == Duration.INFINITE){ Range(Time.DAWN_OF, Time.DAWN_OF) }
+		else if(diff == Duration.NEG_INFINITE){ Range(Time.END_OF, Time.END_OF) }
+		else { new UngroundedRange(normVal,beginOffset-diff) }
 
 	override def <|(diff:Duration):Range
 		= if(diff.isInstanceOf[FuzzyDuration]){
-			new UngroundedRange(Duration.INFINITE,Duration.NEG_INFINITE) 
-				//^ TODO wrong I think
+			Lex.PAST
 		} else {
+			if(diff == Duration.INFINITE){ Lex.PAST }
+			else if(diff == Duration.NEG_INFINITE){ Lex.FUTURE }
 			new UngroundedRange(diff,beginOffset-diff)
 		}
 
 	override def |>(diff:Duration):Range 
 		= if(diff.isInstanceOf[FuzzyDuration]){
-			new UngroundedRange(Duration.INFINITE,beginOffset+normVal)
+			Lex.FUTURE
 		} else {
-			new UngroundedRange(diff,beginOffset+normVal)
+			if(normVal == Duration.INFINITE){ Range(Time.END_OF,Time.END_OF) }
+			else if(normVal == Duration.NEG_INFINITE){ 
+				Range(Time.DAWN_OF,Time.DAWN_OF) }
+			else if(diff == Duration.INFINITE){ Lex.FUTURE }
+			else if(diff == Duration.NEG_INFINITE){ Lex.PAST }
+			else { new UngroundedRange(diff,beginOffset+normVal) }
 		}
 
-	override def |<(diff:Duration):Range 
-		= new UngroundedRange(diff,beginOffset)
+	override def |<(diff:Duration):Range = {
+		if(diff < 0){ new NoTime }
+		else if(diff == Duration.INFINITE){ Range(Time.END_OF, Time.END_OF) }
+		else { new UngroundedRange(diff,beginOffset) }
+	}
 
-	override def >|(diff:Duration):Range 
-		= new UngroundedRange(diff,beginOffset+normVal-diff)
+	override def >|(diff:Duration):Range = {
+		assert(diff >= 0, "Shrinking to a negative duration")
+		if(diff == Duration.INFINITE){ Range(Time.DAWN_OF, Time.DAWN_OF) }
+		else { new UngroundedRange(diff,beginOffset+normVal-diff) }
+	}
 	
 	def norm:GroundedDuration = normVal.interval
 	
@@ -771,11 +794,13 @@ object Range {
 				val map = if(stateMap.contains( ground )){
 					stateMap( ground )
 				} else {
+					//(intersect)
 					val sourceA = RangeSource(rA,ground)
 					val sourceB = RangeSource(rB,ground)
 					val iter = new IteratorMap( 
 						Intersect.intersectForward(sourceA,sourceB),
-						Intersect.intersectBackward(sourceA,sourceB))
+						Intersect.intersectBackward(sourceA,sourceB)) //<--intersect here!
+					//(save)
 					stateMap( ground ) = iter
 					iter
 				}
@@ -803,6 +828,8 @@ object Range {
 								rB.evaluate(ground,originB)
 							val probB = rB.prob(ground,intersect.b-originB)
 							//(return)
+							assert(probA >= 0 && probA <= 1, "Not a probability: " + probA)
+							assert(probB >= 0 && probB <= 1, "Not a probability: " + probB)
 							( (fn:TraverseTask) => {
 									fnA( (term:Temporal,offset:Long,orig:Long) => {
 										fn(grA,intersect.a,originA) })
@@ -888,8 +915,13 @@ trait Duration extends Temporal {
 	def /(other:Duration):Double 
 		= this.seconds.asInstanceOf[Double] / other.seconds.asInstanceOf[Double]
 	def <(other:Duration) = this.seconds < other.seconds
+	def >(other:Duration) = this.seconds > other.seconds
 	def <=(other:Duration) = this.seconds <= other.seconds
 	def >=(other:Duration) = this.seconds >= other.seconds
+	def <(other:Int) = this.seconds < other
+	def >(other:Int) = this.seconds > other
+	def <=(other:Int) = this.seconds <= other
+	def >=(other:Int) = this.seconds >= other
 
 	def units:Array[DurationUnit.Value]
 	def smallestUnit:DurationUnit.Value = {
@@ -1262,7 +1294,6 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
 			):(TraverseFn,E)={
-		println("Evaluating " + this + " at " + ground + " and " + rawOffset + " moveoffset="+moveOffset)
 		val offset = rawOffset + moveOffset
 		var cache:Temporal = null; var cacheCond:Range = null
 		val term = if( cache == null || ground != cacheCond) {
@@ -1326,11 +1357,24 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 
 	
 	def intersect(range:GroundedRange) = {
-		if(this.bound == null){
+		if(range.begin == Time.END_OF || range.end == Time.DAWN_OF){
+			//(case: intersecting with some invalid time)
+			new NoTime
+		} else if(this.bound == null){
+			//(case: creating a new bound)
 			new RepeatedRange(snapFn,base,interv,range,moveOffset).name(name)
 		} else {
-			val newBound:GroundedRange = (range ^ bound).asInstanceOf[GroundedRange]
-			new RepeatedRange(snapFn,base,interv,newBound,moveOffset).name(name)
+			//(case: refining an existing bound)
+			val newBound = (range ^ bound).asInstanceOf[GroundedRange]
+			newBound match {
+				//((no such bound))
+				case (nt:NoTime) => new NoTime
+				//((new grounded range))
+				case (gr:GroundedRange) =>
+					new RepeatedRange(snapFn,base,interv,newBound,moveOffset).name(name)
+				//((impossible)
+				case _ => throw new IllegalStateException("bad intersect: " + newBound)
+			}
 		}
 	}
 

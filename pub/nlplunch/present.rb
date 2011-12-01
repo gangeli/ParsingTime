@@ -7,12 +7,6 @@ require "#{ENV['HOME']}/workspace/time/aux/figlib.rb"
 	Point-based versus Interval-based semantics of time
 	'Temporal Semantics'
 	Look at TempEval2 guidelines
-
-	Reference in Time:Ranges is x=>x
-	Time: Primitives as Lambdas
-		explain how we find 0 point ('with respect to enclosing container')
-		reword 'offset not mentioned'
-	Training: Data better presentation of ambiguity
 """
 
 #--Set Slide Style

@@ -2541,7 +2541,7 @@ class CKYParser extends StandardParser{
 					startTrack("Correct: " + temporal)
 					//(get raw count)
 					val logRaw:Double = 
-						if(O.hardEM) 1.0
+						if(O.hardEM) 0.0
 						else scored(index)._3 +
 						     U.safeLn(scored(index)._2.prob(
 								 	Range(feedback.grounding,feedback.grounding),offset))
