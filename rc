@@ -76,6 +76,15 @@ function v {
 	vim out/$last/$file
 }
 
+function c {
+	file=$1
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$2" != "" ]; then
+		last="$2.exec"
+	fi
+	cat out/$last/$file
+}
+
 function p() {
 	last=`ls out | sort -nr | head -n 1`
 	if [ "$1" != "" ]; then
