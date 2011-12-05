@@ -2,12 +2,126 @@
 <head>
 <script src="static/jquery-1.7.1.min.js"></script>
 <script language="Javascript">
+//--Util
+function cancelEvent(e) {
+	if (!e) e = window.event;
+	if (e.preventDefault) {
+		e.preventDefault();
+	} else {
+		e.returnValue = false;
+	}
+}
 //--State
 var ID = -1;
 var YEAR = -1;
 var MONTH = -1;
 var DAY = -1;
 var HR = -1;
+var HR_START = -1
+var HR_END = -1
+//--Refresh
+function refresh(){
+	refreshImpl(true)
+}
+function refreshImpl(updateMonth){
+	//--Month Mask
+	if(updateMonth){
+		//(get month image location)
+		var month = document.getElementById('imgMonth');
+		var width = month.clientWidth
+		var height = month.clientHeight
+		var left = month.offsetLeft
+		var top = month.offsetTop
+		if(DAY > 0){
+			//(coordinates)
+			var cal = new Date(YEAR,MONTH-1,DAY,0,0,0,0);
+			var dow = cal.getDay();
+			var dom = cal.getDate();
+			cal = new Date(YEAR,MONTH-1,1,0,0,0,0);
+			var firstDow = cal.getDay()-1;
+			var week = Math.floor((firstDow+dom) / 7.0)
+			var x = left + width/7*dow
+			var y = top + height/7.5*(week+1.5)
+			//(draw)
+			document.getElementById("mask").innerHTML = 
+				'<img src="static/mask.png" style="position:absolute; top:'+y+'px; '+
+				'left:'+x+'px; '+
+				'z-index: 3;"/>';
+		} else {
+			document.getElementById("mask").innerHTML = ''
+		}
+	}
+	//--Day Mask
+	if(HR_START >= 0 && HR_END >= 0) {
+		//(get image dimensions)
+		var day = document.getElementById('imgDay');
+		var dayHeight = day.clientHeight;
+		var dayWidth = day.clientWidth;
+		var dayLeft = day.offsetLeft;
+		var dayTop = day.offsetTop;
+		//(get target position)
+		var hr = HR_START;
+		document.getElementById("daymask").innerHTML = ''
+		for(hr=HR_START; hr<=HR_END; hr++){
+			var x = dayLeft + (dayWidth / 14)*3;
+			var y = dayTop + (dayHeight/26)*(hr+2);
+			//(draw)
+			document.getElementById("daymask").innerHTML += 
+				'<img src="static/daymask.png" style="position:absolute; top:'+y+'px; '+
+				'left:'+x+'px; '+
+				'z-index: 1;"' +
+				'onclick="HR_START=-1; refreshImpl(false);" '+
+				'/>';
+		}
+	} else {
+		document.getElementById("daymask").innerHTML = ''
+	}
+}
+//--Click and Drag
+function event2hour(event) {
+	//(get location)
+	var y = event.offsetY?(event.offsetY):event.pageY-
+		document.getElementById("imgDay").offsetTop;
+	//(get image dimensions)
+	var img = document.getElementById('imgDay');
+	var height = img.clientHeight
+	//(get hour)
+	var hr = Math.floor( (y+2) / (height / 26) )-2
+	if(hr < 0){
+		return -2;
+	} else if(hr >= 24){
+		return -1
+	} else {
+		return hr
+	}
+}
+function beginSelect(event) {
+	//(select)
+	HR_START = event2hour(event);
+	HR_END = HR_START;
+	if(HR_START == -2){
+		HR_START = 6
+		HR_END = 21
+	}
+	refreshImpl(false);
+	//(cancel default)
+	cancelEvent(event);
+}
+function moveSelect(event) {
+	if(event.which == 1){
+		var oldHrEnd = HR_END
+		HR_END = event2hour(event)
+		if(HR_END < 0){ HR_END = oldHrEnd; }
+		if(HR_END < HR_START){ HR_END = HR_START; }
+		if(oldHrEnd != HR_END){
+			document.getElementById("info").innerHTML = HR_END
+			refreshImpl(false);
+		}
+		cancelEvent(event);
+	}
+}
+function endSelect(event) {
+}
 //--Submission
 function validateSubmit(){
 	//TODO intelligent checks
@@ -20,6 +134,7 @@ function nextMonth() {
 		MONTH = 1;
 		YEAR = YEAR + 1;
 	}
+	DAY = -1;
 	month(YEAR,MONTH);
 }
 function prevMonth() {
@@ -28,10 +143,8 @@ function prevMonth() {
 		MONTH = 12;
 		YEAR = YEAR - 1;
 	}
+	DAY = -1;
 	month(YEAR,MONTH);
-}
-//--Hour
-function getHour(event){
 }
 //--Day
 function getDay(event){
@@ -51,22 +164,27 @@ function getDay(event){
 	var firstDow = cal.getDay();
 	var dom = row*7+col-firstDow+1
 	//(json)
-	if(dom > 0 && dom < (32 - new Date(YEAR,MONTH,32).getDate())){
+	if(dom > 0 && dom <= (32 - new Date(YEAR,MONTH-1,32).getDate())){
 		$.getJSON(
-			'http://goobs.org:3000/day?callback=?&id='+
+			'http://localhost:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
 				document.getElementById("day").innerHTML = 
 					'<img id="imgDay" src="'+data['value']+'" alt="day view"'+
-					'onclick="getHour(event)"/>';
+					'onmousedown="beginSelect(event);" '+
+					'onmousemove="moveSelect(event);" '+
+					'onmouseup="endSelect(event);" '+
+					'/>';
 				DAY = dom;
+				HR_START = -1;
+				refresh();
 			});
 	}
 }
 //--Month
 function month(yr,mon) {
 	$.getJSON(
-		'http://goobs.org:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
+		'http://localhost:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
 		function(data) {
 			document.getElementById("month").innerHTML = 
 				'<img id="imgMonth" src="'+data['value']+'" alt="month view"'+
@@ -74,12 +192,14 @@ function month(yr,mon) {
 			document.getElementById("day").innerHTML = '';
 			YEAR = yr
 			MONTH = mon
+			HR_START = -1;
+			refresh();
 		});
 }
 //--Connect
 function init() {
 	$.getJSON(
-		'http://goobs.org:3000/init?callback=?', 
+		'http://localhost:3000/init?callback=?', 
 		function(data) {
 			//(set id)
 			ID = parseInt(data['value'])
@@ -111,8 +231,6 @@ function init() {
 		Dear Joe,
 		<br/><br/>
 			I'd be happy to meet sometime. I'm free
-			<input type="text"></input>,
-			<input type="text"></input>, or
 			<input type="text"></input>.
 			<br/>
 			Let me know if this would work for you.
@@ -136,13 +254,20 @@ function init() {
 	<span id="day">
 		<!--(empty for now)-->
 	</span>
+	<div id="controls">
+		<button id="allday">All Day</button>
+		<button id="clear">Clear Selection</button>
+	</span>
+
+	<span id="info"></span>
+	<span id="mask"></span>
+	<span id="daymask"></span>
 </div>
 
 <!-- TODOs -->
 <div>
 	TODOs
 	<ul>
-		<li>show day selection in month view as well</li>
 		<li>ability to select times</li>
 		<li>think through wording of description/email more carefully</li>
 		<li>validate answers with SUTime</li>
