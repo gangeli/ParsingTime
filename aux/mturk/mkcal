@@ -78,6 +78,30 @@ class Freedom(val mon:Int,val year:Int,freedom:Array[Boolean]) {
 		//--Finish Calendar
 		Freedom.flourish(Freedom.frame(freed,mon,year),mon,year,today)
 	}
+	def day(day:Int):Drawing = {
+		//--Variables
+		//(create calendar)
+		val cal:Calendar = Freedom.calendar
+		cal.set(year,mon-1,day)
+		//(get freedom)
+		val freeDay:Array[Boolean] = freedom.slice((day-1)*24,(day-1+1)*24)
+		//(create frame)
+		val frame:Drawing = new Drawing()
+		//--Block Hours
+		val blocked:Drawing = freeDay.zipWithIndex.foldLeft(frame){ 
+				case (frame:Drawing,(free:Boolean,hour:Int)) =>
+			println(""+hour + " -> " + free)
+			if(free){
+				frame
+			} else if(isNight(hour)){
+				frame.fillRect(3,24-hour-1,14,24-hour, new Color(0xEAEAEA))
+			} else {
+				frame.fillRect(3,24-hour-1,14,24-hour, new Color(0x9FC6E7))
+			}
+		}
+		//--Finish Calendar
+		Freedom.day(blocked,year,mon,day)
+	}
 	override def toString:String = freedom.mkString(",")
 }
 
@@ -206,11 +230,21 @@ object Freedom {
 	}
 	
 	def day(canvas:Drawing,year:Int,month:Int,day:Int):Drawing = {
-		val boundary:Drawing = canvas.rect(0,0,14,24,Color.BLACK,borderWidth)
+		val boundary:Drawing = canvas
+			.rect(0,0,14,24,Color.BLACK,borderWidth)
+			.line(3,0,3,24,Color.BLACK,2)
 		val emptyDay:Drawing = (0 until 24).foldLeft(boundary){
 				case (frame:Drawing, hour:Int) =>
+			val tMod12:Int = 
+				if(hour == 0 || hour == 12) 12
+				else if(hour < 12) hour
+				else hour-12
+			val time:String = ""+tMod12 +
+				{if(tMod12 < 10) "  " else " "} +
+				{if(hour >= 12) "pm" else "am"}
 			frame
 				.line(0,24-hour-1,14,24-hour-1)
+				.text(0.1, 24-hour-1+0.1, time, new Color(0x2E3542), 0.8)
 		}
 		emptyDay
 	}
@@ -218,7 +252,8 @@ object Freedom {
 
 
 //Freedom(2011,11).export(27).preview(500)
-Freedom.day(new Drawing(),2011,11,27).preview(500)
+//Freedom.day(new Drawing(),2011,11,27).preview(500)
+Freedom(2011,11).day(27).preview(500)
 
 println("DONE")
 
