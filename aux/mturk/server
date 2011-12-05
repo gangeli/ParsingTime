@@ -52,6 +52,7 @@ val MOY = Array[String](
 object State {
 	val sessionID = Random.nextInt
 	var nextID:Int = 0
+	val freedom = new HashMap[(Int,Int,Int),Freedom]
 }
 
 def isNight(hr:Int) = {
@@ -97,7 +98,7 @@ class Freedom(val year:Int,val mon:Int,freedom:Array[Boolean]) {
 		val freed:Drawing = freedom.zipWithIndex.foldLeft(frame){ 
 				case (frame:Drawing,(free:Boolean,hr:Int)) =>
 			//(get date)
-			val day:Int = hr / 24
+			val day:Int = hr / 24 + 1
 			cal.set(year,mon-1,day)
 			val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
 			val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
@@ -105,7 +106,7 @@ class Freedom(val year:Int,val mon:Int,freedom:Array[Boolean]) {
 			if(free){
 				frame
 			} else {
-				mark(frame,dow,6-week,(hr % 24))
+				mark(frame,dow,7-week,(hr % 24))
 			}
 		}
 		//--Finish Calendar
@@ -182,29 +183,38 @@ object Freedom {
 	def frame(canvas:Drawing,year:Int,month:Int):Drawing = {
 		//--Functions
 		def invalid(frame:Drawing,row:Int,col:Int) = {
-			frame.fillRect(col,5-row,col+1,6-row, Color.BLACK)
+			frame.fillRect(col,7-row,col+1,6-row, Color.BLACK)
 		}
 		val cal:Calendar = calendar
 		//--Make Frame
 		val emptyCal:Drawing = canvas
 			//(boundary)
-			.rect(0,0,7,6,Color.BLACK,borderWidth)
+			.rect(0,0,7,7.5,Color.BLACK,borderWidth)
 			//(grid)
-			.line(1,0,1,5,Color.BLACK,gridWidth)
-			.line(2,0,2,5,Color.BLACK,gridWidth)
-			.line(3,0,3,5,Color.BLACK,gridWidth)
-			.line(4,0,4,5,Color.BLACK,gridWidth)
-			.line(5,0,5,5,Color.BLACK,gridWidth)
-			.line(6,0,6,5,Color.BLACK,gridWidth)
+			.line(1,0,1,6,Color.BLACK,gridWidth)
+			.line(2,0,2,6,Color.BLACK,gridWidth)
+			.line(3,0,3,6,Color.BLACK,gridWidth)
+			.line(4,0,4,6,Color.BLACK,gridWidth)
+			.line(5,0,5,6,Color.BLACK,gridWidth)
+			.line(6,0,6,6,Color.BLACK,gridWidth)
 			.line(0,1,7,1,Color.BLACK,gridWidth)
 			.line(0,2,7,2,Color.BLACK,gridWidth)
 			.line(0,3,7,3,Color.BLACK,gridWidth)
 			.line(0,4,7,4,Color.BLACK,gridWidth)
 			.line(0,5,7,5,Color.BLACK,gridWidth)
+			.line(0,6,7,6,Color.BLACK,gridWidth)
 			//(title)
-			.text(1.6,5.125,
+			.text(1.6,6.75,
 				{if(drawMonth){ MOY(month-1)+" "+year } else { "" }},
-				Color.BLUE,0.75)
+				new Color(0x2E3542),0.75)
+			//(days of week)
+			.text(0.15,6.1,"SUN",new Color(0x2E3542),0.4)
+			.text(1.15,6.1,"MON",new Color(0x2E3542),0.4)
+			.text(2.15,6.1,"TUE",new Color(0x2E3542),0.4)
+			.text(3.15,6.1,"WED",new Color(0x2E3542),0.4)
+			.text(4.15,6.1,"THU",new Color(0x2E3542),0.4)
+			.text(5.15,6.1,"FRI",new Color(0x2E3542),0.4)
+			.text(6.15,6.1,"SAT",new Color(0x2E3542),0.4)
 		//--Bound Calendar
 		//(bound first)
 		cal.set(year,month-1,1)
@@ -218,9 +228,16 @@ object Freedom {
 		cal.set(year,month-1,cal.getActualMaximum(Calendar.DAY_OF_MONTH))
 		val lastDow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
 		val lastWeek:Int = cal.get(Calendar.WEEK_OF_MONTH)
-		(lastDow+1 until 7)
+		val boundedCalRightCand = (lastDow+1 until 7)
 				.foldLeft(boundedCalLeft){ case (frame:Drawing,day:Int) =>
 			invalid(frame,lastWeek,day)
+		}
+		if(lastWeek < 6){
+			(0 until 7).foldLeft(boundedCalRightCand){ case (frame:Drawing,day:Int) =>
+				invalid(frame,6,day)
+			}
+		} else {
+			boundedCalRightCand
 		}
 	}
 
@@ -247,7 +264,7 @@ object Freedom {
 				val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
 				val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
 				//(label date)
-				number(frame,dow,5-week,day)
+				number(frame,dow,6-week,day)
 			} else {
 				frame
 			}
@@ -259,7 +276,7 @@ object Freedom {
 			val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
 			val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
 			//(mark date)
-			mark(markedCal,dow,5-week)
+			mark(markedCal,dow,6-week)
 		} else {
 			markedCal
 		}
@@ -267,8 +284,10 @@ object Freedom {
 	
 	def day(canvas:Drawing,year:Int,month:Int,day:Int):Drawing = {
 		val boundary:Drawing = canvas
-			.rect(0,0,14,24,Color.BLACK,borderWidth)
+			.rect(0,0,14,26,Color.BLACK,borderWidth)
+			.line(0,24,14,24,Color.BLACK,2)
 			.line(3,0,3,24,Color.BLACK,2)
+			.text(6,24.5,""+day,new Color(0x2E3542),1.5)
 		val emptyDay:Drawing = (0 until 24).foldLeft(boundary){
 				case (frame:Drawing, hour:Int) =>
 			val tMod12:Int = 
@@ -286,7 +305,9 @@ object Freedom {
 	}
 }
 
-
+//val freedom = Freedom(2011,12)
+//freedom.export.save("test.png",500)
+//freedom.day(5).preview(500)
 //Freedom(2011,12).export(4).preview(500)
 //Freedom(2011,12).export.preview(500)
 //Freedom.day(new Drawing(),2011,11,27).preview(500)
@@ -305,13 +326,18 @@ def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 }
 //--Get Month
 def getMonth(id:Int,year:Int,month:Int):String = {
+	//(error check)
 	if(id < 0 || id > State.nextID){ 
 		throw new IllegalArgumentException("Bad ID: " + id) 
 	}
+	//(ensure month)
 	val filepath = imagePath+"/"+State.sessionID+"_"+id+"_"+year+"-"+month+".png"
-	if(!(new File(filepath).exists)){
-		Freedom(year,month).export.save(filepath,monthSize)
-	}
+		if(!(new File(filepath).exists)){
+			val free = Freedom(year,month)
+			State.freedom((id,year,month)) = free
+			free.export.save(filepath,monthSize)
+		}
+	//(return)
 	println("[" + id + "] month view " + year + "-"+month)
 	filepath
 }
@@ -320,14 +346,17 @@ def getMonth(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 }
 //--Get Day
 def getDay(id:Int,year:Int,month:Int,day:Int):String = {
+	//(error check)
 	if(id < 0 || id > State.nextID){ 
 		throw new IllegalArgumentException("Bad ID: " + id) 
 	}
+	//(ensure day)
 	val filepath 
 		= imagePath+"/"+State.sessionID+"_"+id+"_"+year+"-"+month+"-"+day+".png"
 	if(!(new File(filepath).exists)){
-		Freedom(year,month).day(day).save(filepath,daySize)
+		State.freedom(id,year,month).day(day).save(filepath,daySize)
 	}
+	//(return)
 	println("[" + id + "] day view " + year + "-"+month + "-" + day)
 	filepath
 }
@@ -370,4 +399,4 @@ new WebServer(3000).start
 	.register("/month",getMonth(_:HashMap[String,String],_:WebServer.HttpInfo))
 	.register("/day",getDay(_:HashMap[String,String],_:WebServer.HttpInfo))
 
-println("Running...")
+println("Ready...")

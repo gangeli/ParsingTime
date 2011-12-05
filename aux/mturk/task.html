@@ -2,28 +2,92 @@
 <head>
 <script src="static/jquery-1.7.1.min.js"></script>
 <script language="Javascript">
+//--State
 var ID = -1;
+var YEAR = -1;
+var MONTH = -1;
+var DAY = -1;
+var HR = -1;
+//--Submission
+function validateSubmit(){
+	//TODO intelligent checks
+	document.getElementById("submit").disabled = false
+}
+//--Navigation
+function nextMonth() {
+	MONTH += 1;
+	if(MONTH > 12){
+		MONTH = 1;
+		YEAR = YEAR + 1;
+	}
+	month(YEAR,MONTH);
+}
+function prevMonth() {
+	MONTH -= 1;
+	if(MONTH < 1){
+		MONTH = 12;
+		YEAR = YEAR - 1;
+	}
+	month(YEAR,MONTH);
+}
+//--Hour
+function getHour(event){
+}
+//--Day
+function getDay(event){
+	//(get cursor)
+	var x = event.offsetX?(event.offsetX):event.pageX-
+		document.getElementById("pointer_div").offsetLeft;
+	var y = event.offsetY?(event.offsetY):event.pageY-
+		document.getElementById("pointer_div").offsetTop;
+	//(get image dimensions)
+	var img = document.getElementById('imgMonth');
+	var width = img.clientWidth
+	var height = img.clientHeight
+	//(get day)
+	var row = Math.floor((y/height)*7.5-1.5)
+	var col = Math.floor((x/width)*7)
+	var cal = new Date(YEAR,MONTH-1,1,0,0,0,0);
+	var firstDow = cal.getDay();
+	var dom = row*7+col-firstDow+1
+	//(json)
+	if(dom > 0 && dom < (32 - new Date(YEAR,MONTH,32).getDate())){
+		$.getJSON(
+			'http://goobs.org:3000/day?callback=?&id='+
+				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
+			function(data) {
+				document.getElementById("day").innerHTML = 
+					'<img id="imgDay" src="'+data['value']+'" alt="day view"'+
+					'onclick="getHour(event)"/>';
+				DAY = dom;
+			});
+	}
+}
 //--Month
-function month(year,mon) {
+function month(yr,mon) {
 	$.getJSON(
-		'http://localhost:3000/month?callback=?&id='+ID+'&year='+year+'&month='+mon,
+		'http://goobs.org:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
 		function(data) {
 			document.getElementById("month").innerHTML = 
-				'<img id="imgMonth" src="'+data['value']+'" alt="month view"/>'
+				'<img id="imgMonth" src="'+data['value']+'" alt="month view"'+
+				'onclick="getDay(event)"/>';
+			document.getElementById("day").innerHTML = '';
+			YEAR = yr
+			MONTH = mon
 		});
 }
 //--Connect
 function init() {
 	$.getJSON(
-		'http://localhost:3000/init?callback=?', 
+		'http://goobs.org:3000/init?callback=?', 
 		function(data) {
 			//(set id)
 			ID = parseInt(data['value'])
 			//(init month)
 			var d = new Date();
-			month(d.getFullYear(),d.getMonth());
+			month(d.getFullYear(),d.getMonth()+1);
 			//(enable submit button)
-			//TODO
+			validateSubmit();
 		});
 }
 </script>
@@ -33,9 +97,12 @@ function init() {
 <body onload="init()">
 <!-- Task Description -->
 <div style="text-align:center; font-weight:bold; margin-bottom:24pt">
+	<p>
 	You are writing an email to a coworker describing times that you would be
 	free for a meeting. Below is your calendar; please fill in the following
-	email informally with times you would like to suggest:
+	email informally with times you would like to suggest, and then mark
+	those times on the calendar:
+	</p>
 </div>
 
 <!-- Email -->
@@ -51,16 +118,36 @@ function init() {
 			Let me know if this would work for you.
 		<br/><br/>
 		Thanks!
+		<br/><br/>
+		<input id="submit" type="submit" text="Submit" disabled="disabled"></input>
 	</div>
 	</form>
 <!-- Calendar -->
-<div id="calendar">
-	<span id="month">
-		<img id="imgMonth" src="static/loading.gif" alt="loading"/>
+<div id="calendar" style="vertical-align:top;">
+	<span id="monthContainer">
+		<div id="navBar">
+			<img id="prev" src="static/prev.jpg" onclick="prevMonth()"/>
+			<img id="next" src="static/next.jpg" onclick="nextMonth();"/>
+		</div>
+		<span id="month">
+			<img id="imgMonth" src="static/loading.gif" alt="loading"/>
+		</span>
 	</span>
 	<span id="day">
-		day
+		<!--(empty for now)-->
 	</span>
+</div>
+
+<!-- TODOs -->
+<div>
+	TODOs
+	<ul>
+		<li>show day selection in month view as well</li>
+		<li>ability to select times</li>
+		<li>think through wording of description/email more carefully</li>
+		<li>validate answers with SUTime</li>
+		<li>general prettifying</li>
+	</ul>
 </div>
 
 </body>
