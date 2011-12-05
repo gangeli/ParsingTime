@@ -1,0 +1,67 @@
+<html>
+<head>
+<script src="static/jquery-1.7.1.min.js"></script>
+<script language="Javascript">
+var ID = -1;
+//--Month
+function month(year,mon) {
+	$.getJSON(
+		'http://localhost:3000/month?callback=?&id='+ID+'&year='+year+'&month='+mon,
+		function(data) {
+			document.getElementById("month").innerHTML = 
+				'<img id="imgMonth" src="'+data['value']+'" alt="month view"/>'
+		});
+}
+//--Connect
+function init() {
+	$.getJSON(
+		'http://localhost:3000/init?callback=?', 
+		function(data) {
+			//(set id)
+			ID = parseInt(data['value'])
+			//(init month)
+			var d = new Date();
+			month(d.getFullYear(),d.getMonth());
+			//(enable submit button)
+			//TODO
+		});
+}
+</script>
+
+</head>
+
+<body onload="init()">
+<!-- Task Description -->
+<div style="text-align:center; font-weight:bold; margin-bottom:24pt">
+	You are writing an email to a coworker describing times that you would be
+	free for a meeting. Below is your calendar; please fill in the following
+	email informally with times you would like to suggest:
+</div>
+
+<!-- Email -->
+	<form>
+	<div style="font-family:monospace; margin-bottom:24pt">
+		Dear Joe,
+		<br/><br/>
+			I'd be happy to meet sometime. I'm free
+			<input type="text"></input>,
+			<input type="text"></input>, or
+			<input type="text"></input>.
+			<br/>
+			Let me know if this would work for you.
+		<br/><br/>
+		Thanks!
+	</div>
+	</form>
+<!-- Calendar -->
+<div id="calendar">
+	<span id="month">
+		<img id="imgMonth" src="static/loading.gif" alt="loading"/>
+	</span>
+	<span id="day">
+		day
+	</span>
+</div>
+
+</body>
+</html>

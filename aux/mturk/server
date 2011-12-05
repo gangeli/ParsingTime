@@ -2,21 +2,37 @@
 exec scala "$0" "$@"
 !#
 
-import org.goobs.graphics.Drawing
 import java.awt.Color
 import java.util.GregorianCalendar
 import java.util.Calendar
+import java.io.File
+
+import scala.collection.mutable.HashMap
+import scala.collection.JavaConversions._
 import scala.util.Random
 
+import org.goobs.internet._
+import org.goobs.graphics.Drawing
+
+//------------------------------------------------------------------------------
+// PARAMETERS
+//------------------------------------------------------------------------------
+// -- Drawing Params --
 val borderWidth = 4
 val gridWidth = 2
 
-val drawMonth = false
+val drawMonth = true
 val drawDates = false
 
 val sleepEnd = 6
 val sleepStart = 22
 
+// -- Web Params --
+val imagePath = "img"
+val monthSize = 500
+val daySize = 500
+
+// -- Static --
 val MOY = Array[String](
 	"JAN",
 	"FEB",
@@ -32,11 +48,28 @@ val MOY = Array[String](
 	"DEC"
 )
 
+// -- State --
+object State {
+	val sessionID = Random.nextInt
+	var nextID:Int = 0
+}
+
 def isNight(hr:Int) = {
 	hr < sleepEnd || hr >= sleepStart
 }
 
-class Freedom(val mon:Int,val year:Int,freedom:Array[Boolean]) {
+//------------------------------------------------------------------------------
+// CALENDARS
+//------------------------------------------------------------------------------
+class Freedom(val year:Int,val mon:Int,freedom:Array[Boolean]) {
+	def export:Drawing = {
+		val cal:Calendar = new GregorianCalendar
+		if(cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH)+1 == mon){
+			export(cal.get(Calendar.DAY_OF_MONTH))
+		} else {
+			export(-1)
+		}
+	}
 	def export(today:Int):Drawing = {
 		//--Variables
 		//(create calendar)
@@ -76,7 +109,7 @@ class Freedom(val mon:Int,val year:Int,freedom:Array[Boolean]) {
 			}
 		}
 		//--Finish Calendar
-		Freedom.flourish(Freedom.frame(freed,mon,year),mon,year,today)
+		Freedom.flourish(Freedom.frame(freed,year,mon),year,mon,today)
 	}
 	def day(day:Int):Drawing = {
 		//--Variables
@@ -90,7 +123,6 @@ class Freedom(val mon:Int,val year:Int,freedom:Array[Boolean]) {
 		//--Block Hours
 		val blocked:Drawing = freeDay.zipWithIndex.foldLeft(frame){ 
 				case (frame:Drawing,(free:Boolean,hour:Int)) =>
-			println(""+hour + " -> " + free)
 			if(free){
 				frame
 			} else if(isNight(hour)){
@@ -106,8 +138,8 @@ class Freedom(val mon:Int,val year:Int,freedom:Array[Boolean]) {
 }
 
 object Freedom {
-	def apply(month:Int,year:Int):Freedom = apply(month,year,Random.nextInt)
-	def apply(month:Int,year:Int,seed:Int):Freedom = {
+	def apply(year:Int,month:Int):Freedom = apply(year,month,Random.nextInt)
+	def apply(year:Int,month:Int,seed:Int):Freedom = {
 		//--Variables
 		//(create calendar)
 		val cal = new GregorianCalendar
@@ -140,7 +172,7 @@ object Freedom {
 			(isFree :: free, hod == sleepEnd-1 || (freeAllDay && isFree))
 		}._1.reverse.toArray
 		//--Return
-		new Freedom(month,year,chain)
+		new Freedom(year,month,chain)
 	}
 	def calendar:GregorianCalendar = {
 		val cal = new GregorianCalendar
@@ -209,7 +241,7 @@ object Freedom {
 		cal.set(year,month-1,1)
 		val markedCal:Drawing = (1 to cal.getActualMaximum(Calendar.DAY_OF_MONTH))
 				.foldLeft(frame){ case (frame:Drawing,day:Int) =>
-			if(drawDates || day == today){
+			if(drawDates || day == today || (today < 0 && day == 1)){
 				//(get date)
 				cal.set(year,month-1,day)
 				val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
@@ -220,13 +252,17 @@ object Freedom {
 				frame
 			}
 		}
-		//--Set Days
-		//(get date)
-		cal.set(year,month-1,today)
-		val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
-		val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
-		//(mark date)
-		mark(markedCal,dow,5-week)
+		//--Set Today
+		if(today > 0){
+			//(get date)
+			cal.set(year,month-1,today)
+			val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+			val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
+			//(mark date)
+			mark(markedCal,dow,5-week)
+		} else {
+			markedCal
+		}
 	}
 	
 	def day(canvas:Drawing,year:Int,month:Int,day:Int):Drawing = {
@@ -251,12 +287,87 @@ object Freedom {
 }
 
 
-//Freedom(2011,11).export(27).preview(500)
+//Freedom(2011,12).export(4).preview(500)
+//Freedom(2011,12).export.preview(500)
 //Freedom.day(new Drawing(),2011,11,27).preview(500)
-Freedom(2011,11).day(27).preview(500)
-
-println("DONE")
+//Freedom(2011,11).day(27).preview(500)
 
 
+//------------------------------------------------------------------------------
+// WEB SERVER
+//------------------------------------------------------------------------------
 
+//--New Session
+def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	State.nextID = State.nextID + 1
+	println("[" + State.nextID + "] connect")
+	State.nextID.toString
+}
+//--Get Month
+def getMonth(id:Int,year:Int,month:Int):String = {
+	if(id < 0 || id > State.nextID){ 
+		throw new IllegalArgumentException("Bad ID: " + id) 
+	}
+	val filepath = imagePath+"/"+State.sessionID+"_"+id+"_"+year+"-"+month+".png"
+	if(!(new File(filepath).exists)){
+		Freedom(year,month).export.save(filepath,monthSize)
+	}
+	println("[" + id + "] month view " + year + "-"+month)
+	filepath
+}
+def getMonth(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	getMonth(values("id").toInt,values("year").toInt,values("month").toInt)
+}
+//--Get Day
+def getDay(id:Int,year:Int,month:Int,day:Int):String = {
+	if(id < 0 || id > State.nextID){ 
+		throw new IllegalArgumentException("Bad ID: " + id) 
+	}
+	val filepath 
+		= imagePath+"/"+State.sessionID+"_"+id+"_"+year+"-"+month+"-"+day+".png"
+	if(!(new File(filepath).exists)){
+		Freedom(year,month).day(day).save(filepath,daySize)
+	}
+	println("[" + id + "] day view " + year + "-"+month + "-" + day)
+	filepath
+}
+def getDay(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	getDay(
+		values("id").toInt,
+		values("year").toInt,
+		values("month").toInt,
+		values("day").toInt)
+}
 
+//--Add Listeners
+//(implicit conversion)
+implicit def fn2handler(
+		fn:(HashMap[String,String],WebServer.HttpInfo)=>String):WebServerHandler = {
+	new JsonHandler(){
+		override def handleJSON(values:java.util.HashMap[String,String],
+				info:WebServer.HttpInfo):String = {
+			//(convert hashmap)
+			val scalaMap:HashMap[String,String] = new HashMap[String,String]
+			val iter = values.keySet.iterator
+			while(iter.hasNext){
+				val key = iter.next
+				scalaMap(key) = values.get(key)
+			}
+			//(handle)
+			try{
+				"{\n  \"value\":\"" + fn(scalaMap,info) +"\"\n}"
+			} catch {
+				case (r:RuntimeException) => 
+					r.printStackTrace
+					"ERROR: " + r.getMessage
+			}
+		}
+	}
+}
+//(add handlers)
+new WebServer(3000).start
+	.register("/init",getID(_:HashMap[String,String],_:WebServer.HttpInfo))
+	.register("/month",getMonth(_:HashMap[String,String],_:WebServer.HttpInfo))
+	.register("/day",getDay(_:HashMap[String,String],_:WebServer.HttpInfo))
+
+println("Running...")

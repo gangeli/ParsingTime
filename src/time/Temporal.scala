@@ -3,6 +3,9 @@ package time
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Map
 import scala.collection.mutable.ListMap
+import scala.collection.mutable.HashMap
+
+import java.util.IdentityHashMap
 
 import org.joda.time._
 
@@ -490,7 +493,7 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 		case _ => false
 	}
 	override def toString:String = "["+begin+", "+end+")"
-	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
+	override def hashCode:Int = begin.hashCode ^ end.hashCode
 }
 
 
@@ -619,39 +622,6 @@ object Range {
 	def apply(norm:Duration) = new UngroundedRange(norm,Duration.ZERO)
 	def apply(norm:Period) = new UngroundedRange(Duration(norm),Duration.ZERO)
 
-//	case class TemporalInfo(
-//			traverse:Long=>(TraverseFn,GroundedRange),
-//			offset:Long=>(Long,Long),
-//			exists:Long=>Boolean )
-//
-//	def iter2traverse(
-//			iter:Iterator[((TraverseFn,GroundedRange),Long,Long)]
-//			):TemporalInfo = {
-//		val buffer = new ArrayBuffer[((TraverseFn,GroundedRange),Long,Long)]()
-//		TemporalInfo(
-//			(in:Int) => {
-//				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
-//				if(in < buffer.length) { 
-//					val (rtn,leftI,rightI) = buffer(in)
-//					rtn
-//				} else { 
-//					throw new IllegalArgumentException("Out of bounds index: " + in +
-//					" (has next? " + iter.hasNext + ")")
-//				}
-//			},
-//			(in:Int) => {
-//				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
-//				if(in < buffer.length){ (buffer(in)._2,buffer(in)._3) } 
-//				else{ throw new IllegalArgumentException("Out of bounds index: " + in +
-//					" (has next? " + iter.hasNext + ")") }
-//			},
-//			(in:Int) => {
-//				while(in >= buffer.length && iter.hasNext){ buffer.append(iter.next) }
-//				in < buffer.length
-//			}
-//		)
-//	}
-
 	def mkBegin(a:Time,b:Time) = if(a < b) b else a
 	def mkEnd(a:Time,b:Time) = if(a < b) a else b
 
@@ -750,13 +720,29 @@ object Range {
 //		}
 //		mknext2iterable(a,b,mkNext(_,_))
 //	}
-
+		class RangePair(val rA:Range,val rB:Range) {
+			override def hashCode:Int = 
+				System.identityHashCode(rA) ^ System.identityHashCode(rB)
+			override def equals(o:Any) = o match {
+				case (other:RangePair) =>
+					(rA.toString == other.rA.toString) && 
+					(rB.toString == other.rB.toString)
+				case _ => false
+			}
+		}
+		val intersectCache = new HashMap[RangePair,Range]()
 		def intersectSearch(rA:Range,rB:Range):Range = {
-			//--Explicit Pruning
+			//--Cache and Pruning
+			//(cache)
+			if(intersectCache.contains(new RangePair(rA,rB))){
+				return intersectCache(new RangePair(rA,rB))
+			}
+			//(pruning)
 			if( !rA.neverIntersects.forall{ (f:Range=>Boolean) => !f(rB) } ||
 			    !rB.neverIntersects.forall{ (f:Range=>Boolean) => !f(rA) } ){
 				return new NoTime
 			}
+			log(FORCE,"Create search for " + rA + " ^ " + rB + " " + System.identityHashCode(rA) + ","+System.identityHashCode(rB))
 			//--Classes
 			case class RangeTerm(r:GroundedRange,ground:GroundedRange
 					) extends Intersectable{
@@ -784,7 +770,7 @@ object Range {
 						false
 					)
 			//--Search State
-			val stateMap = new ListMap[GroundedRange,IteratorMap[Intersection]]
+			val stateMap=new HashMap[GroundedRange,IteratorMap[Intersection]]
 			//--Get Info
 			val info:(GroundedRange,Long)=>(TraverseFn,GroundedRange,Double,Boolean) =
 			(ground:GroundedRange,offset:Long) => {
@@ -878,9 +864,11 @@ object Range {
 			//(string)
 			val ops = List[String]("("+rA+") ^ ("+rB+")")
 			//--Return
-			new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L)
+			val rtn = new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L)
 				.prohibitIntersectWith(rA.neverIntersects)
 				.prohibitIntersectWith(rB.neverIntersects)
+			intersectCache(new RangePair(rA,rB)) = rtn
+			return rtn;
 		}
 }
 

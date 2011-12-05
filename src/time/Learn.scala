@@ -956,6 +956,7 @@ trait StandardParser extends Parser {
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			startTrack("Iteration " + i)
+			log("Intersect cache size: " + Range.intersectCache.keySet.size)
 			//(begin)
 			beginIteration(i,feedback,data)
 			//(run)
