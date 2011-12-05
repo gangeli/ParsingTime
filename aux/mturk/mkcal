@@ -1,0 +1,227 @@
+#!/bin/bash
+exec scala "$0" "$@"
+!#
+
+import org.goobs.graphics.Drawing
+import java.awt.Color
+import java.util.GregorianCalendar
+import java.util.Calendar
+import scala.util.Random
+
+val borderWidth = 4
+val gridWidth = 2
+
+val drawMonth = false
+val drawDates = false
+
+val sleepEnd = 6
+val sleepStart = 22
+
+val MOY = Array[String](
+	"JAN",
+	"FEB",
+	"MAR",
+	"APR",
+	"MAY",
+	"JUN",
+	"JUL",
+	"AUG",
+	"SEP",
+	"OCT",
+	"NOV",
+	"DEC"
+)
+
+def isNight(hr:Int) = {
+	hr < sleepEnd || hr >= sleepStart
+}
+
+class Freedom(val mon:Int,val year:Int,freedom:Array[Boolean]) {
+	def export(today:Int):Drawing = {
+		//--Variables
+		//(create calendar)
+		val cal:Calendar = Freedom.calendar
+		cal.set(year,mon-1,1)
+		//(get statistics)
+		val numDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+		//(create frame)
+		val frame:Drawing = new Drawing()
+		//--Block Days
+		//(function)
+		def mark(frame:Drawing,x:Double,y:Double,hr:Int):Drawing = {
+			val hour = hr.asInstanceOf[Double] / 24.0
+			val x0 = x
+			val x1 = 1.0+x
+			val y0 = y-hour
+			val y1 = y-hour-(1.0/24.0)
+			if(isNight(hr)){
+				frame.fillRect(x0,y0,x1,y1,new Color(0xEAEAEA))
+			} else {
+				frame.fillRect(x0,y0,x1,y1,new Color(0x9FC6E7))
+			}
+		}
+		//(mark)
+		val freed:Drawing = freedom.zipWithIndex.foldLeft(frame){ 
+				case (frame:Drawing,(free:Boolean,hr:Int)) =>
+			//(get date)
+			val day:Int = hr / 24
+			cal.set(year,mon-1,day)
+			val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+			val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
+			//(mark date)
+			if(free){
+				frame
+			} else {
+				mark(frame,dow,6-week,(hr % 24))
+			}
+		}
+		//--Finish Calendar
+		Freedom.flourish(Freedom.frame(freed,mon,year),mon,year,today)
+	}
+	override def toString:String = freedom.mkString(",")
+}
+
+object Freedom {
+	def apply(month:Int,year:Int):Freedom = apply(month,year,Random.nextInt)
+	def apply(month:Int,year:Int,seed:Int):Freedom = {
+		//--Variables
+		//(create calendar)
+		val cal = new GregorianCalendar
+		cal.setFirstDayOfWeek(Calendar.SUNDAY)
+		cal.set(year,month-1,1)
+		//(get numbers)
+		val numDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+		val numHours = numDays * 24
+		//--Run Chain
+		val chain = (0 until numHours).foldLeft((List[Boolean](),true)){ 
+				case ((free:List[Boolean],freeAllDay:Boolean),hr:Int) =>
+			//(variables)
+			val hod:Int = hr % 24
+			//(transition probs)
+			val isFree = if(isNight(hod)){
+				false
+			} else if(hod == sleepEnd) {
+				Random.nextBoolean
+			} else {
+				val lastFree = if(free.isEmpty){ true } else { free.head }
+				if(freeAllDay){
+					Random.nextDouble < 0.95
+				} else if(lastFree){
+					Random.nextDouble < 0.5
+				} else {
+					Random.nextDouble < 0.3
+				}
+			}
+			//(return)
+			(isFree :: free, hod == sleepEnd-1 || (freeAllDay && isFree))
+		}._1.reverse.toArray
+		//--Return
+		new Freedom(month,year,chain)
+	}
+	def calendar:GregorianCalendar = {
+		val cal = new GregorianCalendar
+		cal.setFirstDayOfWeek(Calendar.SUNDAY)
+		cal
+	}
+	def frame(canvas:Drawing,year:Int,month:Int):Drawing = {
+		//--Functions
+		def invalid(frame:Drawing,row:Int,col:Int) = {
+			frame.fillRect(col,5-row,col+1,6-row, Color.BLACK)
+		}
+		val cal:Calendar = calendar
+		//--Make Frame
+		val emptyCal:Drawing = canvas
+			//(boundary)
+			.rect(0,0,7,6,Color.BLACK,borderWidth)
+			//(grid)
+			.line(1,0,1,5,Color.BLACK,gridWidth)
+			.line(2,0,2,5,Color.BLACK,gridWidth)
+			.line(3,0,3,5,Color.BLACK,gridWidth)
+			.line(4,0,4,5,Color.BLACK,gridWidth)
+			.line(5,0,5,5,Color.BLACK,gridWidth)
+			.line(6,0,6,5,Color.BLACK,gridWidth)
+			.line(0,1,7,1,Color.BLACK,gridWidth)
+			.line(0,2,7,2,Color.BLACK,gridWidth)
+			.line(0,3,7,3,Color.BLACK,gridWidth)
+			.line(0,4,7,4,Color.BLACK,gridWidth)
+			.line(0,5,7,5,Color.BLACK,gridWidth)
+			//(title)
+			.text(1.6,5.125,
+				{if(drawMonth){ MOY(month-1)+" "+year } else { "" }},
+				Color.BLUE,0.75)
+		//--Bound Calendar
+		//(bound first)
+		cal.set(year,month-1,1)
+		val firstDow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+		val firstWeek:Int = cal.get(Calendar.WEEK_OF_MONTH)
+		val boundedCalLeft:Drawing = (0 until firstDow)
+				.foldLeft(emptyCal){ case (frame:Drawing,day:Int) =>
+			invalid(frame,firstWeek,day)
+		}
+		//(bound last)
+		cal.set(year,month-1,cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+		val lastDow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+		val lastWeek:Int = cal.get(Calendar.WEEK_OF_MONTH)
+		(lastDow+1 until 7)
+				.foldLeft(boundedCalLeft){ case (frame:Drawing,day:Int) =>
+			invalid(frame,lastWeek,day)
+		}
+	}
+
+	def flourish(frame:Drawing,year:Int,month:Int,today:Int):Drawing = {
+		//--Functions
+		def number(frame:Drawing,x:Double,y:Double,num:Int):Drawing = {
+			frame.text({if(num > 9) 0.6 else 0.8}+x, 
+				0.75+y, 
+				""+num, 
+				new Color(0x2E3542),
+				0.25)
+		}
+		def mark(frame:Drawing,x:Double,y:Double):Drawing = {
+			frame.fillCircle(0.5+x, 0.4+y, 0.25, new Color(0xFF7F6E))
+		}
+		//--Draw Calendar
+		val cal:Calendar = calendar
+		cal.set(year,month-1,1)
+		val markedCal:Drawing = (1 to cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+				.foldLeft(frame){ case (frame:Drawing,day:Int) =>
+			if(drawDates || day == today){
+				//(get date)
+				cal.set(year,month-1,day)
+				val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+				val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
+				//(label date)
+				number(frame,dow,5-week,day)
+			} else {
+				frame
+			}
+		}
+		//--Set Days
+		//(get date)
+		cal.set(year,month-1,today)
+		val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+		val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
+		//(mark date)
+		mark(markedCal,dow,5-week)
+	}
+	
+	def day(canvas:Drawing,year:Int,month:Int,day:Int):Drawing = {
+		val boundary:Drawing = canvas.rect(0,0,14,24,Color.BLACK,borderWidth)
+		val emptyDay:Drawing = (0 until 24).foldLeft(boundary){
+				case (frame:Drawing, hour:Int) =>
+			frame
+				.line(0,24-hour-1,14,24-hour-1)
+		}
+		emptyDay
+	}
+}
+
+
+//Freedom(2011,11).export(27).preview(500)
+Freedom.day(new Drawing(),2011,11,27).preview(500)
+
+println("DONE")
+
+
+
+
