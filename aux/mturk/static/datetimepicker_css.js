@@ -676,7 +676,7 @@ function RenderCssCal(bNewCal)
 	calHeight += 19;
 	vCalHeader += "</tr>";
 	//Calendar detail
-	CalDate = new Date(Cal.Year, Cal.Month);
+	CalDate = new Date(YEAR,MONTH-1);
 	CalDate.setDate(1);
 
 	vFirstDay = CalDate.getDay();
@@ -938,7 +938,7 @@ function NewCssCal(pCtrl, pFormat, pScroller, pShowTime, pTimeMode, pShowSeconds
 {
 	// get current date and time
 
-	dtToday = new Date();
+	dtToday = new Date(YEAR,MONTH-1,DAY_START < 0 ? 1 : DAY_START);
 	Cal = new Calendar(dtToday);
 
 	if (pShowTime !== undefined)

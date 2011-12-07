@@ -272,6 +272,7 @@ function init() {
 }
 //--JQuery
 $(document).ready(function(){
+	document.getElementById("submitButton").disabled = true
 	$('#submitButton').click(function(event) {
 		//(change state)
 		document.getElementById("submitButton").disabled = true
@@ -404,18 +405,17 @@ $(document).ready(function(){
 			"javascript:NewCssCal('end','MMddyyyy','dropdown',true,'12',true)"
 		onchange="validate();">
 	</input>
-	<input id="submitButton" type="submit" text="Submit" disabled="disabled"></input>
+	<input id="submitButton" type="submit" text="Submit"></input>
 </div>
 
 <!-- TODOs -->
+<!--
 <div>
 	TODOs
 	<ul>
-		<li>Date selector starts at selected date</li>
-		<li>think through wording of description/email more carefully</li>
-		<li>general prettifying</li>
 	</ul>
 </div>
+-->
 
 	
 </form></body>
