@@ -16,44 +16,48 @@ function cancelEvent(e) {
 var ID = -1;
 var YEAR = -1;
 var MONTH = -1;
-var DAY = -1;
-var HR = -1;
+var DAY_START = -1;
+var DAY_END = -1;
 var HR_START = -1
 var HR_END = -1
 //--Refresh
 function refresh(){
-	refreshImpl(true)
+	refreshImpl(true,true)
 }
-function refreshImpl(updateMonth){
+function refreshImpl(updateMonth,selectTimes){
 	//--Month Mask
+	//(get month image location)
+	var month = document.getElementById('imgMonth');
+	var width = month.clientWidth
+	var height = month.clientHeight
+	var left = month.offsetLeft
+	var top = month.offsetTop
 	if(updateMonth){
-		//(get month image location)
-		var month = document.getElementById('imgMonth');
-		var width = month.clientWidth
-		var height = month.clientHeight
-		var left = month.offsetLeft
-		var top = month.offsetTop
-		if(DAY > 0){
-			//(coordinates)
-			var cal = new Date(YEAR,MONTH-1,DAY,0,0,0,0);
-			var dow = cal.getDay();
-			var dom = cal.getDate();
-			cal = new Date(YEAR,MONTH-1,1,0,0,0,0);
-			var firstDow = cal.getDay()-1;
-			var week = Math.floor((firstDow+dom) / 7.0)
-			var x = left + width/7*dow
-			var y = top + height/7.5*(week+1.5)
-			//(draw)
-			document.getElementById("mask").innerHTML = 
-				'<img src="static/mask.png" style="position:absolute; top:'+y+'px; '+
-				'left:'+x+'px; '+
-				'z-index: 3;"/>';
+		if(DAY_START > 0){
+			var day = DAY_START;
+			document.getElementById("mask").innerHTML = ''
+			for(day=DAY_START; day<=DAY_END; day++){
+				//(coordinates)
+				var cal = new Date(YEAR,MONTH-1,day,0,0,0,0);
+				var dow = cal.getDay();
+				var dom = cal.getDate();
+				cal = new Date(YEAR,MONTH-1,1,0,0,0,0);
+				var firstDow = cal.getDay()-1;
+				var week = Math.floor((firstDow+dom) / 7.0)
+				var x = left + width/7*dow
+				var y = top + height/7.5*(week+1.5)
+				//(draw)
+				document.getElementById("mask").innerHTML += 
+					'<img src="static/mask.png" style="position:absolute; top:'+y+'px; '+
+					'left:'+x+'px; '+
+					'z-index: 3;"/>';
+			}
 		} else {
 			document.getElementById("mask").innerHTML = ''
 		}
 	}
 	//--Day Mask
-	if(HR_START >= 0 && HR_END >= 0) {
+	if(HR_START >= 0 && HR_END >= 0 && selectTimes) {
 		//(get image dimensions)
 		var day = document.getElementById('imgDay');
 		var dayHeight = day.clientHeight;
@@ -65,7 +69,7 @@ function refreshImpl(updateMonth){
 		document.getElementById("daymask").innerHTML = ''
 		for(hr=HR_START; hr<=HR_END; hr++){
 			var x = dayLeft + (dayWidth / 14)*3;
-			var y = dayTop + (dayHeight/26)*(hr+2);
+			var y = dayTop + (dayHeight/26)*(hr+2.0);
 			//(draw)
 			document.getElementById("daymask").innerHTML += 
 				'<img src="static/daymask.png" style="position:absolute; top:'+y+'px; '+
@@ -77,6 +81,45 @@ function refreshImpl(updateMonth){
 	} else {
 		document.getElementById("daymask").innerHTML = ''
 	}
+	//--Save Time
+	if(HR_START >= 0){
+		//(start)
+		startHour = "";
+		startAmPm = "AM";
+		if(HR_START > 12) {
+			startHour = HR_START-12;
+			startAmPm = "PM";
+		} else if(HR_START == 0){
+			startHour = "12"
+		} else {
+			startHour = HR_START;
+		}
+		if(startHour < 10){ startHour = "0"+startHour; }
+		document.getElementById("begin").value =
+			''+MONTH+'-'+DAY_START+'-'+YEAR+' '+startHour+':00:00'+startAmPm
+		//(end)
+		realEndHr = HR_END+1
+		realEndDay = DAY_END
+		if(realEndHr > 23){
+			realEndHr = 0
+			realEndDay += 1
+		}
+		endHour = "";
+		endAmPm = "AM";
+		if(realEndHr > 12) {
+			endHour = realEndHr-12;
+			endAmPm = "PM";
+		} else if(realEndHr == 0){
+			endHour = "12"
+		} else {
+			endHour = realEndHr;
+		}
+		if(endHour < 10){ endHour = "0"+endHour; }
+		document.getElementById("end").value =
+			''+MONTH+'-'+realEndDay+'-'+YEAR+' '+endHour+':00:00'+endAmPm
+	}
+	//--Validate
+	validate();
 }
 //--Click and Drag
 function event2hour(event) {
@@ -101,10 +144,10 @@ function beginSelect(event) {
 	HR_START = event2hour(event);
 	HR_END = HR_START;
 	if(HR_START == -2){
-		HR_START = 6
-		HR_END = 21
+		HR_START = 0
+		HR_END = 23
 	}
-	refreshImpl(false);
+	refreshImpl(false,true);
 	//(cancel default)
 	cancelEvent(event);
 }
@@ -115,8 +158,7 @@ function moveSelect(event) {
 		if(HR_END < 0){ HR_END = oldHrEnd; }
 		if(HR_END < HR_START){ HR_END = HR_START; }
 		if(oldHrEnd != HR_END){
-			document.getElementById("info").innerHTML = HR_END
-			refreshImpl(false);
+			refreshImpl(false,true);
 		}
 		cancelEvent(event);
 	}
@@ -124,9 +166,21 @@ function moveSelect(event) {
 function endSelect(event) {
 }
 //--Submission
-function validateSubmit(){
-	//TODO intelligent checks
-	document.getElementById("submit").disabled = false
+function validate(){
+	//(variables)
+	var begin = document.getElementById('begin').value
+	var end = document.getElementById('end').value
+	var annotation = document.getElementById('annotation').value
+	//(valid times)
+	var valid = /[0-9]{1,2}-[0-9]{1,2}-[0-9]{4} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}(AM|PM)/i
+	var beginOK = valid.exec(begin)
+	var endOK = valid.exec(end)
+	//(return)
+	if(beginOK && endOK && annotation != ""){
+		document.getElementById("submitButton").disabled = false
+	} else {
+		document.getElementById("submitButton").disabled = true
+	}
 }
 //--Navigation
 function nextMonth() {
@@ -135,7 +189,7 @@ function nextMonth() {
 		MONTH = 1;
 		YEAR = YEAR + 1;
 	}
-	DAY = -1;
+	DAY_START = -1;
 	month(YEAR,MONTH);
 }
 function prevMonth() {
@@ -144,7 +198,7 @@ function prevMonth() {
 		MONTH = 12;
 		YEAR = YEAR - 1;
 	}
-	DAY = -1;
+	DAY_START = -1;
 	month(YEAR,MONTH);
 }
 //--Day
@@ -176,9 +230,11 @@ function getDay(event){
 					'onmousemove="moveSelect(event);" '+
 					'onmouseup="endSelect(event);" '+
 					'/>';
-				DAY = dom;
-				HR_START = -1;
-				refresh();
+				DAY_START = dom;
+				DAY_END = dom;
+				HR_START = 0;
+				HR_END = 23;
+				refreshImpl(true,false);
 			});
 	}
 }
@@ -203,61 +259,118 @@ function init() {
 		'http://localhost:3000/init?callback=?', 
 		function(data) {
 			//(set id)
-			ID = parseInt(data['value'])
+			ID = parseInt(data['value']['id'])
 			//(init month)
 			var d = new Date();
 			month(d.getFullYear(),d.getMonth()+1);
+			//(init duration)
+			duration = data['value']['duration']
+			document.getElementById("duration").innerHTML = duration;
 			//(enable submit button)
-			validateSubmit();
+			validate();
 		});
 }
+//--JQuery
+$(document).ready(function(){
+	$('#submitButton').click(function(event) {
+		//(change state)
+		document.getElementById("submitButton").disabled = true
+		mturk_form.submitButton.value = '(wait...)'
+		//(variables)
+		var annotation = $('#annotation').val()
+		var begin = $('#begin').val()
+		var end = $('#end').val()
+		//(json)
+		$.getJSON(
+			'http://localhost:3000/validate?callback=?&id='+
+				ID+'&annotation='+annotation+'&begin='+begin+'&end='+end,
+			function(data) {
+				if(data['value'] == "good"){
+					//(case: OK)
+					$("form#mturk_form").submit();
+				} else if(data['value'] == 'range'){
+					//(case: range bad)
+					mturk_form.submitButton.value = 'Submit';
+					alert("Annotation is invalid: '" + begin + " until " + end + "'");
+				} else if(data['value'] == 'gutime'){
+					if(confirm("Submit '" 
+							+ annotation + "' (might not be a time expression)?")){
+						//(case: submit despite GUTime)
+						$("form#mturk_form").submit();
+						$('#annotation').focus()
+					} else {
+						//(case: trust GUTime; don't submit)
+						mturk_form.submitButton.value = 'Submit'
+					}
+				} else {
+					//(case: unknown error)
+					mturk_form.submitButton.value = 'Submit'
+					alert(data['value']);
+				}
+			});
+		//(cancel event)
+		cancelEvent(event);
+	});
+});
 </script>
 
 </head>
 
-<body onload="init()">
+<body onload="init()"><form id='mturk_form', name='mturk_form'>
 <!-- Task Description -->
-<div style="text-align:center; font-weight:bold; margin-bottom:24pt">
+<div id="instructions" style="font-weight:bold; margin-bottom:24pt">
+	<h2 style="color:darkred;"> Instructions: </h2>
 	<p>
-	You are writing an email to a coworker describing times that you would be
-	free for a meeting. Below is your calendar; please fill in the following
-	email informally with times you would like to suggest, and then mark
-	those times on the calendar:
+		You are responding to an email sent to you asking to meet sometime.
+		You should respond to the email describing a date or time when you would be
+			free in informal english, and then specify the time your informal
+			description corresponds to.
+		You should fit your schedule as best you can, though you are allowed to give
+			conflicting dates.
+	</p>
+	<p>
+		A calendar showing when you are free is provided for you below; 
+			clicking on a particular day will bring up an hour-by-hour view.
+		You can specify times either by selecting a day or hour on the calendar,
+			or by manually selecting a start and end time by clicking on the text
+			boxes.
 	</p>
 </div>
 
 <!-- Email -->
-	<form>
-	<div style="font-family:monospace; margin-bottom:12pt">
-		Dear Joe,
+<table style="margin-bottom:12pt;"><tr>
+	<!--(prompt email)-->
+	<td><div style="font-family:monospace; float:left; margin-right: 25px; border-style:dashed; border-color:grey; padding:5px;">
+		Hi [your name],
+		<br/><br/>
+			Would you be free sometime for around 
+			<span id="duration"></span>
+		<br/><br/>
+		Thanks!
+		<br/><br/>
+	</div></td>
+	<!--(reply)-->
+	<td><div style="margin-right: 25px">
+	--(reply)&rarr;
+	</div></td>
+	<!--(your email)-->
+	<td><div style="font-family:monospace; float:none; border-style:dashed; border-color:blue; padding:5px;">
+		Hi [their name],
 		<br/><br/>
 			I'd be happy to meet sometime. I'm free
-			<input type="text"></input>.
+			<input id="annotation" type="text" style="width:200px; background-color:#A6FCE4;"
+				onKeyDown="validate();">
+			</input>.
 			<br/>
 			Let me know if this would work for you.
 		<br/><br/>
 		Thanks!
 		<br/><br/>
-	</div>
-	<div style="margin-bottom:24pt">
-<!-- Control -->
-		<span id="control">
-		<span>Date is:</span>
-		<input id="begin" type="text" 
-			onclick=
-				"javascript:NewCssCal('begin','MMddyyyy','dropdown',true,'12',true)">
-		</input>
-		to
-		<input id="end" type="text" 
-			onclick=
-				"javascript:NewCssCal('end','MMddyyyy','dropdown',true,'12',true)">
-		</input>
-		<input id="submit" type="submit" text="Submit" disabled="disabled"></input>
-		</span>
-	</div>
-	</form>
+	</div></td>
+</tr></table>
+
 <!-- Calendar -->
-<div id="calendar" style="vertical-align:top;">
+<div id="calendar" style="vertical-align:top; margin-bottom:24pt;">
 	<span id="monthContainer">
 		<div id="navBar">
 			<img id="prev" src="static/prev.jpg" onclick="prevMonth()"/>
@@ -270,26 +383,40 @@ function init() {
 	<span id="day">
 		<!--(empty for now)-->
 	</span>
-	<div id="controls">
-		<button id="allday">All Day</button>
-		<button id="clear">Clear Selection</button>
-	</span>
 
-	<span id="info"></span>
 	<span id="mask"></span>
 	<span id="daymask"></span>
+</div>
+
+<!-- Annotate -->
+<div id="annotate" style="margin-bottom:24pt; float:none;">
+	<span>Date is:</span>
+	<input id="begin" type="text" 
+		style="background-color:#A6FCE4;"
+		onclick=
+			"javascript:NewCssCal('begin','MMddyyyy','dropdown',true,'12',true)"
+		onChange="validate();">
+	</input>
+	until
+	<input id="end" type="text" 
+		style="background-color:#A6FCE4;"
+		onclick=
+			"javascript:NewCssCal('end','MMddyyyy','dropdown',true,'12',true)"
+		onchange="validate();">
+	</input>
+	<input id="submitButton" type="submit" text="Submit" disabled="disabled"></input>
 </div>
 
 <!-- TODOs -->
 <div>
 	TODOs
 	<ul>
-		<li>ability to select times</li>
+		<li>Date selector starts at selected date</li>
 		<li>think through wording of description/email more carefully</li>
-		<li>validate answers with SUTime</li>
 		<li>general prettifying</li>
 	</ul>
 </div>
 
-</body>
+	
+</form></body>
 </html>

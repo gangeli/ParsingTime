@@ -1,18 +1,28 @@
 #!/bin/bash
-exec scala "$0" "$@"
+exec scala -J-Xmx4g -cp "$JAVANLP_HOME/projects/core/classes/:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar:$HOME/lib/java/models.jar:$HOME/workspace/lib/dist/lib.jar:$HOME/workspace/time/dist/time.jar:$HOME/workspace/time/etc/joda-time.jar:." "$0" "$@"
 !#
 
 import java.awt.Color
 import java.util.GregorianCalendar
 import java.util.Calendar
+import java.util.Properties
 import java.io.File
 
 import scala.collection.mutable.HashMap
 import scala.collection.JavaConversions._
 import scala.util.Random
 
+import edu.stanford.nlp.pipeline._
+import edu.stanford.nlp.ling._
+import edu.stanford.nlp.util._
+import edu.stanford.nlp.time.TimeAnnotations._
+import edu.stanford.nlp.time.GUTimeAnnotator
+
 import org.goobs.internet._
 import org.goobs.graphics.Drawing
+
+import time._
+import time.Lex._
 
 //------------------------------------------------------------------------------
 // PARAMETERS
@@ -53,6 +63,17 @@ object State {
 	val sessionID = Random.nextInt
 	var nextID:Int = 0
 	val freedom = new HashMap[(Int,Int,Int),Freedom]
+	val duration = new HashMap[Int,Duration]
+	//(CoreNLP)
+	val pipeline:AnnotationPipeline = {
+			val props = new Properties
+			props.setProperty("pos.model",
+				System.getenv("HOME") +
+					"/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+			props.setProperty("annotators","tokenize, ssplit, pos")
+			val pipe = new StanfordCoreNLP(props);
+			pipe
+		}
 }
 
 def isNight(hr:Int) = {
@@ -318,11 +339,37 @@ object Freedom {
 // WEB SERVER
 //------------------------------------------------------------------------------
 
-//--New Session
+//--New Session 
+//TODO hacky cleanup technique
+def cleanup(minId:Int):Unit = {
+	State.freedom.retain{ case ((id:Int,yr:Int,mon:Int),f:Freedom) => id > minId }
+	State.duration.retain{ case (id:Int,d:Duration) => id > minId }
+	println("(cleanup to " + minId+")")
+}
+def geom(p:Double):Int = {
+	var i:Int = 1
+	while(Random.nextDouble > p){
+		i += 1
+	}
+	i
+}
 def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	//(get id)
 	State.nextID = State.nextID + 1
-	println("[" + State.nextID + "] connect")
-	State.nextID.toString
+	//(cleanup)
+	if(State.nextID % 1000 == 0 && State.nextID >= 1000){
+		cleanup(State.nextID-1000)
+	}
+	//(get duration)
+	val num:Int = geom(0.5)
+	val (d:Duration,dStr:String) = Random.nextInt(2) match {
+		case 0 => (HOUR*num, ""+num + " hour" + {if(num>1) "s" else ""})
+		case 1 => (DAY*num, ""+num + " day" + {if(num>1) "s" else ""})
+	}
+	State.duration(num) = d
+	//(return)
+	println("[" + State.nextID + "] init " + dStr)
+	"{id: \"" + State.nextID.toString + "\", duration: \"" + dStr + "\"}"
 }
 //--Get Month
 def getMonth(id:Int,year:Int,month:Int):String = {
@@ -367,6 +414,52 @@ def getDay(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 		values("month").toInt,
 		values("day").toInt)
 }
+//--Validate
+def validate(id:Int,input:String,begin:String,end:String):String = {
+	//(error check)
+	print("["+id+"] validate " + begin + " until " + end + ": '"+input+"'...")
+	if(id < 0 || id > State.nextID){ 
+		throw new IllegalArgumentException("Bad ID: " + id) 
+	}
+	//--Ranges
+	val beginTime:Time = Time(begin)
+	val endTime:Time = Time(end)
+	val rangeCheck = endTime >= beginTime
+	//--Text
+	//(annotate)
+	val map:Annotation = new Annotation(input)
+	State.pipeline.annotate(map)
+	val gutime = new GUTimeAnnotator(new File(
+		System.getenv("HOME")+"/workspace/time/etc/"));
+	gutime.annotate(map)
+	//(get timexes)
+	val timexes:java.util.List[CoreMap] = 
+		map.get[java.util.List[CoreMap],TimexAnnotations](
+		classOf[TimexAnnotations])
+	//(get conclusion)
+	val rtn = 
+		if(!rangeCheck){
+			"range"
+		} else if(timexes == null || timexes.isEmpty){
+			"gutime"
+		} else {
+			"good"
+		}
+	//--Clean Up
+	println(rtn)
+	return rtn
+}
+def validate(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	try {
+		validate(
+			values("id").toInt,
+			values("annotation"),
+			values("begin"),
+			values("end"))
+	} catch {
+		case (r:RuntimeException) => "SERVER ERROR: " + r.getMessage
+	}
+}
 
 //--Add Listeners
 //(implicit conversion)
@@ -384,7 +477,9 @@ implicit def fn2handler(
 			}
 			//(handle)
 			try{
-				"{\n  \"value\":\"" + fn(scalaMap,info) +"\"\n}"
+				var str:String = fn(scalaMap,info)
+				if(!str.contains("{")){ str = "\""+str+"\"" }
+				"{\n  \"value\":" + str +"\n}"
 			} catch {
 				case (r:RuntimeException) => 
 					r.printStackTrace
@@ -393,10 +488,13 @@ implicit def fn2handler(
 		}
 	}
 }
+//--Run
 //(add handlers)
 new WebServer(3000).start
 	.register("/init",getID(_:HashMap[String,String],_:WebServer.HttpInfo))
 	.register("/month",getMonth(_:HashMap[String,String],_:WebServer.HttpInfo))
 	.register("/day",getDay(_:HashMap[String,String],_:WebServer.HttpInfo))
-
+	.register("/validate",validate(_:HashMap[String,String],_:WebServer.HttpInfo))
+//(run)
+State.pipeline
 println("Ready...")

@@ -1729,6 +1729,19 @@ object Time {
 	def apply(year:Int, month:Int, day:Int):Time =apply(year, month, day, 0, 0, 0)
 	def apply(year:Int, month:Int):Time = apply(year, month, 1, 0, 0, 0)
 	def apply(year:Int):Time = apply(year, 1, 1, 0, 0,0)
+	def apply(str:String):Time = {
+		val Regex = """([0-9]{1,2})-([0-9]{1,2})-([0-9]{4}) ([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,2})([Aa][Mm]|[Pp][Mm])""".r
+		val Regex(month,day,year,hour,min,sec,ampm) = str
+		apply(
+			year.toInt,
+			month.toInt,
+			day.toInt,
+			{if(ampm.equalsIgnoreCase("am")){ hour.toInt } 
+				else if(ampm.equalsIgnoreCase("pm")){ hour.toInt+12 }
+				else { throw fail("Unknown am/pm: " + ampm) }},
+			min.toInt,
+			sec.toInt)
+	}
 	
 	def main(args:Array[String]):Unit = {
 		Temporal.interactive
