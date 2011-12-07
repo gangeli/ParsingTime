@@ -5,8 +5,8 @@ require 'execrunner'
 # -- DEPENDENCIES --
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.6.jar"
 JAR='time'
-		
-@timeDistribution = 0
+
+@timeDistribution = 1
 
 # -- RUN --
 env!( 
@@ -18,7 +18,7 @@ env!(
 	o('Xrunhprof:cpu=samples'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx2500M'),
+	o('Xmx4000M'),
 	o('ea'),
 	'time.Entry',
 
@@ -65,7 +65,7 @@ env!(
 #		o('allowPartialTime'),
 #		o('hardEM'),
 #		o('freeNils'),
-#		o('lexNils'),
+		o('lexNils'),
 #		o('includeRuleInLexProb'), # I think including this is correct...
 		# <training>
 		o('beam', 1000),
@@ -93,8 +93,8 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-		o('train', 'TOY'),              o('dev', 'TOY'),
+		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+#		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-exec scala -J-Xmx4g -cp "$JAVANLP_HOME/projects/core/classes/:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar:$HOME/lib/java/models.jar:$HOME/workspace/lib/dist/lib.jar:$HOME/workspace/time/dist/time.jar:$HOME/workspace/time/etc/joda-time.jar:." "$0" "$@"
+exec scala -J-Xmx4g -cp "$JAVANLP_HOME/projects/core/classes/:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar:$HOME/lib/java/models.jar:$HOME/workspace/lib/dist/lib.jar:$HOME/workspace/time/dist/time.jar:$HOME/workspace/time/etc/joda-time.jar:$HOME/workspace/time/etc/joda-convert.jar:." "$0" "$@"
 !#
 
 import java.awt.Color
