@@ -1737,7 +1737,9 @@ object Time {
 			month.toInt,
 			day.toInt,
 			{if(ampm.equalsIgnoreCase("am")){ hour.toInt } 
-				else if(ampm.equalsIgnoreCase("pm")){ hour.toInt+12 }
+				else if(ampm.equalsIgnoreCase("pm")){
+					if(hour.toInt < 12){ hour.toInt+12 } else { hour.toInt }
+				}
 				else { throw fail("Unknown am/pm: " + ampm) }},
 			min.toInt,
 			sec.toInt)

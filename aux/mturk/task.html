@@ -1,7 +1,6 @@
-<html>
-<head>
-<script src="http://plato42.stanford.edu/static/jquery-1.7.1.min.js"></script>
-<script src="http://plato42.stanford.edu/static/datetimepicker_css.js"></script>
+<body>
+<script src="http://localhost/static/jquery-1.7.1.min.js"></script>
+<script src="http://localhost/static/datetimepicker_css.js"></script>
 <script language="Javascript">
 //--Util
 function cancelEvent(e) {
@@ -48,7 +47,7 @@ function refreshImpl(updateMonth,selectTimes){
 				var y = top + height/7.5*(week+1.5)
 				//(draw)
 				document.getElementById("mask").innerHTML += 
-					'<img src="http://plato42.stanford.edu/static/mask.png" style="position:absolute; top:'+y+'px; '+
+					'<img src="http://localhost/static/mask.png" style="position:absolute; top:'+y+'px; '+
 					'left:'+x+'px; '+
 					'z-index: 3;"/>';
 			}
@@ -72,7 +71,7 @@ function refreshImpl(updateMonth,selectTimes){
 			var y = dayTop + (dayHeight/26)*(hr+2.0);
 			//(draw)
 			document.getElementById("daymask").innerHTML += 
-				'<img src="http://plato42.stanford.edu/static/daymask.png" style="position:absolute; top:'+y+'px; '+
+				'<img src="http://localhost/static/daymask.png" style="position:absolute; top:'+y+'px; '+
 				'left:'+x+'px; '+
 				'z-index: 1;"' +
 				'onclick="HR_START=-1; refreshImpl(false);" '+
@@ -167,6 +166,7 @@ function endSelect(event) {
 }
 //--Submission
 function validate(){
+	//--Client Side
 	//(variables)
 	var begin = document.getElementById('begin').value
 	var end = document.getElementById('end').value
@@ -176,10 +176,39 @@ function validate(){
 	var beginOK = valid.exec(begin)
 	var endOK = valid.exec(end)
 	//(return)
-	if(beginOK && endOK && annotation != ""){
-		document.getElementById("submitButton").disabled = false
-	} else {
+	var clientOK = false;
+	if(beginOK && endOK && annotation != ""){ clientOK = true; }
+	//--Server Side
+	if(clientOK) {
+		//(change state)
 		document.getElementById("submitButton").disabled = true
+		$('#info').html('(validating...)')
+		//(variables)
+		var annotation = $('#annotation').val()
+		var begin = $('#begin').val()
+		var end = $('#end').val()
+		//(json)
+		$.getJSON(
+			'http://localhost:3000/validate?callback=?&id='+
+				ID+'&annotation='+annotation+'&begin='+begin+'&end='+end,
+			function(data) {
+				if(data['value'] == "good"){
+					//(case: OK)
+					$('#info').html('')
+					document.getElementById("submitButton").disabled = false
+				} else if(data['value'] == 'range'){
+					//(case: range bad)
+					$('#info').html(
+						"Time is invalid: <i>" + begin + " until " + end + "</i>");
+				} else if(data['value'] == 'gutime'){
+					//(case: GUTime complained)
+					$('#info').html('WARNING: might not be a time: <i>'+annotation+'</i>')
+					document.getElementById("submitButton").disabled = false
+				} else {
+					//(case: unknown error)
+					$('#info').innerHTML = data['value'];
+				}
+			});
 	}
 }
 //--Navigation
@@ -220,15 +249,15 @@ function getDay(event){
 	var dom = row*7+col-firstDow+1
 	//(loading)
 	document.getElementById("day").innerHTML = 
-      '<img id="imgDay" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>'
+      '<img id="imgDay" src="http://localhost/static/loading.gif" alt="loading"/>'
 	//(json)
 	if(dom > 0 && dom <= (32 - new Date(YEAR,MONTH-1,32).getDate())){
 		$.getJSON(
-			'http://plato42.stanford.edu:3000/day?callback=?&id='+
+			'http://localhost:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
 				document.getElementById("day").innerHTML = 
-					'<img id="imgDay" src="http://plato42.stanford.edu/'+data['value']+'" alt="day view"'+
+					'<img id="imgDay" src="http://localhost/'+data['value']+'" alt="day view"'+
 					'onmousedown="beginSelect(event);" '+
 					'onmousemove="moveSelect(event);" '+
 					'onmouseup="endSelect(event);" '+
@@ -244,10 +273,10 @@ function getDay(event){
 //--Month
 function month(yr,mon) {
 	$.getJSON(
-		'http://plato42.stanford.edu:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
+		'http://localhost:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
 		function(data) {
 			document.getElementById("month").innerHTML = 
-				'<img id="imgMonth" src="http://plato42.stanford.edu/'+data['value']+'" alt="month view"'+
+				'<img id="imgMonth" src="http://localhost/'+data['value']+'" alt="month view"'+
 				'onclick="getDay(event)"/>';
 			document.getElementById("day").innerHTML = '';
 			YEAR = yr
@@ -259,49 +288,9 @@ function month(yr,mon) {
 //--JQuery (init)
 $(document).ready(function(){
 	document.getElementById("submitButton").disabled = true
-	//--Setup Submit
-	$('#submitButton').click(function(event) {
-		//(change state)
-		document.getElementById("submitButton").disabled = true
-		mturk_form.submitButton.value = '(wait...)'
-		//(variables)
-		var annotation = $('#annotation').val()
-		var begin = $('#begin').val()
-		var end = $('#end').val()
-		//(json)
-		$.getJSON(
-			'http://plato42.stanford.edu:3000/validate?callback=?&id='+
-				ID+'&annotation='+annotation+'&begin='+begin+'&end='+end,
-			function(data) {
-				if(data['value'] == "good"){
-					//(case: OK)
-					$("form#mturk_form").submit();
-				} else if(data['value'] == 'range'){
-					//(case: range bad)
-					mturk_form.submitButton.value = 'Submit';
-					alert("Annotation is invalid: '" + begin + " until " + end + "'");
-				} else if(data['value'] == 'gutime'){
-					if(confirm("Submit '" 
-							+ annotation + "' (might not be a time expression)?")){
-						//(case: submit despite GUTime)
-						$("form#mturk_form").submit();
-						$('#annotation').focus()
-					} else {
-						//(case: trust GUTime; don't submit)
-						mturk_form.submitButton.value = 'Submit'
-					}
-				} else {
-					//(case: unknown error)
-					mturk_form.submitButton.value = 'Submit'
-					alert(data['value']);
-				}
-			});
-		//(cancel event)
-		cancelEvent(event);
-	});
 	//--Get Month
 	$.getJSON(
-		'http://plato42.stanford.edu:3000/init?callback=?', 
+		'http://localhost:3000/init?callback=?', 
 		function(data) {
 			//(set id)
 			ID = parseInt(data['value']['id'])
@@ -317,9 +306,6 @@ $(document).ready(function(){
 });
 </script>
 
-</head>
-
-<body><form id='mturk_form', name='mturk_form'>
 <!-- Task Description -->
 <div id="instructions" style="font-weight:bold; margin-bottom:24pt">
 	<h2 style="color:darkred;"> Instructions: </h2>
@@ -362,7 +348,7 @@ $(document).ready(function(){
 		<br/><br/>
 			I'd be happy to meet sometime. I'm free
 			<input id="annotation" type="text" style="width:200px; background-color:#A6FCE4;"
-				onKeyDown="validate();">
+				onKeyUp="validate();">
 			</input>.
 			<br/>
 			Let me know if this would work for you.
@@ -376,11 +362,11 @@ $(document).ready(function(){
 <div id="calendar" style="vertical-align:top; margin-bottom:24pt;">
 	<span id="monthContainer">
 		<div id="navBar">
-			<img id="prev" src="http://plato42.stanford.edu/static/prev.jpg" onclick="prevMonth()"/>
-			<img id="next" src="http://plato42.stanford.edu/static/next.jpg" onclick="nextMonth();"/>
+			<img id="prev" src="http://localhost/static/prev.jpg" onclick="prevMonth()"/>
+			<img id="next" src="http://localhost/static/next.jpg" onclick="nextMonth();"/>
 		</div>
 		<span id="month">
-			<img id="imgMonth" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>
+			<img id="imgMonth" src="http://localhost/static/loading.gif" alt="loading"/>
 		</span>
 	</span>
 	<span id="day">
@@ -400,25 +386,14 @@ $(document).ready(function(){
 			"javascript:NewCssCal('begin','MMddyyyy','dropdown',true,'12',true)"
 		onChange="validate();">
 	</input>
-	until
+	<span> until </span>
 	<input id="end" type="text" 
 		style="background-color:#A6FCE4;"
 		onclick=
 			"javascript:NewCssCal('end','MMddyyyy','dropdown',true,'12',true)"
 		onchange="validate();">
 	</input>
-	<input id="submitButton" type="submit" text="Submit"></input>
+	<span id="info" style="color:darkred"><!--(empty for now)--> </span>
 </div>
-
-<!-- TODOs -->
-<!--
-<div>
-	TODOs
-	<ul>
-	</ul>
-</div>
--->
-
 	
-</form></body>
-</html>
+<input id="submitButton" type="submit" text="Submit"></input>
