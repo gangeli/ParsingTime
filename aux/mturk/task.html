@@ -218,10 +218,13 @@ function getDay(event){
 	var cal = new Date(YEAR,MONTH-1,1,0,0,0,0);
 	var firstDow = cal.getDay();
 	var dom = row*7+col-firstDow+1
+	//(loading)
+	document.getElementById("day").innerHTML = 
+      '<img id="imgDay" src="static/loading.gif" alt="loading"/>'
 	//(json)
 	if(dom > 0 && dom <= (32 - new Date(YEAR,MONTH-1,32).getDate())){
 		$.getJSON(
-			'http://localhost:3000/day?callback=?&id='+
+			'http://plato42.stanford.edu:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
 				document.getElementById("day").innerHTML = 
@@ -241,7 +244,7 @@ function getDay(event){
 //--Month
 function month(yr,mon) {
 	$.getJSON(
-		'http://localhost:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
+		'http://plato42.stanford.edu:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
 		function(data) {
 			document.getElementById("month").innerHTML = 
 				'<img id="imgMonth" src="'+data['value']+'" alt="month view"'+
@@ -256,7 +259,7 @@ function month(yr,mon) {
 //--Connect
 function init() {
 	$.getJSON(
-		'http://localhost:3000/init?callback=?', 
+		'http://plato42.stanford.edu:3000/init?callback=?', 
 		function(data) {
 			//(set id)
 			ID = parseInt(data['value']['id'])
@@ -283,7 +286,7 @@ $(document).ready(function(){
 		var end = $('#end').val()
 		//(json)
 		$.getJSON(
-			'http://localhost:3000/validate?callback=?&id='+
+			'http://plato42.stanford.edu:3000/validate?callback=?&id='+
 				ID+'&annotation='+annotation+'&begin='+begin+'&end='+end,
 			function(data) {
 				if(data['value'] == "good"){
