@@ -259,6 +259,7 @@ function getDay(event){
 			'http://plato42.stanford.edu:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
+				alert("Loading");
 				$('#day').html(
 					'<img id="imgDay" src="http://plato42.stanford.edu/'+data['value']+'" alt="day view"'+
 					'onmousedown="beginSelect(event);" '+
@@ -270,6 +271,7 @@ function getDay(event){
 				HR_START = 0;
 				HR_END = 23;
 				refreshImpl(true,false);
+				alert("Loaded");
 			});
 	}
 }
@@ -302,7 +304,8 @@ $(document).ready(function(){
 			month(d.getFullYear(),d.getMonth()+1);
 			//(init duration)
 			var duration = data['value']['duration']
-			document.getElementById("duration").innerHTML = duration;
+			document.getElementById("durationDisp").innerHTML = duration;
+			document.getElementById("duration").value = duration;
 			//(set up last things)
 			validate();
 			document.getElementById('taskBegin').value = new Date().toString()
@@ -315,6 +318,7 @@ $(document).ready(function(){
 <!-- Hidden Fields -->
 <input id="taskBegin" type="hidden" name="taskBegin"/>
 <input id="taskEnd" type="hidden" name="taskEnd"/>
+<input id="duration" type="hidden" name="duration"/>
 <!-- Task Description -->
 <div id="instructions" style="font-weight:bold; margin-bottom:24pt">
 	<h2 style="color:darkred;"> Instructions: </h2>
@@ -341,8 +345,8 @@ $(document).ready(function(){
 	<td><div style="font-family:monospace; float:left; margin-right: 25px; border-style:dashed; border-color:grey; padding:5px;">
 		Hi [your name],
 		<br/><br/>
-			Would you be free sometime for around 
-			<span id="duration"><!--(empty for now)--></span>
+			Would you be free to meet sometime for around 
+			<span id="durationDisp"><!--(empty for now)--></span>?
 		<br/><br/>
 		Thanks!
 		<br/><br/>

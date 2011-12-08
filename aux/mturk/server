@@ -364,8 +364,10 @@ def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 	//(get duration)
 	val num:Int = geom(0.5)
 	val (d:Duration,dStr:String) = Random.nextInt(2) match {
-		case 0 => (HOUR*num, ""+num + " hour" + {if(num>1) "s" else ""})
-		case 1 => (DAY*num, ""+num + " day" + {if(num>1) "s" else ""})
+		case 0 => (HOUR*num, ""+{if(num == 1) "an" else num} + 
+			" hour" + {if(num>1) "s" else ""})
+		case 1 => (DAY*num, ""+{if(num == 1) "a" else num} + 
+			" day" + {if(num>1) "s" else ""})
 	}
 	State.duration(num) = d
 	//(return)
