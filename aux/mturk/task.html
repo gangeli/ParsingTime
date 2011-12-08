@@ -258,7 +258,6 @@ function getDay(event){
 			'http://plato42.stanford.edu:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
-				alert("Loading");
 				$('#day').html(
 					'<img id="imgDay" src="http://plato42.stanford.edu/'+data['value']+'" alt="day view"'+
 					'onmousedown="beginSelect(event);" '+
@@ -270,7 +269,6 @@ function getDay(event){
 				HR_START = 0;
 				HR_END = 23;
 				refreshImpl(true,false);
-				alert("Loaded");
 			});
 	}
 }
@@ -418,5 +416,3 @@ $(document).ready(function(){
 	<td><textarea id="notes" cols="80" rows="2" name="notes"></textarea></td>
 	</tr>
 </table>
-	
-<input id="submitButton" type="submit" text="Submit"></input>
