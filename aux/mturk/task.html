@@ -1,8 +1,8 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <body>
-<script src="http://plato42.stanford.edu/static/jquery-1.7.1.min.js"></script>
-<script src="http://plato42.stanford.edu/static/datetimepicker_css.js"></script>
+<script src="http://localhost/static/jquery-1.7.1.min.js"></script>
+<script src="http://localhost/static/datetimepicker_css.js"></script>
 <script language="Javascript">
 //--Util
 function cancelEvent(e) {
@@ -49,7 +49,7 @@ function refreshImpl(updateMonth,selectTimes){
 				var y = top + height/7.5*(week+1.5)
 				//(draw)
 				document.getElementById("mask").innerHTML += 
-					'<img src="http://plato42.stanford.edu/static/mask.png" style="position:absolute; top:'+y+'px; '+
+					'<img src="http://localhost/static/mask.png" style="position:absolute; top:'+y+'px; '+
 					'left:'+x+'px; '+
 					'z-index: 3;"/>';
 			}
@@ -73,7 +73,7 @@ function refreshImpl(updateMonth,selectTimes){
 			var y = dayTop + (dayHeight/26)*(hr+2.0);
 			//(draw)
 			document.getElementById("daymask").innerHTML += 
-				'<img src="http://plato42.stanford.edu/static/daymask.png" style="position:absolute; top:'+y+'px; '+
+				'<img src="http://localhost/static/daymask.png" style="position:absolute; top:'+y+'px; '+
 				'left:'+x+'px; '+
 				'z-index: 1;"' +
 				'onclick="HR_START=-1; refreshImpl(false);" '+
@@ -180,7 +180,11 @@ function validate(){
 	var valid = /[0-9]{1,2}-[0-9]{1,2}-[0-9]{4} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}(AM|PM)/i
 	var beginOK = valid.exec(begin)
 	var endOK = valid.exec(end)
-	//(return)
+	//(show annotation bar)
+	if(annotation != ""){
+		$('#annotate').css('visibility','visible')
+	}
+	//(client check)
 	var clientOK = false;
 	if(beginOK && endOK && annotation != ""){ clientOK = true; }
 	//--Server Side
@@ -194,7 +198,7 @@ function validate(){
 		var end = $('#end').val()
 		//(json)
 		$.getJSON(
-			'http://plato42.stanford.edu:3000/validate?callback=?&id='+
+			'http://localhost:3000/validate?callback=?&id='+
 				ID+'&annotation='+annotation+'&begin='+begin+'&end='+end,
 			function(data) {
 				if(data['value'] == "good"){
@@ -238,7 +242,7 @@ function prevMonth() {
 }
 //--Day
 function getDay(event){
-	$('#day').html('<img id="imgDay" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>')
+	$('#day').html('<img id="imgDay" src="http://localhost/static/loading.gif" alt="loading"/>')
 	//(get cursor)
 	var x = event.pageX-$('#month').position().left
 	var y = event.pageY-$('#month').position().top+480;
@@ -255,11 +259,11 @@ function getDay(event){
 	//(json)
 	if(dom > 0 && dom <= (32 - new Date(YEAR,MONTH-1,32).getDate())){
 		$.getJSON(
-			'http://plato42.stanford.edu:3000/day?callback=?&id='+
+			'http://localhost:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
 				$('#day').html(
-					'<img id="imgDay" src="http://plato42.stanford.edu/'+data['value']+'" alt="day view"'+
+					'<img id="imgDay" src="http://localhost/'+data['value']+'" alt="day view"'+
 					'onmousedown="beginSelect(event);" '+
 					'onmousemove="moveSelect(event);" '+
 					''+
@@ -275,10 +279,10 @@ function getDay(event){
 //--Month
 function month(yr,mon) {
 	$.getJSON(
-		'http://plato42.stanford.edu:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
+		'http://localhost:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
 		function(data) {
 			document.getElementById("month").innerHTML = 
-				'<img id="imgMonth" src="http://plato42.stanford.edu/'+data['value']+'" alt="month view"'+
+				'<img id="imgMonth" src="http://localhost/'+data['value']+'" alt="month view"'+
 				'onclick="getDay(event)"/>';
 			document.getElementById("day").innerHTML = '';
 			YEAR = yr
@@ -289,10 +293,15 @@ function month(yr,mon) {
 }
 //--JQuery (init)
 $(document).ready(function(){
-	document.getElementById("submitButton").disabled = true
+	if(document.getElementById("submitButton")){
+		document.getElementById("submitButton").disabled = true
+	}
 	//--Get Month
+	var id = "${ID}"
+	var url = 'http://localhost:3000/init?callback=?&id=' 
+	if(id == "${ID}"){ url += "x" } else { url += id }
 	$.getJSON(
-		'http://plato42.stanford.edu:3000/init?callback=?&id=${ID}', 
+		url,
 		function(data) {
 			//(set id)
 			ID = parseInt(data['value']['id'])
@@ -309,6 +318,23 @@ $(document).ready(function(){
 		});
 	//--Setup
 	document.body.onmouseup = endSelect
+	//--Set DOW
+	var dow = new Date().getDay();
+	if(dow == 0){
+		$('#dow').html("Sunday")
+	} else if(dow == 1){
+		$('#dow').html("Monday")
+	} else if(dow == 2){
+		$('#dow').html("Tuesday")
+	} else if(dow == 3){
+		$('#dow').html("Wednesday")
+	} else if(dow == 4){
+		$('#dow').html("Thursday")
+	} else if(dow == 5){
+		$('#dow').html("Friday")
+	} else if(dow == 6){
+		$('#dow').html("Saturday")
+	}
 });
 </script>
 
@@ -320,7 +346,9 @@ $(document).ready(function(){
 <div id="instructions" style="font-weight:bold; margin-bottom:24pt">
 	<h2 style="color:darkred;"> Instructions: </h2>
 	<p>
-		You are responding to an email sent to you asking to meet sometime.
+		You are responding to an email sent today 
+			(<span id="dow"><!--(empty for now)--></span>) 
+			asking you to meet sometime.
 		You should respond to the email describing a date or time when you would be
 			free in informal english, and then specify the time your informal
 			description corresponds to.
@@ -330,9 +358,8 @@ $(document).ready(function(){
 	<p>
 		A calendar showing when you are free is provided for you below; 
 			clicking on a particular day will bring up an hour-by-hour view.
-		You can specify times either by selecting a day or hour on the calendar,
-			or by manually selecting a start and end time by clicking on the text
-			boxes.
+		After responding, please select the time by either using the calendar
+			or the date/time widgets on the text boxes.
 	</p>
 </div>
 
@@ -373,11 +400,11 @@ $(document).ready(function(){
 <div id="calendar" style="vertical-align:top; margin-bottom:24pt;">
 	<span id="monthContainer">
 		<div id="navBar">
-			<img id="prev" src="http://plato42.stanford.edu/static/prev.jpg" onclick="prevMonth()"/>
-			<img id="next" src="http://plato42.stanford.edu/static/next.jpg" onclick="nextMonth();"/>
+			<img id="prev" src="http://localhost/static/prev.jpg" onclick="prevMonth()"/>
+			<img id="next" src="http://localhost/static/next.jpg" onclick="nextMonth();"/>
 		</div>
 		<span id="month">
-			<img id="imgMonth" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>
+			<img id="imgMonth" src="http://localhost/static/loading.gif" alt="loading"/>
 		</span>
 	</span>
 	<span id="day">
@@ -389,7 +416,7 @@ $(document).ready(function(){
 </div>
 
 <!-- Annotate -->
-<div id="annotate" style="float:none; margin-bottom:10pt;">
+<div id="annotate" style="float:none; margin-bottom:10pt; visibility:hidden">
 	<span>Date is:</span>
 	<input id="begin" type="text" name="begin"
 		style="background-color:#A6FCE4;"

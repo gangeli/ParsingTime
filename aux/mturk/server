@@ -33,6 +33,7 @@ val gridWidth = 2
 
 val drawMonth = true
 val drawDates = false
+val showDay = false
 
 val sleepEnd = 6
 val sleepStart = 22
@@ -56,6 +57,15 @@ val MOY = Array[String](
 	"OCT",
 	"NOV",
 	"DEC"
+)
+val DOW = Array[String](
+	"MON",
+	"TUE",
+	"WED",
+	"THU",
+	"FRI",
+	"SAT",
+	"SUN"
 )
 
 // -- State --
@@ -309,7 +319,15 @@ object Freedom {
 			.rect(0,0,14,26,Color.BLACK,borderWidth)
 			.line(0,24,14,24,Color.BLACK,2)
 			.line(3,0,3,24,Color.BLACK,2)
-			.text(6,24.5,""+day,new Color(0x2E3542),1.5)
+			.text(6,24.5,
+				{if(showDay){
+					""+day
+				} else {
+					val cal:Calendar = new GregorianCalendar
+					cal.set(year,month-1,day)
+					val dow:Int = (cal.get(Calendar.DAY_OF_WEEK)+5) % 7
+					DOW(dow)
+				}},new Color(0x2E3542),1.5)
 		val emptyDay:Drawing = (0 until 24).foldLeft(boundary){
 				case (frame:Drawing, hour:Int) =>
 			val tMod12:Int = 
