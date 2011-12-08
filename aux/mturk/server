@@ -34,6 +34,7 @@ val gridWidth = 2
 val drawMonth = true
 val drawDates = false
 val showDay = false
+val canTime = false
 
 val sleepEnd = 6
 val sleepStart = 22
@@ -390,11 +391,11 @@ def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 //	}
 	//(get duration)
 	val num:Int = geom(0.5)
-	val (d:Duration,dStr:String) = Random.nextInt(2) match {
-		case 0 => (HOUR*num, ""+{if(num == 1) "an" else num} + 
-			" hour" + {if(num>1) "s" else ""})
-		case 1 => (DAY*num, ""+{if(num == 1) "a" else num} + 
+	val (d:Duration,dStr:String) = Random.nextInt(if(canTime){2}else{1}) match {
+		case 0 => (DAY*num, ""+{if(num == 1) "a" else num} + 
 			" day" + {if(num>1) "s" else ""})
+		case 1 => (HOUR*num, ""+{if(num == 1) "an" else num} + 
+			" hour" + {if(num>1) "s" else ""})
 	}
 	State.duration(id) = d
 	//(return)

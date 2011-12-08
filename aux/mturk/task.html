@@ -183,6 +183,8 @@ function validate(){
 	//(show annotation bar)
 	if(annotation != ""){
 		$('#annotate').css('visibility','visible')
+	} else {
+		$('#annInfo').html('')
 	}
 	//(client check)
 	var clientOK = false;
@@ -190,7 +192,9 @@ function validate(){
 	//--Server Side
 	if(clientOK) {
 		//(change state)
-		document.getElementById("submitButton").disabled = true
+		if(document.getElementById("submitButton")){
+			document.getElementById("submitButton").disabled = true
+		}
 		$('#info').html('(validating...)')
 		//(variables)
 		var annotation = $('#annotation').val()
@@ -204,17 +208,26 @@ function validate(){
 				if(data['value'] == "good"){
 					//(case: OK)
 					$('#info').html('')
-					document.getElementById("submitButton").disabled = false
+					$('#annInfo').html('')
+					if(document.getElementById("submitButton")){
+						document.getElementById("submitButton").disabled = false
+					}
 				} else if(data['value'] == 'range'){
 					//(case: range bad)
 					$('#info').html(
 						"Time is invalid: <i>" + begin + " until " + end + "</i>");
+					$('#annInfo').html('')
 				} else if(data['value'] == 'gutime'){
 					//(case: GUTime complained)
-					$('#info').html('WARNING: might not be a time: <i>'+annotation+'</i>')
-					document.getElementById("submitButton").disabled = false
+					$('#annInfo').html(
+						'WARNING: might not be a time: <i>'+annotation+'</i>')
+					$('#info').html('')
+					if(document.getElementById("submitButton")){
+						document.getElementById("submitButton").disabled = false
+					}
 				} else {
 					//(case: unknown error)
+					$('#annInfo').innerHTML = data['value'];
 					$('#info').innerHTML = data['value'];
 				}
 			});
@@ -345,22 +358,29 @@ $(document).ready(function(){
 <!-- Task Description -->
 <div id="instructions" style="font-weight:bold; margin-bottom:24pt">
 	<h2 style="color:darkred;"> Instructions: </h2>
-	<p>
-		You are responding to an email sent today 
-			(<span id="dow"><!--(empty for now)--></span>) 
-			asking you to meet sometime.
-		You should respond to the email describing a date or time when you would be
-			free in informal english, and then specify the time your informal
-			description corresponds to.
-		You should fit your schedule as best you can, though you are allowed to give
-			conflicting dates.
-	</p>
-	<p>
-		A calendar showing when you are free is provided for you below; 
-			clicking on a particular day will bring up an hour-by-hour view.
-		After responding, please select the time by either using the calendar
-			or the date/time widgets on the text boxes.
-	</p>
+	<ul>
+		<li> 
+			You are responding to an email sent today 
+				(<span id="dow"><!--(empty for now)--></span>)
+				requesting a date or time when you would be free.
+		</li>
+		<li>
+			<span style="color:darkred;">
+			You should respond assuming the recipient does not have immediate
+				access to a calendar
+			</span>
+		</li>
+		<li>
+			A calendar showing when you are free is provided for you below; 
+				clicking on a particular day will bring up an hour-by-hour view.
+			You should give times which conflict with your schedule as little
+				as possible.
+		</li>
+		<li>
+			After responding, please select the time by either using the calendar
+				or the date/time widgets on the text boxes.
+		</li>
+	</ul>
 </div>
 
 <!-- Email -->
@@ -369,7 +389,7 @@ $(document).ready(function(){
 	<td><div style="font-family:monospace; float:left; margin-right: 25px; border-style:dashed; border-color:grey; padding:5px;">
 		Hi [your name],
 		<br/><br/>
-			Would you be free to meet sometime for around 
+			Would you be free to meet<br/> sometime for around 
 			<span id="durationDisp"><!--(empty for now)--></span>?
 		<br/><br/>
 		Thanks!
@@ -377,17 +397,18 @@ $(document).ready(function(){
 	</div></td>
 	<!--(reply)-->
 	<td><div style="margin-right: 25px">
-	--(reply)&rarr;
+		&rarr;
 	</div></td>
 	<!--(your email)-->
 	<td><div style="font-family:monospace; float:none; border-style:dashed; border-color:blue; padding:5px;">
 		Hi [their name],
 		<br/><br/>
-			I'd be happy to meet sometime. I'm free
+			I'd be happy to meet sometime. I'm free<br/>
 			<input id="annotation" type="text" name="annotation"
-				style="width:200px; background-color:#A6FCE4;"
+				style="width:300px; background-color:#A6FCE4;"
 				onKeyUp="validate();">
-			</input>.
+			</input>
+			<span id="annInfo" style="color:darkred"><!--(empty for now)--> </span>.
 			<br/>
 			Let me know if this would work for you.
 		<br/><br/>
@@ -396,43 +417,47 @@ $(document).ready(function(){
 	</div></td>
 </tr></table>
 
-<!-- Calendar -->
 <div id="calendar" style="vertical-align:top; margin-bottom:24pt;">
+	<!-- Control + Annotate -->
+	<div id="navBar">
+		<!-- (control) -->
+		<img id="prev" 
+			src="http://localhost/static/prev.jpg" onclick="prevMonth()"/>
+		<img id="next" 
+			src="http://localhost/static/next.jpg" onclick="nextMonth();"/>
+		<!-- (annotate) -->
+		<span id="annotate" 
+				style="float:none; margin-bottom:10pt; visibility:hidden">
+			<span>Date is:</span>
+			<input id="begin" type="text" name="begin"
+				style="background-color:#A6FCE4;"
+				onclick=
+					"javascript:NewCssCal('begin','MMddyyyy','dropdown',true,'12',true)"
+				onChange="validate();" readonly='readonly'>
+			</input>
+			<span> until </span>
+			<input id="end" type="text" name="end"
+				style="background-color:#A6FCE4;"
+				onclick=
+					"javascript:NewCssCal('end','MMddyyyy','dropdown',true,'12',true)"
+				onchange="validate();" readonly='readonly'>
+			</input>
+			<span id="info" style="color:darkred"><!--(empty for now)--> </span>
+		</span>
+	</div>
+
+	<!-- Calendar -->
 	<span id="monthContainer">
-		<div id="navBar">
-			<img id="prev" src="http://localhost/static/prev.jpg" onclick="prevMonth()"/>
-			<img id="next" src="http://localhost/static/next.jpg" onclick="nextMonth();"/>
-		</div>
 		<span id="month">
 			<img id="imgMonth" src="http://localhost/static/loading.gif" alt="loading"/>
 		</span>
 	</span>
-	<span id="day">
-		<!--(empty for now)-->
-	</span>
-
+	<span id="day"><!--(empty for now)--></span>
 	<span id="mask"><!--(empty for now)--></span>
 	<span id="daymask"><!--(empty for now)--></span>
+
 </div>
 
-<!-- Annotate -->
-<div id="annotate" style="float:none; margin-bottom:10pt; visibility:hidden">
-	<span>Date is:</span>
-	<input id="begin" type="text" name="begin"
-		style="background-color:#A6FCE4;"
-		onclick=
-			"javascript:NewCssCal('begin','MMddyyyy','dropdown',true,'12',true)"
-		onChange="validate();">
-	</input>
-	<span> until </span>
-	<input id="end" type="text" name="end"
-		style="background-color:#A6FCE4;"
-		onclick=
-			"javascript:NewCssCal('end','MMddyyyy','dropdown',true,'12',true)"
-		onchange="validate();">
-	</input>
-	<span id="info" style="color:darkred"><!--(empty for now)--> </span>
-</div>
 <!-- Notes -->
 <table id="notes" style="margin-bottom:24pt;">
 	<tr>
