@@ -1,6 +1,6 @@
 <body>
-<script src="http://localhost/static/jquery-1.7.1.min.js"></script>
-<script src="http://localhost/static/datetimepicker_css.js"></script>
+<script src="http://plato42.stanford.edu/static/jquery-1.7.1.min.js"></script>
+<script src="http://plato42.stanford.edu/static/datetimepicker_css.js"></script>
 <script language="Javascript">
 //--Util
 function cancelEvent(e) {
@@ -47,7 +47,7 @@ function refreshImpl(updateMonth,selectTimes){
 				var y = top + height/7.5*(week+1.5)
 				//(draw)
 				document.getElementById("mask").innerHTML += 
-					'<img src="http://localhost/static/mask.png" style="position:absolute; top:'+y+'px; '+
+					'<img src="http://plato42.stanford.edu/static/mask.png" style="position:absolute; top:'+y+'px; '+
 					'left:'+x+'px; '+
 					'z-index: 3;"/>';
 			}
@@ -71,7 +71,7 @@ function refreshImpl(updateMonth,selectTimes){
 			var y = dayTop + (dayHeight/26)*(hr+2.0);
 			//(draw)
 			document.getElementById("daymask").innerHTML += 
-				'<img src="http://localhost/static/daymask.png" style="position:absolute; top:'+y+'px; '+
+				'<img src="http://plato42.stanford.edu/static/daymask.png" style="position:absolute; top:'+y+'px; '+
 				'left:'+x+'px; '+
 				'z-index: 1;"' +
 				'onclick="HR_START=-1; refreshImpl(false);" '+
@@ -138,6 +138,7 @@ function event2hour(event) {
 		return hr
 	}
 }
+DOWN=false
 function beginSelect(event) {
 	//(select)
 	HR_START = event2hour(event);
@@ -149,9 +150,10 @@ function beginSelect(event) {
 	refreshImpl(false,true);
 	//(cancel default)
 	cancelEvent(event);
+	DOWN = true;
 }
 function moveSelect(event) {
-	if(event.which == 1){
+	if(DOWN){
 		var oldHrEnd = HR_END
 		HR_END = event2hour(event)
 		if(HR_END < 0){ HR_END = oldHrEnd; }
@@ -163,6 +165,7 @@ function moveSelect(event) {
 	}
 }
 function endSelect(event) {
+	DOWN = false;
 }
 //--Submission
 function validate(){
@@ -189,7 +192,7 @@ function validate(){
 		var end = $('#end').val()
 		//(json)
 		$.getJSON(
-			'http://localhost:3000/validate?callback=?&id='+
+			'http://plato42.stanford.edu:3000/validate?callback=?&id='+
 				ID+'&annotation='+annotation+'&begin='+begin+'&end='+end,
 			function(data) {
 				if(data['value'] == "good"){
@@ -210,6 +213,7 @@ function validate(){
 				}
 			});
 	}
+	document.getElementById('taskEnd').value = new Date().toString()
 }
 //--Navigation
 function nextMonth() {
@@ -233,10 +237,8 @@ function prevMonth() {
 //--Day
 function getDay(event){
 	//(get cursor)
-	var x = event.offsetX?(event.offsetX):event.pageX-
-		document.getElementById("pointer_div").offsetLeft;
-	var y = event.offsetY?(event.offsetY):event.pageY-
-		document.getElementById("pointer_div").offsetTop;
+	var x = event.pageX-$('#month').position().left
+	var y = event.pageY-$('#month').position().top+480;
 	//(get image dimensions)
 	var img = document.getElementById('imgMonth');
 	var width = img.clientWidth
@@ -249,18 +251,18 @@ function getDay(event){
 	var dom = row*7+col-firstDow+1
 	//(loading)
 	document.getElementById("day").innerHTML = 
-      '<img id="imgDay" src="http://localhost/static/loading.gif" alt="loading"/>'
+      '<img id="imgDay" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>'
 	//(json)
 	if(dom > 0 && dom <= (32 - new Date(YEAR,MONTH-1,32).getDate())){
 		$.getJSON(
-			'http://localhost:3000/day?callback=?&id='+
+			'http://plato42.stanford.edu:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
 				document.getElementById("day").innerHTML = 
-					'<img id="imgDay" src="http://localhost/'+data['value']+'" alt="day view"'+
+					'<img id="imgDay" src="http://plato42.stanford.edu/'+data['value']+'" alt="day view"'+
 					'onmousedown="beginSelect(event);" '+
 					'onmousemove="moveSelect(event);" '+
-					'onmouseup="endSelect(event);" '+
+					''+
 					'/>';
 				DAY_START = dom;
 				DAY_END = dom;
@@ -273,10 +275,10 @@ function getDay(event){
 //--Month
 function month(yr,mon) {
 	$.getJSON(
-		'http://localhost:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
+		'http://plato42.stanford.edu:3000/month?callback=?&id='+ID+'&year='+yr+'&month='+mon,
 		function(data) {
 			document.getElementById("month").innerHTML = 
-				'<img id="imgMonth" src="http://localhost/'+data['value']+'" alt="month view"'+
+				'<img id="imgMonth" src="http://plato42.stanford.edu/'+data['value']+'" alt="month view"'+
 				'onclick="getDay(event)"/>';
 			document.getElementById("day").innerHTML = '';
 			YEAR = yr
@@ -290,7 +292,7 @@ $(document).ready(function(){
 	document.getElementById("submitButton").disabled = true
 	//--Get Month
 	$.getJSON(
-		'http://localhost:3000/init?callback=?', 
+		'http://plato42.stanford.edu:3000/init?callback=?', 
 		function(data) {
 			//(set id)
 			ID = parseInt(data['value']['id'])
@@ -300,12 +302,18 @@ $(document).ready(function(){
 			//(init duration)
 			duration = data['value']['duration']
 			document.getElementById("duration").innerHTML = duration;
-			//(enable submit button)
+			//(set up last things)
 			validate();
+			document.getElementById('taskBegin').value = new Date().toString()
 		});
+	//--Setup
+	document.body.onmouseup = endSelect
 });
 </script>
 
+<!-- Hidden Fields -->
+<input id="taskBegin" type="hidden" name="taskBegin"/>
+<input id="taskEnd" type="hidden" name="taskEnd"/>
 <!-- Task Description -->
 <div id="instructions" style="font-weight:bold; margin-bottom:24pt">
 	<h2 style="color:darkred;"> Instructions: </h2>
@@ -347,7 +355,8 @@ $(document).ready(function(){
 		Hi [their name],
 		<br/><br/>
 			I'd be happy to meet sometime. I'm free
-			<input id="annotation" type="text" style="width:200px; background-color:#A6FCE4;"
+			<input id="annotation" type="text" name="annotation"
+				style="width:200px; background-color:#A6FCE4;"
 				onKeyUp="validate();">
 			</input>.
 			<br/>
@@ -362,11 +371,11 @@ $(document).ready(function(){
 <div id="calendar" style="vertical-align:top; margin-bottom:24pt;">
 	<span id="monthContainer">
 		<div id="navBar">
-			<img id="prev" src="http://localhost/static/prev.jpg" onclick="prevMonth()"/>
-			<img id="next" src="http://localhost/static/next.jpg" onclick="nextMonth();"/>
+			<img id="prev" src="http://plato42.stanford.edu/static/prev.jpg" onclick="prevMonth()"/>
+			<img id="next" src="http://plato42.stanford.edu/static/next.jpg" onclick="nextMonth();"/>
 		</div>
 		<span id="month">
-			<img id="imgMonth" src="http://localhost/static/loading.gif" alt="loading"/>
+			<img id="imgMonth" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>
 		</span>
 	</span>
 	<span id="day">
@@ -378,16 +387,16 @@ $(document).ready(function(){
 </div>
 
 <!-- Annotate -->
-<div id="annotate" style="margin-bottom:24pt; float:none;">
+<div id="annotate" style="float:none; margin-bottom:10pt;">
 	<span>Date is:</span>
-	<input id="begin" type="text" 
+	<input id="begin" type="text" name="begin"
 		style="background-color:#A6FCE4;"
 		onclick=
 			"javascript:NewCssCal('begin','MMddyyyy','dropdown',true,'12',true)"
 		onChange="validate();">
 	</input>
 	<span> until </span>
-	<input id="end" type="text" 
+	<input id="end" type="text" name="end"
 		style="background-color:#A6FCE4;"
 		onclick=
 			"javascript:NewCssCal('end','MMddyyyy','dropdown',true,'12',true)"
@@ -395,5 +404,15 @@ $(document).ready(function(){
 	</input>
 	<span id="info" style="color:darkred"><!--(empty for now)--> </span>
 </div>
+<!-- Notes -->
+<table id="notes" style="margin-bottom:24pt;">
+	<tr>
+	<td>
+		<div style="font-weight:bold;">Notes:</div>
+		<i>(optional)</i>
+	</td>
+	<td><textarea id="notes" cols="80" rows="2" name="notes"></textarea></td>
+	</tr>
+</table>
 	
 <input id="submitButton" type="submit" text="Submit"></input>
