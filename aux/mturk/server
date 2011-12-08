@@ -297,7 +297,8 @@ object Freedom {
 			val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
 			val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
 			//(mark date)
-			mark(markedCal,dow,6-week)
+//			mark(markedCal,dow,6-week)
+			markedCal
 		} else {
 			markedCal
 		}

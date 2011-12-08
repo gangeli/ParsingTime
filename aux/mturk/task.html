@@ -1,3 +1,5 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <body>
 <script src="http://plato42.stanford.edu/static/jquery-1.7.1.min.js"></script>
 <script src="http://plato42.stanford.edu/static/datetimepicker_css.js"></script>
@@ -241,8 +243,8 @@ function getDay(event){
 	var y = event.pageY-$('#month').position().top+480;
 	//(get image dimensions)
 	var img = document.getElementById('imgMonth');
-	var width = img.clientWidth
-	var height = img.clientHeight
+	var width = $('#imgMonth').width();
+	var height = $('#imgMonth').height();
 	//(get day)
 	var row = Math.floor((y/height)*7.5-1.5)
 	var col = Math.floor((x/width)*7)
@@ -250,20 +252,19 @@ function getDay(event){
 	var firstDow = cal.getDay();
 	var dom = row*7+col-firstDow+1
 	//(loading)
-	document.getElementById("day").innerHTML = 
-      '<img id="imgDay" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>'
+	$('#day').html('<img id="imgDay" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>')
 	//(json)
 	if(dom > 0 && dom <= (32 - new Date(YEAR,MONTH-1,32).getDate())){
 		$.getJSON(
 			'http://plato42.stanford.edu:3000/day?callback=?&id='+
 				ID+'&year='+YEAR+'&month='+MONTH+'&day='+dom,
 			function(data) {
-				document.getElementById("day").innerHTML = 
+				$('#day').html(
 					'<img id="imgDay" src="http://plato42.stanford.edu/'+data['value']+'" alt="day view"'+
 					'onmousedown="beginSelect(event);" '+
 					'onmousemove="moveSelect(event);" '+
 					''+
-					'/>';
+					'/>');
 				DAY_START = dom;
 				DAY_END = dom;
 				HR_START = 0;
@@ -300,7 +301,7 @@ $(document).ready(function(){
 			var d = new Date();
 			month(d.getFullYear(),d.getMonth()+1);
 			//(init duration)
-			duration = data['value']['duration']
+			var duration = data['value']['duration']
 			document.getElementById("duration").innerHTML = duration;
 			//(set up last things)
 			validate();
