@@ -238,11 +238,11 @@ function prevMonth() {
 }
 //--Day
 function getDay(event){
+	$('#day').html('<img id="imgDay" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>')
 	//(get cursor)
 	var x = event.pageX-$('#month').position().left
 	var y = event.pageY-$('#month').position().top+480;
 	//(get image dimensions)
-	var img = document.getElementById('imgMonth');
 	var width = $('#imgMonth').width();
 	var height = $('#imgMonth').height();
 	//(get day)
@@ -252,7 +252,6 @@ function getDay(event){
 	var firstDow = cal.getDay();
 	var dom = row*7+col-firstDow+1
 	//(loading)
-	$('#day').html('<img id="imgDay" src="http://plato42.stanford.edu/static/loading.gif" alt="loading"/>')
 	//(json)
 	if(dom > 0 && dom <= (32 - new Date(YEAR,MONTH-1,32).getDate())){
 		$.getJSON(
@@ -295,7 +294,7 @@ $(document).ready(function(){
 	document.getElementById("submitButton").disabled = true
 	//--Get Month
 	$.getJSON(
-		'http://plato42.stanford.edu:3000/init?callback=?', 
+		'http://plato42.stanford.edu:3000/init?callback=?&id=${ID}', 
 		function(data) {
 			//(set id)
 			ID = parseInt(data['value']['id'])

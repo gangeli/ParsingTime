@@ -357,10 +357,19 @@ def geom(p:Double):Int = {
 def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 	//(get id)
 	State.nextID = State.nextID + 1
+	val id:Int = if(values.contains("id")){ 
+			try {
+				values("id").toInt
+			} catch {
+				case _ => State.nextID
+			}
+		} else { 
+			State.nextID
+		}
 	//(cleanup)
-	if(State.nextID % 1000 == 0 && State.nextID >= 1000){
-		cleanup(State.nextID-1000)
-	}
+//	if(State.nextID % 1000 == 0 && State.nextID >= 1000){
+//		cleanup(State.nextID-1000)
+//	}
 	//(get duration)
 	val num:Int = geom(0.5)
 	val (d:Duration,dStr:String) = Random.nextInt(2) match {
@@ -369,15 +378,15 @@ def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 		case 1 => (DAY*num, ""+{if(num == 1) "a" else num} + 
 			" day" + {if(num>1) "s" else ""})
 	}
-	State.duration(num) = d
+	State.duration(id) = d
 	//(return)
-	println("[" + State.nextID + "] init " + dStr)
-	"{id: \"" + State.nextID.toString + "\", duration: \"" + dStr + "\"}"
+	println("[" + id + "] init " + dStr)
+	"{id: \"" + id.toString + "\", duration: \"" + dStr + "\"}"
 }
 //--Get Month
 def getMonth(id:Int,year:Int,month:Int):String = {
 	//(error check)
-	if(id < 0 || id > State.nextID){ 
+	if(id < 0){ 
 		throw new IllegalArgumentException("Bad ID: " + id) 
 	}
 	//(ensure month)
@@ -397,7 +406,7 @@ def getMonth(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 //--Get Day
 def getDay(id:Int,year:Int,month:Int,day:Int):String = {
 	//(error check)
-	if(id < 0 || id > State.nextID){ 
+	if(id < 0){ 
 		throw new IllegalArgumentException("Bad ID: " + id) 
 	}
 	//(ensure day)
@@ -421,7 +430,7 @@ def getDay(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 def validate(id:Int,input:String,begin:String,end:String):String = {
 	//(error check)
 	print("["+id+"] validate " + begin + " until " + end + ": '"+input+"'...")
-	if(id < 0 || id > State.nextID){ 
+	if(id < 0){ 
 		throw new IllegalArgumentException("Bad ID: " + id) 
 	}
 	//--Ranges
