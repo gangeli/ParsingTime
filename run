@@ -15,7 +15,7 @@ env!(
 	# Runtime Options
 	o('cp', 
 		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar:etc/math.jar"),
-	o('Xrunhprof:cpu=samples'),
+	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
 	o('Xmx4000M'),

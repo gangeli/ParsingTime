@@ -297,12 +297,15 @@ object Grammar {
 			)
 	//(sequences)
 	val sequences = 
-		(1 to 7).map(i=>(DOW(i).dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
-		(1 to 12).map(i=>(MOY(i).dense.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
-		(1 to 4).map(i=>(QOY(i).dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
-		{if(O.useTime) List[(Sequence,String)](
-			(SEC,"Sec:S"),(MIN,"Min:S"),
-			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
+		(1 to 7).map(i=>(DOW(i).asInstanceOf[RepeatedRange]
+			.dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
+		(1 to 12).map(i=>(MOY(i).asInstanceOf[RepeatedRange]
+			.dense.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
+		(1 to 4).map(i=>(QOY(i).asInstanceOf[RepeatedRange]
+			.dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
+//		{if(O.useTime) List[(Sequence,String)](
+//			(SEC,"Sec:S"),(MIN,"Min:S"),
+//			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
 		List[(Sequence,String)](
 			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
 			(YEAR,"Year:S"),(DECADE,"Decade:S"),(CENTURY,"Century:S")
@@ -956,7 +959,6 @@ trait StandardParser extends Parser {
 	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			startTrack("Iteration " + i)
-			log("Intersect cache size: " + Range.intersectCache.keySet.size)
 			//(begin)
 			beginIteration(i,feedback,data)
 			//(run)

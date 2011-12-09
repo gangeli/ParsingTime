@@ -351,6 +351,7 @@ trait Range extends Temporal{
 				else{ cand }
 			case (a:GroundedRange,b:RepeatedRange) => b.intersect(a) //shortcut
 			case (a:RepeatedRange,b:GroundedRange) => a.intersect(b) //.
+			case (a:RepeatedRange,b:RepeatedRange) => Range.intersectRR(a,b)
 			case _ => Range.intersectSearch(this,other)
 		}
 	}
@@ -720,29 +721,16 @@ object Range {
 //		}
 //		mknext2iterable(a,b,mkNext(_,_))
 //	}
-		class RangePair(val rA:Range,val rB:Range) {
-			override def hashCode:Int = 
-				System.identityHashCode(rA) ^ System.identityHashCode(rB)
-			override def equals(o:Any) = o match {
-				case (other:RangePair) =>
-					(rA.toString == other.rA.toString) && 
-					(rB.toString == other.rB.toString)
-				case _ => false
-			}
-		}
-		val intersectCache = new HashMap[RangePair,Range]()
+		def intersectRR(a:RepeatedRange,b:RepeatedRange):RepeatedRange = {
+			throw fail("NOT IMPLEMENTED")
+		} 
 		def intersectSearch(rA:Range,rB:Range):Range = {
 			//--Cache and Pruning
-			//(cache)
-			if(intersectCache.contains(new RangePair(rA,rB))){
-				return intersectCache(new RangePair(rA,rB))
-			}
 			//(pruning)
 			if( !rA.neverIntersects.forall{ (f:Range=>Boolean) => !f(rB) } ||
 			    !rB.neverIntersects.forall{ (f:Range=>Boolean) => !f(rA) } ){
 				return new NoTime
 			}
-			log(FORCE,"Create search for " + rA + " ^ " + rB + " " + System.identityHashCode(rA) + ","+System.identityHashCode(rB))
 			//--Classes
 			case class RangeTerm(r:GroundedRange,ground:GroundedRange
 					) extends Intersectable{
@@ -864,11 +852,9 @@ object Range {
 			//(string)
 			val ops = List[String]("("+rA+") ^ ("+rB+")")
 			//--Return
-			val rtn = new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L)
+			new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L)
 				.prohibitIntersectWith(rA.neverIntersects)
 				.prohibitIntersectWith(rB.neverIntersects)
-			intersectCache(new RangePair(rA,rB)) = rtn
-			return rtn;
 		}
 }
 
@@ -1230,33 +1216,227 @@ trait Sequence extends Range with Duration {
 }
 
 // ----- REPEATED RANGE -----
-case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
-		interv:Duration, bound:GroundedRange,moveOffset:Long) extends Sequence {
+//case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
+//		interv:Duration, bound:GroundedRange,moveOffset:Long) extends Sequence {
+//
+//	//isSparse is true if this range is rare and should use the global stats
+//	private var isSparseVal = true
+//	override def isSparse:Boolean = isSparseVal
+//	def dense:RepeatedRange = { this.isSparseVal = false; this }
+//
+////	def this(snapFn:Time=>Time,base:UngroundedRange,interv:Duration) 
+////		= this(snapFn,base,interv,null,0L)
+//	def this(snapFn:Time=>Time,base:Range,interv:Duration)
+//		= this(
+//			snapFn,
+//			base match {
+//				case (b:UngroundedRange) => b
+//				case _ => throw new IllegalArgumentException("Runtime Type Error")
+//			},
+//			interv,
+//			null,
+//			0L)
+//
+//	override def neverIntersects:List[Range=>Boolean] = List[Range=>Boolean](
+//			(cand:Range) => cand match {
+//				case (rr:RepeatedRange) => 
+//					!(rr eq this) && //TODO somewhat hacky (relies on strict equality)
+//					rr.interv == this.interv &&
+//					rr.base == this.base
+//				case _ => false
+//			}
+//		) 
+//	
+//	override def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double={
+//		val realGround:Time = if(bound == null) ground.begin else bound.begin
+//		//(important markers)
+//		val origin:GroundedRange = this.evaluateTemporal(ground,0)
+//		val virtualOrigin:GroundedRange = this.evaluateTemporal(ground,originOffset)
+//		val location:GroundedRange = this.evaluateTemporal(ground,offset)
+//		//(distance)
+//		val distance=(origin.begin-realGround)+(location.begin-virtualOrigin.begin)
+//		assert(interv.seconds > 0.0, "Interval is zero or negative: " + interv)
+//		assert(!(distance/interv).isNaN, 
+//			"NaN diff: " + origin + ", " + virtualOrigin + ", " + location + ": " + 
+//			realGround)
+//		distance/interv
+//	}
+//
+//	override def move(offset:Long):Sequence = {
+//		new RepeatedRange(snapFn,base,interv,bound,moveOffset + offset).name(name)
+//	}
+//	
+//	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
+//			):(TraverseFn,E)={
+//		val offset = rawOffset + moveOffset
+//		var cache:Temporal = null; var cacheCond:Range = null
+//		val term = if( cache == null || ground != cacheCond) {
+//				//(update cache condition)
+//				cacheCond = ground
+//				//(get start)
+//				val beginT:Time = 
+//					if(bound == null) {
+//						ground.begin
+//					} else {
+//						if(ground.begin > bound.begin && ground.begin < bound.end)
+//							{ ground.begin }
+//						else { bound.begin }
+//					}
+//				//(snap beginning)
+//				val begin:Time = 
+//					if(bound == null){ snapFn(beginT+interv*offset) } 
+//					else{ snapFn(beginT+interv*offset) }
+//				//(ground the time)
+//				val rtn = new GroundedRange(
+//					begin+base.beginOffset,
+//					begin+base.beginOffset+base.norm)
+//				if(O.cacheTemporalComputations){ 
+//					cache = rtn
+//				} else{
+//					cache = null
+//					cacheCond = null
+//				}
+//				rtn
+//			} else {
+//				cache
+//			}
+//		//(return cache)
+//		val rtn:E = term match {
+//			case (e:E) => 
+//				assert(e.isInstanceOf[GroundedRange], "Range not grounded")
+//				e
+//			case _ => throw new IllegalArgumentException("Runtime Type Error")
+//		}
+//		( (fn:TraverseTask) => fn(this,offset,0), rtn )
+//	}
+//	
+//	override def exists(ground:GroundedRange,rawOffset:Long):Boolean = {
+//		val offset = rawOffset //evaluate already incorporates new offset
+//		if(bound == null) { true }
+//		else {
+//			val guess:GroundedRange = evaluateTemporal(ground,offset)
+//			(guess.begin >= bound.begin && guess.end <= bound.end)
+//		}
+//	}
+//
+//	override def prob(ground:GroundedRange,rawOffset:Long):Double = {
+//		val offset = rawOffset //evaluate already incorporates new offset
+//		if(this.distrib == null)
+//			{ this.distrib = updater._2(this.toString,false) }
+//		val cand:Double = this.distrib( offset, diff(ground,offset,0) )
+//		assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
+//		cand
+//	}
+//
+//
+//	
+//	def intersect(range:GroundedRange) = {
+//		if(range.begin == Time.END_OF || range.end == Time.DAWN_OF){
+//			//(case: intersecting with some invalid time)
+//			new NoTime
+//		} else if(this.bound == null){
+//			//(case: creating a new bound)
+//			new RepeatedRange(snapFn,base,interv,range,moveOffset).name(name)
+//		} else {
+//			//(case: refining an existing bound)
+//			val newBound = (range ^ bound).asInstanceOf[GroundedRange]
+//			newBound match {
+//				//((no such bound))
+//				case (nt:NoTime) => new NoTime
+//				//((new grounded range))
+//				case (gr:GroundedRange) =>
+//					new RepeatedRange(snapFn,base,interv,newBound,moveOffset).name(name)
+//				//((impossible)
+//				case _ => throw new IllegalStateException("bad intersect: " + newBound)
+//			}
+//		}
+//	}
+//
+//	override def >>(diff:Duration):Range 
+//		= new RepeatedRange(snapFn, (base >> diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
+//	override def <<(diff:Duration):Range 
+//		= new RepeatedRange(snapFn, (base << diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
+//	override def <|(diff:Duration):Range 
+//		= new RepeatedRange(snapFn, (base <| diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
+//	override def |>(diff:Duration):Range 
+//		= new RepeatedRange(snapFn, (base |> diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
+//	override def |<(diff:Duration):Range 
+//		= new RepeatedRange(snapFn, (base |< diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
+//	override def >|(diff:Duration):Range 
+//		= new RepeatedRange(snapFn, (base >| diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
+//	override def !(dur:Duration):Range = this
+//	override def norm:GroundedDuration = interv.interval
+//	
+//	override def interval:GroundedDuration = interv.interval
+//	override def seconds:Long = interv.seconds
+//
+//	override def units:Array[DurationUnit.Value] = base.norm.units
+//
+//	override def +(diff:Duration):Duration 
+//		= new RepeatedRange(snapFn, base, interv + diff, bound, moveOffset)
+//			.name(name)
+//	override def -(diff:Duration):Duration 
+//		= new RepeatedRange(snapFn, base, interv - diff, bound, moveOffset)
+//			.name(name)
+//	override def *(n:Long):Duration 
+//		= new RepeatedRange(snapFn, base, interv * n, bound, moveOffset)
+//			.name(name)
+//	
+//	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
+//	private var name:String = this.base.toString + " every " + interv
+//	def name(n:String):RepeatedRange = {this.name = n; this}
+//	override def toString:String = {
+//		if(bound == null){
+//			name+{
+//				if(moveOffset != 0L) {if(moveOffset > 0) "+" else ""}+moveOffset 
+//				else "" }
+//		} else {
+//			this.base.toString + " in " + bound
+//		}
+//	}
+//	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
+//}
+
+case class RepeatedRange(
+		base:Partial,norm:GroundedDuration,interv:Duration,
+		bound:GroundedRange, moveOffset:Long) extends Sequence{
+
+	private def doGround(ground:GroundedRange,offset:Long):GroundedRange = {
+		//(get specific grounding)
+		val inst:DateTime =
+			if(offset == 0){ ground.begin.base
+			} else if(offset > 0){ 
+				ground.begin.base.plus((interv*offset).interval.base) 
+			} else if(offset < 0){ 
+				ground.begin.base.minus((interv*(-offset)).interval.base)
+			}
+			else { throw fail("impossible"); }
+		//(ground)
+		val dt:DateTime = base.toDateTime(inst)
+		//(return)
+		Range(Time(dt),Time(dt.plus(norm.interval.base)))
+	}
+
+	def this(base:Partial,norm:Duration,interv:Duration)
+		= this(base,norm.interval,interv,null,0L)
 
 	//isSparse is true if this range is rare and should use the global stats
 	private var isSparseVal = true
 	override def isSparse:Boolean = isSparseVal
 	def dense:RepeatedRange = { this.isSparseVal = false; this }
 
-//	def this(snapFn:Time=>Time,base:UngroundedRange,interv:Duration) 
-//		= this(snapFn,base,interv,null,0L)
-	def this(snapFn:Time=>Time,base:Range,interv:Duration)
-		= this(
-			snapFn,
-			base match {
-				case (b:UngroundedRange) => b
-				case _ => throw new IllegalArgumentException("Runtime Type Error")
-			},
-			interv,
-			null,
-			0L)
-
 	override def neverIntersects:List[Range=>Boolean] = List[Range=>Boolean](
 			(cand:Range) => cand match {
 				case (rr:RepeatedRange) => 
 					!(rr eq this) && //TODO somewhat hacky (relies on strict equality)
-					rr.interv == this.interv &&
-					rr.base == this.base
+					rr.norm == this.norm &&
+					rr.interv == this.interv
 				case _ => false
 			}
 		) 
@@ -1277,7 +1457,7 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 	}
 
 	override def move(offset:Long):Sequence = {
-		new RepeatedRange(snapFn,base,interv,bound,moveOffset + offset).name(name)
+		new RepeatedRange(base,norm,interv,bound,moveOffset + offset).name(name)
 	}
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
@@ -1288,22 +1468,14 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 				//(update cache condition)
 				cacheCond = ground
 				//(get start)
-				val beginT:Time = 
-					if(bound == null) {
-						ground.begin
-					} else {
-						if(ground.begin > bound.begin && ground.begin < bound.end)
-							{ ground.begin }
-						else { bound.begin }
+				val realGround:GroundedRange = 
+					if(bound == null) { ground }
+					else {
+						if(ground.begin > bound.begin && ground.begin < bound.end){ ground }
+						else { bound }
 					}
-				//(snap beginning)
-				val begin:Time = 
-					if(bound == null){ snapFn(beginT+interv*offset) } 
-					else{ snapFn(beginT+interv*offset) }
 				//(ground the time)
-				val rtn = new GroundedRange(
-					begin+base.beginOffset,
-					begin+base.beginOffset+base.norm)
+				val rtn = doGround(realGround,offset)
 				if(O.cacheTemporalComputations){ 
 					cache = rtn
 				} else{
@@ -1344,13 +1516,13 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 
 
 	
-	def intersect(range:GroundedRange) = {
+	def intersect(range:GroundedRange):Range = {
 		if(range.begin == Time.END_OF || range.end == Time.DAWN_OF){
 			//(case: intersecting with some invalid time)
 			new NoTime
 		} else if(this.bound == null){
 			//(case: creating a new bound)
-			new RepeatedRange(snapFn,base,interv,range,moveOffset).name(name)
+			new RepeatedRange(base,norm,interv,range,moveOffset).name(name)
 		} else {
 			//(case: refining an existing bound)
 			val newBound = (range ^ bound).asInstanceOf[GroundedRange]
@@ -1359,51 +1531,57 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 				case (nt:NoTime) => new NoTime
 				//((new grounded range))
 				case (gr:GroundedRange) =>
-					new RepeatedRange(snapFn,base,interv,newBound,moveOffset).name(name)
+					new RepeatedRange(base,norm,interv,newBound,moveOffset).name(name)
 				//((impossible)
 				case _ => throw new IllegalStateException("bad intersect: " + newBound)
 			}
 		}
 	}
 
+	//TODO CRITICAL FIXME
 	override def >>(diff:Duration):Range 
-		= new RepeatedRange(snapFn, (base >> diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset).name(name)
+		= new NoTime
+//		= new RepeatedRange(snapFn, (base >> diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
 	override def <<(diff:Duration):Range 
-		= new RepeatedRange(snapFn, (base << diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset).name(name)
+		= new NoTime
+//		= new RepeatedRange(snapFn, (base << diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
 	override def <|(diff:Duration):Range 
-		= new RepeatedRange(snapFn, (base <| diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset).name(name)
+		= new NoTime
+//		= new RepeatedRange(snapFn, (base <| diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
 	override def |>(diff:Duration):Range 
-		= new RepeatedRange(snapFn, (base |> diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset).name(name)
+		= new NoTime
+//		= new RepeatedRange(snapFn, (base |> diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
 	override def |<(diff:Duration):Range 
-		= new RepeatedRange(snapFn, (base |< diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset).name(name)
+		= new NoTime
+//		= new RepeatedRange(snapFn, (base |< diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
 	override def >|(diff:Duration):Range 
-		= new RepeatedRange(snapFn, (base >| diff).asInstanceOf[UngroundedRange], 
-				interv, bound, moveOffset).name(name)
+		= new NoTime
+//		= new RepeatedRange(snapFn, (base >| diff).asInstanceOf[UngroundedRange], 
+//				interv, bound, moveOffset).name(name)
+
 	override def !(dur:Duration):Range = this
-	override def norm:GroundedDuration = interv.interval
-	
 	override def interval:GroundedDuration = interv.interval
 	override def seconds:Long = interv.seconds
 
-	override def units:Array[DurationUnit.Value] = base.norm.units
+	override def units:Array[DurationUnit.Value] = norm.units
 
 	override def +(diff:Duration):Duration 
-		= new RepeatedRange(snapFn, base, interv + diff, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv + diff, bound, moveOffset)
 			.name(name)
 	override def -(diff:Duration):Duration 
-		= new RepeatedRange(snapFn, base, interv - diff, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv - diff, bound, moveOffset)
 			.name(name)
 	override def *(n:Long):Duration 
-		= new RepeatedRange(snapFn, base, interv * n, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv * n, bound, moveOffset)
 			.name(name)
 	
 	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
-	private var name:String = this.base.toString + " every " + interv
+	private var name:String = this.norm.toString + " every " + interv
 	def name(n:String):RepeatedRange = {this.name = n; this}
 	override def toString:String = {
 		if(bound == null){
@@ -1415,12 +1593,13 @@ case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
 		}
 	}
 	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
+	
 }
 
 // ----- OBJECT SEQUENCE -----
 object Sequence {
-	def apply(snapFn:Time=>Time,norm:Duration,interval:Duration)
-		= new RepeatedRange(snapFn,Range(norm),interval,null,0L)
+	def apply(partial:Partial,norm:Duration,interval:Duration)
+		= new RepeatedRange(partial,norm.interval,interval,null,0L)
 	
 	type Distribution = (Long,Double)=>Double
 	type Updater = ((Long,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
@@ -1831,6 +2010,7 @@ object DurationUnit extends Enumeration {
 // LEX
 //------------------------------------------------------------------------------
 object Lex {
+	import DateTimeFieldType._
 	object LexUtil {
 		def moh(iArg:Int):Time=>Time = (t:Time) => {
 			val i:Int = if(iArg < 0) t.base.getHourOfDay else iArg
@@ -1908,37 +2088,75 @@ object Lex {
 	val ACENTURY:Duration = new GroundedDuration(Years.ONE)*100
 	//--Duration Sequences
 	val SEC:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(ASEC),Range(ASEC),ASEC)
-			.dense.name("everySecond")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](millisOfSecond),
+				Array[Int](0)),
+			ASEC,
+			ASEC).dense.name("everySecond")
 	val MIN:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(AMIN),Range(AMIN),AMIN)
-			.dense.name("everyMinute")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](secondOfMinute,millisOfSecond),
+				Array[Int](0,0)),
+			AMIN,
+			AMIN).dense.name("everyMinute")
 	val HOUR:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(AHOUR),Range(AHOUR),AHOUR)
-			.dense.name("everyHour")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](0,0,0)),
+			AHOUR,
+			AHOUR).dense.name("everyHour")
 	val DAY:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(ADAY),Range(ADAY),ADAY)
-			.dense.name("everyDay")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](millisOfDay),
+				Array[Int](0)),
+			ADAY,
+			ADAY).dense.name("everyDay")
 	val WEEK:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(AWEEK),Range(AWEEK),AWEEK)
-			.dense.name("everyWeek")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](dayOfWeek,millisOfDay),
+				Array[Int](1,0)),
+			AWEEK,
+			AWEEK).dense.name("everyWeek")
 	val MONTH:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(AMONTH),Range(AMONTH),AMONTH)
-			.dense.name("everyMonth")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](dayOfMonth,millisOfDay),
+				Array[Int](1,0)),
+			AMONTH,
+			AMONTH).dense.name("everyMonth")
 	val QUARTER:Sequence 
-		= new RepeatedRange((t:Time) => 
-			t.canonical(AQUARTER),Range(AQUARTER),AQUARTER)
-			.dense.name("everyQuarter")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](dayOfMonth,millisOfDay),
+				Array[Int](1,0)),
+			AMONTH*3,
+			AMONTH*3).dense.name("everyQuarter") //TODO CRITICAL broken
 	val YEAR:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(AYEAR),Range(AYEAR),AYEAR)
-			.dense.name("everyYear")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](dayOfYear,millisOfDay),
+				Array[Int](1,0)),
+			AYEAR,
+			AYEAR).dense.name("everyYear")
 	val DECADE:Sequence 
-		= new RepeatedRange((t:Time) => t.canonical(ADECADE),Range(ADECADE),ADECADE)
-			.dense.name("everyDecade")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](dayOfYear,millisOfDay),
+				Array[Int](1,0)),
+			ADECADE,
+			ADECADE).dense.name("everyQuarter") //TODO CRITICAL broken
 	val CENTURY:Sequence 
-		= new RepeatedRange((t:Time) => 
-			t.canonical(ACENTURY),Range(ACENTURY),ACENTURY) 
-			.dense.name("everyCentury")
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](yearOfCentury,dayOfYear,millisOfDay),
+				Array[Int](0,1,0)),
+			ACENTURY,
+			ACENTURY).dense.name("everyQuarter")
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
@@ -1946,9 +2164,11 @@ object Lex {
 	val PM:Range=>Range = _ >> HOUR*12
 	//--Day of Week
 	private def mkDOW(i:Int) = new RepeatedRange(
-		LexUtil.dow(i), 
-		Range(Duration(Days.ONE)), 
-		Duration(Weeks.ONE)).dense
+			new Partial(
+				Array[DateTimeFieldType](dayOfWeek,millisOfDay),
+				Array[Int](i,0)),
+			ADAY,
+			AWEEK).dense
 	val MON:Sequence = mkDOW(1)
 	val TUE:Sequence = mkDOW(2)
 	val WED:Sequence = mkDOW(3)
@@ -1956,47 +2176,68 @@ object Lex {
 	val FRI:Sequence = mkDOW(5)
 	val SAT:Sequence = mkDOW(6)
 	val SUN:Sequence = mkDOW(7)
-	//--OTHER DurationS
-	def HOD(i:Int) = new RepeatedRange(
-		LexUtil.hod(i % 12), 
-		Range(Duration(Hours.ONE)), 
-		Duration(Days.ONE)).name("HOD("+(i%12)+")")
-	def MOH(i:Int) = new RepeatedRange(
-		LexUtil.moh(i), 
-		Range(Duration(Minutes.ONE)), 
-		Duration(Hours.ONE)).name("MOD("+i+")")
-	def DOW(i:Int) = new RepeatedRange(
-		LexUtil.dow(i), 
-		Range(Duration(Days.ONE)), 
-		Duration(Weeks.ONE)).name("DOW("+i+")")
-	def DOM(i:Int) = new RepeatedRange(
-		LexUtil.dom(i), 
-		Range(Duration(Days.ONE)), 
-		Duration(Months.ONE)).name("DOM("+i+")")
-	def WOY(i:Int) = new RepeatedRange(
-		LexUtil.woy(i), 
-		Range(Duration(Weeks.ONE)), 
-		Duration(Years.ONE)).name("WOY("+i+")")
-	def MOY(i:Int) = new RepeatedRange(
-		LexUtil.moy(i), 
-		Range(Duration(Months.ONE)), 
-		Duration(Years.ONE)).name("MOY("+i+")")
-	def QOY(i:Int) = new RepeatedRange(
-		LexUtil.qoy(i), 
-		Range(Duration(Months.THREE)), 
-		Duration(Years.ONE)).name("QOY("+i+")")
-	def YOC(i:Int) = new RepeatedRange(
-		LexUtil.yoc(i), 
-		Range(Duration(Years.ONE)), 
-		Duration(Years.years(100))).name("YOC("+i+")")
-	def DOC(i:Int) = new RepeatedRange(
-		LexUtil.yoc(i*10), 
-		Range(Duration(Years.years(10))), 
-		Duration(Years.years(100))).name("DOC("+i+")")
-	def YOD(i:Int) = new RepeatedRange(
-		LexUtil.yod(i), 
-		Range(Duration(Years.ONE)), 
-		Duration(Years.years(10))).name("YOD("+i+")")
+	//--OTHER Durations
+	val HOD = (0 until 24).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](hourOfDay,minuteOfHour,secondOfMinute,
+					millisOfSecond),
+				Array[Int](i,0,0,0)),
+			AHOUR,
+			ADAY) }.toArray
+	val MOH = (0 until 60).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](i,0,0)),
+			AMIN,
+			AHOUR) }.toArray
+	val DOW = (List(new NoTime) ::: (1 to 7).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](dayOfWeek,millisOfDay),
+				Array[Int](i,0)),
+			ADAY,
+			AWEEK) }.toList).toArray
+	val DOM = (List(new NoTime) ::: (1 to 31).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](dayOfMonth,millisOfDay),
+				Array[Int](i,0)),
+			ADAY,
+			AMONTH) }.toList).toArray
+	val WOY = (List(new NoTime) ::: (1 to 53).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](weekOfWeekyear,dayOfWeek,millisOfDay),
+				Array[Int](i,1,0)),
+			AWEEK,
+			AYEAR) }.toList).toArray
+	val MOY = (List(new NoTime) ::: (1 to 12).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](monthOfYear,dayOfMonth,millisOfDay),
+				Array[Int](i,1,0)),
+			AMONTH,
+			AYEAR) }.toList).toArray
+	val QOY = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](monthOfYear,dayOfMonth,millisOfDay),
+				Array[Int]((i-1)*3+1,1,0)),
+			AMONTH*3,
+			AYEAR) }.toList).toArray
+	val YOC = (0 until 100).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](yearOfCentury,dayOfYear,millisOfDay),
+				Array[Int](i,1,0)),
+			AYEAR,
+			AYEAR*100) }.toArray
+	val DOC = (0 until 10).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](yearOfCentury,dayOfYear,millisOfDay),
+				Array[Int](i*10,1,0)),
+			AYEAR*10,
+			AYEAR*100) }.toArray
+	val YOD = (0 until 10).map{ i => new RepeatedRange( //TODO CRITICAL broken
+			new Partial(
+				Array[DateTimeFieldType](dayOfYear,millisOfDay),
+				Array[Int](1,0)),
+			AYEAR,
+			AYEAR*10) }.toArray
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))

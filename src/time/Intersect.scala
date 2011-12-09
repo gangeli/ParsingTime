@@ -46,10 +46,12 @@ class IteratorMap[A <: {def index:Int}](
 	}
 
 	override def get (key:Int):Option[A] = {
-		while(!mapImpl.contains(key) &&
+		var containsKey = mapImpl.contains(key)
+		while(!containsKey &&
 				((key>=0 && iterForward.hasNext) || (key<0 && iterBackward.hasNext))) {
 			val value = if(key >= 0){ iterForward.next } else { iterBackward.next }
 			mapImpl(value.index) = value
+			if(value.index == key){containsKey = true}
 		}
 		mapImpl.get(key)
 	}
