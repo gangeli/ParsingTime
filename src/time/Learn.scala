@@ -308,7 +308,7 @@ object Grammar {
 //			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
 		List[(Sequence,String)](
 			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
-			(YEAR,"Year:S"),(DECADE,"Decade:S"),(CENTURY,"Century:S")
+			(YEAR,"Year:S")
 			) :::
 		Nil
 	

@@ -351,7 +351,16 @@ trait Range extends Temporal{
 				else{ cand }
 			case (a:GroundedRange,b:RepeatedRange) => b.intersect(a) //shortcut
 			case (a:RepeatedRange,b:GroundedRange) => a.intersect(b) //.
-			case (a:RepeatedRange,b:RepeatedRange) => Range.intersectRR(a,b)
+			case (a:RepeatedRange,b:RepeatedRange) => 
+				if( a.delta == Duration.ZERO && b.delta == Duration.ZERO &&
+				    (a.interv == b.norm || b.interv == a.norm)  ){
+					//no weird offsets, and one doesn't occur multiple times in the other
+					Range.intersectAnalytically(a,b)
+				} else if(a.norm > b.norm){
+					Range.intersectSearch(a,b)
+				} else {
+					Range.intersectSearch(b,a)
+				}
 			case _ => Range.intersectSearch(this,other)
 		}
 	}
@@ -466,20 +475,20 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 	override def >|(diff:Duration):Range = new GroundedRange(end-diff,end)
 
 	override def !(dur:Duration):Range = {
-		import Lex.{AYEAR,QUARTER,MONTH,WEEK,DAY,HOUR,MIN,SEC}
+		import Lex.{AYEAR,AQUARTER,AMONTH,AWEEK,ADAY,AHOUR,AMIN,ASEC}
 		val base = begin.canonical(dur)
 		val diff = dur.smallestUnit match {
 			case DurationUnit.MILLENIUM => AYEAR*1000
 			case DurationUnit.CENTURY => AYEAR*100
 			case DurationUnit.DECADE => AYEAR*10
 			case DurationUnit.YEAR => AYEAR
-			case DurationUnit.QUARTER => QUARTER
-			case DurationUnit.MONTH => MONTH
-			case DurationUnit.WEEK => WEEK
-			case DurationUnit.DAY => DAY
-			case DurationUnit.HOUR => HOUR
-			case DurationUnit.MINUTE => MIN
-			case DurationUnit.SECOND => SEC
+			case DurationUnit.QUARTER => AQUARTER
+			case DurationUnit.MONTH => AMONTH
+			case DurationUnit.WEEK => AWEEK
+			case DurationUnit.DAY => ADAY
+			case DurationUnit.HOUR => AHOUR
+			case DurationUnit.MINUTE => AMIN
+			case DurationUnit.SECOND => ASEC
 			case DurationUnit.ZERO => Duration.ZERO
 		}
 		new GroundedRange(base,base+diff)
@@ -721,8 +730,57 @@ object Range {
 //		}
 //		mknext2iterable(a,b,mkNext(_,_))
 //	}
-		def intersectRR(a:RepeatedRange,b:RepeatedRange):RepeatedRange = {
-			throw fail("NOT IMPLEMENTED")
+		def intersectAnalytically(a:RepeatedRange,b:RepeatedRange):Range = {
+			//--Overhead
+			//(assertions)
+			assert(a.delta == Duration.ZERO, "Intersecting range that has a delta")
+			assert(b.delta == Duration.ZERO, "Intersecting range that has a delta")
+			//(check)
+			val largestA = a.base.getFieldType(0)
+			val largestB = b.base.getFieldType(0)
+			if(largestA == largestB){
+				if(a.base.getValue(0) != b.base.getValue(0)){
+					return new NoTime
+				}
+			}
+			//--Intersect
+			//(create partial)
+			val partial:Partial = b.base.getFieldTypes.foldLeft(a.base){
+						case (p:Partial,field:DateTimeFieldType) =>
+					if(a.base.isSupported(field) && a.base.property(field).get > 1){
+						p
+					} else {
+						p.`with`(field,b.base.property(field).get)
+					}
+				}
+			//(create norm)
+			val norm:GroundedDuration = 
+				if(a.norm < b.norm){ a.norm }
+				else{ b.norm }
+			//(create interval)
+			val interv:Duration =
+				if(a.interv > b.interv){ a.interv }
+				else{ b.interv }
+			//(create bound)
+			val bound:GroundedRange = 
+				if(a.bound != null && b.bound != null){
+					(a.bound ^ b.bound) match {
+						case (gr:GroundedRange) => gr
+						case _ => throw fail("Intersect of grounded ranges not grounded")
+					}
+				} else if(a.bound != null){ 
+					a.bound
+				} else if(b.bound != null){ 
+					b.bound
+				} else {
+					null
+				}
+			//(create move offset)
+			val moveOffset:Long =
+				if(a.norm > b.norm){ a.moveOffset }
+				else{ b.moveOffset }
+			//(create repeated range)
+			new RepeatedRange(partial,norm,interv,Duration.ZERO,bound,moveOffset)
 		} 
 		def intersectSearch(rA:Range,rB:Range):Range = {
 			//--Cache and Pruning
@@ -896,6 +954,7 @@ trait Duration extends Temporal {
 	def >(other:Int) = this.seconds > other
 	def <=(other:Int) = this.seconds <= other
 	def >=(other:Int) = this.seconds >= other
+	def unary_- : Duration = this * -1
 
 	def units:Array[DurationUnit.Value]
 	def smallestUnit:DurationUnit.Value = {
@@ -1405,7 +1464,7 @@ trait Sequence extends Range with Duration {
 
 case class RepeatedRange(
 		base:Partial,norm:GroundedDuration,interv:Duration,
-		bound:GroundedRange, moveOffset:Long) extends Sequence{
+		delta:Duration, bound:GroundedRange, moveOffset:Long) extends Sequence{
 
 	private def doGround(ground:GroundedRange,offset:Long):GroundedRange = {
 		//(get specific grounding)
@@ -1420,11 +1479,11 @@ case class RepeatedRange(
 		//(ground)
 		val dt:DateTime = base.toDateTime(inst)
 		//(return)
-		Range(Time(dt),Time(dt.plus(norm.interval.base)))
+		Range(Time(dt) + delta,Time(dt.plus(norm.interval.base)) + delta)
 	}
 
 	def this(base:Partial,norm:Duration,interv:Duration)
-		= this(base,norm.interval,interv,null,0L)
+		= this(base,norm.interval,interv,Duration.ZERO,null,0L)
 
 	//isSparse is true if this range is rare and should use the global stats
 	private var isSparseVal = true
@@ -1457,7 +1516,7 @@ case class RepeatedRange(
 	}
 
 	override def move(offset:Long):Sequence = {
-		new RepeatedRange(base,norm,interv,bound,moveOffset + offset).name(name)
+		new RepeatedRange(base,norm,interv,delta,bound,moveOffset+offset).name(name)
 	}
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
@@ -1522,7 +1581,7 @@ case class RepeatedRange(
 			new NoTime
 		} else if(this.bound == null){
 			//(case: creating a new bound)
-			new RepeatedRange(base,norm,interv,range,moveOffset).name(name)
+			new RepeatedRange(base,norm,interv,delta,range,moveOffset).name(name)
 		} else {
 			//(case: refining an existing bound)
 			val newBound = (range ^ bound).asInstanceOf[GroundedRange]
@@ -1531,38 +1590,32 @@ case class RepeatedRange(
 				case (nt:NoTime) => new NoTime
 				//((new grounded range))
 				case (gr:GroundedRange) =>
-					new RepeatedRange(base,norm,interv,newBound,moveOffset).name(name)
+					new RepeatedRange(base,norm,interv,
+						delta,newBound,moveOffset).name(name)
 				//((impossible)
 				case _ => throw new IllegalStateException("bad intersect: " + newBound)
 			}
 		}
 	}
 
-	//TODO CRITICAL FIXME
 	override def >>(diff:Duration):Range 
-		= new NoTime
-//		= new RepeatedRange(snapFn, (base >> diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
+		= new RepeatedRange(base, norm, interv, 
+				delta+diff, bound, moveOffset).name(name)
 	override def <<(diff:Duration):Range 
-		= new NoTime
-//		= new RepeatedRange(snapFn, (base << diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
+		= new RepeatedRange(base, norm, interv, 
+				delta-diff, bound, moveOffset).name(name)
 	override def <|(diff:Duration):Range 
-		= new NoTime
-//		= new RepeatedRange(snapFn, (base <| diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
+		= new RepeatedRange(base, diff.interval, interv, 
+				delta-diff, bound, moveOffset).name(name)
 	override def |>(diff:Duration):Range 
-		= new NoTime
-//		= new RepeatedRange(snapFn, (base |> diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
+		= new RepeatedRange(base, diff.interval, interv, 
+				norm+delta, bound, moveOffset).name(name)
 	override def |<(diff:Duration):Range 
-		= new NoTime
-//		= new RepeatedRange(snapFn, (base |< diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
+		= new RepeatedRange(base, diff.interval, interv, 
+				delta, bound, moveOffset).name(name)
 	override def >|(diff:Duration):Range 
-		= new NoTime
-//		= new RepeatedRange(snapFn, (base >| diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
+		= new RepeatedRange(base, diff.interval, interv, 
+				norm+delta-diff, bound, moveOffset).name(name)
 
 	override def !(dur:Duration):Range = this
 	override def interval:GroundedDuration = interv.interval
@@ -1571,13 +1624,13 @@ case class RepeatedRange(
 	override def units:Array[DurationUnit.Value] = norm.units
 
 	override def +(diff:Duration):Duration 
-		= new RepeatedRange(base, norm, interv + diff, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv + diff, delta, bound, moveOffset)
 			.name(name)
 	override def -(diff:Duration):Duration 
-		= new RepeatedRange(base, norm, interv - diff, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv - diff, delta, bound, moveOffset)
 			.name(name)
 	override def *(n:Long):Duration 
-		= new RepeatedRange(base, norm, interv * n, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv * n, delta, bound, moveOffset)
 			.name(name)
 	
 	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
@@ -1599,7 +1652,7 @@ case class RepeatedRange(
 // ----- OBJECT SEQUENCE -----
 object Sequence {
 	def apply(partial:Partial,norm:Duration,interval:Duration)
-		= new RepeatedRange(partial,norm.interval,interval,null,0L)
+		= new RepeatedRange(partial,norm.interval,interval,Duration.ZERO,null,0L)
 	
 	type Distribution = (Long,Double)=>Double
 	type Updater = ((Long,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
@@ -1871,15 +1924,15 @@ case class Time(base:DateTime) {
 		if(second != 0){
 			Range(this,this)
 		} else if(minute != 0){
-			Range(this,this+MIN)
+			Range(this,this+AMIN)
 		} else if(hour != 0){
-			Range(this,this+HOUR)
+			Range(this,this+AHOUR)
 		} else if(day != 1){
-			Range(this,this+DAY)
+			Range(this,this+ADAY)
 		} else if((month-1) % 3 != 0){
-			Range(this,this+MONTH)
+			Range(this,this+AMONTH)
 		} else {
-			Range(this,this+QUARTER)
+			Range(this,this+AQUARTER)
 		}
 	}
 
@@ -2011,6 +2064,8 @@ object DurationUnit extends Enumeration {
 //------------------------------------------------------------------------------
 object Lex {
 	import DateTimeFieldType._
+	import edu.stanford.nlp.time.JodaTimeUtils._
+
 	object LexUtil {
 		def moh(iArg:Int):Time=>Time = (t:Time) => {
 			val i:Int = if(iArg < 0) t.base.getHourOfDay else iArg
@@ -2132,10 +2187,10 @@ object Lex {
 	val QUARTER:Sequence 
 		= new RepeatedRange(
 			new Partial(
-				Array[DateTimeFieldType](dayOfMonth,millisOfDay),
-				Array[Int](1,0)),
+				Array[DateTimeFieldType](MonthOfQuarter,dayOfMonth,millisOfDay),
+				Array[Int](1,1,0)),
 			AMONTH*3,
-			AMONTH*3).dense.name("everyQuarter") //TODO CRITICAL broken
+			AMONTH*3).dense.name("everyQuarter") 
 	val YEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2143,20 +2198,6 @@ object Lex {
 				Array[Int](1,0)),
 			AYEAR,
 			AYEAR).dense.name("everyYear")
-	val DECADE:Sequence 
-		= new RepeatedRange(
-			new Partial(
-				Array[DateTimeFieldType](dayOfYear,millisOfDay),
-				Array[Int](1,0)),
-			ADECADE,
-			ADECADE).dense.name("everyQuarter") //TODO CRITICAL broken
-	val CENTURY:Sequence 
-		= new RepeatedRange(
-			new Partial(
-				Array[DateTimeFieldType](yearOfCentury,dayOfYear,millisOfDay),
-				Array[Int](0,1,0)),
-			ACENTURY,
-			ACENTURY).dense.name("everyQuarter")
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
@@ -2216,8 +2257,8 @@ object Lex {
 			AYEAR) }.toList).toArray
 	val QOY = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
-				Array[DateTimeFieldType](monthOfYear,dayOfMonth,millisOfDay),
-				Array[Int]((i-1)*3+1,1,0)),
+				Array[DateTimeFieldType](QuarterOfYear,dayOfMonth,millisOfDay),
+				Array[Int](i,1,0)),
 			AMONTH*3,
 			AYEAR) }.toList).toArray
 	val YOC = (0 until 100).map{ i => new RepeatedRange(
@@ -2228,11 +2269,11 @@ object Lex {
 			AYEAR*100) }.toArray
 	val DOC = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
-				Array[DateTimeFieldType](yearOfCentury,dayOfYear,millisOfDay),
-				Array[Int](i*10,1,0)),
+				Array[DateTimeFieldType](DecadeOfCentury,dayOfYear,millisOfDay),
+				Array[Int](i,1,0)),
 			AYEAR*10,
 			AYEAR*100) }.toArray
-	val YOD = (0 until 10).map{ i => new RepeatedRange( //TODO CRITICAL broken
+	val YOD = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfYear,millisOfDay),
 				Array[Int](1,0)),
