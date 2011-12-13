@@ -750,7 +750,14 @@ object Range {
 					if(a.base.isSupported(field) && a.base.property(field).get > 1){
 						p
 					} else {
-						p.`with`(field,b.base.property(field).get)
+						try {
+							//((case: can set field)
+							p.`with`(field,b.base.property(field).get)
+						} catch {
+							case (e:IllegalFieldValueException) =>
+								//((case: e.g. February 31st)
+								p.property(field).withMaximumValue
+						}
 					}
 				}
 			//(create norm)
@@ -1011,6 +1018,9 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 				new GroundedDuration(base.toPeriod.minus(diff.interval.base))
 			}
 	override def *(n:Long):Duration = {
+		if((this eq Duration.NEG_INFINITE) || (this eq Duration.INFINITE)){
+			return this
+		}
 		import DurationUnit._
 		try{
 			def check(v:Long) = {
@@ -1469,15 +1479,34 @@ case class RepeatedRange(
 	private def doGround(ground:GroundedRange,offset:Long):GroundedRange = {
 		//(get specific grounding)
 		val inst:DateTime =
-			if(offset == 0){ ground.begin.base
+			if(offset == 0){
+				ground.begin.base
 			} else if(offset > 0){ 
 				ground.begin.base.plus((interv*offset).interval.base) 
 			} else if(offset < 0){ 
 				ground.begin.base.minus((interv*(-offset)).interval.base)
-			}
-			else { throw fail("impossible"); }
+			} else { throw fail("impossible"); }
 		//(ground)
-		val dt:DateTime = base.toDateTime(inst)
+		val dt:DateTime = 
+			try {
+				//((case: grounded normally))
+				base.toDateTime(inst)
+			} catch {
+				case (e:IllegalFieldValueException) =>
+					import DateTimeFieldType._
+					if(e.getMessage.contains("dayOfMonth")){
+						//((case: DOM overflow)
+						base
+							.`with`(dayOfMonth,1)
+							.`with`(year,inst.getYear)
+							.`with`(monthOfYear,inst.getMonthOfYear)
+							.property(dayOfMonth).withMaximumValue
+							.toDateTime(inst)
+					} else {
+						//((case: unknown overflow))
+						throw new RuntimeException(e)
+					}
+			}
 		//(return)
 		Range(Time(dt) + delta,Time(dt.plus(norm.interval.base)) + delta)
 	}
@@ -1557,8 +1586,9 @@ case class RepeatedRange(
 	
 	override def exists(ground:GroundedRange,rawOffset:Long):Boolean = {
 		val offset = rawOffset //evaluate already incorporates new offset
-		if(bound == null) { true }
-		else {
+		if(bound == null) { 
+			true
+		} else {
 			val guess:GroundedRange = evaluateTemporal(ground,offset)
 			(guess.begin >= bound.begin && guess.end <= bound.end)
 		}
@@ -2224,61 +2254,61 @@ object Lex {
 					millisOfSecond),
 				Array[Int](i,0,0,0)),
 			AHOUR,
-			ADAY) }.toArray
+			ADAY).name("HOD("+i+")") }.toArray
 	val MOH = (0 until 60).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,0)),
 			AMIN,
-			AHOUR) }.toArray
+			AHOUR).name("MOH("+i+")") }.toArray
 	val DOW = (List(new NoTime) ::: (1 to 7).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfWeek,millisOfDay),
 				Array[Int](i,0)),
 			ADAY,
-			AWEEK) }.toList).toArray
+			AWEEK).name("DOW("+i+")") }.toList).toArray
 	val DOM = (List(new NoTime) ::: (1 to 31).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfMonth,millisOfDay),
 				Array[Int](i,0)),
 			ADAY,
-			AMONTH) }.toList).toArray
+			AMONTH).name("DOM("+i+")") }.toList).toArray
 	val WOY = (List(new NoTime) ::: (1 to 53).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](weekOfWeekyear,dayOfWeek,millisOfDay),
 				Array[Int](i,1,0)),
 			AWEEK,
-			AYEAR) }.toList).toArray
+			AYEAR).name("WOY("+i+")") }.toList).toArray
 	val MOY = (List(new NoTime) ::: (1 to 12).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](monthOfYear,dayOfMonth,millisOfDay),
 				Array[Int](i,1,0)),
 			AMONTH,
-			AYEAR) }.toList).toArray
+			AYEAR).name("MOY("+i+")") }.toList).toArray
 	val QOY = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](QuarterOfYear,dayOfMonth,millisOfDay),
 				Array[Int](i,1,0)),
 			AMONTH*3,
-			AYEAR) }.toList).toArray
+			AYEAR).name("QOY("+i+")") }.toList).toArray
 	val YOC = (0 until 100).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](yearOfCentury,dayOfYear,millisOfDay),
 				Array[Int](i,1,0)),
 			AYEAR,
-			AYEAR*100) }.toArray
+			AYEAR*100).name("YOC("+i+")") }.toArray
 	val DOC = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](DecadeOfCentury,dayOfYear,millisOfDay),
 				Array[Int](i,1,0)),
 			AYEAR*10,
-			AYEAR*100) }.toArray
+			AYEAR*100).name("DOC("+i+")") }.toArray
 	val YOD = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfYear,millisOfDay),
 				Array[Int](1,0)),
 			AYEAR,
-			AYEAR*10) }.toArray
+			AYEAR*10).name("YOD("+i+")") }.toArray
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))

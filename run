@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.6.jar"
 JAR='time'
 
-@timeDistribution = 1
+@timeDistribution = 0
 
 # -- RUN --
 env!( 
@@ -38,11 +38,12 @@ env!(
 		o('rulePrior', 0.001),
 		o('lexPrior', 0.0001),
 		o('nilWordPrior', 0.0001),
-		selo(1,'ckyCountType',
+		selo(4,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
-			'bestShallow'),
+			'bestShallow',
+			'shortAll'),
 		selo(3,'CkyCountNormalization',
 			'none',
 			'uniform',
@@ -68,10 +69,14 @@ env!(
 		o('lexNils'),
 #		o('includeRuleInLexProb'), # I think including this is correct...
 		# <training>
-		o('beam', 1000),
+		o('beam', 1500),
 		o('iters', 10),
-		o('scoreBeam', 5),
+		o('scoreBeam', 1),
 		o('maxSearchTime', 10000),
+		# <testing params>
+		o('pruneTime', 100),
+		o('pruneMinIndex',10),
+#		o('includeTimeProb'),
 		#<params>
 		o('usetime'),
 

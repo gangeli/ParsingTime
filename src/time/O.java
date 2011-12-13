@@ -84,7 +84,8 @@ public class O {
 	public static double ckyPosBackoff = 0.2;
 	@Option(name="kbestCKYAlgorithm", gloss="algorithm from (Huang et. al)")
 	public static int kbestCKYAlgorithm = 0;
-	public static enum CkyCountType{ all, bestAll, bestRandom, bestShallow }
+	public static enum CkyCountType{ 
+		all, bestAll, bestRandom, bestShallow, shortAll }
 	@Option(name="ckyCountType", gloss="Parses to count as 'correct' for EM")
 	public static CkyCountType ckyCountType = CkyCountType.bestAll;
 	public static enum CkyCountNormalization{ none, uniform, 
@@ -139,6 +140,13 @@ public class O {
 	public static boolean instantAsDay = false;
 	@Option(name="guessRange", gloss="Guess reference range")
 	public static boolean guessRange = false;
+	//--SPECIAL
+	@Option(name="pruneTime", gloss="Milliseconds which should trigger pruning")
+	public static double pruneTime = 100;
+	@Option(name="pruneMinIndex", gloss="Minimum index for pruning")
+	public static int pruneMinIndex = Integer.MAX_VALUE;
+	@Option(name="includeTimeProb", gloss="P(output) = P(parse)*P(time)")
+	public static boolean includeTimeProb = false;
 	
 	//--DEBUG
 	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")

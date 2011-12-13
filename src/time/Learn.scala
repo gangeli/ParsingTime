@@ -342,7 +342,7 @@ object Grammar {
 				"moh(n):S"),
 			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
 				hack((num:Int) =>  HOD(num) ))
-				.ensureValidity( (w:Int) => w >= 1 && w <= 24 ),
+				.ensureValidity( (w:Int) => w >= 0 && w < 24 ),
 				"hod(n):S"),
 			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
 				hack((num:Int) =>  DOW(num) ))
@@ -824,6 +824,19 @@ trait ParseTree extends Tree[Nonterminal] {
 			(rid:Int,w:Int) => { terms = rid :: terms } )
 		terms.reverse.toArray
 	}
+	def trim(sent:Sentence):Array[Int] = {
+		var words = List[Int]()
+		var tags = List[Int]()
+		traverse( 
+			(rid:Int,nilTag:Option[Int]) => {}, 
+			(rid:Int,w:Int) => { 
+				tags = rid :: tags 
+				words = sent.words(w) :: words 
+			} )
+		def isNil(wordTag:(Int,Int)) = { val (w,t) = wordTag; t == Grammar.NIL_RID }
+		words.zip(tags)
+			.dropWhile{isNil(_)}.reverse.dropWhile{ isNil(_) }.map{_._1}.toArray
+	}
 	//<<Possible Overrides>>
 	def headString:String = head.toString
 	def headProbability:Double = 1.0
@@ -1191,6 +1204,8 @@ object CKYParser {
 			assert(rule.arity == 1, "unary rule is not unary")	
 			CkyRule(rule.arity,rule.head,rule.child,Array[Int](rid))
 		}
+	val CKY_NIL:CkyRule = CKY_LEX
+		.filter{ (rule:CkyRule) => rule.head == Nonterminal('NIL) }(0)
 	val CKY_BINARY:Array[CkyRule] = BINARIES.map{ case (rule,rid) => 
 			assert(rule.arity == 2, "binary rules computed wrong")
 			CkyRule(rule.arity,rule.head,null,Array[Int](rid))
@@ -2120,22 +2135,41 @@ object CKYParser {
 			val word:Int = sent.words(elem)
 			val pos:Int = sent.pos(elem)
 			val num:Int = sent.nums(elem)
-			//(get candidate parses)
-			val candidates = CKY_LEX
-				.filter{ (term:CkyRule) =>
-					(  (term.child==Nonterminal('Word) && !U.isNum(word)) ||//is word rule
-					   (term.child==Nonterminal('Number) && U.isNum(word)) ) &&//is number rule
-					term.validInput( if(U.isNum(word)) num else word ) }  //is in range
+			//--Candidates
+			CKY_NIL.head.tagWord(elem,word)
+			val candidates:List[(CkyRule,Double)] = 
+				//(nil yield)
+				(CKY_NIL,lexLogProb(word,pos,CKY_NIL)) ::
+				//(normal proposals)
+				CKY_LEX.filter{ (term:CkyRule) =>
+					(  (term.child==Nonterminal('Word) 
+								&& !U.isNum(word)) || //is word rule
+					   (term.child==Nonterminal('Number) 
+						 		&& U.isNum(word)) ) &&//is number rule
+					term.validInput( if(U.isNum(word)) num else word ) && 
+					term != CKY_NIL}  //is in range
 				.map{ (term:CkyRule) => 
 					//(a good lex rule)
+					assert(term.head != Nonterminal('NIL), "Should not see NIL rule here")
+					//(tag)
 					if(term.head == Nonterminal('NIL)){
 						term.head.tagWord(elem,word)
 					}
+					//(propose)
 					(term, lexLogProb(word,pos,term)) 
-				}
+				}.toList
+			//--Yield
 			//(yield)
 			var ok:Boolean = true
-			candidates.sortBy( - _._2).foreach{ case (term,score) => 
+			candidates.sortWith{ 
+					case ((rA:CkyRule,lPA:Double),(rB:CkyRule,lPB:Double)) =>
+				if(lPA == lPB){
+					if(rA == CKY_NIL){ true }
+					else{ false }
+				} else {
+					lPA > lPB
+				}
+			}.foreach{ case (term,score) => 
 				assert(term.isLex, "bad term returned in klex")
 				if(ok && !y(term,elem,score)){ ok = false }
 			}
@@ -2616,7 +2650,7 @@ class CKYParser extends StandardParser{
 					endTrack("Correct: " + temporal)
 				}
 				//--Run Update
-				startTrack("Update")
+				forceTrack("Update")
 				O.ckyCountType match {
 					case O.CkyCountType.all => 
 						//(update every correct parse)
@@ -2640,6 +2674,20 @@ class CKYParser extends StandardParser{
 								}
 						assert(!feedback.hasCorrect || bestI >= 0,"Bad shallow computation")
 						if(bestI >= 0){ update(bestI,bestOffset) }
+					case O.CkyCountType.shortAll =>
+						//((get shortest length))
+						val shortest:Int = feedback.correct.foldLeft(Int.MaxValue){
+								case (longest:Int,(index:Int,offset:Int,score:Double)) =>
+							val parse = trees(index)
+							log(FORCE,"trim: " + parse.asParseString(sent) + " -> " + parse.trim(sent).map{ U.w2str(_) }.mkString(" "))
+							math.min(longest,parse.trim(sent).length)
+						}
+						//(update the shortest parses)
+						feedback.correct.foreach{ case (index,offset,score) => 
+							if(trees(index).trim(sent).length <= shortest){ 
+								update(index,offset) 
+							}
+						}
 					case _ => throw fail("Unknown case")
 				}
 				parseLock.unlock

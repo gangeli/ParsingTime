@@ -445,38 +445,46 @@ trait DataStore {
 			}
 		//--Score Parses
 		if(O.printAllParses){ forceTrack("Scores") }
-		val scores:Array[ScoreElem] 
+		val scores:Array[ScoreElem]
 			//(for each parse...)
-			= parses.zipWithIndex.foldLeft(List[ScoreElem]()){ 
-			case (soFar:List[ScoreElem],(parse:Parse,i:Int)) => 
-				//(variables)
-				val ground:GroundedRange 
-					= if(O.guessRange){ grounding.guessRange }
-					  else{ Range(grounding,grounding) }
-				val parseProb = parse.logProb
-				//(timing)
-				val parseWatch:Stopwatch = new Stopwatch
-				parseWatch.start
-				//(for each offset of parse...)
-				val rtn = soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
-					.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
-						//(debug)
-						if(O.printAllParses){
-							log(FORCE,i+"["+offset+"] "+
-								(parse.logProb+math.log(prob))+" "+parse)
-						}
-						assert(parseProb == parse.logProb, "yes, I get strange bugs")
-						//(create parse)
-						ScoreElem(i,offset,isExact(diff),diff,parse.logProb+math.log(prob))
-					}.toList
-				//(timing)
-				val lapTime = parseWatch.lap
-				if(lapTime > 100){
-					warn(""+parse.value+" took "+Stopwatch.formatTimeDifference(lapTime))
+			= parses.zipWithIndex.foldLeft((List[ScoreElem](),false)){ 
+			case ((soFar:List[ScoreElem],isPruned:Boolean),(parse:Parse,i:Int)) => 
+				if(!isPruned){
+					//(variables)
+					val ground:GroundedRange 
+						= if(O.guessRange){ grounding.guessRange }
+						  else{ Range(grounding,grounding) }
+					val parseProb = parse.logProb
+					//(timing)
+					val parseWatch:Stopwatch = new Stopwatch
+					parseWatch.start
+					//(for each offset of parse...)
+					val rtn = soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
+						.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
+							//(debug)
+							if(O.printAllParses){
+								log(FORCE,i+"["+offset+"] "+
+									(parse.logProb+math.log(prob))+" "+parse)
+							}
+							assert(parseProb == parse.logProb, "yes, I get strange bugs")
+							//(create parse)
+							val resultProb = 
+								if(O.includeTimeProb){ parse.logProb+math.log(prob) }
+								else{ parse.logProb }
+							ScoreElem(i,offset,isExact(diff),diff,resultProb)
+						}.toList
+					//(timing & return)
+					val lapTime = parseWatch.lap
+					if(lapTime > O.pruneTime && i > O.pruneMinIndex){
+						log("pruning after " + i)
+						(rtn,true)
+					} else {
+						(rtn,false)
+					}
+				} else {
+					(soFar,isPruned)
 				}
-				//(return)
-				rtn
-		}.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
+		}._1.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
 			if( (b.prob - a.prob).abs < 1e-6 ){
 				if(a.index == b.index){
 					b.offset.abs > a.offset.abs
@@ -751,21 +759,21 @@ object ToyData {
 				//(durations)
 				aWeek,aMonth,aQuarter,ayear,weeks2,
 				//(sequences)
-				week,month,quarter,year,day,
-				//(cannonicals)
+				week,month,quarter,year,day,theWeek,
+				//(cannonicals -> sequences)
 				thisWeek,thisYear,thisMonth,
-				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,
-				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastMonths2,
-				//(numbers -- basic)
-				y1776,
-//				//(numbers -- complex)
-//				y17sp76,
-				//(sequences)
-				april,
-				//(intersects)
-				april1776,april2,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+////				//(numbers -- complex)
+////				y17sp76,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
 				//(ref)
 				today
 			).internWords,
