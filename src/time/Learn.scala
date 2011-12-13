@@ -562,13 +562,24 @@ object Grammar {
 
 		//--NIL Identities
 		rtn = rtn ::: Nonterminal.values.filter{ (x:Nonterminal) =>
-					x != Nonterminal('NIL) && x != Nonterminal('ROOT) }.
+					!x.isNil && x != Nonterminal('ROOT) }.
 				foldLeft(List[(Rule,String)]()){
 				case (soFar:List[(Rule,String)],term:Nonterminal) => 
-			(BinaryRule(term,term,Nonterminal('NIL),
-				hack2( (x:Any,n:NIL) => x)),"$x:"+Nonterminal.name(term)+"$") ::
-			(BinaryRule(term,Nonterminal('NIL),term,
-				hack2( (n:NIL,x:Any) => x)),"$x:"+Nonterminal.name(term)+"$") :: soFar
+			//(get possible nils)
+			val nilList:List[Nonterminal] =
+				{if(O.lexNils){
+					G.wordIndexer.map{ (word:String) => Nonterminal(Symbol("NIL-"+word)) }
+				} else {
+					List[Nonterminal](Nonterminal('NIL))
+				}}.toList
+			//(add identities)
+			nilList.foldLeft(List[(Rule,String)]()){ 
+					case (lst:List[(Rule,String)],nil:Nonterminal) =>
+				(BinaryRule(term,term,nil,
+					hack2( (x:Any,n:NIL) => x)),"$x:"+Nonterminal.name(term)+"$") ::
+				(BinaryRule(term,nil,term,
+					hack2( (n:NIL,x:Any) => x)),"$x:"+Nonterminal.name(term)+"$") :: lst
+			} ::: soFar
 		}
 
 		//--Return
@@ -1849,7 +1860,7 @@ object CKYParser {
 										assert(beam > 0, "bad kbest end")
 										new BestList((0 until beam).map{ (kbestItem:Int) =>  //kbest
 											new ChartElem(
-												if(length == 0 && term == Nonterminal('NIL)) Some(start)
+												if(length == 0 && term.isNil) Some(start)
 												else None)
 										}.toArray, beam) //convert to arrays
 									}.toArray
@@ -1913,7 +1924,7 @@ object CKYParser {
 		assert(rule.arity == 1, "Lex with binary rule")
 		assert(w < G.W || w == G.UNK, "Word is out of range: " + w)
 		assert(rule.isLex,"Lex probability accessed on non-lex rule")
-		if(O.freeNils && rule.head == Nonterminal('NIL)){
+		if(O.freeNils && rule.head.isNil){
 			U.safeLn( 1.0 )
 		} else {
 			if(O.includeRuleInLexProb){ ruleLogProb(rule) } else { 0.0 } + 

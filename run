@@ -65,7 +65,7 @@ env!(
 #		o('allowPartialTime'),
 #		o('hardEM'),
 #		o('freeNils'),
-#		o('lexNils'),
+		o('lexNils'),
 #		o('includeRuleInLexProb'), # I think including this is correct...
 		# <training>
 		o('beam', 1500),
