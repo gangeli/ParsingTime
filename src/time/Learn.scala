@@ -28,6 +28,8 @@ case class Nonterminal(name:Symbol,id:Int){
 	//--Extra Variables
 	var isPreterminal = false
 	var isNil = false
+	//--Methods
+	def nilWord:String = name.name.substring(4)
 	//--Default Overrides
 	override def toString:String = name.name
 }
@@ -312,7 +314,7 @@ object Grammar {
 				assert(G.wordIndexer.size > 0, "Haven't initialized indexer yet")
 				G.wordIndexer.map{ (word:String) =>
 					(UnaryRule(Nonterminal(Symbol("NIL-"+word)), Nonterminal('Word), 
-						hack((w:Int) => new NIL)), "nil")
+						hack((w:Int) => new NIL)), "nil-"+word)
 				}.toList
 			} else {
 				List[(Rule,String)]((UnaryRule(Nonterminal('NIL), Nonterminal('Word), 
@@ -1098,19 +1100,6 @@ object CKYParser {
 	}
 	private val lexESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
 		= pWordGivenRule.map{ _.newStatistics(O.lexPrior) }
-
-	private val pNilWordGivenNonterminal:Array[Multinomial[Int]] = {
-		Nonterminal.values.map{ (term:Nonterminal) => 
-			val dist = new Multinomial[Int](U.intStore(G.W+1))
-			O.initMethod match {
-				case O.InitType.uniform => dist.initUniform
-				case O.InitType.random => dist.initRandom
-			}
-		}
-	}
-	private val nilWordESS
-			:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
-		= pNilWordGivenNonterminal.map{ _.newStatistics(O.nilWordPrior) }
 	
 	
 
@@ -1697,26 +1686,7 @@ object CKYParser {
 												rI			) = true
 							left(lI).logScore+right(rI).logScore+score(left(lI),right(rI))
 						}
-//					//(score from lex completion)
-//					val tagScore:Double = 
-//						( left(lI).lexicalContent,
-//						  if(right == null) None else right(rI).lexicalContent) match {
-//						case (Some(leftTag),Some(rightTag)) => 
-//							throw fail("Combining two nils!")
-//						case (Some(tag),None) => 
-//							U.safeLn(
-//								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
-//						case (None,Some(tag)) => 
-//							U.safeLn(
-//								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
-//						case (None,None) => 0.0
-//					}
-//					//(actual enqueue)
-//					if(O.lexNils){
-//						pq.enqueue( DataSource(cfgScore+tagScore,source,lI,rI) )
-//					} else {
 						pq.enqueue( DataSource(cfgScore,source,lI,rI) )
-//					}
 				}
 			}
 			//(initialize queue)
@@ -1947,14 +1917,17 @@ object CKYParser {
 			//--Candidates
 			val candidates:List[(CkyRule,Double)] = 
 				//(proposals (nil + normal))
-				(CKY_NIL.toList ::: CKY_LEX.toList.filter{ !_.head.isNil })
+				(CKY_NIL.toList.filter{ _.head.nilWord.equals(U.w2str(word)) }
+				
+				::: 
+				CKY_LEX.toList.filter{ !_.head.isNil }
 						.filter{ (term:CkyRule) =>
 					(  (term.child==Nonterminal('Word) 
 								&& !U.isNum(word)) || //is word rule
 					   (term.child==Nonterminal('Number) 
 						 		&& U.isNum(word)) ) && //is number rule
 					term.validInput( if(U.isNum(word)) num else word ) }  //is in range
-				.map{ (term:CkyRule) => 
+				).map{ (term:CkyRule) => 
 					//(a good lex rule)
 					(term, lexLogProb(word,pos,term)) 
 				}.toList
@@ -2100,12 +2073,6 @@ class CKYParser extends StandardParser{
 				pWordGivenRule(id) = lexESS(id).runMStep
 			}
 			endTrack("lex")
-			//(update nil consistency)
-			startTrack("nil tags")
-			(0 until pNilWordGivenNonterminal.length).foreach{ (id:Int) =>
-				pNilWordGivenNonterminal(id) = nilWordESS(id).runMStep
-			}
-			endTrack("nil tags")
 			//(update times)
 			startTrack("time")
 			timesToNormalize.foreach{ (fn:()=>Any) => fn() }
@@ -2154,15 +2121,6 @@ class CKYParser extends StandardParser{
 			}
 		}
 		endTrack("lex scores (top by rule)")
-		//(nil tags)
-		forceTrack("nil tags (top by head)")
-		Nonterminal.values.foreach{ (term:Nonterminal) =>
-			log(FORCE,DIM,term + " -> " + 
-				pNilWordGivenNonterminal(term.id).toString( new KeyPrinter[Int]{
-					override def format(w:Int):String = U.w2str(w)
-				}))
-		}
-		endTrack("nil tags (top by head)")
 		//(word reachability)
 		forceTrack("impossible words")
 		var unreachableWords:Int = 0
@@ -2391,14 +2349,6 @@ class CKYParser extends StandardParser{
 								//((update rule))
 								val (hid,multI) = rid2RuleGivenHeadIndices(rid)
 								ruleESS(hid).updateEStep(multI,count) 
-								//((update nil tag))
-								nilTag match {
-									case Some(w) => 
-										assert(RULES(rid).head != Nonterminal('ROOT),
-											"root from nil: " + trees(index))
-										nilWordESS(RULES(rid).head.id).updateEStep(w,count)
-									case None => //noop
-								}
 							},
 							{(rid:Int,i:Int) => 
 								//((update rule))
@@ -2462,7 +2412,6 @@ class CKYParser extends StandardParser{
 						val shortest:Int = feedback.correct.foldLeft(Int.MaxValue){
 								case (longest:Int,(index:Int,offset:Int,score:Double)) =>
 							val parse = trees(index)
-							log(FORCE,"trim: " + parse.asParseString(sent) + " -> " + parse.trim(sent).map{ U.w2str(_) }.mkString(" "))
 							math.min(longest,parse.trim(sent).length)
 						}
 						//(update the shortest parses)

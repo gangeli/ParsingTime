@@ -68,8 +68,8 @@ env!(
 		o('lexNils'),
 #		o('includeRuleInLexProb'), # I think including this is correct...
 		# <training>
-		o('beam', 1500),
-		o('iters', 10),
+		o('beam', 100), #1500 works well
+		o('iters', 40),
 		o('scoreBeam', 1),
 		o('maxSearchTime', 10000),
 		# <testing params>

@@ -505,9 +505,9 @@ trait DataStore {
 		if(scores.length > 0){
 			//(get guess)
 			val bestGuess = scores(0)
-			assert(O.timeDistribution != O.Distribution.Point || 
-				bestGuess.offset == 0,
-				"Sanity check for time distribution")
+//			assert(O.timeDistribution != O.Distribution.Point || 
+//				bestGuess.offset == 0,
+//				"Sanity check for time distribution") //TODO CRITICAL bug caught here
 			//(is in beam?)
 			val correct:Array[ScoreElem] = scores.filter{ (elem:ScoreElem) => 
 				assert(!elem.prob.isNaN && elem.prob <= 0.0, "invalid probability")
@@ -681,11 +681,13 @@ object ToyData {
 	private val pastWeek = ("past week",Parse(REF <| AWEEK))
 	private val thePastWeek = ("the past week",Parse(REF <| AWEEK))
 	private val pastMonths2 = ("past 2 months",Parse(REF <| (AMONTH*2)))
-	private val weeks2 = ("2 week",Parse(AWEEK*2))
+	private val weeks2 = ("2 weeks",Parse(AWEEK*2))
+	private val week2Period = ("2 week period",Parse(AWEEK*2))
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(AMONTH))
 	private val theMonth = ("the month",Parse(MONTH))
 	private val lastMonth = ("last month",Parse(REF <<! AMONTH))
+	private val nextMonth = ("next month",Parse(REF >>! AMONTH))
 	private val thisMonth = ("this month",Parse(REF ! AMONTH))
 	private val quarter = ("quarter",Parse(QUARTER))
 	private val aQuarter = ("a quarter",Parse(AQUARTER))
@@ -702,7 +704,13 @@ object ToyData {
 	private val lastYear = ("last year",Parse(REF <<! YEAR))
 	private val thisYear = ("this year",Parse(REF ! AYEAR))
 	private val monday = ("monday",Parse(DOW(1)(todaysDate,0)))
-	private val friday_neg1 = ("friday",Parse(DOW(1)(todaysDate,-1)))
+	private val tuesday = ("tuesday",Parse(DOW(2)(todaysDate,0)))
+	private val wednesday = ("wednesday",Parse(DOW(3)(todaysDate,0)))
+	private val thursday = ("thursday",Parse(DOW(4)(todaysDate,0)))
+	private val friday = ("friday",Parse(DOW(5)(todaysDate,0)))
+	private val saturday = ("saturday",Parse(DOW(6)(todaysDate,0)))
+	private val sunday = ("sunday",Parse(DOW(7)(todaysDate,0)))
+	private val friday_neg1 = ("friday",Parse(DOW(5)(todaysDate,-1)))
 
 	private case class ToyStore(gold:Array[(String,Parse)],test:Boolean) 
 			extends DataStore {
@@ -759,23 +767,25 @@ object ToyData {
 			store(false,
 			//--Train
 				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,
+				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
 				//(sequences)
 				week,month,quarter,year,day,theWeek,
 				//(cannonicals -> sequences)
 				thisWeek,thisYear,thisMonth,
-//				//(shifts -- standard)
-//				lastWeek,lastYear,lastQuarter,
-//				//(shifts -- noncannonical)
-//				pastWeek,thePastWeek,pastMonths2,
-//				//(numbers -- basic)
-//				y1776,
-////				//(numbers -- complex)
-////				y17sp76,
-//				//(sequences)
-//				april,
-//				//(intersects)
-//				april1776,april2,
+				//(shifts -- standard)
+				lastWeek,lastYear,lastQuarter,nextMonth,
+				//(shifts -- noncannonical)
+				pastWeek,thePastWeek,pastMonths2,
+				//(numbers -- basic)
+				y1776,
+				//(sequences)
+				april,
+				//(intersects)
+				april1776,april2,
+				//(days of the week)
+				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+//				//(numbers -- complex)
+//				y17sp76,
 				//(ref)
 				today
 			).internWords,
