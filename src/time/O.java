@@ -109,7 +109,7 @@ public class O {
 	public static int maxSearchTime = 1000000;
 	@Option(name="crfTag", gloss="Use a CRF (versus PCFG) tagger")
 	public static boolean crfTag = false;
-	public static enum TagMethod { PCFG, CRF, GOLD }
+	public static enum TagMethod { PCFG, GOLD }
 	@Option(name="lexTagMethod", gloss="Method to tag pre-terminals")
 	public static TagMethod lexTagMethod = TagMethod.PCFG;
 	@Option(name="scoreBeam", gloss="Maximum possible groundings to check")

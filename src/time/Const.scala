@@ -151,10 +151,11 @@ lazy val goldTag:(Sentence,(CkyRule,Int,Double)=>Boolean)=>Array[Int] = {
 			"Bad tag count for " + sent.id + ": " + sent + " sent: " 
 				+ sent.length + " vs tags: " + tags.length)
 		if(tags.length == 0){
-			(0 until sent.length).toArray.map{ (i:Int) =>
-				y(CKY_LEX(rid2lexI(Grammar.NIL_RID)),i,0.0)
-				1
-			}
+			throw new IllegalArgumentException("No tags given")
+//			(0 until sent.length).toArray.map{ (i:Int) =>
+//				y(CKY_LEX(rid2lexI(Grammar.NIL_RID)),i,0.0)
+//				1
+//			}
 		} else {
 			tags.zipWithIndex.map{ case (tag:Int,i:Int) =>
 				y(CKY_LEX(rid2lexI(tag)),i,0.0)

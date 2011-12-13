@@ -60,13 +60,12 @@ env!(
 		selo(0,'timeDistributionScope', 'Global', 'Local'),
 		selo(0,'lexTagMethod',
 			'PCFG',
-			'CRF',
 			'GOLD'),
 		selo(0,'initMethod','uniform','random'),
 #		o('allowPartialTime'),
 #		o('hardEM'),
 #		o('freeNils'),
-		o('lexNils'),
+#		o('lexNils'),
 #		o('includeRuleInLexProb'), # I think including this is correct...
 		# <training>
 		o('beam', 1500),
@@ -79,13 +78,6 @@ env!(
 #		o('includeTimeProb'),
 		#<params>
 		o('usetime'),
-
-		#--AUX PARAMS--
-		#(crf)
-		o('crfKBest', 1000),
-		selo(0,'crfFeatureFactory',
-			'time.NeighboringWords',
-			'edu.stanford.nlp.sequences.SuperSimpleFeatureFactory'),
 
 		# -- EVALUATION --
 #		o('exactMatchThreshold', 60*60*24), # a day
@@ -125,7 +117,6 @@ env!(
 		selo(0,'runDebug',
 			'none',
 			'console',
-			'crf',
 			'goldTagRead'),
 		o('numThreads','1'), #BROKEN FOR NOW
 

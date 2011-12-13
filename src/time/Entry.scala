@@ -654,6 +654,8 @@ object SimpleTimexStore {
 		startTrack("NOOP loop")
 		data.noopLoop
 		endTrack("NOOP loop")
+		log("lexicalizing")
+		Nonterminal.lexicalize(G.wordIndexer)
 		//(return)
 		endTrack("Loading Timexes")
 		data
@@ -886,8 +888,6 @@ object Entry {
 				O.runDebug.toLowerCase match {
 					//(case: time expression console)
 					case "console" => Temporal.interactive
-					//(case: test the CRF)
-					case "crf" => CKYParser.CRFTagger.debugSequence
 					//(case: read the gold tag file)
 					case "goldtagread" => Const.goldTag; log(FORCE,"OK")
 					//(case: don't run a debug sequence)

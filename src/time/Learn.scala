@@ -12,6 +12,7 @@ import Lex._
 import org.goobs.exec.Execution
 import org.goobs.stanford.JavaNLP._
 import org.goobs.stats._
+import org.goobs.utils.Indexer
 
 import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ie.crf.CRFClassifier
@@ -26,41 +27,7 @@ import edu.stanford.nlp.util.logging.Redwood.Util._
 case class Nonterminal(name:Symbol,id:Int){
 	//--Extra Variables
 	var isPreterminal = false
-	//--Tagging Words
-	private var sent:Option[Sentence] = None
-	private var wordTag:Option[Array[Option[Int]]] = None
-	def tagWord(index:Int,w:Int):Nonterminal = {
-		wordTag match {
-			case Some(arr) => arr(index) = Some(w)
-			case None => throw fail("Tagging word without lock")
-		}
-		this
-	}
-	def tag(i:Int):Option[Int] = {
-		assert(sent != None, "Getting tag without lock")
-		wordTag match {
-			case Some(arr) => arr(i)
-			case None => None
-		}
-	}
-	def tag(i:Option[Int]):Option[Int] = {
-		i match {
-			case Some(index) => tag(index)
-			case None => None
-		}
-	}
-	def lock(s:Sentence):Nonterminal = {
-		assert(sent.orNull != s,"Already hold lock on lock")
-		sent = Some(s)
-		wordTag = Some((0 until s.length).map{ x => None }.toArray)
-		this
-	}
-	def unlock(s:Sentence):Nonterminal = { 
-		assert(sent.orNull == s,"Don't hold lock on unlock")
-		sent = None 
-		wordTag = None
-		this
-	}
+	var isNil = false
 	//--Default Overrides
 	override def toString:String = name.name
 }
@@ -85,7 +52,11 @@ object Nonterminal {
 		nextId += 1
 		val term = new Nonterminal(name,nextId)
 		t match {
-			case 'preterminal => term.isPreterminal = true
+			case 'nil => 
+				term.isPreterminal = true
+				term.isNil = true
+			case 'preterminal => 
+				term.isPreterminal = true
 			case 'none => //noop
 			case _ => throw fail("Unknown nonterminal type: " + t)
 		}
@@ -108,6 +79,15 @@ object Nonterminal {
 			case _ => term.name.name
 		}
 	}
+	def lexicalize(indexer:Indexer[String]) = {
+		if(O.lexNils){
+			indexer.foreach{ (word:String) =>
+				Nonterminal(Symbol("NIL-"+word), 'nil)
+			}
+		} else {
+			Nonterminal('NIL, 'nil)
+		}
+	}
 
 	//--Create Nonterminals
 	val ranges = List("R","S")
@@ -117,7 +97,6 @@ object Nonterminal {
 	//(lex)
 	Nonterminal('Word, 'preterminal)
 	Nonterminal('Number, 'preterminal)
-	Nonterminal('NIL, 'preterminal)
 	//(basic types)
 	Nonterminal('Range, 'none)
 	Nonterminal('Duration, 'none)
@@ -328,9 +307,17 @@ object Grammar {
 			(UnaryRule(Nonterminal('Sequence), 
 				Nonterminal('Word), hack((w:Int) => d)), s) }
 		//(nil)
-		rtn = rtn ::: List[(Rule,String)](
-			(UnaryRule(Nonterminal('NIL), Nonterminal('Word), 
-				hack((w:Int) => new NIL)), "nil") )
+		rtn = rtn ::: 
+			{if(O.lexNils){
+				assert(G.wordIndexer.size > 0, "Haven't initialized indexer yet")
+				G.wordIndexer.map{ (word:String) =>
+					(UnaryRule(Nonterminal(Symbol("NIL-"+word)), Nonterminal('Word), 
+						hack((w:Int) => new NIL)), "nil")
+				}.toList
+			} else {
+				List[(Rule,String)]((UnaryRule(Nonterminal('NIL), Nonterminal('Word), 
+						hack((w:Int) => new NIL)), "nil") )
+			}}
 		//(numbers)
 		rtn = rtn ::: List[(Rule,String)](
 			(UnaryRule(Nonterminal('Number), Nonterminal('Number), 
@@ -615,17 +602,6 @@ object Grammar {
 		rtn.toArray
 	}
 
-	val NIL_RID:Int = {
-		val matches:Array[(Rule,Int)] 
-			= RULES.zipWithIndex.filter{ case (r,rid) =>
-				r.head == Nonterminal('NIL) && r.arity == 1 && 
-				r.child == Nonterminal('Word) }
-		assert(matches.length == 1, 
-			"invalid nil rule count (should be 1, not " + matches.length + ")" 
-				+ ": " + matches.map{ _._1 }.toList)
-		matches(0)._2
-	}
-
 	val UNARIES:Array[(Rule,Int)]  = RULES.zipWithIndex.filter{ _._1.arity == 1 }
 	val BINARIES:Array[(Rule,Int)] = RULES.zipWithIndex.filter{ _._1.arity == 2 }
 	val RULES_INDEX = RULES.zipWithIndex
@@ -833,7 +809,10 @@ trait ParseTree extends Tree[Nonterminal] {
 				tags = rid :: tags 
 				words = sent.words(w) :: words 
 			} )
-		def isNil(wordTag:(Int,Int)) = { val (w,t) = wordTag; t == Grammar.NIL_RID }
+		def isNil(wordTag:(Int,Int)) = { 
+			val (w,t) = wordTag
+			Grammar.RULES(t).head.isNil 
+		}
 		words.zip(tags)
 			.dropWhile{isNil(_)}.reverse.dropWhile{ isNil(_) }.map{_._1}.toArray
 	}
@@ -1020,163 +999,6 @@ object CKYParser {
 	val UNARY:Int = 0
 	val BINARY:Int = 1
 	import Grammar._
-
-	//-----
-	// CRF Tagger
-	//-----
-	object CRFTagger {
-		private def debugSequence(data:Array[(Sentence,Array[Int])],
-				ruleStr:Boolean=false):Unit = {
-			import org.goobs.utils.Indexer;
-			//(vars)
-			val toS:Int=>String = if(ruleStr) RULES_STR(_) else U.w2str(_)
-			val tagger = apply(data,false)
-			//(group by sentence)
-			val grouped:Array[(Sentence,Array[Array[Int]])] = {
-				val indexer = new Indexer[Sentence]
-				data.map(_._1).foreach{(sent:Sentence) => indexer.addAndGetIndex(sent)}
-				(0 until indexer.size).map{ (i:Int) =>
-					(indexer.get(i),
-						data.filter{case (s:Sentence,t:Array[Int]) => indexer.indexOf(s)==i}
-							.map(_._2).toArray)
-				}.toArray
-			}
-			//(print info)
-			grouped.foreach{ case (sent:Sentence,tags:Array[Array[Int]]) =>
-				val guess = tagger.tag(sent)
-				println("" + sent + "::  " + guess.map( toS(_) ).mkString(" ") )
-				tags.foreach{ (gold:Array[Int]) =>
-					if(guess.zip(gold).forall{ case(a:Int,b:Int) => a == b }){
-						print(" *")
-					} else {
-						print("  ")
-					}
-					println(gold.map( toS(_) ) mkString " ")
-				}
-			}
-		}
-		def debugSequence:Unit = {
-			debugSequence(Const.CRF_DATA_NOAMBIGUITY)
-		}
-
-		def apply(dataset:Array[(Sentence,Array[Int])],db:Boolean=false):CRFTagger={
-			if(db){
-				println("-----DEBUG SEQUENCE------")
-				debugSequence(dataset,true)
-				println("-------------------------")
-			}
-			startTrack("Training CRF Classifier")
-			//(create data)
-			log("creating data...")
-			val javaData:java.util.List[java.util.List[CoreMap]] =
-				dataset.map{ case (sent:Sentence,ann:Array[Int]) => 
-					assert(ann.forall{ _.toString.toInt >= 0}, "numbers crashed")
-					setAnswers( 
-						sent2coremaps(
-							sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))),
-						ann.map{ _.toString} )
-				}.toList
-			//(create flags)
-			val flags = new SeqClassifierFlags
-			flags.featureFactory = O.crfFeatureFactory
-			log(DBG,"flags.featureFactory: " + flags.featureFactory)
-			flags.backgroundSymbol = NIL_RID.toString
-			log(DBG,"flags.backgroundSymbol: " + flags.backgroundSymbol)
-			flags.inferenceType = "Beam"
-			log(DBG,"flags.inferenceType: " + flags.inferenceType)
-			flags.beamSize = O.crfKBest
-			log(DBG,"flags.beamSize: " + flags.beamSize)
-			val classifier = new CRFClassifier[CoreMap](flags)
-			//(train classifier)
-			log("training...")
-			//(debug) TODO removeme
-//			javaData.foreach{ (jlst:java.util.List[CoreMap]) => 
-//				val lst = jlst
-//				import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
-//				import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation
-//				val strs:Array[String] = lst.map{ (m:CoreMap) => 
-//					""+m.get[String,TextAnnotation](WORD)+
-//					"("+RULES_STR(m.get[String,AnswerAnnotation](ANSWER).toInt)+")"
-//				}.toArray
-//				println("train:  " + strs.mkString("  ") ) 
-//			}
-			classifier.train(javaData)
-			endTrack("Training CRF Classifier")
-			new CRFTagger(classifier)
-		}
-	}
-	class CRFTagger(classifier:CRFClassifier[CoreMap]) {
-		import edu.stanford.nlp.ling.CoreAnnotations.AnswerAnnotation
-		import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation
-		def tag(sent:Sentence):Array[Int] = {
-			val tagged = classifier.classify(
-				sent2coremaps(sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))) )
-			tagged.map{ (term:CoreMap) => 
-				term.get[String,AnswerAnnotation](ANSWER).toInt
-			}.toArray
-		}
-		def tagK(sent:Sentence,k:Int):Array[(Array[Int],Double)] = {
-			val counter = classifier.classifyKBest(
-				sent2coremaps(sent.words.map(U.w2str(_)),sent.pos.map(U.pos2str(_))),
-				ANSWER,
-				k)
-			counter.keySet.map{ (tagged:java.util.List[CoreMap]) =>
-				(
-					tagged.map{ (term:CoreMap) => 
-						term.get[String,AnswerAnnotation](ANSWER).toInt
-					}.toArray,
-					U.sigmoid(counter.getCount(tagged))
-				)
-			}.toArray.sortBy( _._2 )
-		}
-		def klex(sent:Sentence,k:Int,y:(CkyRule,Int,Double)=>Boolean):Array[Int] = {
-			//(tag)
-			val sequences = tagK(sent,k)
-			val sum = sequences.foldLeft(0.0) 
-				{ case (sofar:Double,(term:Array[Int],score:Double)) => sofar + score }
-			assert(sequences.forall( _._2 >= 0.0), "Negative score")
-			//(debug) //TODO removeme
-//			println("-----KLEX " + sent + "------")
-//			sequences.foreach{ case (term:Array[Int],score:Double) => 
-//				println(sent + " (" + G.df.format(score) + ") :: " + term.map{ (i:Int) => CKY_LEX(rid2lexI(i))},mkString("   "))
-//			}
-			//( P(slot,rule) )
-			val pSlotRule:Array[Array[Double]] = {
-				//(create)
-				val probs:Array[Array[Double]] = (0 until sent.length).map{ (i:Int) =>
-					(0 until CKY_LEX.length).map{ (rid:Int) => 0.0 }.toArray
-				}.toArray
-				//(fill)
-				sequences.foreach{ case (rids:Array[Int],score:Double) =>
-					rids.zipWithIndex.foreach{ case (rid:Int,i:Int) => 
-						assert(rid2lexI(rid) >= 0, "Invalid rule " + rid)
-						if(sum != 0.0){
-							probs(i)(rid2lexI(rid)) = (score / sum)
-						} else {
-							probs(i)(rid2lexI(rid)) = 1.0/CKY_LEX.length.asInstanceOf[Double]
-						}
-					}
-				}
-				//(return)
-				probs
-			}
-			//(yield)
-			(0 until sent.length).map{ (i:Int) =>
-				var shouldCont:Boolean = true
-				var count:Int = 0
-				pSlotRule(i).zipWithIndex.sortBy(-_._1)
-						.foreach{ case (p:Double,lexI:Int) =>
-					assert(p >= 0.0, "Negative probability")
-					if(p == 0.0){ shouldCont = false }
-					if(shouldCont){
-						shouldCont = y(CKY_LEX(lexI),i,U.safeLn(p))
-						count += 1
-					}
-				}
-				count
-			}.toArray
-		}
-	}
 	
 	//-----
 	// Values
@@ -1204,8 +1026,8 @@ object CKYParser {
 			assert(rule.arity == 1, "unary rule is not unary")	
 			CkyRule(rule.arity,rule.head,rule.child,Array[Int](rid))
 		}
-	val CKY_NIL:CkyRule = CKY_LEX
-		.filter{ (rule:CkyRule) => rule.head == Nonterminal('NIL) }(0)
+	val CKY_NIL:Array[CkyRule] = CKY_LEX
+		.filter{ (rule:CkyRule) => rule.head.isNil }
 	val CKY_BINARY:Array[CkyRule] = BINARIES.map{ case (rule,rid) => 
 			assert(rule.arity == 2, "binary rules computed wrong")
 			CkyRule(rule.arity,rule.head,null,Array[Int](rid))
@@ -1278,9 +1100,6 @@ object CKYParser {
 	private val nilWordESS
 			:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
 		= pNilWordGivenNonterminal.map{ _.newStatistics(O.nilWordPrior) }
-
-	//(substructures)
-	private var tagger:CRFTagger = null
 	
 	
 
@@ -1339,13 +1158,6 @@ object CKYParser {
 		}
 		def nilify:Unit = { logScore = Double.NaN; term = null }
 		def isNil:Boolean = (term == null)
-		def lexicalContent:Option[Int] = {
-			if(term.head == Nonterminal('NIL)){
-				term.head.tag(index)
-			} else {
-				None
-			}
-		}
 
 		// -- ParseTree Properties --
 		override def head:Nonterminal = {
@@ -1421,19 +1233,7 @@ object CKYParser {
 			evalCache
 		}
 		private def traverseHelper(i:Int,
-				ruleFn:(Int,Option[Int])=>Any,lexFn:(Int,Int)=>Any,up:()=>Any,
-				reportNilTags:Boolean):Int = {
-			//--Helpers
-			def getNilTag:Option[Int] = {
-				(term.arity,left.lexicalContent) match {
-					case (_,Some(w)) =>
-						assert(right.lexicalContent==None, "combining 2 nils")
-						Some(w)
-					case (2,None) =>
-						right.lexicalContent
-					case _ => None
-				}
-			}
+				ruleFn:(Int,Option[Int])=>Any,lexFn:(Int,Int)=>Any,up:()=>Any):Int = {
 			//--Traverse
 			assert(term != null, "evaluating null rule")
 			var stackDepth:Int = 0
@@ -1447,18 +1247,17 @@ object CKYParser {
 				} else {
 					term.rids.foreach{ (rid:Int) => 
 						stackDepth+=1; 
-						assert(!reportNilTags || getNilTag == None, "Tag on non-lex unary?")
 						ruleFn(rid,None) 
 					}
-					left.traverseHelper(i,ruleFn,lexFn,up,reportNilTags) //return
+					left.traverseHelper(i,ruleFn,lexFn,up) //return
 				}
 			}else if(term.arity == 2){
 				term.rids.foreach{ (rid:Int) => 
 					stackDepth+=1; 
-					ruleFn(rid,if(reportNilTags) getNilTag else None) 
+					ruleFn(rid,None) 
 				}
-				val leftI = left.traverseHelper(i,ruleFn,lexFn,up,reportNilTags)
-				right.traverseHelper(leftI,ruleFn,lexFn,up,reportNilTags) //return
+				val leftI = left.traverseHelper(i,ruleFn,lexFn,up)
+				right.traverseHelper(leftI,ruleFn,lexFn,up) //return
 			}else{
 				throw new IllegalStateException("Invalid cky term")
 			}
@@ -1469,7 +1268,7 @@ object CKYParser {
 		override def traverse(
 				ruleFn:(Int,Option[Int])=>Any,
 				lexFn:(Int,Int)=>Any):Unit = {
-			traverseHelper(0,ruleFn,lexFn,()=>{},true)
+			traverseHelper(0,ruleFn,lexFn,()=>{})
 		}
 		override def asParseString(sent:Sentence):String = {
 			val b = new StringBuilder
@@ -1488,7 +1287,7 @@ object CKYParser {
 				},
 				() => {
 					b.append(") ")
-				},false)
+				})
 			b.toString
 		}
 		override def headProbability:Double = {
@@ -1508,8 +1307,7 @@ object CKYParser {
 					maxDepth = math.max(depth,maxDepth) 
 				},
 				(rid:Int,w:Int) => { },
-				() => { depth -= 1 },
-				false)
+				() => { depth -= 1 })
 			maxDepth+1 // +1 for lex terms
 		}
 		def deepclone:ChartElem = {
@@ -1888,26 +1686,26 @@ object CKYParser {
 												rI			) = true
 							left(lI).logScore+right(rI).logScore+score(left(lI),right(rI))
 						}
-					//(score from lex completion)
-					val tagScore:Double = 
-						( left(lI).lexicalContent,
-						  if(right == null) None else right(rI).lexicalContent) match {
-						case (Some(leftTag),Some(rightTag)) => 
-							throw fail("Combining two nils!")
-						case (Some(tag),None) => 
-							U.safeLn(
-								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
-						case (None,Some(tag)) => 
-							U.safeLn(
-								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
-						case (None,None) => 0.0
-					}
-					//(actual enqueue)
-					if(O.lexNils){
-						pq.enqueue( DataSource(cfgScore+tagScore,source,lI,rI) )
-					} else {
+//					//(score from lex completion)
+//					val tagScore:Double = 
+//						( left(lI).lexicalContent,
+//						  if(right == null) None else right(rI).lexicalContent) match {
+//						case (Some(leftTag),Some(rightTag)) => 
+//							throw fail("Combining two nils!")
+//						case (Some(tag),None) => 
+//							U.safeLn(
+//								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
+//						case (None,Some(tag)) => 
+//							U.safeLn(
+//								pNilWordGivenNonterminal(left(lI).term.head.id).prob(tag) )
+//						case (None,None) => 0.0
+//					}
+//					//(actual enqueue)
+//					if(O.lexNils){
+//						pq.enqueue( DataSource(cfgScore+tagScore,source,lI,rI) )
+//					} else {
 						pq.enqueue( DataSource(cfgScore,source,lI,rI) )
-					}
+//					}
 				}
 			}
 			//(initialize queue)
@@ -2136,26 +1934,17 @@ object CKYParser {
 			val pos:Int = sent.pos(elem)
 			val num:Int = sent.nums(elem)
 			//--Candidates
-			CKY_NIL.head.tagWord(elem,word)
 			val candidates:List[(CkyRule,Double)] = 
-				//(nil yield)
-				(CKY_NIL,lexLogProb(word,pos,CKY_NIL)) ::
-				//(normal proposals)
-				CKY_LEX.filter{ (term:CkyRule) =>
+				//(proposals (nil + normal))
+				(CKY_NIL.toList ::: CKY_LEX.toList.filter{ !_.head.isNil })
+						.filter{ (term:CkyRule) =>
 					(  (term.child==Nonterminal('Word) 
 								&& !U.isNum(word)) || //is word rule
 					   (term.child==Nonterminal('Number) 
-						 		&& U.isNum(word)) ) &&//is number rule
-					term.validInput( if(U.isNum(word)) num else word ) && 
-					term != CKY_NIL}  //is in range
+						 		&& U.isNum(word)) ) && //is number rule
+					term.validInput( if(U.isNum(word)) num else word ) }  //is in range
 				.map{ (term:CkyRule) => 
 					//(a good lex rule)
-					assert(term.head != Nonterminal('NIL), "Should not see NIL rule here")
-					//(tag)
-					if(term.head == Nonterminal('NIL)){
-						term.head.tagWord(elem,word)
-					}
-					//(propose)
 					(term, lexLogProb(word,pos,term)) 
 				}.toList
 			//--Yield
@@ -2195,9 +1984,6 @@ class CKYParser extends StandardParser{
 		val lexLogProb:(Sentence,(CkyRule,Int,Double)=>Boolean)=>Array[Int]
 			= O.lexTagMethod match {
 				case O.TagMethod.PCFG => CKYParser.klex(_,_)
-				case O.TagMethod.CRF  => 
-					if(tagger == null) CKYParser.klex(_,_)
-					else tagger.klex(_,O.crfKBest,_)
 				case O.TagMethod.GOLD =>
 					Const.goldTag
 			}
@@ -2316,19 +2102,6 @@ class CKYParser extends StandardParser{
 			durations.foreach{ case (d:Duration,s:String) => d.runM }
 			sequences.foreach{ case (d:Duration,s:String) => d.runM }
 			endTrack("time")
-			//(CRF retrain)
-			if(O.crfTag && corrects.length > 0){
-				startTrack("crf")
-				tagger = CRFTagger(corrects.map{ (guess:GuessInfo) =>
-						val sent:Sentence = guess.sent
-						val rules:Array[Int] = guess.parse.lexRules
-						assert(guess.sent.length == rules.length, "length mismatch")
-						( guess.sent, rules )
-					}.toArray)
-				endTrack("crf")
-			} else {
-				tagger = null
-			}
 			endTrack("M Step")
 		}
 		//--Debug
@@ -2492,7 +2265,6 @@ class CKYParser extends StandardParser{
 	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:String
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
-		Nonterminal('NIL).lock(sent)
 		//(run CKY)
 		val trees:Array[ParseTree] = cky(sent,O.beam)
 		//(check: single-best consistency)
@@ -2691,7 +2463,6 @@ class CKYParser extends StandardParser{
 					case _ => throw fail("Unknown case")
 				}
 				parseLock.unlock
-				Nonterminal('NIL).unlock(sent)
 				endTrack("Update")
 			}
 		)
