@@ -782,30 +782,30 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-//				//(durations)
-//				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
-//				//(sequences)
-//				week,month,quarter,year,day,theWeek,
-//				//(cannonicals -> sequences)
-//				thisWeek,thisYear,thisMonth,
-//				//(shifts -- standard)
-//				lastWeek,lastYear,lastQuarter,nextMonth,
-//				//(shifts -- noncannonical)
-//				pastWeek,thePastWeek,pastMonths2,
-//				//(numbers -- basic)
-//				y1776,
-//				//(sequences)
-//				april,
-//				//(intersects)
-//				april1776,april2,
-//				//(days of the week)
-//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-//				//(numbers -- complex)
-//				y17sp76,
-				//(friday offset -1)
-				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday
+				//(durations)
+				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
+				//(sequences)
+				week,month,quarter,year,day,theWeek,
+				//(cannonicals -> sequences)
+				thisWeek,thisYear,thisMonth,
+				//(shifts -- standard)
+				lastWeek,lastYear,lastQuarter,nextMonth,
+				//(shifts -- noncannonical)
+				pastWeek,thePastWeek,pastMonths2,
+				//(numbers -- basic)
+				y1776,
+				//(sequences)
+				april,
+				//(intersects)
+				april1776,april2,
+				//(days of the week)
+				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+				//(numbers -- complex)
+				y17sp76,
+//				//(offset -1)
+//				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday,
 				//(ref)
-//				today
+				today
 			).internWords,
 			//--Test
 			store(true,lastMonth))

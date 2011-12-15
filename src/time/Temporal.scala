@@ -1280,7 +1280,7 @@ trait Sequence extends Range with Duration {
 		val diff:Double = this.diff(ground,offset,originOffset)
 		val str="E-Step [" + this + "]: offset=["+offset+" origin "+originOffset+
 			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
-		if(O.printAllParses){ log(FORCE,str) } else { log(FORCE,str) }
+		if(O.printAllParses){ log(FORCE,str) } else { log(str) }
 		//(debug)
 		assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
 			"nonzero offset with point distribution")
@@ -1301,38 +1301,44 @@ case class RepeatedRange(
 		delta:Duration, bound:GroundedRange, moveOffset:Long) extends Sequence{
 
 	private def doGround(ground:GroundedRange,offset:Long):GroundedRange = {
-		//(get specific grounding)
-		val inst:DateTime =
-			if(offset == 0){
-				ground.begin.base
-			} else if(offset > 0){ 
-				ground.begin.base.plus((interv*offset).interval.base) 
-			} else if(offset < 0){ 
-				ground.begin.base.minus((interv*(-offset)).interval.base)
-			} else { throw fail("impossible"); }
-		//(ground)
-		val dt:DateTime = 
-			try {
-				//((case: grounded normally))
-				base.toDateTime(inst)
-			} catch {
-				case (e:IllegalFieldValueException) =>
-					import DateTimeFieldType._
-					if(e.getMessage.contains("dayOfMonth")){
-						//((case: DOM overflow)
-						base
-							.`with`(dayOfMonth,1)
-							.`with`(year,inst.getYear)
-							.`with`(monthOfYear,inst.getMonthOfYear)
-							.property(dayOfMonth).withMaximumValue
-							.toDateTime(inst)
-					} else {
-						//((case: unknown overflow))
-						throw new RuntimeException(e)
-					}
-			}
-		//(return)
-		Range(Time(dt) + delta,Time(dt.plus(norm.interval.base)) + delta)
+		try {
+			//(get specific grounding)
+			val inst:DateTime =
+				if(offset == 0){
+					ground.begin.base
+				} else if(offset > 0){ 
+					ground.begin.base.plus((interv*offset).interval.base) 
+				} else if(offset < 0){ 
+					ground.begin.base.minus((interv*(-offset)).interval.base)
+				} else { throw fail("impossible"); }
+			//(ground)
+			val dt:DateTime = 
+				try {
+					//((case: grounded normally))
+					base.toDateTime(inst)
+				} catch {
+					case (e:IllegalFieldValueException) =>
+						import DateTimeFieldType._
+						if(e.getMessage.contains("dayOfMonth")){
+							//((case: DOM overflow)
+							base
+								.`with`(dayOfMonth,1)
+								.`with`(year,inst.getYear)
+								.`with`(monthOfYear,inst.getMonthOfYear)
+								.property(dayOfMonth).withMaximumValue
+								.toDateTime(inst)
+						} else {
+							//((case: unknown overflow))
+							throw new RuntimeException(e)
+						}
+				}
+			//(return)
+			Range(Time(dt) + delta,Time(dt.plus(norm.interval.base)) + delta)
+		} catch {
+			//TODO this really shouldn't be here, but this method seems 
+			//     particularly exception-prone
+			case (e:Exception) => Range(Time.DAWN_OF,Time.END_OF)
+		}
 	}
 
 	def this(base:Partial,norm:Duration,interv:Duration)
@@ -1356,15 +1362,24 @@ case class RepeatedRange(
 	override def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double={
 		val realGround:Time = if(bound == null) ground.begin else bound.begin
 		//(important markers)
-		val origin:GroundedRange = this.evaluateTemporal(ground,0)
+//		val origin:GroundedRange = this.evaluateTemporal(ground,0)
 		val virtualOrigin:GroundedRange = this.evaluateTemporal(ground,originOffset)
 		val location:GroundedRange = this.evaluateTemporal(ground,offset)
-		//(distance)
-		val distance=(origin.begin-realGround)+(location.begin-virtualOrigin.begin)
+//		//(distance)
+//		val distanceToBegin = (origin.begin-realGround).
+//		val distance =
+//			if(realGround >= origin.begin && realGround <= origin.end){
+//				//((case: ground contained in origin -- just do jump))
+//				(location.begin-virtualOrigin.begin)
+//			} else {
+//				//((case: ground off of origin -- move and jump))
+//				(origin.begin-realGround) + (location.begin-virtualOrigin.begin)
+//			}
+		val distance = location.begin-virtualOrigin.begin
 		assert(interv.seconds > 0.0, "Interval is zero or negative: " + interv)
-		assert(!(distance/interv).isNaN, 
-			"NaN diff: " + origin + ", " + virtualOrigin + ", " + location + ": " + 
-			realGround)
+//		assert(!(distance/interv).isNaN, 
+//			"NaN diff: " + origin + ", " + virtualOrigin + ", " + location + ": " + 
+//			realGround)
 		distance/interv
 	}
 
