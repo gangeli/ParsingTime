@@ -2302,44 +2302,11 @@ class CKYParser extends StandardParser{
 				val guess = GuessInfo(identifier,trees(0),score,sent).feedback(feedback)
 				guesses = {if(feedback.isCorrect) guess else guess.wrong} ::
 					guesses.tail //note: tail to remove 'no result' guess
-				//(normalization constant)
-				var hasNonzeroTerm:Boolean = false
-				val totalProb:Double = feedback.correct.foldLeft(0.0){
-						case (soFar:Double,(index:Int,offset:Int,score:Double)) =>
-					assert(!math.exp(scored(index)._3).isNaN, "NaN score")
-					assert(math.exp(scored(index)._3) <= 1.0, "invalid probability")
-					if(math.exp(scored(index)._3) > 0.0){ hasNonzeroTerm = true; }
-					soFar + math.exp(scored(index)._3) }
-				assert(totalProb > 0.0 || !hasNonzeroTerm, "Probability underflow!")
-				val correctCount:Double = feedback.correct.length.asInstanceOf[Double]
 				//--Update Function
-				def update(index:Int,offset:Int) = {
+				def update(index:Int,offset:Int,count:Double) = {
 					val (head,temporal,score) = scored(index)
 					val parse = trees(index)
-					startTrack("Correct: " + temporal)
-					//(get raw count)
-					val logRaw:Double = 
-						if(O.hardEM) 0.0
-						else scored(index)._3 +
-						     U.safeLn(scored(index)._2.prob(
-								 	Range(feedback.grounding,feedback.grounding),offset))
-					assert(logRaw <= 0.0, "invalid raw log count: " + logRaw)
-					//(normalize score)
-					val count:Double = O.ckyCountNormalization match {
-						case O.CkyCountNormalization.none => math.exp(logRaw)
-						case O.CkyCountNormalization.uniform => 1.0 / correctCount
-						case O.CkyCountNormalization.proportional => 
-							math.exp(logRaw - U.safeLn(correctCount))
-						case O.CkyCountNormalization.distribution => {
-							assert(!totalProb.isNaN, "Total Probability is NaN")
-							if(totalProb == 0.0){
-								1.0 / correctCount
-							} else {
-								math.exp(logRaw) / totalProb
-							}
-						}
-					}
-					assert(correctCount > 0, "updating with no corrects?")
+					startTrack("Correct: "+temporal+" ["+G.df.format(count)+"]")
 					assert(!count.isNaN, "Trying to incorporate NaN count")
 					assert(O.rulePrior.isZero || O.lexPrior.isZero || 
 						count > Double.NegativeInfinity, "Parse has zero probability")
@@ -2366,7 +2333,7 @@ class CKYParser extends StandardParser{
 							}
 						)
 					//(append guesses)
-					corrects = GuessInfo(identifier,parse,logRaw,sent) :: corrects
+					corrects = GuessInfo(identifier,parse,count,sent) :: corrects
 					//(update time)
 					val ground = Range(feedback.grounding,feedback.grounding)
 					timesToNormalize = {() => { temporal.traverse(ground,offset,
@@ -2374,31 +2341,29 @@ class CKYParser extends StandardParser{
 								term.runM
 							})
 						}} :: timesToNormalize
+					forceTrack("Time E " + temporal)
 					temporal.traverse(ground,offset,
 						(term:Temporal,trueOffset:Long,originOffset:Long) => {
+							log(FORCE,""+term+" is offset by " + trueOffset + " from " + originOffset)
 							term.updateE(ground,trueOffset,originOffset,
 								if(O.hardEM) 0.0 else U.safeLn(count) )
 						})
+					endTrack("Time E " + temporal)
 					//(end)
-					endTrack("Correct: " + temporal)
+					endTrack("Correct: "+temporal+" ["+G.df.format(count)+"]")
 				}
 				//--Run Update
 				forceTrack("Update")
-				O.ckyCountType match {
-					case O.CkyCountType.all => 
-						//(update every correct parse)
-						feedback.correct.foreach{ 
-							case (index,offset,score) => update(index,offset) }
-					case O.CkyCountType.bestAll =>
-						//(update every tied-for-best parse)
-						feedback.tiedBest.foreach{ case (index:Int,offset:Int) => 
-							update(index,offset) }
-					case O.CkyCountType.bestRandom =>
-						//(update the 'first' tied-for-best parse)
-						if(feedback.hasCorrect){
-							update(feedback.bestIndex,feedback.bestOffset) }
-					case O.CkyCountType.bestShallow =>
-						//(update the shallowest tied-for-best parse)
+				//(get correct)
+				//  index,offset
+				val correct:Array[(Int,Int)] = O.ckyCountType match {
+					case O.CkyCountType.all =>
+						feedback.correct.map{ case (i:Int,o:Int,score:Double) => (i,o) }
+					case O.CkyCountType.bestAll => feedback.tiedBest
+					case O.CkyCountType.bestRandom => Array[(Int,Int)](
+						(feedback.bestIndex,feedback.bestOffset))
+					case O.CkyCountType.bestShallow => {
+						//((get shallowest tree))
 						val ((bestI,bestOffset),depth) =
 							feedback.tiedBest.foldLeft(((-1,-1),Int.MaxValue)){
 								case ((argmin,min),(index,offset)) =>
@@ -2406,21 +2371,78 @@ class CKYParser extends StandardParser{
 									if(candMin < min) ((index,offset),candMin) else (argmin,min)
 								}
 						assert(!feedback.hasCorrect || bestI >= 0,"Bad shallow computation")
-						if(bestI >= 0){ update(bestI,bestOffset) }
-					case O.CkyCountType.shortAll =>
+						//((create list))
+						if(bestI >= 0){ 
+							Array[(Int,Int)]((bestI,bestOffset))
+						} else {
+							Array[(Int,Int)]()
+						}
+					}
+					case O.CkyCountType.shortWithOffsetZero => {
+						//((has an offset zero term?))
+						val hasZeroOffset:Boolean = feedback.correct.exists{ _._2 == 0 }
 						//((get shortest length))
 						val shortest:Int = feedback.correct.foldLeft(Int.MaxValue){
-								case (longest:Int,(index:Int,offset:Int,score:Double)) =>
-							val parse = trees(index)
-							math.min(longest,parse.trim(sent).length)
-						}
-						//(update the shortest parses)
-						feedback.correct.foreach{ case (index,offset,score) => 
-							if(trees(index).trim(sent).length <= shortest){ 
-								update(index,offset) 
+								case (shortest:Int,(index:Int,offset:Int,score:Double)) =>
+							if(hasZeroOffset && offset == 0){
+								val parse = trees(index)
+								math.min(shortest,parse.trim(sent).length)
+							} else {
+								shortest
 							}
 						}
-					case _ => throw fail("Unknown case")
+						//((get matching trees))
+						val matching:Array[(Int,Int,Double)] = feedback.correct.filter{
+								case (index:Int,offset:Int,score:Double) =>
+							trees(index).trim(sent).length <= shortest &&
+								(!hasZeroOffset || offset == 0)
+						}
+						//((create list))
+						matching.map{ case (i:Int,o:Int,score:Double) => (i,o) }
+					}
+					case _ => throw fail("Unknown case: " + O.ckyCountType)
+				}
+				//  index,offset,raw_count
+				val correctWithRaw:Array[(Int,Int,Double)] = correct.map{ 
+						case (index:Int,offset:Int) =>
+					//((get raw count))
+					val rawCount:Double = 
+						if(O.hardEM) 1.0
+						else math.exp(scored(index)._3) *
+						     scored(index)._2.prob(
+								 	Range(feedback.grounding,feedback.grounding),offset)
+					assert(rawCount <= 1.0 && rawCount >= 0.0 && !rawCount.isNaN, 
+						"invalid raw count: " + rawCount)
+					(index,offset,rawCount)
+				}
+				//(get total prob)
+				val totalProb:Double = correctWithRaw.foldLeft(0.0){
+						case (soFar:Double,(index:Int,offset:Int,raw:Double)) =>
+					soFar + raw
+				}
+				//(normalize score)
+				val correctCount:Double = correct.length.asInstanceOf[Double]
+				//  index,offset,count
+				val correctWithProbs:Array[(Int,Int,Double)] = correctWithRaw.map{
+						case (index:Int,offset:Int,raw:Double) =>
+					val count:Double = O.ckyCountNormalization match {
+						case O.CkyCountNormalization.none => raw
+						case O.CkyCountNormalization.uniform => 1.0 / correctCount
+						case O.CkyCountNormalization.proportional => raw / correctCount
+						case O.CkyCountNormalization.distribution => {
+							assert(!totalProb.isNaN, "Total Probability is NaN")
+							if(totalProb == 0.0){
+								1.0 / correctCount
+							} else {
+								raw / totalProb
+							}
+						}
+					}
+					(index,offset,count)
+				}
+				//(update)
+				correctWithProbs.foreach{ case (index:Int,offset:Int,count:Double) =>
+					update(index,offset,count) 
 				}
 				parseLock.unlock
 				endTrack("Update")

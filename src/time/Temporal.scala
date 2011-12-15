@@ -92,16 +92,8 @@ trait Temporal {
 				assert(hasNext, "Calling next when there is no next")
 				val pLeft = prob(ground,leftPointer)
 				val pRight = prob(ground,rightPointer)
-				if(Temporal.this.exists(ground,leftPointer) && 
-						(pLeft >= pRight || !Temporal.this.exists(ground,rightPointer))) {
-					assert(Temporal.this.exists(ground,leftPointer),"invalid if cond")
-					val rtn:Temporal = Temporal.this.evaluateTemporal(ground,leftPointer)
-					assert(!rtn.isInstanceOf[NoTime], 
-						"NoTime in distribution (hasNext: "+hasNext+"): " + 
-							Temporal.this + " at " + leftPointer)
-					leftPointer -= 1
-					(rtn,pLeft,leftPointer+1)
-				} else if(Temporal.this.exists(ground,rightPointer)){
+				if(Temporal.this.exists(ground,rightPointer) && 
+						(pRight >= pLeft || !Temporal.this.exists(ground,leftPointer))) {
 					assert(Temporal.this.exists(ground,rightPointer),"invalid if cond")
 					val rtn:Temporal = Temporal.this.evaluateTemporal(ground,rightPointer)
 					assert(!rtn.isInstanceOf[NoTime], 
@@ -109,6 +101,14 @@ trait Temporal {
 							Temporal.this + " at " + rightPointer)
 					rightPointer += 1
 					(rtn,pRight,rightPointer-1)
+				} else if(Temporal.this.exists(ground,leftPointer)) {
+					assert(Temporal.this.exists(ground,leftPointer),"invalid if cond")
+					val rtn:Temporal = Temporal.this.evaluateTemporal(ground,leftPointer)
+					assert(!rtn.isInstanceOf[NoTime], 
+						"NoTime in distribution (hasNext: "+hasNext+"): " + 
+							Temporal.this + " at " + leftPointer)
+					leftPointer -= 1
+					(rtn,pLeft,leftPointer+1)
 				} else {
 					assert(!hasNext, "Inconsistent iterator")
 					throw new NoSuchElementException()
@@ -273,6 +273,8 @@ object Temporal {
 	def interactive = {
 		import scala.tools.nsc.interpreter.{IMain,JLineReader,JLineCompletion}
 		import scala.tools.nsc.Settings
+//		O.timeDistribution = O.Distribution.Multinomial
+//		O.timeDistributionParams = Array[Double](1.0,1.0).map{ x => x.asInstanceOf[java.lang.Double] }
 		//--Create Interpreter
 		println("Loading interpreter...")
 		if(reader == null){
@@ -287,13 +289,13 @@ object Temporal {
 			interpreter.interpret(
 				"org.joda.time.DateTimeZone.setDefault(org.joda.time.DateTimeZone.UTC);"
 			)
+			interpreter.interpret("""def today = Range(todaysDate,todaysDate)""")
 			interpreter.interpret("""
 				def f(t:Temporal) = {
-					t.distribution(Range(ground,ground))
+					t.distribution(today)
 						.slice(0,10).foreach{ x => println(x) }
 				}
 			""")
-			interpreter.interpret("""def today = Range(todaysDate,todaysDate)""")
 			reader = new JLineReader(new JLineCompletion(interpreter))
 		}
 		//--Loop
@@ -751,12 +753,16 @@ object Range {
 						p
 					} else {
 						try {
-							//((case: can set field)
+							//((case: can set field))
 							p.`with`(field,b.base.property(field).get)
 						} catch {
 							case (e:IllegalFieldValueException) =>
-								//((case: e.g. February 31st)
-								p.property(field).withMaximumValue
+								//((case: e.g. February 31st))
+								if(p.isSupported(field)){
+									p.property(field).withMaximumValue
+								} else {
+									p.`with`(field,1).property(field).withMaximumValue
+								}
 						}
 					}
 				}
@@ -1269,12 +1275,17 @@ trait Sequence extends Range with Duration {
 
 	override def updateE(
 			ground:GroundedRange,offset:Long,originOffset:Long,logprob:Double):Unit={
+		//(variables)
 		val (e,m) = updater
 		val diff:Double = this.diff(ground,offset,originOffset)
 		val str="E-Step [" + this + "]: offset=["+offset+" origin "+originOffset+
 			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
 		if(O.printAllParses){ log(FORCE,str) } else { log(FORCE,str) }
+		//(debug)
+		assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
+			"nonzero offset with point distribution")
 		assert(!logprob.isNaN, "NaN probability")
+		//(em)
 		e( offset-originOffset, diff, logprob )
 	}
 
@@ -1285,193 +1296,6 @@ trait Sequence extends Range with Duration {
 }
 
 // ----- REPEATED RANGE -----
-//case class RepeatedRange(snapFn:Time=>Time,base:UngroundedRange,
-//		interv:Duration, bound:GroundedRange,moveOffset:Long) extends Sequence {
-//
-//	//isSparse is true if this range is rare and should use the global stats
-//	private var isSparseVal = true
-//	override def isSparse:Boolean = isSparseVal
-//	def dense:RepeatedRange = { this.isSparseVal = false; this }
-//
-////	def this(snapFn:Time=>Time,base:UngroundedRange,interv:Duration) 
-////		= this(snapFn,base,interv,null,0L)
-//	def this(snapFn:Time=>Time,base:Range,interv:Duration)
-//		= this(
-//			snapFn,
-//			base match {
-//				case (b:UngroundedRange) => b
-//				case _ => throw new IllegalArgumentException("Runtime Type Error")
-//			},
-//			interv,
-//			null,
-//			0L)
-//
-//	override def neverIntersects:List[Range=>Boolean] = List[Range=>Boolean](
-//			(cand:Range) => cand match {
-//				case (rr:RepeatedRange) => 
-//					!(rr eq this) && //TODO somewhat hacky (relies on strict equality)
-//					rr.interv == this.interv &&
-//					rr.base == this.base
-//				case _ => false
-//			}
-//		) 
-//	
-//	override def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double={
-//		val realGround:Time = if(bound == null) ground.begin else bound.begin
-//		//(important markers)
-//		val origin:GroundedRange = this.evaluateTemporal(ground,0)
-//		val virtualOrigin:GroundedRange = this.evaluateTemporal(ground,originOffset)
-//		val location:GroundedRange = this.evaluateTemporal(ground,offset)
-//		//(distance)
-//		val distance=(origin.begin-realGround)+(location.begin-virtualOrigin.begin)
-//		assert(interv.seconds > 0.0, "Interval is zero or negative: " + interv)
-//		assert(!(distance/interv).isNaN, 
-//			"NaN diff: " + origin + ", " + virtualOrigin + ", " + location + ": " + 
-//			realGround)
-//		distance/interv
-//	}
-//
-//	override def move(offset:Long):Sequence = {
-//		new RepeatedRange(snapFn,base,interv,bound,moveOffset + offset).name(name)
-//	}
-//	
-//	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
-//			):(TraverseFn,E)={
-//		val offset = rawOffset + moveOffset
-//		var cache:Temporal = null; var cacheCond:Range = null
-//		val term = if( cache == null || ground != cacheCond) {
-//				//(update cache condition)
-//				cacheCond = ground
-//				//(get start)
-//				val beginT:Time = 
-//					if(bound == null) {
-//						ground.begin
-//					} else {
-//						if(ground.begin > bound.begin && ground.begin < bound.end)
-//							{ ground.begin }
-//						else { bound.begin }
-//					}
-//				//(snap beginning)
-//				val begin:Time = 
-//					if(bound == null){ snapFn(beginT+interv*offset) } 
-//					else{ snapFn(beginT+interv*offset) }
-//				//(ground the time)
-//				val rtn = new GroundedRange(
-//					begin+base.beginOffset,
-//					begin+base.beginOffset+base.norm)
-//				if(O.cacheTemporalComputations){ 
-//					cache = rtn
-//				} else{
-//					cache = null
-//					cacheCond = null
-//				}
-//				rtn
-//			} else {
-//				cache
-//			}
-//		//(return cache)
-//		val rtn:E = term match {
-//			case (e:E) => 
-//				assert(e.isInstanceOf[GroundedRange], "Range not grounded")
-//				e
-//			case _ => throw new IllegalArgumentException("Runtime Type Error")
-//		}
-//		( (fn:TraverseTask) => fn(this,offset,0), rtn )
-//	}
-//	
-//	override def exists(ground:GroundedRange,rawOffset:Long):Boolean = {
-//		val offset = rawOffset //evaluate already incorporates new offset
-//		if(bound == null) { true }
-//		else {
-//			val guess:GroundedRange = evaluateTemporal(ground,offset)
-//			(guess.begin >= bound.begin && guess.end <= bound.end)
-//		}
-//	}
-//
-//	override def prob(ground:GroundedRange,rawOffset:Long):Double = {
-//		val offset = rawOffset //evaluate already incorporates new offset
-//		if(this.distrib == null)
-//			{ this.distrib = updater._2(this.toString,false) }
-//		val cand:Double = this.distrib( offset, diff(ground,offset,0) )
-//		assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
-//		cand
-//	}
-//
-//
-//	
-//	def intersect(range:GroundedRange) = {
-//		if(range.begin == Time.END_OF || range.end == Time.DAWN_OF){
-//			//(case: intersecting with some invalid time)
-//			new NoTime
-//		} else if(this.bound == null){
-//			//(case: creating a new bound)
-//			new RepeatedRange(snapFn,base,interv,range,moveOffset).name(name)
-//		} else {
-//			//(case: refining an existing bound)
-//			val newBound = (range ^ bound).asInstanceOf[GroundedRange]
-//			newBound match {
-//				//((no such bound))
-//				case (nt:NoTime) => new NoTime
-//				//((new grounded range))
-//				case (gr:GroundedRange) =>
-//					new RepeatedRange(snapFn,base,interv,newBound,moveOffset).name(name)
-//				//((impossible)
-//				case _ => throw new IllegalStateException("bad intersect: " + newBound)
-//			}
-//		}
-//	}
-//
-//	override def >>(diff:Duration):Range 
-//		= new RepeatedRange(snapFn, (base >> diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
-//	override def <<(diff:Duration):Range 
-//		= new RepeatedRange(snapFn, (base << diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
-//	override def <|(diff:Duration):Range 
-//		= new RepeatedRange(snapFn, (base <| diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
-//	override def |>(diff:Duration):Range 
-//		= new RepeatedRange(snapFn, (base |> diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
-//	override def |<(diff:Duration):Range 
-//		= new RepeatedRange(snapFn, (base |< diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
-//	override def >|(diff:Duration):Range 
-//		= new RepeatedRange(snapFn, (base >| diff).asInstanceOf[UngroundedRange], 
-//				interv, bound, moveOffset).name(name)
-//	override def !(dur:Duration):Range = this
-//	override def norm:GroundedDuration = interv.interval
-//	
-//	override def interval:GroundedDuration = interv.interval
-//	override def seconds:Long = interv.seconds
-//
-//	override def units:Array[DurationUnit.Value] = base.norm.units
-//
-//	override def +(diff:Duration):Duration 
-//		= new RepeatedRange(snapFn, base, interv + diff, bound, moveOffset)
-//			.name(name)
-//	override def -(diff:Duration):Duration 
-//		= new RepeatedRange(snapFn, base, interv - diff, bound, moveOffset)
-//			.name(name)
-//	override def *(n:Long):Duration 
-//		= new RepeatedRange(snapFn, base, interv * n, bound, moveOffset)
-//			.name(name)
-//	
-//	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
-//	private var name:String = this.base.toString + " every " + interv
-//	def name(n:String):RepeatedRange = {this.name = n; this}
-//	override def toString:String = {
-//		if(bound == null){
-//			name+{
-//				if(moveOffset != 0L) {if(moveOffset > 0) "+" else ""}+moveOffset 
-//				else "" }
-//		} else {
-//			this.base.toString + " in " + bound
-//		}
-//	}
-//	override def hashCode:Int =throw new IllegalStateException("Dont hash me bro")
-//}
-
 case class RepeatedRange(
 		base:Partial,norm:GroundedDuration,interv:Duration,
 		delta:Duration, bound:GroundedRange, moveOffset:Long) extends Sequence{
@@ -1581,7 +1405,7 @@ case class RepeatedRange(
 				e
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
-		( (fn:TraverseTask) => fn(this,offset,0), rtn )
+		( (fn:TraverseTask) => fn(this,rawOffset,0), rtn )
 	}
 	
 	override def exists(ground:GroundedRange,rawOffset:Long):Boolean = {
@@ -1739,8 +1563,8 @@ object Sequence {
 //				}
 				val distribImpl = new NormalDistributionImpl(mu,math.sqrt(sigmasq))
 				dist = (offset:Long,x:Double) => {
-					distribImpl.cumulativeProbability(x+1.0)-
-					distribImpl.cumulativeProbability(x)               //<--CDF
+					distribImpl.cumulativeProbability(x+0.5)-
+					distribImpl.cumulativeProbability(x-0.5)               //<--CDF
 				}
 			}
 			seenE = false

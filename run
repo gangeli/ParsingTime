@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.6.jar"
 JAR='time'
 
-@timeDistribution = 0
+@timeDistribution = 2
 
 # -- RUN --
 env!( 
@@ -43,7 +43,7 @@ env!(
 			'bestAll',
 			'bestRandom',
 			'bestShallow',
-			'shortAll'),
+			'shortWithOffsetZero'),
 		selo(3,'CkyCountNormalization',
 			'none',
 			'uniform',
@@ -62,22 +62,18 @@ env!(
 			'PCFG',
 			'GOLD'),
 		selo(0,'initMethod','uniform','random'),
-#		o('allowPartialTime'),
-#		o('hardEM'),
-#		o('freeNils'),
 		o('lexNils'),
-#		o('includeRuleInLexProb'), # I think including this is correct...
 		# <training>
-		o('beam', 100), #1500 works well
-		o('iters', 40),
-		o('scoreBeam', 1),
+		o('beam', 1500), #1500 works well
+		o('iters', 10),
+		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
-		# <testing params>
+		#<params>
+		o('useTime'),
 		o('pruneTime', 100),
 		o('pruneMinIndex',10),
-#		o('includeTimeProb'),
-		#<params>
-		o('usetime'),
+		o('includeTimeProb'),
+		selo(0,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
 #		o('exactMatchThreshold', 60*60*24), # a day
@@ -85,8 +81,6 @@ env!(
 		o('scoreGranularity', 60*60*24),    # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
-#		o('guessRange'),
-#		o('instantAsDay'),
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
@@ -99,7 +93,14 @@ env!(
 		o('collapseNumbers'),
 		o('bucketNumbers'),
 
+		# -- OLD --
 #		o('ignoreCase'),
+#		o('includeRuleInLexProb'), # I think including this is correct...
+#		o('allowPartialTime'),
+#		o('hardEM'),
+#		o('freeNils'),
+#		o('guessRange'),
+#		o('instantAsDay'),
 
 		# -- DEBUG --
 		#(general)

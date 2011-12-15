@@ -70,7 +70,7 @@ public class O {
 	public static Dirichlet<scala.Int> lexPrior = Dirichlet.ZERO();
 	@Option(name="nilWordPrior", gloss="Dirichlet prior for CKY lexical terms")
 	public static Dirichlet<scala.Int> nilWordPrior = Dirichlet.ZERO();
-	@Option(name="useTime", gloss="Parse date and time both")
+	@Option(name="useTime", gloss="Parse date and time both in grammar")
 	public static boolean useTime = false;
 	@Option(name="hardEM", gloss="Use hard rather than soft EM updates")
 	public static boolean hardEM = false;
@@ -85,7 +85,7 @@ public class O {
 	@Option(name="kbestCKYAlgorithm", gloss="algorithm from (Huang et. al)")
 	public static int kbestCKYAlgorithm = 0;
 	public static enum CkyCountType{ 
-		all, bestAll, bestRandom, bestShallow, shortAll }
+		all, bestAll, bestRandom, bestShallow, shortWithOffsetZero }
 	@Option(name="ckyCountType", gloss="Parses to count as 'correct' for EM")
 	public static CkyCountType ckyCountType = CkyCountType.bestAll;
 	public static enum CkyCountNormalization{ none, uniform, 
@@ -147,6 +147,8 @@ public class O {
 	public static int pruneMinIndex = Integer.MAX_VALUE;
 	@Option(name="includeTimeProb", gloss="P(output) = P(parse)*P(time)")
 	public static boolean includeTimeProb = false;
+	@Option(name="sortTimeProbInScore", gloss="Compute P(parse)*P(time) or pipeline")
+	public static boolean sortTimeProbInScore = false;
 	
 	//--DEBUG
 	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")

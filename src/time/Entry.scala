@@ -464,7 +464,7 @@ trait DataStore {
 							//(debug)
 							if(O.printAllParses){
 								log(FORCE,i+"["+offset+"] "+
-									(parse.logProb+math.log(prob))+" "+parse)
+									G.df.format((parse.logProb+math.log(prob)))+" "+parse)
 							}
 							assert(parseProb == parse.logProb, "yes, I get strange bugs")
 							//(create parse)
@@ -485,14 +485,24 @@ trait DataStore {
 					(soFar,isPruned)
 				}
 		}._1.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
-			if( (b.prob - a.prob).abs < 1e-6 ){
+			if(O.sortTimeProbInScore){
+				//(case: order by P(parse)*P(time))
+				if( (b.prob - a.prob).abs < 1e-6 ){
+					if(a.index == b.index){
+						b.offset.abs > a.offset.abs
+					} else {
+						b.index > a.index
+					}
+				} else {
+					b.prob < a.prob 
+				}
+			} else {
+				//(case: order by P(parse) breaking ties with P(time))
 				if(a.index == b.index){
-					b.offset.abs > a.offset.abs
+					b.prob < a.prob
 				} else {
 					b.index > a.index
 				}
-			} else {
-				b.prob < a.prob 
 			}
 		}.toArray
 		if(O.printAllParses) { 
@@ -505,9 +515,9 @@ trait DataStore {
 		if(scores.length > 0){
 			//(get guess)
 			val bestGuess = scores(0)
-//			assert(O.timeDistribution != O.Distribution.Point || 
-//				bestGuess.offset == 0,
-//				"Sanity check for time distribution") //TODO CRITICAL bug caught here
+			assert(O.timeDistribution != O.Distribution.Point || 
+				bestGuess.offset == 0,
+				"Sanity check for time distribution")
 			//(is in beam?)
 			val correct:Array[ScoreElem] = scores.filter{ (elem:ScoreElem) => 
 				assert(!elem.prob.isNaN && elem.prob <= 0.0, "invalid probability")
@@ -710,7 +720,13 @@ object ToyData {
 	private val friday = ("friday",Parse(DOW(5)(todaysDate,0)))
 	private val saturday = ("saturday",Parse(DOW(6)(todaysDate,0)))
 	private val sunday = ("sunday",Parse(DOW(7)(todaysDate,0)))
+	private val monday_neg1 = ("monday",Parse(DOW(1)(todaysDate,-1)))
+	private val tuesday_neg1 = ("tuesday",Parse(DOW(2)(todaysDate,-1)))
+	private val wednesday_neg1 = ("wednesday",Parse(DOW(3)(todaysDate,-1)))
+	private val thursday_neg1 = ("thursday",Parse(DOW(4)(todaysDate,-1)))
 	private val friday_neg1 = ("friday",Parse(DOW(5)(todaysDate,-1)))
+	private val saturday_neg1 = ("saturday",Parse(DOW(6)(todaysDate,-1)))
+	private val sunday_neg1 = ("sunday",Parse(DOW(7)(todaysDate,-1)))
 
 	private case class ToyStore(gold:Array[(String,Parse)],test:Boolean) 
 			extends DataStore {
@@ -766,28 +782,30 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
-				//(sequences)
-				week,month,quarter,year,day,theWeek,
-				//(cannonicals -> sequences)
-				thisWeek,thisYear,thisMonth,
-				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,nextMonth,
-				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastMonths2,
-				//(numbers -- basic)
-				y1776,
-				//(sequences)
-				april,
-				//(intersects)
-				april1776,april2,
-				//(days of the week)
-				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+//				//(durations)
+//				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
+//				//(sequences)
+//				week,month,quarter,year,day,theWeek,
+//				//(cannonicals -> sequences)
+//				thisWeek,thisYear,thisMonth,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,nextMonth,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
+//				//(days of the week)
+//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
 //				//(numbers -- complex)
 //				y17sp76,
+				//(friday offset -1)
+				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday
 				//(ref)
-				today
+//				today
 			).internWords,
 			//--Test
 			store(true,lastMonth))
