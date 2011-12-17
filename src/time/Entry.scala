@@ -685,9 +685,9 @@ object ToyData {
 	private val aWeek = ("a week",Parse(AWEEK))
 	private val theWeek = ("the week",Parse(WEEK(todaysDate)))
 	private val thisWeek = ("this week",Parse(REF ! AWEEK))
-	private val lastWeekToday = ("last week today",Parse(REF <<! WEEK))
-	private val lastWeekNow = ("last week now",Parse(REF <<! WEEK))
-	private val lastWeek = ("last week",Parse(REF <<! WEEK))
+	private val lastWeekToday = ("last week today",Parse(WEEK move -1))
+	private val lastWeekNow = ("last week now",Parse(WEEK move -1))
+	private val lastWeek = ("last week",Parse(WEEK move -1))
 	private val pastWeek = ("past week",Parse(REF <| AWEEK))
 	private val thePastWeek = ("the past week",Parse(REF <| AWEEK))
 	private val pastMonths2 = ("past 2 months",Parse(REF <| (AMONTH*2)))
@@ -696,12 +696,12 @@ object ToyData {
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(AMONTH))
 	private val theMonth = ("the month",Parse(MONTH))
-	private val lastMonth = ("last month",Parse(REF <<! AMONTH))
-	private val nextMonth = ("next month",Parse(REF >>! AMONTH))
-	private val thisMonth = ("this month",Parse(REF ! AMONTH))
+	private val lastMonth = ("last month",Parse(MONTH move -1))
+	private val nextMonth = ("next month",Parse(MONTH move 1))
+	private val thisMonth = ("this month",Parse(AMONTH))
 	private val quarter = ("quarter",Parse(QUARTER))
 	private val aQuarter = ("a quarter",Parse(AQUARTER))
-	private val lastQuarter = ("last quarter",Parse(REF <<! AQUARTER))
+	private val lastQuarter = ("last quarter",Parse(QUARTER move -1))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(AMONTH*2))
@@ -711,8 +711,8 @@ object ToyData {
 	private val april2 = ("april 2",Parse(MOY(4) ^ DOM(2)))
 	private val year = ("year",Parse(YEAR))
 	private val ayear = ("a year",Parse(AYEAR))
-	private val lastYear = ("last year",Parse(REF <<! YEAR))
-	private val thisYear = ("this year",Parse(REF ! AYEAR))
+	private val lastYear = ("last year",Parse(YEAR move -1))
+	private val thisYear = ("this year",Parse(YEAR))
 	private val monday = ("monday",Parse(DOW(1)(todaysDate,0)))
 	private val tuesday = ("tuesday",Parse(DOW(2)(todaysDate,0)))
 	private val wednesday = ("wednesday",Parse(DOW(3)(todaysDate,0)))
@@ -727,6 +727,7 @@ object ToyData {
 	private val friday_neg1 = ("friday",Parse(DOW(5)(todaysDate,-1)))
 	private val saturday_neg1 = ("saturday",Parse(DOW(6)(todaysDate,-1)))
 	private val sunday_neg1 = ("sunday",Parse(DOW(7)(todaysDate,-1)))
+	private val special_chars = ("today '",Parse(REF(todaysDate)))
 
 	private case class ToyStore(gold:Array[(String,Parse)],test:Boolean) 
 			extends DataStore {
@@ -804,6 +805,8 @@ object ToyData {
 				y17sp76,
 //				//(offset -1)
 //				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday,
+				//(special chars)
+				special_chars,
 				//(ref)
 				today
 			).internWords,

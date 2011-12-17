@@ -35,6 +35,8 @@ trait Temporal {
 	
 	final def traverse(ground:GroundedRange,offset:Long,	
 			fn:TraverseTask):Unit = {
+		assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
+			"nonzero offset with point distribution")
 		val (feedback,rtn):(TraverseFn,Temporal) = evaluate(ground,offset)
 		feedback(fn)
 	}
@@ -92,8 +94,10 @@ trait Temporal {
 				assert(hasNext, "Calling next when there is no next")
 				val pLeft = prob(ground,leftPointer)
 				val pRight = prob(ground,rightPointer)
-				if(Temporal.this.exists(ground,rightPointer) && 
-						(pRight >= pLeft || !Temporal.this.exists(ground,leftPointer))) {
+				if( pRight > 0.0 &&
+				    Temporal.this.exists(ground,rightPointer) && 
+				    (pRight >= pLeft || !Temporal.this.exists(ground,leftPointer))) {
+					//(case: have times on the right)
 					assert(Temporal.this.exists(ground,rightPointer),"invalid if cond")
 					val rtn:Temporal = Temporal.this.evaluateTemporal(ground,rightPointer)
 					assert(!rtn.isInstanceOf[NoTime], 
@@ -101,7 +105,8 @@ trait Temporal {
 							Temporal.this + " at " + rightPointer)
 					rightPointer += 1
 					(rtn,pRight,rightPointer-1)
-				} else if(Temporal.this.exists(ground,leftPointer)) {
+				} else if(pLeft > 0.0 && Temporal.this.exists(ground,leftPointer)) {
+					//(case: have times on the left)
 					assert(Temporal.this.exists(ground,leftPointer),"invalid if cond")
 					val rtn:Temporal = Temporal.this.evaluateTemporal(ground,leftPointer)
 					assert(!rtn.isInstanceOf[NoTime], 
@@ -109,7 +114,12 @@ trait Temporal {
 							Temporal.this + " at " + leftPointer)
 					leftPointer -= 1
 					(rtn,pLeft,leftPointer+1)
+				} else if(pLeft == 0.0 || pRight == 0.0){
+					//(case: every time has zero probability)
+						rightPointer += 1
+					(new NoTime,0.0,rightPointer-1)
 				} else {
+					//(case: error)
 					assert(!hasNext, "Inconsistent iterator")
 					throw new NoSuchElementException()
 				}
@@ -313,7 +323,7 @@ object Temporal {
 // RANGE
 //------------------------------------------------------------------------------
 // ----- RANGE -----
-trait Range extends Temporal{
+trait Range extends Temporal {
 	def >>(diff:Duration):Range //shift right
 	def <<(diff:Duration):Range //shift left
 	def |>(diff:Duration):Range //extend right
@@ -342,17 +352,46 @@ trait Range extends Temporal{
 //	}
 
 	def ^(other:Range):Range = {
-		(this, other) match {
+		val rtn:Range = (this, other) match {
 			case (a:Range,b:NoTime) => new NoTime
-			case (a:GroundedRange,b:GroundedRange) => 
-				val cand = new GroundedRange(
-					Range.mkBegin(a.begin,b.begin),
-					Range.mkEnd(a.end,b.end)
-				)
-				if(cand.end < cand.begin){ new NoTime }
-				else{ cand }
-			case (a:GroundedRange,b:RepeatedRange) => b.intersect(a) //shortcut
-			case (a:RepeatedRange,b:GroundedRange) => a.intersect(b) //.
+			case (a:SingletonRange,b:SingletonRange) => 
+				//(case: two singletons)
+				def groundedUngrounded(gr:GroundedRange,ur:UngroundedRange
+						):SingletonRange = {
+					//TODO DEADLINE HACK
+					ur
+				}
+				(a,b) match {
+					case (a:GroundedRange,b:GroundedRange) =>
+						val cand = new GroundedRange(
+							Range.mkBegin(a.begin,b.begin),
+							Range.mkEnd(a.end,b.end)
+						)
+						if(cand.end < cand.begin){ new NoTime }
+						else{ cand }
+					case (a:GroundedRange,b:UngroundedRange) => groundedUngrounded(a,b)
+					case (a:UngroundedRange,b:GroundedRange) => groundedUngrounded(b,a)
+					case (a:UngroundedRange,b:UngroundedRange) => {
+						val begin:Duration = Duration.max(a.begin,b.begin)
+						val end:Duration = Duration.min(a.end,b.end)
+						val norm:Duration = end-begin
+						if(norm < 0){ 
+							new NoTime
+						} else if(begin == Duration.NEG_INFINITE 
+								&& end == Duration.NEG_INFINITE){ 
+							new NoTime
+						} else if(begin == Duration.NEG_INFINITE){ 
+							new UngroundedRange(-norm,end) 
+						} else {
+							new UngroundedRange(norm,begin) 
+						}
+					}
+					case _ => throw fail("No such case in theory (new SingletonRange?)")
+				}
+			case (a:SingletonRange,b:AnalyticallyIntersectable) => 
+				b.intersectAnalytically(a) //shortcut
+			case (a:AnalyticallyIntersectable,b:SingletonRange) => 
+				a.intersectAnalytically(b) //^
 			case (a:RepeatedRange,b:RepeatedRange) => 
 				if( a.delta == Duration.ZERO && b.delta == Duration.ZERO &&
 				    (a.interv == b.norm || b.interv == a.norm)  ){
@@ -363,31 +402,53 @@ trait Range extends Temporal{
 				} else {
 					Range.intersectSearch(b,a)
 				}
-			case _ => Range.intersectSearch(this,other)
+			case (a:RepeatedRange,b:CompositeRange) => Range.intersectSearch(a,b)
+			case (a:CompositeRange,b:RepeatedRange) => Range.intersectSearch(a,b)
+			case (a:CompositeRange,b:CompositeRange) => Range.intersectSearch(a,b)
+			case _ => throw fail("Cannot intersect: " + this + " with " + other +
+				" types: " + this.getClass + " " + other.getClass + "  : "+
+				(this.isInstanceOf[Sequence] && other.isInstanceOf[Sequence]))
 		}
+		rtn
 	}
 
+}
+
+trait SingletonRange extends Range {
+	def ground(ground:GroundedRange):GroundedRange = evaluateTemporal(ground,0L)
+	def isAllTime:Boolean = {
+		this match {
+			case (gr:GroundedRange) => 
+				(gr.begin eq Time.DAWN_OF) && (gr.end == Time.END_OF)
+			case _ => false
+		}
+	}
+}
+trait AnalyticallyIntersectable {
+	def intersectAnalytically(bound:SingletonRange):Range
 }
 
 // ----- COMPOSITE RANGE -----
 class CompositeRange( 
 			applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange),
 			probFn:(GroundedRange,Long)=>Double,
-			existsFn:(GroundedRange,Long)=>Boolean,
+			existsFn:(GroundedRange,Long,GroundedRange)=>Boolean,
 			theNorm:GroundedDuration,
 			ops:List[String],
-			moveOffset:Long
-		) extends Sequence {
+			moveOffset:Long,
+			bound:SingletonRange
+		) extends Sequence with AnalyticallyIntersectable {
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
 			):(TraverseFn,E)={
 		val offset = rawOffset + moveOffset
-		assert(existsFn(ground,offset),"Applying when exists is not satisfied (ev)")
+		assert(existsFn(ground,offset,bound.ground(ground)),
+			"Applying when exists is not satisfied (evaluate)")
 		val (tFn,rtn) = applyFn(ground,offset)
 		assert(rtn.isInstanceOf[GroundedRange], "Composite ungrounded")
 		rtn match {
 			case (e:E) =>
-				(Temporal.fnCat(tFn, (fn:TraverseTask) => fn(this,offset,0)), e)
+				(Temporal.fnCat(tFn, (fn:TraverseTask) => fn(this,offset,moveOffset)), e)
 			case _ => throw new IllegalArgumentException("Runtime Type Error")
 		}
 	}
@@ -397,11 +458,12 @@ class CompositeRange(
 	}
 	override def exists(ground:GroundedRange,rawOffset:Long):Boolean = {
 		val offset = rawOffset + moveOffset //new exists though
-		existsFn(ground,offset)
+		existsFn(ground,offset,bound.ground(ground))
 	}
 
 	override def move(offset:Long)
-		= new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,moveOffset+offset)
+		= new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,
+			moveOffset+offset,bound)
 
 	// -- Prune Intersection --
 	private var neverIntersectsImpl = List[Range=>Boolean]()
@@ -410,6 +472,29 @@ class CompositeRange(
 		this
 	}
 	override def neverIntersects:List[Range=>Boolean] = neverIntersectsImpl
+	
+	override def intersectAnalytically(range:SingletonRange):Range = {
+		if(range.isAllTime){
+			//(case: intersecting with some invalid time)
+			new NoTime
+		} else if(this.bound == null){
+			//(case: creating a new bound)
+			new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,moveOffset,bound)
+		} else {
+			//(case: refining an existing bound)
+			val newBound = (range ^ bound)
+			newBound match {
+				//((no such bound))
+				case (nt:NoTime) => new NoTime
+				//((new grounded range))
+				case (gr:SingletonRange) =>
+					new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,
+						moveOffset,gr)
+				//((impossible))
+				case _ => throw new IllegalStateException("bad intersect: " + newBound)
+			}
+		}
+	}
 	
 	// -- Range Functions --
 	override def +(diff:Duration):Duration 
@@ -441,10 +526,12 @@ class CompositeRange(
 				fn(rtn).asInstanceOf[GroundedRange]  )
 			},
 			(ground:GroundedRange,offset:Long) => this.probFn(ground,offset),
-			(ground:GroundedRange,offset:Long) => this.existsFn(ground,offset),
+			(ground:GroundedRange,offset:Long,bound:GroundedRange) => 
+				this.existsFn(ground,offset,bound),
 			newNorm.interval,
 			op :: this.ops,
-			moveOffset
+			moveOffset,
+			bound
 		)
 	}
 	
@@ -454,7 +541,7 @@ class CompositeRange(
 }
 
 // ----- GROUNDED RANGE -----
-class GroundedRange(val begin:Time,val end:Time) extends Range {
+class GroundedRange(val begin:Time,val end:Time) extends SingletonRange {
 	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){
 			this match{ 
@@ -511,10 +598,10 @@ class GroundedRange(val begin:Time,val end:Time) extends Range {
 
 // ----- UNGROUNDED RANGE -----
 class UngroundedRange(val normVal:Duration,val beginOffset:Duration
-		) extends Range{
+		) extends SingletonRange{
 	//(sanity checks)
 	assert(beginOffset < Duration.INFINITE && beginOffset > Duration.NEG_INFINITE,
-		"Ungrounded range with infinite offset")
+		"Ungrounded range with infinite offset: " + beginOffset)
 
 	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){ 
@@ -544,12 +631,12 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	override def >>(diff:Duration):Range =
 		if(diff == Duration.INFINITE){ Range(Time.END_OF, Time.END_OF) }
 		else if(diff == Duration.NEG_INFINITE){ Range(Time.DAWN_OF, Time.DAWN_OF) }
-		else { new UngroundedRange(normVal,beginOffset+diff) }
+		else { new UngroundedRange(normVal,beginOffset+diff.interval) }
 
 	override def <<(diff:Duration):Range =
 		if(diff == Duration.INFINITE){ Range(Time.DAWN_OF, Time.DAWN_OF) }
 		else if(diff == Duration.NEG_INFINITE){ Range(Time.END_OF, Time.END_OF) }
-		else { new UngroundedRange(normVal,beginOffset-diff) }
+		else { new UngroundedRange(normVal,beginOffset-diff.interval) }
 
 	override def <|(diff:Duration):Range
 		= if(diff.isInstanceOf[FuzzyDuration]){
@@ -557,7 +644,7 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 		} else {
 			if(diff == Duration.INFINITE){ Lex.PAST }
 			else if(diff == Duration.NEG_INFINITE){ Lex.FUTURE }
-			new UngroundedRange(diff,beginOffset-diff)
+			new UngroundedRange(diff.interval,beginOffset-diff.interval)
 		}
 
 	override def |>(diff:Duration):Range 
@@ -569,19 +656,19 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 				Range(Time.DAWN_OF,Time.DAWN_OF) }
 			else if(diff == Duration.INFINITE){ Lex.FUTURE }
 			else if(diff == Duration.NEG_INFINITE){ Lex.PAST }
-			else { new UngroundedRange(diff,beginOffset+normVal) }
+			else { new UngroundedRange(diff.interval,beginOffset+normVal) }
 		}
 
 	override def |<(diff:Duration):Range = {
 		if(diff < 0){ new NoTime }
 		else if(diff == Duration.INFINITE){ Range(Time.END_OF, Time.END_OF) }
-		else { new UngroundedRange(diff,beginOffset) }
+		else { new UngroundedRange(diff.interval,beginOffset) }
 	}
 
 	override def >|(diff:Duration):Range = {
 		assert(diff >= 0, "Shrinking to a negative duration")
 		if(diff == Duration.INFINITE){ Range(Time.DAWN_OF, Time.DAWN_OF) }
-		else { new UngroundedRange(diff,beginOffset+normVal-diff) }
+		else { new UngroundedRange(diff.interval,beginOffset+normVal-diff.interval)}
 	}
 	
 	def norm:GroundedDuration = normVal.interval
@@ -599,12 +686,20 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 					}
 				},
 				this.prob(_:GroundedRange,_:Long),
-				this.exists(_:GroundedRange,_:Long),
+				(ground:GroundedRange,offset:Long,bound:GroundedRange) => {
+					this.exists(ground,offset) &&
+						((ground.begin + begin) <= bound.end ||
+						(ground.begin + end) >= bound.begin)
+				},
 				dur.interval,
 				List[String](this + " ! " + dur),
-				0L
+				0L,
+				Lex.ALL_TIME
 			)
 	}
+
+	def begin:Duration = Duration.min(beginOffset,beginOffset+normVal)
+	def end:Duration = Duration.max(beginOffset,beginOffset+normVal)
 	
 	override def equals(o:Any):Boolean = o match {
 		case (ur:UngroundedRange) => 
@@ -775,7 +870,7 @@ object Range {
 				if(a.interv > b.interv){ a.interv }
 				else{ b.interv }
 			//(create bound)
-			val bound:GroundedRange = 
+			val bound:SingletonRange = 
 				if(a.bound != null && b.bound != null){
 					(a.bound ^ b.bound) match {
 						case (gr:GroundedRange) => gr
@@ -795,7 +890,7 @@ object Range {
 			//(create repeated range)
 			new RepeatedRange(partial,norm,interv,Duration.ZERO,bound,moveOffset)
 		} 
-		def intersectSearch(rA:Range,rB:Range):Range = {
+		def intersectSearch(rA:Sequence,rB:Sequence):Range = {
 			//--Cache and Pruning
 			//(pruning)
 			if( !rA.neverIntersects.forall{ (f:Range=>Boolean) => !f(rB) } ||
@@ -854,24 +949,22 @@ object Range {
 					noTerm
 				} else {
 					//(create info)
-					val intersect = map.get(offset.toInt)
+					val intersect:Option[Intersection] = map.get(offset.toInt)
 					intersect match {
 					case Some(intersect) =>
 						val (originA,originB) = intersect.origin
 						if(rA.exists(ground,intersect.a) && rB.exists(ground,intersect.b)){
 							//^TODO this check really shouldn't have to be here
 							//((term A))
+							val movedA = rA move originA
 							val (fnA,grA):(TraverseFn,GroundedRange) =
-								rA.evaluate(ground,intersect.a)
-							val (fnOriginA,grOriginA):(TraverseFn,GroundedRange) =
-								rA.evaluate(ground,originA)
-							val probA = rA.prob(grOriginA,intersect.a-originA)
+								movedA.evaluate(ground,intersect.a-originA)
+							val probA = movedA.prob(ground,intersect.a-originA)
 							//((term B))
-							val (fnB,grB):(TraverseFn,GroundedRange) = 
-								rB.evaluate(ground,intersect.b)
-							val (fnOriginB,grOriginB):(TraverseFn,GroundedRange) =
-								rB.evaluate(ground,originB)
-							val probB = rB.prob(ground,intersect.b-originB)
+							val movedB = rB move originB
+							val (fnB,grB):(TraverseFn,GroundedRange) =
+								movedB.evaluate(ground,intersect.b-originB)
+							val probB = movedB.prob(ground,intersect.b-originB)
 							//(return)
 							assert(probA >= 0 && probA <= 1, "Not a probability: " + probA)
 							assert(probB >= 0 && probB <= 1, "Not a probability: " + probB)
@@ -903,16 +996,18 @@ object Range {
 					prob
 				}
 			//(exists)
-			val existsFn:(GroundedRange,Long)=>Boolean = 
-				(g:GroundedRange,offset:Long) => {
+			val existsFn:(GroundedRange,Long,GroundedRange)=>Boolean = 
+				(g:GroundedRange,offset:Long,bound:GroundedRange) => {
 					val (fn,gr,prob,exists) = info(g,offset)
-					exists && !gr.isInstanceOf[NoTime]
+					exists && !gr.isInstanceOf[NoTime] &&
+						(gr.begin <= bound.end || gr.end >= bound.begin)
 				}
 			//(apply)
 			val applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange) =
 				(g:GroundedRange,offset:Long) => {
 					val (fn,gr,prob,exists) = info(g,offset)
-					assert(existsFn(g,offset),"Applying when exists is not satisfied")
+					assert(existsFn(g,offset,Lex.ALL_TIME),
+						"Applying when exists is not satisfied")
 					(fn,gr)
 				}
 			//--Create Misc
@@ -923,7 +1018,7 @@ object Range {
 			//(string)
 			val ops = List[String]("("+rA+") ^ ("+rB+")")
 			//--Return
-			new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L)
+			new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L,Lex.ALL_TIME)
 				.prohibitIntersectWith(rA.neverIntersects)
 				.prohibitIntersectWith(rB.neverIntersects)
 		}
@@ -1027,18 +1122,31 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 		if((this eq Duration.NEG_INFINITE) || (this eq Duration.INFINITE)){
 			return this
 		}
+		def check(v:Long,fn:Int=>Period,i:Int):Period = {
+			if(v <= Int.MinValue){
+				return Duration.NEG_INFINITE.base.toPeriod
+			} else if(v >= Int.MaxValue) {
+				return Duration.INFINITE.base.toPeriod
+			} else {
+				fn(i)
+			}
+		}
 		import DurationUnit._
 		try{
-			def check(v:Long) = {
-				assert(v <= Int.MaxValue && v >= Int.MinValue, "Bad multiply: " + v)
-			}
-			def addYears(p:Period,v:Long):Period  ={ check(v); p.plusYears(v.toInt)  }
-			def addMonths(p:Period,v:Long):Period ={ check(v); p.plusMonths(v.toInt) }
-			def addWeeks(p:Period,v:Long):Period  ={ check(v); p.plusWeeks(v.toInt)  }
-			def addDays(p:Period,v:Long):Period   ={ check(v); p.plusDays(v.toInt)   }
-			def addHours(p:Period,v:Long):Period  ={ check(v); p.plusHours(v.toInt)  }
-			def addMinutes(p:Period,v:Long):Period={ check(v); p.plusMinutes(v.toInt)}
-			def addSeconds(p:Period,v:Long):Period={ check(v); p.plusSeconds(v.toInt)}
+			def addYears(p:Period,v:Long):Period  
+				={check(v,p.plusYears(_),v.toInt)  }
+			def addMonths(p:Period,v:Long):Period 
+				={check(v,p.plusMonths(_),v.toInt) }
+			def addWeeks(p:Period,v:Long):Period  
+				={check(v,p.plusWeeks(_),v.toInt)  }
+			def addDays(p:Period,v:Long):Period   
+				={check(v,p.plusDays(_),v.toInt)   }
+			def addHours(p:Period,v:Long):Period  
+				={check(v,p.plusHours(_),v.toInt)  }
+			def addMinutes(p:Period,v:Long):Period
+				={check(v,p.plusMinutes(_),v.toInt)}
+			def addSeconds(p:Period,v:Long):Period
+				={check(v,p.plusSeconds(_),v.toInt)}
 			var p = base.toPeriod
 			new GroundedDuration( units.foldLeft(Period.ZERO){ 
 				case (soFar:Period,term:DurationUnit.Value) => term match {
@@ -1216,8 +1324,10 @@ object Duration {
 			case SECOND    => this.apply(Seconds.ONE)
 		}
 	}
-	val INFINITE:Duration = new GroundedDuration( Period.years(Int.MaxValue) )
-	val NEG_INFINITE:Duration = new GroundedDuration( Period.years(Int.MinValue) )
+	def min(a:Duration,b:Duration) = if(a < b) a else b
+	def max(a:Duration,b:Duration) = if(a < b) b else a
+	val INFINITE = new GroundedDuration( Period.years(Int.MaxValue) )
+	val NEG_INFINITE = new GroundedDuration( Period.years(Int.MinValue) )
 	val ZERO:Duration = new GroundedDuration( new Period(0L) )
 }
 
@@ -1296,9 +1406,10 @@ trait Sequence extends Range with Duration {
 }
 
 // ----- REPEATED RANGE -----
-case class RepeatedRange(
-		base:Partial,norm:GroundedDuration,interv:Duration,
-		delta:Duration, bound:GroundedRange, moveOffset:Long) extends Sequence{
+class RepeatedRange(
+		val base:Partial,val norm:GroundedDuration,val interv:Duration,
+		val delta:Duration, val bound:SingletonRange, val moveOffset:Long
+		) extends Sequence with AnalyticallyIntersectable {
 
 	private def doGround(ground:GroundedRange,offset:Long):GroundedRange = {
 		try {
@@ -1360,7 +1471,8 @@ case class RepeatedRange(
 		) 
 	
 	override def diff(ground:GroundedRange,offset:Long,originOffset:Long):Double={
-		val realGround:Time = if(bound == null) ground.begin else bound.begin
+		val realGround:Time = 
+			if(bound == null) ground.begin else bound.ground(ground).begin
 		//(important markers)
 //		val origin:GroundedRange = this.evaluateTemporal(ground,0)
 		val virtualOrigin:GroundedRange = this.evaluateTemporal(ground,originOffset)
@@ -1396,10 +1508,15 @@ case class RepeatedRange(
 				cacheCond = ground
 				//(get start)
 				val realGround:GroundedRange = 
-					if(bound == null) { ground }
-					else {
-						if(ground.begin > bound.begin && ground.begin < bound.end){ ground }
-						else { bound }
+					if(bound == null) {
+						ground
+					} else {
+						val grBound:GroundedRange = bound.ground(ground)
+						if(ground.begin > grBound.begin && ground.begin < grBound.end){
+							ground
+						} else { 
+							grBound
+						}
 					}
 				//(ground the time)
 				val rtn = doGround(realGround,offset)
@@ -1429,7 +1546,8 @@ case class RepeatedRange(
 			true
 		} else {
 			val guess:GroundedRange = evaluateTemporal(ground,offset)
-			(guess.begin >= bound.begin && guess.end <= bound.end)
+			val grBound:GroundedRange = bound.ground(ground)
+			(guess.begin >= grBound.begin && guess.end <= grBound.end)
 		}
 	}
 
@@ -1444,8 +1562,8 @@ case class RepeatedRange(
 
 
 	
-	def intersect(range:GroundedRange):Range = {
-		if(range.begin == Time.END_OF || range.end == Time.DAWN_OF){
+	override def intersectAnalytically(range:SingletonRange):Range = {
+		if(range.isAllTime){
 			//(case: intersecting with some invalid time)
 			new NoTime
 		} else if(this.bound == null){
@@ -1453,15 +1571,15 @@ case class RepeatedRange(
 			new RepeatedRange(base,norm,interv,delta,range,moveOffset).name(name)
 		} else {
 			//(case: refining an existing bound)
-			val newBound = (range ^ bound).asInstanceOf[GroundedRange]
+			val newBound = (range ^ bound)
 			newBound match {
 				//((no such bound))
 				case (nt:NoTime) => new NoTime
 				//((new grounded range))
-				case (gr:GroundedRange) =>
+				case (gr:SingletonRange) =>
 					new RepeatedRange(base,norm,interv,
-						delta,newBound,moveOffset).name(name)
-				//((impossible)
+						delta,gr,moveOffset).name(name)
+				//((impossible))
 				case _ => throw new IllegalStateException("bad intersect: " + newBound)
 			}
 		}
@@ -2070,7 +2188,7 @@ object Lex {
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
-	val ALL_TIME:Range = Range(Time.DAWN_OF,Time.END_OF)
+	val ALL_TIME:GroundedRange = new GroundedRange(Time.DAWN_OF,Time.END_OF)
 	val PM:Range=>Range = _ >> HOUR*12
 	//--Day of Week
 	private def mkDOW(i:Int) = new RepeatedRange(
@@ -2152,17 +2270,22 @@ object Lex {
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
 
-	val YESTERDAY:Range = (REF <<! DAY)
-	val TOMORROW:Range  = (REF >>! DAY)
-	val FUTURE:Range    = Range(Duration.INFINITE)
-	val PAST:Range      = Range(Duration.NEG_INFINITE)
+	val YESTERDAY:Range = new UngroundedRange(ADAY,-ADAY)
+	val TOMORROW:Range = new UngroundedRange(ADAY,ADAY)
+	val FUTURE:UngroundedRange
+		= new UngroundedRange(Duration.INFINITE,Duration.ZERO)
+	val PAST:UngroundedRange
+		= new UngroundedRange(Duration.NEG_INFINITE,Duration.ZERO)
 	
 	//--Functions
 	//(move a range by a duration)
 	val shiftLeft:(Range,Duration)=>Range = _ << _
 	val shiftRight:(Range,Duration)=>Range = _ >> _
 	//(cannonicalize a range)
-	val canonicalize:(Range,Duration)=>Range = _ ! _
+	val canonicalize:(Range,Duration)=>Range = { (r:Range,d:Duration) =>
+			assert(false, "Don't want to use this really")
+			r ! d
+		}
 	//(move a range and canonicalize)
 	val cannonicalLeft:(Range,Duration)=>Range = _ <<! _
 	val cannonicalRight:(Range,Duration)=>Range = _ >>! _

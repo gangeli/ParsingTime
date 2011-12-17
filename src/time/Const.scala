@@ -21,18 +21,6 @@ initPresentation(
 ################################################################################
 # UTILITIES
 ################################################################################
-def fstr(str)
-	str.gsub("F_RR",'$f(R,R):R$').gsub(
-		"F_R",'$f(R):R$').gsub(
-		"F_D",'$f(D):R$').gsub(
-		"F_RD",'$f(R,D):R$')
-end
-
-################################################################################
-# Title
-################################################################################
-slide!('"""+name+"""',
-nil){ |slide| slide.label('title').signature(1).titleSpacing(u(0)) }
 """
 }
 
@@ -46,7 +34,7 @@ slide!('Datum """+id+""" ("""+
 	{if(correct) """{\green correct}""" else """{\red incorrect}"""}+""")',
 	'',
 	center,
-	Parse.new(fstr('"""+tree+"""')).probabilities('"""+probs+"""').constituency,
+	Parse.new('"""+tree+"""').probabilities('"""+probs+"""').constituency,
 	'',
 	left,
 	'\blue{Guess:} """+guess+""" ["""+G.df.format(score)+"""]',

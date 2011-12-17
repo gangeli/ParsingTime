@@ -775,7 +775,7 @@ trait ParseTree extends Tree[Nonterminal] {
 			val tail = leafString(sent,i)
 			if(tail != null && !tail.equals("")){
 				b.append("(").append(head.replaceAll(" ","_")).append(" ")
-				b.append(tail.replaceAll(" ","_")).append(")")
+				b.append(tail.replaceAll(" ","_").replaceAll("'","\\'")).append(")")
 			} else {
 				b.append(head.replaceAll(" ","_"))
 			}
@@ -1205,14 +1205,14 @@ object CKYParser {
 			}else if(term.arity == 2){
 				//(case: binary rule)
 				assert(term.rids.length == 1, "Multi-rule non-closure")
-				val r = term.rule
+				val r:Rule = term.rule
 				assert(r.arity == 2, "non-closure unary")
 				val (leftI,(leftType,leftValue)) = left.evaluateHelper(sent,i)
 				val (rightI,(rightType,rightValue)) = right.evaluateHelper(sent,leftI)
 				val childValue = r(leftValue,rightValue)
 				assert(childValue != null, "null value returned")
 				(rightI,(r.head,childValue))
-			}else{
+			} else {
 				throw new IllegalStateException("Invalid cky term")
 			}
 		}
@@ -2306,7 +2306,8 @@ class CKYParser extends StandardParser{
 				def update(index:Int,offset:Int,count:Double) = {
 					val (head,temporal,score) = scored(index)
 					val parse = trees(index)
-					startTrack("Correct: "+temporal+" ["+G.df.format(count)+"]")
+					startTrack("Correct: ["+offset+"] "
+						+temporal+" ["+G.df.format(count)+"]")
 					assert(!count.isNaN, "Trying to incorporate NaN count")
 					assert(O.rulePrior.isZero || O.lexPrior.isZero || 
 						count > Double.NegativeInfinity, "Parse has zero probability")
@@ -2350,7 +2351,8 @@ class CKYParser extends StandardParser{
 						})
 					endTrack("Time E " + temporal)
 					//(end)
-					endTrack("Correct: "+temporal+" ["+G.df.format(count)+"]")
+					endTrack("Correct: ["+offset+"] "
+						+temporal+" ["+G.df.format(count)+"]")
 				}
 				//--Run Update
 				forceTrack("Update")

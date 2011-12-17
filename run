@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.6.jar"
 JAR='time'
 
-@timeDistribution = 2
+@timeDistribution = 0
 
 # -- RUN --
 env!( 
