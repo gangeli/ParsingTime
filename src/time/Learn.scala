@@ -1270,7 +1270,7 @@ object CKYParser {
 				lexFn:(Int,Int)=>Any):Unit = {
 			traverseHelper(0,ruleFn,lexFn,()=>{})
 		}
-		override def asParseString(sent:Sentence):String = {
+		private def cleanParseString(headType:Symbol,sent:Sentence):String = {
 			val b = new StringBuilder
 			//(clean string)
 			def clean(str:String) = {
@@ -1279,10 +1279,23 @@ object CKYParser {
 			//(traverse)
 			traverseHelper(0,
 				(rid:Int,nilTag:Option[Int]) => {
-					b.append("(").append(clean(Grammar.RULES_STR(rid))).append(" ")
+					val head:String = headType match {
+						case 'String => clean(Grammar.RULES_STR(rid))
+						case 'Probability => {
+							val (headID,multID) = rid2RuleGivenHeadIndices(rid)
+					 		G.df.format(pRuleGivenHead(headID).prob(multID))
+						}
+					}
+					b.append("(").append(head).append(" ")
 				},
 				(rid:Int,w:Int) => {
-					b.append("( ").append(clean(Grammar.RULES_STR(rid))).append(" ").
+					val head:String = headType match {
+						case 'String => clean(Grammar.RULES_STR(rid))
+						case 'Probability =>
+							G.df.format(pWordGivenRule(rid2WordGivenRuleIndices(rid))
+								.prob(sent.words(w)))
+					}
+					b.append("( ").append(head).append(" ").
 						append(clean(sent(w))).append(" ) ")
 				},
 				() => {
@@ -1290,6 +1303,10 @@ object CKYParser {
 				})
 			b.toString
 		}
+		override def asParseString(sent:Sentence):String 
+			= cleanParseString('String,sent)
+		override def asParseProbabilities(sent:Sentence):String
+			= cleanParseString('Probability,sent)
 		override def headProbability:Double = {
 			val subProbs:Double = 
 				if(term.isLex) { 0.0 }
@@ -2338,16 +2355,19 @@ class CKYParser extends StandardParser{
 					//(update time)
 					val ground = Range(feedback.grounding,feedback.grounding)
 					timesToNormalize = {() => { temporal.traverse(ground,offset,
-							(term:Temporal,trueOffset:Long,originOffset:Long)=>{
+							(term:Temporal,trueOffset:Long)=>{
 								term.runM
 							})
 						}} :: timesToNormalize
 					forceTrack("Time E " + temporal)
 					temporal.traverse(ground,offset,
-						(term:Temporal,trueOffset:Long,originOffset:Long) => {
-							log(FORCE,""+term+" is offset by " + trueOffset + " from " + originOffset)
-							term.updateE(ground,trueOffset,originOffset,
-								if(O.hardEM) 0.0 else U.safeLn(count) )
+						(term:Temporal,trueOffset:Long) => {
+//							log(FORCE,""+term+" is offset by " + trueOffset)
+							assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
+								"nonzero offset with point distribution")
+							term.updateE(ground,trueOffset,
+								if(O.hardEM) 0.0 else U.safeLn(count) 
+							)
 						})
 					endTrack("Time E " + temporal)
 					//(end)

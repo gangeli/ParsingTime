@@ -68,7 +68,8 @@ def AUTO_MISS(id:String,sent:Sentence,gold:Any) =
 slide!('Datum """+id+""" \red{(no parses)}',
 	'',
 	center,
-	_('Sentence: """+sent.toString+"""'),
+	_('Sentence: """+
+		sent.toString.replaceAll("\"","\\\\\"").replaceAll("'","\\\\'")+"""'),
 	_('Gold: """+{if(gold != null) gold else "???"}+"""'),
 nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
 """

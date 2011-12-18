@@ -443,6 +443,8 @@ trait DataStore {
 			} else {
 				null
 			}
+		log("Gold:   " + gold)
+		log("Ground: " + grounding)
 		//--Score Parses
 		if(O.printAllParses){ forceTrack("Scores") }
 		val scores:Array[ScoreElem]
@@ -691,6 +693,7 @@ object ToyData {
 	private val pastWeek = ("past week",Parse(REF <| AWEEK))
 	private val thePastWeek = ("the past week",Parse(REF <| AWEEK))
 	private val pastMonths2 = ("past 2 months",Parse(REF <| (AMONTH*2)))
+	private val pastYear = ("past year",Parse(REF <| AYEAR))
 	private val weeks2 = ("2 weeks",Parse(AWEEK*2))
 	private val week2Period = ("2 week period",Parse(AWEEK*2))
 	private val month = ("month",Parse(MONTH))
@@ -698,7 +701,7 @@ object ToyData {
 	private val theMonth = ("the month",Parse(MONTH))
 	private val lastMonth = ("last month",Parse(MONTH move -1))
 	private val nextMonth = ("next month",Parse(MONTH move 1))
-	private val thisMonth = ("this month",Parse(AMONTH))
+	private val thisMonth = ("this month",Parse(MONTH))
 	private val quarter = ("quarter",Parse(QUARTER))
 	private val aQuarter = ("a quarter",Parse(AQUARTER))
 	private val lastQuarter = ("last quarter",Parse(QUARTER move -1))
@@ -751,7 +754,6 @@ object ToyData {
 				if(!toys.contains(sent)){ toys(sent) = toys.size }
 				//(parse)
 				forceTrack("Datum " + id + ": "+sent)
-				log("GOLD: " + gold.value(Range(todaysDate,todaysDate)))
 				val (parses, feedback) = fn(s,toys(sent))
 				//(feedback)
 				handleParse(parses,
@@ -792,7 +794,7 @@ object ToyData {
 				//(shifts -- standard)
 				lastWeek,lastYear,lastQuarter,nextMonth,
 				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastMonths2,
+				pastWeek,thePastWeek,pastYear,pastMonths2,
 				//(numbers -- basic)
 				y1776,
 				//(sequences)
