@@ -260,6 +260,8 @@ object Grammar {
 	val MOY_STR = Array[String]("Jan:S","Feb:S","Mar:S","Apr:S","May:S",
 		"Jun:S","Jul:S","Aug:S","Sep:S","Oct:S","Nov:S","Dec:S")
 	val QOY_STR = Array[String]("Q1:S","Q2:S","Q3:S","Q4:S")
+	val SEASON_STR = Array[String]("SP:S","SU:S","FA:S","WI:S")
+	val TOD_STR = Array[String]("MO:S","AF:S","EV:S","NI:S")
 
 	//(ranges)
 	val ranges = List[(Range,String)](
@@ -274,7 +276,7 @@ object Grammar {
 			(AHOUR,"Hour:D")) else List[(Duration,String)]()} :::
 		List[(Duration,String)](
 			(ADAY,"Day:D"),(AWEEK,"Week:D"),(AMONTH,"Month:D"),(AQUARTER,"Quarter:D"),
-			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"CENTURY:D")
+			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"Century:D")
 			)
 	//(sequences)
 	val sequences = 
@@ -282,9 +284,13 @@ object Grammar {
 			.dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
 		(1 to 12).map(i=>(MOY(i).asInstanceOf[RepeatedRange]
 			.dense.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
-		(1 to 4).map(i=>(QOY(i).asInstanceOf[RepeatedRange]
-			.dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
-//		{if(O.useTime) List[(Sequence,String)](
+//		(1 to 4).map(i=>(QOY(i).asInstanceOf[RepeatedRange]
+//			.dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
+		(1 to 4).map(i=>(SEASON(i).asInstanceOf[RepeatedRange]
+			.dense.name(SEASON_STR(i-1)),SEASON_STR(i-1)) ).toList ::: 
+		(1 to 4).map(i=>(TOD(i).asInstanceOf[RepeatedRange]
+			.dense.name(TOD_STR(i-1)),TOD_STR(i-1)) ).toList ::: 
+//		{if(O.useTime) List[(Sequence,String)]( //TODO uncomment this
 //			(SEC,"Sec:S"),(MIN,"Min:S"),
 //			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
 		List[(Sequence,String)](

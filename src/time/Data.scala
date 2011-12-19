@@ -80,13 +80,19 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 		var index = 0
 		//(get timexes)
 		data.iterator.foreach{ (doc:CoreMapDatum) => //for each doc
+			//(pub time)
 			val pubTime = Time(new DateTime(
 				doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
 				.getTimeInMillis))
+			//(is test)
+			val isTest = 
+				doc.get[Boolean,IsTestAnnotation](classOf[IsTestAnnotation])
+			//(sentences)
 			val sents = 
 				doc.get[JList[CoreMap],SentencesAnnotation](
 				classOf[SentencesAnnotation])
 			sents.foreach{ (sent:CoreMap) => //for each sentence
+				//(get tokens)
 				val tokens:JList[CoreLabel] =
 					sent.get[JList[CoreLabel],TokensAnnotation](
 					classOf[TokensAnnotation])
@@ -96,12 +102,15 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 				assert(tokens != null, "No tokens for " + sent)
 				val tokenList:List[CoreLabel] = tokens.map{ x => x }.toList
 				val origTokenList:List[CoreLabel] = origTokens.map{ x => x }.toList
+				//(get timexes)
 				val timexes:JList[CoreMap] = 
 					sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
 					classOf[TimeExpressionsAnnotation])
+				//(store timexes)
 				if(timexes != null){
 					timexes.foreach{ (timex:CoreMap) =>  //for each timex
-						val tmx = new Timex(index,timex,origTokenList,tokenList,pubTime)
+						val tmx = 
+							new Timex(index,timex,origTokenList,tokenList,pubTime,isTest)
 						rtn = tmx :: rtn
 						index += 1
 						log(tmx)
@@ -116,7 +125,7 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 }
 
 case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
-		sent:List[CoreLabel],pubTime:Time) {
+		sent:List[CoreLabel],pubTime:Time,isTest:Boolean) {
 	private val span:List[CoreLabel] = {
 		val begin = time.get[java.lang.Integer,BeginIndexAnnotation](
 							classOf[BeginIndexAnnotation])
@@ -148,6 +157,11 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 		}
 	}
 
+	def originalType:String = time.get[String,OriginalTimeTypeAnnotation](
+			classOf[OriginalTimeTypeAnnotation])
+	def originalValue:String = time.get[String,OriginalTimeValueAnnotation](
+			classOf[OriginalTimeValueAnnotation])
+
 	def tid:Int = index
 	def words(test:Boolean):Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 
@@ -164,6 +178,10 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 				U.str2w(w, t)
 			}
 		}.toArray
+	}
+	def gloss:String = {
+		span.map{ (lbl:CoreLabel) => lbl.word }.mkString(" ")
+		
 	}
 	def pos(test:Boolean):Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 

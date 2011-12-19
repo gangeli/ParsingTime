@@ -681,6 +681,8 @@ object ToyData {
 	private val NONE = ToyStore(Array[(String,Parse)](),false)
 	private def store(test:Boolean,args:(String,Parse)*):ToyStore 
 		= ToyStore(args.toArray,test)
+	//--Toy
+	private val thisMorning = ("this morning",Parse(TOD(1)))
 	private val today = ("today",Parse(TODAY))
 	private val day = ("day",Parse(DAY(todaysDate)))
 	private val week = ("week",Parse(WEEK(todaysDate)))
@@ -702,9 +704,14 @@ object ToyData {
 	private val lastMonth = ("last month",Parse(MONTH move -1))
 	private val nextMonth = ("next month",Parse(MONTH move 1))
 	private val thisMonth = ("this month",Parse(MONTH))
+	private val spring = ("spring",Parse(SEASON(1)))
+	private val summer = ("summer",Parse(SEASON(2)))
+	private val fall = ("fall",Parse(SEASON(3)))
+	private val winter = ("winter",Parse(SEASON(4)))
 	private val quarter = ("quarter",Parse(QUARTER))
 	private val aQuarter = ("a quarter",Parse(AQUARTER))
 	private val lastQuarter = ("last quarter",Parse(QUARTER move -1))
+	private val thirdQuarter = ("third quarter",Parse(QOY(3)))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(AMONTH*2))
@@ -731,6 +738,10 @@ object ToyData {
 	private val saturday_neg1 = ("saturday",Parse(DOW(6)(todaysDate,-1)))
 	private val sunday_neg1 = ("sunday",Parse(DOW(7)(todaysDate,-1)))
 	private val special_chars = ("today '",Parse(REF(todaysDate)))
+	//--Hard Real Data
+	private val may22sp1995 
+		= ("May 22 , 1995", Parse(Range(Time(1995,5,22),Time(1995,5,23))))
+
 
 	private case class ToyStore(gold:Array[(String,Parse)],test:Boolean) 
 			extends DataStore {
@@ -805,10 +816,14 @@ object ToyData {
 				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
 				//(numbers -- complex)
 				y17sp76,
+				//(seasons)
+				spring,summer,fall,winter,
+				//(floor/ciel)
+				thirdQuarter,
 //				//(offset -1)
 //				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday,
-				//(special chars)
-				special_chars,
+//				//(hard)
+//				may22sp1995,special_chars,
 				//(ref)
 				today
 			).internWords,

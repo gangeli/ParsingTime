@@ -293,6 +293,10 @@ object Temporal {
 			//(initialize)
 			interpreter.interpret("import time._")
 			interpreter.interpret("import time.Lex._")
+			interpreter.interpret("import org.joda.time._")
+			interpreter.interpret("import org.joda.time.DateTimeFieldTypes._")
+			interpreter.interpret("import org.joda.time.DurationFieldTypes._")
+			interpreter.interpret("import edu.stanford.nlp.time.JodaTimeUtils._")
 			interpreter.interpret("val ground = Time(2011,4,26)")
 			interpreter.interpret(
 				"org.joda.time.DateTimeZone.setDefault(org.joda.time.DateTimeZone.UTC);"
@@ -303,11 +307,10 @@ object Temporal {
 					var printed:Boolean = false
 					t.distribution(today)
 						.slice(0,10).foreach{ x => 
-							x._1 match {
-								case (nt:NoTime) => if(!printed){ println("(none)"); printed = true; }
-								case _ => println(x); printed = true
-							}
+							case _ => println(x)
+							printed = true
 						}
+					if(!printed){ println("(none)") }
 				}
 			""")
 			reader = new JLineReader(new JLineCompletion(interpreter))
@@ -2106,6 +2109,12 @@ object Lex {
 	val SAT:Sequence = mkDOW(6)
 	val SUN:Sequence = mkDOW(7)
 	//--OTHER Durations
+	val MOH = (0 until 60).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](i,0,0)),
+			AMIN,
+			AHOUR).name("MOH("+i+")") }.toArray
 	val HOD = (0 until 24).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](hourOfDay,minuteOfHour,secondOfMinute,
@@ -2113,12 +2122,13 @@ object Lex {
 				Array[Int](i,0,0,0)),
 			AHOUR,
 			ADAY).name("HOD("+i+")") }.toArray
-	val MOH = (0 until 60).map{ i => new RepeatedRange(
+	val TOD = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
-				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
-				Array[Int](i,0,0)),
-			AMIN,
-			AHOUR).name("MOH("+i+")") }.toArray
+				Array[DateTimeFieldType](
+					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](4+i*4,0,0,0)),
+			AHOUR*3,
+			ADAY).name("DOW("+i+")") }.toList).toArray
 	val DOW = (List(new NoTime) ::: (1 to 7).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfWeek,
@@ -2149,11 +2159,18 @@ object Lex {
 			AYEAR).name("MOY("+i+")") }.toList).toArray
 	val QOY = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
-				Array[DateTimeFieldType](QuarterOfYear,dayOfMonth,
+				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
-				Array[Int](i,1,0,0,0,0)),
+				Array[Int](i,1,1,0,0,0,0)),
 			AMONTH*3,
 			AYEAR).name("QOY("+i+")") }.toList).toArray
+	val SEASON = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
+					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](i,3,1,0,0,0,0)),
+			AMONTH*3,
+			AYEAR).name("SEASON("+i+")") }.toList).toArray
 	val YOC = (0 until 100).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](yearOfCentury,
