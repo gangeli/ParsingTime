@@ -13,10 +13,6 @@ import scala.io.Source.fromFile
 
 import edu.stanford.nlp.pipeline._
 import edu.stanford.nlp.ie.NumberNormalizer
-import edu.stanford.nlp.pipeline.StanfordCoreNLP
-import edu.stanford.nlp.pipeline.PTBTokenizerAnnotator
-import edu.stanford.nlp.pipeline.MorphaAnnotator
-import edu.stanford.nlp.pipeline.POSTaggerAnnotator
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.ling._
 import edu.stanford.nlp.util._
@@ -28,6 +24,8 @@ import edu.stanford.nlp.process.CoreLabelTokenFactory
 import edu.stanford.nlp.process.WhitespaceTokenizer
 import edu.stanford.nlp.io.IOUtils
 import edu.stanford.nlp.time.TimeAnnotations._
+import edu.stanford.nlp.time.JodaTimeUtils
+import edu.stanford.nlp.util.logging.Redwood.Util._
 
 import org.goobs.database._
 import org.goobs.testing.Dataset
@@ -144,12 +142,12 @@ object DataLib {
 				(base,base.plusMonths(6))
 			case YearSeason(year,season) =>
 				val quarter = season match {
-					case "WI" => 1
-					case "SP" => 2
-					case "SU" => 3
-					case "FA" => 4
+					case "WI" => 4
+					case "SP" => 1
+					case "SU" => 2
+					case "FA" => 3
 				}
-				val base = new DateTime(year.toInt,(quarter.toInt-1)*3+1,1,0,0,0,0)
+				val base = new DateTime(year.toInt,(quarter.toInt)*3,1,0,0,0,0)
 				(base,base.plusMonths(3))
 			case _ => null
 		}
@@ -197,15 +195,21 @@ object DataLib {
 		pass3
 	}
 	
-	def jodaTime2Array(time:Any):Array[String] = {
+	def jodaTime2Array(time:Any,timex:String):Array[String] = {
 		time match {
 			case (begin:DateTime,end:DateTime) =>
+				val check = JodaTimeUtils.timexDateValue(begin,end)
+				if(!check.equals(timex) && !timex.equals("PRESENT_REF")){ 
+					err(timex + "->" + check + "   " + time) 
+				}
 				Array[String]("RANGE",begin.toString,end.toString)
 			case (begin:String,end:DateTime) =>
 				Array[String]("RANGE",begin,end.toString)
 			case (begin:DateTime,end:String) =>
 				Array[String]("RANGE",begin.toString,end)
 			case (begin:Period,fuzzy:Boolean) =>
+				val check = JodaTimeUtils.timexDurationValue(begin,fuzzy)
+				if(!check.equals(timex)){ err(timex + "->" + check + "   " + time) }
 				def mkVal(i:Int) = if(fuzzy && i != 0) "x" else ""+i
 				Array[String]("PERIOD",
 					mkVal(begin.getYears),
@@ -484,7 +488,7 @@ object Gigaword {
 
 	def appendDoc(outDir:File,
 			f:File, hdr:String, sentsGloss:Array[String]):Unit = {
-		println("Document " + hdr)
+		startTrack("Document " + hdr)
 		//--Create Document
 		//(gloss)
 		val docGloss:String = 
@@ -495,7 +499,7 @@ object Gigaword {
 		val name(filename) = hdr
 		val pubTime = new DateTime(year.toInt,month.toInt,day.toInt,0,0,0,0)
 		//(debug)
-		println("Processing " + filename + " {")
+		log("Processing " + filename)
 		//--Create CoreMap
 		//(create)
 		val doc:Annotation = new Annotation(docGloss)
@@ -505,12 +509,12 @@ object Gigaword {
 			ground.toGregorianCalendar.asInstanceOf[Calendar])
 		//(annotate)
 		pipeline.annotate(doc)
-		println("  (JavaNLP annotated)")
+		log("(JavaNLP annotated)")
 		//(gutime annotation)
 		val gutime = new GUTimeAnnotator(new File(
 			System.getenv("HOME")+"/workspace/time/etc/"));
 		gutime.annotate(doc)
-		println("  (gutime annotated)")
+		log("(gutime annotated)")
 		//--Iterate Timexes
 		//(variables)
 		var tid:Int = 0
@@ -537,7 +541,7 @@ object Gigaword {
 		//((timexes))
 		var timexes:List[CoreMap] = List[CoreMap]()
 		//(iterate)
-		println("  timexes {")
+		startTrack("Timexes")
 		doc.get[
 				JList[CoreMap],TimexAnnotations](
 				classOf[TimexAnnotations]).foreach{ case (map:CoreMap) =>
@@ -589,7 +593,10 @@ object Gigaword {
 					timex.set(classOf[OriginalTimeValueAnnotation], timexValue)
 					timex.set(classOf[OriginalTimeTypeAnnotation], timexType)
 					timex.set(classOf[TimeValueAnnotation], 
-						DataLib.jodaTime2Array(DataLib.timex2JodaTime(timexValue,ground)))
+						DataLib.jodaTime2Array(
+							DataLib.timex2JodaTime(timexValue,ground),
+							timexValue)
+						)
 					//((save))
 					if(!sents(sI).has[JList[CoreMap],TimeExpressionsAnnotation](
 							classOf[TimeExpressionsAnnotation])){
@@ -600,23 +607,23 @@ object Gigaword {
 							classOf[TimeExpressionsAnnotation])
 					timexes.add(timex)
 					//((debug))
-					println("    added: " + 
+					log("added: " + 
 						tokens(sI).slice(beginIndex,endIndex).map{ _.word }.mkString(" ") + 
 						" ["+timexValue+"]")
 				}
 			} catch {
 				case (e:RuntimeException) =>
-					println("    FAILED: " + e.getMessage)
+					err("FAILED: " + e.getMessage)
 			}
 		}
-		println("  }")
+		endTrack("Timexes")
 		//(post-process)
-		println("  (tokenizing)")
+		log("(tokenizing)")
 		DataLib.retokenize(doc)
-		println("  (normalizing numbers)")
+		log("(normalizing numbers)")
 		DataLib.normalizeNumbers(doc)
 		//(removing GuTime Timexes)
-		println("  (cleaning up)")
+		log("(cleaning up)")
 		doc.remove[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
 		doc.remove[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
 		doc.remove[String,TextAnnotation](classOf[TextAnnotation])
@@ -638,7 +645,7 @@ object Gigaword {
 			}
 		}
 		//(done)
-		println("}")
+		endTrack("Document " + hdr)
 	}
 
 	def appendFile(outDir:File,f:File):(Int,Int) = {
@@ -679,7 +686,7 @@ object Gigaword {
 		//--Arguments
 		//(error check)
 		if(args.length != 2){
-			System.err.println("usage: gigaword [outdir] [file]")
+			err("usage: gigaword [outdir] [file]")
 			System.exit(1)
 		}
 		val outDir = new File(args(0))
@@ -707,7 +714,7 @@ abstract class TempEval2RetokTask extends Task[CoreMapDatum] {
 
 	override def perform(d:Dataset[CoreMapDatum]):Unit = {
 		val lang = this.language.toString
-		println("RETOKENIZING " + lang)
+		log("RETOKENIZING " + lang)
 		//(for each document)
 		(0 until d.numExamples).foreach{ case (docIndex:Int) =>
 			val sents=d.get(docIndex).get[JList[CoreMap],SentencesAnnotation](
@@ -723,7 +730,7 @@ abstract class TempEval2RetokTask extends Task[CoreMapDatum] {
 				DataProcessor.assertValidSentence(sent)
 			}
 		}
-		println("TAGGING " + lang)
+		log("TAGGING " + lang)
 		val lemma = new MorphaAnnotator(false)
 		val pos = new POSTaggerAnnotator(
 			System.getenv("HOME") +
@@ -759,7 +766,7 @@ abstract class TempEval2NumberNormalizeTask extends Task[CoreMapDatum] {
 
 	override def perform(d:Dataset[CoreMapDatum]):Unit = {
 		val lang = this.language.toString
-		println("NORMALIZING NUMBERS " + lang)
+		log("NORMALIZING NUMBERS " + lang)
 		//(for each document)
 		(0 until d.numExamples).foreach{ case (docIndex:Int) =>
 			DataLib.normalizeNumbers(d.get(docIndex))
@@ -819,7 +826,7 @@ object TempEval2Task {
 			DataProcessor.exit("usage: tempeval2 retok [language]")
 		}
 		val lang = args(0) //TODO ignored for now
-		println("Loading dataset...")
+		log("Loading dataset...")
 		val dataset = new SerializedCoreMapDataset(datasetName(lang))
 		//(run task)
 		dataset.runAndRegisterTask( new TempEval2EnglishRetokTask )
@@ -830,7 +837,7 @@ object TempEval2Task {
 			DataProcessor.exit("tempeval2 numbers takes no arguments")
 		}
 		val lang = args(0) //TODO ignored for now
-		println("Loading dataset...")
+		log("Loading dataset...")
 		val dataset = new SerializedCoreMapDataset(datasetName(lang)+"-retok")
 		//(run task)
 		dataset.runAndRegisterTask( new TempEval2EnglishNumberNormalizeTask )
@@ -838,7 +845,7 @@ object TempEval2Task {
 
 	def init(args:Array[String]) = {
 		//--Overhead
-		println("INIT")
+		log("INIT")
 		//(error checking)
 		if(args.length != 2){ 
 			DataProcessor.exit("usage: tempeval2 init [directory] [language]")
@@ -877,7 +884,7 @@ object TempEval2Task {
 			fromFile(new File(f)).getLines.foreach{ case (line:String) => fn(line) }
 
 		//--Documents
-		println("Reading Documents")
+		log("Reading Documents")
 		//(vars)
 		val docs = new HashMap[String,Annotation]
 		var id = 0
@@ -900,7 +907,7 @@ object TempEval2Task {
 		eachLine(dctTest, (line:String) => processDct(line,true) )
 		
 		//--Words
-		println("Reading Words")
+		log("Reading Words")
 		//(vars)
 		val sent = new HashMap[String,StringBuilder]
 		val verify = new HashMap[(String,Int),List[String]]
@@ -958,7 +965,7 @@ object TempEval2Task {
 		}
 		
 		//--Timexes Attributes
-		println("Reading Timexes (attributes)")
+		log("Reading Timexes (attributes)")
 		//(util)
 		def getSentence(doc:String,sid:Int):CoreMap = {
 			docs(doc)
@@ -1013,7 +1020,7 @@ object TempEval2Task {
 				case "value" => 
 					timex.set(classOf[OriginalTimeValueAnnotation], value)
 					timex.set(classOf[TimeValueAnnotation], 
-						DataLib.jodaTime2Array(DataLib.timex2JodaTime(value,ground)))
+						DataLib.jodaTime2Array(DataLib.timex2JodaTime(value,ground),value))
 			}
 		}
 		//(read)
@@ -1021,7 +1028,7 @@ object TempEval2Task {
 		eachLine(attrTest,  (line:String) => processAttr(line) )
 		
 		//--Timexes Extent
-		println("Reading Timexes (extents)")
+		log("Reading Timexes (extents)")
 		//(vars)
 		var countCond:(String,String,String) = null
 		var lastWid:String = null
@@ -1050,7 +1057,7 @@ object TempEval2Task {
 		if(countCond != null){ processCount(lastWid.toInt) }
 
 		//--Dump
-		println("FLUSHING")
+		log("FLUSHING")
 		val maps:Array[CoreMap] = docs.values.toList.sortBy{ case (map:CoreMap) =>
 			map.get[String,IDAnnotation](classOf[IDAnnotation]).toInt
 		}.toArray
@@ -1062,7 +1069,7 @@ object TempEval2Task {
 case class DataProcessor(noop:Int)
 object DataProcessor {
 	def exit(msg:String) = {
-		println("ERROR: " + msg)
+		err("ERROR: " + msg)
 		System.exit(1)
 	}
 
@@ -1080,7 +1087,7 @@ object DataProcessor {
 	}
 
 	def mkTempEval(args:Array[String]) = {
-		println("ANNOTATING TempEval")
+		log("ANNOTATING TempEval")
 		if(args.length < 1){ exit("No task given (one of [init,retok,numbers] )") }
 		args(0).toLowerCase match {
 			case "init" => TempEval2Task.init(args.slice(1,args.length))
