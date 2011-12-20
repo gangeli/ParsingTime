@@ -65,7 +65,7 @@ env!(
 		o('lexNils'),
 		# <training>
 		o('beam', 1500), #1500 works well
-		o('iters', 10),
+		o('iters', 1),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<params>

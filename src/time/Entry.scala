@@ -6,6 +6,10 @@ import scala.collection.mutable.HashMap
 import java.text.DecimalFormat
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.io.File
+import java.io.FileOutputStream
+import java.io.BufferedOutputStream
+import java.io.ObjectOutputStream
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(stanford)
@@ -763,30 +767,30 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
-				//(sequences)
-				week,month,quarter,year,day,theWeek,
-				//(cannonicals -> sequences)
-				thisWeek,thisYear,thisMonth,
-				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,nextMonth,
-				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastYear,pastMonths2,
-				//(numbers -- basic)
-				y1776,
-				//(sequences)
-				april,
-				//(intersects)
-				april1776,april2,
-				//(days of the week)
-				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-				//(numbers -- complex)
-				y17sp76,
-				//(seasons)
-				spring,summer,fall,winter,
-				//(floor/ciel)
-				thirdQuarter,
+//				//(durations)
+//				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
+//				//(sequences)
+//				week,month,quarter,year,day,theWeek,
+//				//(cannonicals -> sequences)
+//				thisWeek,thisYear,thisMonth,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,nextMonth,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastYear,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
+//				//(days of the week)
+//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+//				//(numbers -- complex)
+//				y17sp76,
+//				//(seasons)
+//				spring,summer,fall,winter,
+//				//(floor/ciel)
+//				thirdQuarter,
 //				//(offset -1)
 //				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday,
 //				//(hard)
@@ -835,14 +839,33 @@ class Entry {
 // TRAIN/TEST
 //------
 	def run:Entry = {
+		val logger = Execution.getLogger();
 		//--Run
 		startTrack("Running")
 		val (trainScores:Array[Score],testScore:Score)
 			= parser.run(this.data,O.iters)
 		endTrack("Running")
+		//--External Score
+		startTrack("TempEval")
+		//(variables) //TODO make into parameters
+		Comparisons.inputDir = new File("aux/tempeval2")
+		Comparisons.outputDir = new File("res")
+		Comparisons.lang = "english"
+		//(run)
+		val (trn,tst) = Comparisons.runSystem(parser)
+		startTrack("Eval Results")
+		log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
+		logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
+		logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
+		if(!O.devTest){
+			log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
+			logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
+			logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
+		}
+		endTrack("Eval Results")
+		endTrack("TempEval")
 		//--Process
 		startTrack(BOLD,"Results")
-		val logger = Execution.getLogger();
 		//(train)
 		startTrack(BOLD,"train")
 		logger.setGlobalResult("train.accuracy",

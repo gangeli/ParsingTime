@@ -1,6 +1,7 @@
 package time
 
 import java.util.concurrent.locks.ReentrantLock
+import java.util.Calendar
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.PriorityQueue
@@ -16,8 +17,12 @@ import org.goobs.utils.Indexer
 
 import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ie.crf.CRFClassifier
+import edu.stanford.nlp.pipeline.Annotation
+import edu.stanford.nlp.ling.CoreAnnotations.CalendarAnnotation
+import edu.stanford.nlp.ling.CoreAnnotations.DocDateAnnotation
 import edu.stanford.nlp.sequences.SeqClassifierFlags
 import edu.stanford.nlp.sequences.FeatureFactory
+import edu.stanford.nlp.time.JodaTimeUtils
 import edu.stanford.nlp.util.logging.Redwood.Util._
 
 //------------------------------------------------------------------------------
@@ -945,29 +950,14 @@ object Parse {
 //-----
 // Parse Traits
 //-----
-trait Parser {
+trait Parser extends OtherSystem {
 	def report:Unit = {}
-	def cycle(data:DataStore,iters:Int,feedback:Boolean=true):Array[Score]
-	def run(data:Data,iters:Int):(Array[Score],Score) = {
-		startTrack("Training ("+data.train.name+")")
-		val train = cycle(data.train,iters)
-		endTrack("Training ("+data.train.name+")")
-		startTrack("Testing ("+data.eval.name+")")
-		val test = cycle(data.eval, 1, false)(0)
-		endTrack("Testing ("+data.eval.name+")")
-		startTrack("Parser State")
-		report
-		endTrack("Parser State")
-		(train,test)
-	}
-}
-
-trait StandardParser extends Parser {
 	def beginIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {}
 	def endIteration(iter:Int,feedback:Boolean,data:DataStore):Unit = {}
 	def parse(iter:Int, sent:Sentence, feedback:Boolean,sid:String
 		):(Array[Parse],Feedback=>Any)
-	override def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
+
+	def cycle(data:DataStore,iters:Int,feedback:Boolean):Array[Score] = {
 		(1 to iters).map( (i:Int) => {
 			startTrack("Iteration " + i)
 			//(begin)
@@ -991,6 +981,62 @@ trait StandardParser extends Parser {
 			score
 		}).toArray
 	}
+
+	def run(data:Data,iters:Int):(Array[Score],Score) = {
+		startTrack("Training ("+data.train.name+")")
+		val train = cycle(data.train,iters, true)
+		endTrack("Training ("+data.train.name+")")
+		startTrack("Testing ("+data.eval.name+")")
+		val test = cycle(data.eval, 1, false)(0)
+		endTrack("Testing ("+data.eval.name+")")
+		startTrack("Parser State")
+		report
+		endTrack("Parser State")
+		(train,test)
+	}
+	def getTimex(input:SystemInput):Option[SystemOutput] = {
+		//--Create Sentence
+		val sent = Sentence(
+			input.timex.tid,
+			input.timex.words(true),
+			input.timex.pos(true),
+			input.timex.nums)
+		//--Run Parser
+		val saveBeam = O.beam
+		O.beam = 10
+		val (parses,feedbackFn):(Array[Parse],Feedback=>Any)
+			= parse(1,sent,false,input.timex.index.toString)
+		O.beam = saveBeam
+		//--Digest Result
+		//(get best parse)
+		val parsesWithTime:Array[Parse] 
+			= parses.dropWhile{ (p:Parse) => p.value.isInstanceOf[NoTime] }
+		if(parsesWithTime.length == 0){
+			return None
+		} else {
+			val grounded = parsesWithTime(0).value(new Time(input.ground))
+			grounded match {
+				case (gr:GroundedRange) =>
+					//((case: grounded range))
+					Some(SystemOutput(
+						Some("DATE"),
+						Some(JodaTimeUtils.timexDateValue(gr.begin.base,gr.end.base))))
+				case (d:GroundedDuration) =>
+					//((case: duration))
+					Some(SystemOutput(
+						Some("DURATION"),
+						Some(JodaTimeUtils.timexDurationValue(d.base,false))))
+				case (d:FuzzyDuration) =>
+					//((case: approx. duration))
+					Some(SystemOutput(
+						Some("DURATION"),
+						Some(JodaTimeUtils.timexDurationValue(d.interval.base,true))))
+				case _ =>
+					throw new IllegalStateException("Unknown type: "+grounded)
+			}
+		}
+	}
+	def name:String = "MyTime"
 }
 //------------------------------------------------------------------------------
 // CKY PARSER
@@ -1061,7 +1107,7 @@ object CKYParser {
 	
 	
 	//(learning)
-	private val (pRuleGivenHead,rid2RuleGivenHeadIndices)
+	private var (pRuleGivenHead,rid2RuleGivenHeadIndices)
 			:(Array[Multinomial[Int]],Array[(Int,Int)]) = {
 		val mapping = (0 until RULES.length).map{ x => (-1,0) }.toArray
 		val distributions:Array[Multinomial[Int]]
@@ -1084,10 +1130,10 @@ object CKYParser {
 		}.toArray.sortBy( _._1 ).map{ _._2 }
 		(distributions,mapping)
 	}
-	private val ruleESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
+	private var ruleESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
 		= pRuleGivenHead.map{ _.newStatistics(O.rulePrior) }
 
-	private val (pWordGivenRule,rid2WordGivenRuleIndices)
+	private var (pWordGivenRule,rid2WordGivenRuleIndices)
 			:(Array[Multinomial[Int]],Array[Int]) = {
 		val mapping = (0 until RULES.length).map{ x => -1 }.toArray
 		val distributions:Array[Multinomial[Int]]
@@ -1104,7 +1150,7 @@ object CKYParser {
 				}
 		(distributions,mapping)
 	}
-	private val lexESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
+	private var lexESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
 		= pWordGivenRule.map{ _.newStatistics(O.lexPrior) }
 	
 	
@@ -1298,8 +1344,12 @@ object CKYParser {
 					val head:String = headType match {
 						case 'String => clean(Grammar.RULES_STR(rid))
 						case 'Probability =>
-							G.df.format(pWordGivenRule(rid2WordGivenRuleIndices(rid))
-								.prob(sent.words(w)))
+							try {
+								G.df.format(pWordGivenRule(rid2WordGivenRuleIndices(rid))
+									.prob(sent.words(w)))
+							} catch {
+								case (e:ArrayIndexOutOfBoundsException) => "N/A"
+							}
 					}
 					b.append("( ").append(head).append(" ").
 						append(clean(sent(w))).append(" ) ")
@@ -1920,9 +1970,15 @@ object CKYParser {
 		if(O.freeNils && rule.head.isNil){
 			U.safeLn( 1.0 )
 		} else {
-			if(O.includeRuleInLexProb){ ruleLogProb(rule) } else { 0.0 } + 
-				U.safeLn( pWordGivenRule(rid2WordGivenRuleIndices(rule.rid)).prob(w),
-					1.0 / G.W.asInstanceOf[Double] )
+			try {
+				//(case: get word prob)
+				if(O.includeRuleInLexProb){ ruleLogProb(rule) } else { 0.0 } + 
+					U.safeLn( pWordGivenRule(rid2WordGivenRuleIndices(rule.rid)).prob(w),
+						1.0 / G.W.asInstanceOf[Double] )
+			} catch {
+				//(case: new word)
+				case (e:ArrayIndexOutOfBoundsException) => Double.NegativeInfinity
+			}
 		}
 	}
 	def ruleLogProb(rule:CkyRule):Double = {
@@ -1974,7 +2030,7 @@ object CKYParser {
 	}
 }
 
-class CKYParser extends StandardParser{
+class CKYParser extends Parser with Serializable{
 	import CKYParser._
 	import Grammar._
 

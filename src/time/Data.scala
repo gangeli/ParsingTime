@@ -117,50 +117,58 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 		forceTrack("Reading Timexes")
 		//(variables)
 		var rtn:List[Timex] = List[Timex]()
-		var index = 0
 		//(get timexes)
 		data.iterator.foreach{ (doc:CoreMapDatum) => //for each doc
-			//(pub time)
-			val pubTime = Time(new DateTime(
-				doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
-				.getTimeInMillis))
-			//(is test)
-			val isTest = 
-				doc.get[Boolean,IsTestAnnotation](classOf[IsTestAnnotation])
-			//(sentences)
-			val sents = 
-				doc.get[JList[CoreMap],SentencesAnnotation](
-				classOf[SentencesAnnotation])
-			sents.foreach{ (sent:CoreMap) => //for each sentence
-				//(get tokens)
-				val tokens:JList[CoreLabel] =
-					sent.get[JList[CoreLabel],TokensAnnotation](
-					classOf[TokensAnnotation])
-				val origTokens:JList[CoreLabel] =
-					sent.get[JList[CoreLabel],OriginalTokensAnnotation](
-					classOf[OriginalTokensAnnotation])
-				assert(tokens != null, "No tokens for " + sent)
-				val tokenList:List[CoreLabel] = tokens.map{ x => x }.toList
-				val origTokenList:List[CoreLabel] = origTokens.map{ x => x }.toList
-				//(get timexes)
-				val timexes:JList[CoreMap] = 
-					sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
-					classOf[TimeExpressionsAnnotation])
-				//(store timexes)
-				if(timexes != null){
-					timexes.foreach{ (timex:CoreMap) =>  //for each timex
-						val tmx = 
-							new Timex(index,timex,origTokenList,tokenList,pubTime,isTest)
-						rtn = tmx :: rtn
-						index += 1
-						log(tmx)
-					}
-				}
-			}
+			rtn = rtn ::: Timex(doc)
 		}
 		endTrack("Reading Timexes")
 		//(return)
 		rtn.reverse.toArray
+	}
+}
+
+object Timex {
+	var index:Int = 0
+	def apply(doc:CoreMap):List[Timex] = {
+		var rtn:List[Timex] = List[Timex]()
+		//(pub time)
+		val pubTime = Time(new DateTime(
+			doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+			.getTimeInMillis))
+		//(is test)
+		val isTest = 
+			doc.get[Boolean,IsTestAnnotation](classOf[IsTestAnnotation])
+		//(sentences)
+		val sents = 
+			doc.get[JList[CoreMap],SentencesAnnotation](
+			classOf[SentencesAnnotation])
+		sents.foreach{ (sent:CoreMap) => //for each sentence
+			//(get tokens)
+			val tokens:JList[CoreLabel] =
+				sent.get[JList[CoreLabel],TokensAnnotation](
+				classOf[TokensAnnotation])
+			val origTokens:JList[CoreLabel] =
+				sent.get[JList[CoreLabel],OriginalTokensAnnotation](
+				classOf[OriginalTokensAnnotation])
+			assert(tokens != null, "No tokens for " + sent)
+			val tokenList:List[CoreLabel] = tokens.map{ x => x }.toList
+			val origTokenList:List[CoreLabel] = origTokens.map{ x => x }.toList
+			//(get timexes)
+			val timexes:JList[CoreMap] = 
+				sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
+				classOf[TimeExpressionsAnnotation])
+			//(store timexes)
+			if(timexes != null){
+				timexes.foreach{ (timex:CoreMap) =>  //for each timex
+					val tmx = 
+						new Timex(index,timex,origTokenList,tokenList,pubTime,isTest)
+					rtn = tmx :: rtn
+					index += 1
+					log(tmx)
+				}
+			}
+		}
+		rtn
 	}
 }
 

@@ -12,15 +12,24 @@ JAVANLP=${JAVANLP_HOME}/projects/core/classes:${JAVANLP_HOME}/projects/research/
 CP=${LIB}/lib.jar:${LIB}/scala-compiler.jar:${LIB}/scala-library.jar:${LIB}/postgresql.jar:${JAVANLP}:${LIB}/xom.jar:${LIB}/joda-time.jar:${LIB}/joda-convert.jar:${LIB}/math.jar
 
 
-# -- JARS --
-${DIST}/time.jar: $(wildcard src/time/*.java)	$(wildcard src/time/*.scala)
-	mkdir -p ${BUILD}
+# -- PROGRAM --
+${DIST}/time.jar: ${BUILD}/time/JITime.class
 	mkdir -p ${DIST}
-	javac -d $(BUILD) -cp $(CP) `find $(SRC) -name "*.java"`
-	etc/fsc -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
 	jar cf ${DIST}/time.jar -C $(BUILD) .
 	jar uf ${DIST}/time.jar -C $(SRC) .
 
+${BUILD}/time/JITime.class: src/time/JITime.java ${BUILD}/time/Entry.class
+	javac -d $(BUILD) -cp $(CP) src/time/O.java
+
+${BUILD}/time/Entry.class: ${BUILD}/time/O.class $(wildcard src/time/*.scala)
+	etc/fsc -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
+
+
+${BUILD}/time/O.class: src/time/O.java
+	mkdir -p ${BUILD}
+	javac -d $(BUILD) -cp $(CP) src/time/O.java
+
+# -- TESTING --
 ${DIST}/test.jar: $(wildcard test/src/time/*.java) $(wildcard test/src/time/*.scala) ${DIST}/time.jar
 	mkdir -p ${TEST_BUILD}
 	mkdir -p ${DIST}
