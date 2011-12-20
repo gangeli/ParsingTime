@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Set these paths appropriately
+
+BIN=/home/gabor/workspace/time/aux/tree-tagger/bin
+CMD=/home/gabor/workspace/time/aux/tree-tagger/cmd
+LIB=/home/gabor/workspace/time/aux/tree-tagger/lib
+
+OPTIONS="-token -lemma -sgml"
+
+TOKENIZER=${CMD}/tokenize.pl
+MWL=${CMD}/mwl-lookup-greek.perl
+TAGGER=${BIN}/tree-tagger
+PARFILE=${LIB}/greek.par
+
+$TOKENIZER $* |
+# recognition of MWLs
+$MWL |
+# tagging
+$TAGGER $OPTIONS $PARFILE
+

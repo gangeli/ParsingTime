@@ -1,0 +1,117 @@
+
+This package contains a set of shell scripts which simplify tagging 
+with the TreeTagger. The scripts have been put into the cmd subdirectory.
+
+In order to be able to call these scripts from other directories, you
+should replace the relative paths in the scripts with absolute paths
+and add the path of the cmd subdirectory to the command search path.
+
+----------------------------------------------------
+
+cmd/tree-tagger-english <file>*
+
+This is a script for tagging English text. It does tokenization
+and tagging. The names of the files which are to be tagged are
+expected as arguments. If no files have been specified, input from
+stdin is expected.
+
+cmd/tree-tagger-french 
+
+This is a script for tagging French text similar to tree-tagger-english.
+
+cmd/tree-tagger-italian
+
+This is a script for tagging Italian text similar to tree-tagger-english. 
+
+cmd/tree-tagger-spanish
+
+This is a script for tagging Spanish text. It does tokenization recognition
+of multi word lexems and tagging. The names of the files which are to be
+tagged are expected as arguments. If no files have been specified, input
+from stdin is expected.
+
+cmd/tree-tagger-german <file>*
+
+This is a script for tagging German text. It does tokenization, tagging
+and some error correction. The names of the files which are to be tagged
+are expected as arguments. If no files have been specified, input from
+stdin is expected.
+
+cmd/tree-tagger-russian <file>*
+
+This is a script for tagging English text. It does tokenization
+and tagging. The names of the files which are to be tagged are
+expected as arguments. If no files have been specified, input from
+stdin is expected.
+
+cmd/tagger-chunker-german <file>*
+
+This is a script for tagging and chunking German text. It does
+tokenization, tagging and annotation with nominal and verbal chunks.
+The names of the files which are to be tagged are expected as
+arguments. If no files have been specified, input from stdin is
+expected.
+
+cmd/tagger-chunker-english <file>*
+
+Similar script for tagging and chunking English Texts.
+
+cmd/tagger-chunker-french <file>*
+
+Similar script for tagging and chunking French Texts.
+
+If you need lemma information, as well, you can process the chunker output
+with the tagger once more:
+
+echo 'This is a test.' | cmd/tagger-chunker-english | bin/tree-tagger lib/english.par  -token -lemma -sgml
+
+
+There are also UTF8-Versions of some of these commands.
+
+----------------------------------------------------
+
+These files are needed by the shell scripts and are also contained in 
+this tar-file:
+
+cmd/filter-german-tags		error correction script
+lib/english-abbreviations	list of English abbreviations
+lib/german-abbreviations	list of German abbreviations
+cmd/filter-chunker-output.perl	reformatting of the chunker output
+cmd/mwl-lookup.perl		MWL recognition
+cmd/filter-coordinate-output.perl needed by the French chunker
+
+----------------------------------------------------
+
+These files are needed by the shell scripts and *not* contained in this 
+tar-file. They can be downloaded either as Linux programs or as SunOS
+programs at the following URL address:
+http://www.ims.uni-stuttgart.de/Tools/DecisionTreeTagger.html
+The tar files should be unpacked in the same directory as the scripts.
+the parameter files should be moved to the lib subdirectory and
+uncompressed.
+
+bin/tree-tagger		the tagger program proper
+bin/separate-punctuation	tokenizer program
+cmd/lookup.perl		external lexicon lookup
+lib/english.par		English parameter file for the tagger
+lib/german.par		German parameter file for the tagger
+lib/french.par		French parameter file for the tagger
+lib/italian.par		Italian parameter file for the tagger
+lib/german-chunker.par	parameter file for the German chunker
+lib/english-chunker.par	parameter file for the English chunker
+lib/english-ctagger.par	parameter file for the POS tagger of the English chunker
+lib/french-chunker.par	parameter file for the French chunker
+lib/spanish-mwls	list of spanish MWLs
+lib/german-lexicon.txt	German extension lexicon
+lib/english-lexicon.txt	English extension lexicon
+
+----------------------------------------------------
+
+Lexicon extension
+-----------------
+
+You can extend the lexicon of the German and English taggers by adding
+additional entries to the files "german-lexicon.txt" and
+"english-lexicon.txt" in the subdirectory "lib". Each line contains a
+word form followed by a tab character and a sequence of
+tag/lemma-pairs separate by blanks.

@@ -294,8 +294,8 @@ object Temporal {
 			interpreter.interpret("import time._")
 			interpreter.interpret("import time.Lex._")
 			interpreter.interpret("import org.joda.time._")
-			interpreter.interpret("import org.joda.time.DateTimeFieldTypes._")
-			interpreter.interpret("import org.joda.time.DurationFieldTypes._")
+			interpreter.interpret("import org.joda.time.DateTimeFieldType._")
+			interpreter.interpret("import org.joda.time.DurationFieldType._")
 			interpreter.interpret("import edu.stanford.nlp.time.JodaTimeUtils._")
 			interpreter.interpret("val ground = Time(2011,4,26)")
 			interpreter.interpret(
@@ -307,7 +307,7 @@ object Temporal {
 					var printed:Boolean = false
 					t.distribution(today)
 						.slice(0,10).foreach{ x => 
-							case _ => println(x)
+							println(x)
 							printed = true
 						}
 					if(!printed){ println("(none)") }

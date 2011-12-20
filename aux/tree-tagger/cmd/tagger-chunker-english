@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# Set these paths appropriately
+
+BIN=/home/gabor/workspace/time/aux/tree-tagger/bin
+CMD=/home/gabor/workspace/time/aux/tree-tagger/cmd
+LIB=/home/gabor/workspace/time/aux/tree-tagger/lib
+
+OPTIONS="-token -lemma -sgml"
+
+TOKENIZER=${CMD}/tokenize.pl
+TAGGER=${BIN}/tree-tagger
+ABBR_LIST=${LIB}/english-abbreviations
+PARFILE=${LIB}/english.par
+LEXFILE=${LIB}/english-lexicon.txt
+
+PARFILE2=${LIB}/english-chunker.par
+FILTER=${CMD}/filter-chunker-output.perl
+
+$TOKENIZER -e -a $ABBR_LIST $* |
+# remove empty lines
+grep -v '^$' |
+# external lexicon lookup
+perl $CMD/lookup.perl $LEXFILE |
+# tagging
+$TAGGER $OPTIONS -pt-with-lemma $PARFILE | 
+perl -nae 'if ($#F==0){print}else{print "$F[0]-$F[1]\n"}' |
+$TAGGER $PARFILE2 -token -sgml -eps 0.00000001 -hyphen-heuristics -quiet |
+$FILTER |
+$TAGGER $OPTIONS $PARFILE |
+perl -pe 's/\tIN\/that/\tIN/;s/\tV[BDHV]/\tVB/'

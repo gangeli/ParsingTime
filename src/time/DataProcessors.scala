@@ -200,7 +200,7 @@ object DataLib {
 			case (begin:DateTime,end:DateTime) =>
 				val check = JodaTimeUtils.timexDateValue(begin,end)
 				if(!check.equals(timex) && !timex.equals("PRESENT_REF")){ 
-					err(timex + "->" + check + "   " + time) 
+					err("BAD TRANSlATION: " + timex + "->" + check + "   " + time) 
 				}
 				Array[String]("RANGE",begin.toString,end.toString)
 			case (begin:String,end:DateTime) =>
@@ -209,7 +209,7 @@ object DataLib {
 				Array[String]("RANGE",begin.toString,end)
 			case (begin:Period,fuzzy:Boolean) =>
 				val check = JodaTimeUtils.timexDurationValue(begin,fuzzy)
-				if(!check.equals(timex)){ err(timex + "->" + check + "   " + time) }
+				if(!check.equals(timex)){ err("BAD TRANSLATION: " + timex + "->" + check + "   " + time) }
 				def mkVal(i:Int) = if(fuzzy && i != 0) "x" else ""+i
 				Array[String]("PERIOD",
 					mkVal(begin.getYears),
@@ -1015,6 +1015,8 @@ object TempEval2Task {
 			val timex = getTimex(sent,tid)
 			//(set annotations)
 			timex.set(classOf[BeginIndexAnnotation], new java.lang.Integer(start))
+			timex.set(classOf[OriginalTimeMetaAnnotation],
+				new TimexMetaInfo(doc,sidText.toInt,start.toInt,tid))
 			tag match {
 				case "type" => timex.set(classOf[OriginalTimeTypeAnnotation], value)
 				case "value" => 

@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Set these paths appropriately
+
+BIN=/home/gabor/workspace/time/aux/tree-tagger/bin
+CMD=/home/gabor/workspace/time/aux/tree-tagger/cmd
+LIB=/home/gabor/workspace/time/aux/tree-tagger/lib
+
+OPTIONS="-token -lemma -sgml"
+
+TAGGER=${BIN}/tree-tagger
+TOKENIZER=${CMD}/tokenize.pl
+ABBR_LIST=${LIB}/french-abbreviations
+PARFILE=${LIB}/french.par
+
+$TOKENIZER -f -a $ABBR_LIST $* |
+$TAGGER $OPTIONS $PARFILE

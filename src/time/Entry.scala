@@ -335,39 +335,6 @@ class Score {
 	}
 	def results:Array[Result] = resultList.reverse.toArray
 
-	def tempeval(suffix:String):Unit = { //TODO
-//		import java.io.FileWriter
-//		//--Write Files
-//		val attrFile = new FileWriter(Execution.touch("attributes-"+suffix+".tab"))
-//		val extFile = new FileWriter(Execution.touch("extents-"+suffix+".tab"))
-//		results.sortBy( _.timex.tid ).foreach{ (r:Result) => 
-//			//(variables)
-//			val file:String = r.timex.sentence.document.filename
-//			val sent:Int = r.timex.sentence.indexInDocument
-//			val beginOffset:Int = r.timex.goldSpan(0).toInt
-//			val endOffset:Int = r.timex.goldSpan(1).toInt
-//			val timex3:String = "timex3"
-//			val tNum:String = r.timex.handle
-//			val one:String = "1"
-//			val typ:String = r.guess.timex3Type(Range(r.ground,r.ground))
-//			val value:String = if(typ.equals("UNK")){ "UNK" }
-//			                   else{ r.guess.timex3Value(Range(r.ground,r.ground)) }
-//			
-//			def prefix(offset:Int):String
-//				= ""+file+"\t"+sent+"\t"+offset+"\t"+timex3+"\t"+tNum
-//
-//			//(attributes)
-//			attrFile.write(prefix(beginOffset)+"\t1\ttype\t"+typ+"\n")
-//			attrFile.write(prefix(beginOffset)+"\t1\tvalue\t"+value+"\n")
-//			//(extents)
-//			(beginOffset until endOffset).foreach{ (offset:Int) =>
-//				extFile.write(prefix(offset)+"\t1\n")
-//			}
-//		}
-//		attrFile.close
-//		extFile.close
-	}
-
 	def reportK:String = {
 		"beam quality: " + exactRightK.map{ (count:Int) =>
 			G.df.format(count.asInstanceOf[Double] / total.asInstanceOf[Double]) 
