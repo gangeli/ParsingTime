@@ -115,11 +115,14 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 
 	def timexes:Array[Timex] = {
 		forceTrack("Reading Timexes")
+		var index = 0
 		//(variables)
 		var rtn:List[Timex] = List[Timex]()
 		//(get timexes)
 		data.iterator.foreach{ (doc:CoreMapDatum) => //for each doc
-			rtn = rtn ::: Timex(doc)
+			val (timex,i) = Timex(doc,index)
+			index = i
+			rtn = rtn ::: timex
 		}
 		endTrack("Reading Timexes")
 		//(return)
@@ -129,7 +132,8 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 
 object Timex {
 	var index:Int = 0
-	def apply(doc:CoreMap):List[Timex] = {
+	def apply(doc:CoreMap,i:Int):(List[Timex],Int) = {
+		var index = i
 		var rtn:List[Timex] = List[Timex]()
 		//(pub time)
 		val pubTime = Time(new DateTime(
@@ -168,6 +172,11 @@ object Timex {
 				}
 			}
 		}
+		(rtn.reverse,index)
+	}
+	def apply(doc:CoreMap):List[Timex] = {
+		val (rtn,rtnI) = apply(doc,index)
+		index = rtnI
 		rtn
 	}
 }

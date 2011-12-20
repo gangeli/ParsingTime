@@ -64,8 +64,8 @@ env!(
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
 		# <training>
-		o('beam', 1500), #1500 works well
-		o('iters', 1),
+		o('beam', 100), #1500 works well
+		o('iters', 4),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<params>
@@ -84,8 +84,8 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-		o('train', 'TOY'),              o('dev', 'TOY'),
+		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+#		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
 

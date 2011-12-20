@@ -1017,10 +1017,15 @@ trait Parser extends OtherSystem {
 			val grounded = parsesWithTime(0).value(new Time(input.ground))
 			grounded match {
 				case (gr:GroundedRange) =>
-					//((case: grounded range))
-					Some(SystemOutput(
-						Some("DATE"),
-						Some(JodaTimeUtils.timexDateValue(gr.begin.base,gr.end.base))))
+					if(gr.begin.equals(gr.end) && gr.begin.base.equals(input.ground)){
+						//((case: reference)
+						Some(SystemOutput(Some("DATE"),Some("PRESENT_REF")))
+					} else {
+						//((case: grounded range))
+						Some(SystemOutput(
+							Some("DATE"),
+							Some(JodaTimeUtils.timexDateValue(gr.begin.base,gr.end.base))))
+					}
 				case (d:GroundedDuration) =>
 					//((case: duration))
 					Some(SystemOutput(
