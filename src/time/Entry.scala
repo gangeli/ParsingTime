@@ -520,10 +520,10 @@ trait DataStore {
 			feedback(Feedback(
 				gold, 
 				grounding,
-				correct.map( elem => (elem.index,elem.offset,Score.score(elem.diff)) ),
+				correct.map{ elem => (elem.index,elem.offset,elem.prob) },
 				scores.
-					filter( elem => !elem.exact ).
-					map( elem => (elem.index,elem.offset,Score.score(elem.diff)) ),
+					filter{ elem => !elem.exact }.
+					map{ elem => (elem.index,elem.offset,elem.prob) },
 				bestGuess.exact
 				))
 		} else {
@@ -771,32 +771,32 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
-				//(sequences)
-				week,month,quarter,year,day,theWeek,
-				//(cannonicals -> sequences)
-				thisWeek,thisYear,thisMonth,
-				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
-				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastYear,pastMonths2,
-				//(numbers -- basic)
-				y1776,
-				//(sequences)
-				april,
-				//(intersects)
-				april1776,april2,
-				//(days of the week)
-				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-				//(numbers -- complex)
-				y17sp76,
-				//(seasons)
-				spring,summer,fall,winter,
-				//(floor/ceil)
-				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
+//				//(durations)
+//				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
+//				//(sequences)
+//				week,month,quarter,year,day,theWeek,
+//				//(cannonicals -> sequences)
+//				thisWeek,thisYear,thisMonth,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastYear,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
+//				//(days of the week)
+//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+//				//(numbers -- complex)
+//				y17sp76,
+//				//(seasons)
+//				spring,summer,fall,winter,
+//				//(floor/ceil)
+//				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
 //				//(offset -1)
-//				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday,
+				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
 //				//(hard)
 //				may22sp1995,special_chars,
 				//(ref)

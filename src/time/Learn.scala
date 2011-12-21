@@ -764,13 +764,12 @@ case class Feedback(ref:Temporal,grounding:Time,
 		correct:Array[(Int,Int,Double)],
 		incorrect:Array[(Int,Int,Double)],
 		isCorrect:Boolean) {
-	def bestScore = correct(0)._3
+	def bestLogProb = correct(0)._3
 	def hasCorrect:Boolean = correct.length > 0
 	def bestIndex:Int = correct(0)._1
 	def bestOffset:Int = correct(0)._2
-	def tiedBest:Array[(Int,Int)] = {
-		correct.filter{ case (index,offset,score) => score == bestScore }.map{ 
-			case (index:Int,offset:Int,score:Double) => (index,offset) }
+	def tiedBest:Array[(Int,Int,Double)] = {
+		correct.filter{ case (index,offset,lprob) => lprob == bestLogProb }
 	}
 	def wasWrong:Boolean = !isCorrect
 	def correctCount:Int = correct.length
@@ -2344,6 +2343,7 @@ class CKYParser extends Parser with Serializable{
 	val parseLock = new ReentrantLock
 	val updates = new java.io.FileWriter(Execution.touch("updates"))
 
+
 	override def parse(i:Int, sent:Sentence, feedback:Boolean, identifier:String
 			):(Array[Parse],Feedback=>Any)={
 		//--Run Parser
@@ -2473,27 +2473,27 @@ class CKYParser extends Parser with Serializable{
 				//--Run Update
 				forceTrack("Update")
 				//(get correct)
-				//  index,offset
-				val correct:Array[(Int,Int)] = O.ckyCountType match {
+				//  index,offset,raw_logprob
+				val correct:Array[(Int,Int,Double)] = O.ckyCountType match {
 					case O.CkyCountType.all =>
-						feedback.correct.map{ case (i:Int,o:Int,score:Double) => (i,o) }
+						feedback.correct.map{ case (i:Int,o:Int,lp:Double) => (i,o,lp) }
 					case O.CkyCountType.bestAll => feedback.tiedBest
-					case O.CkyCountType.bestRandom => Array[(Int,Int)](
-						(feedback.bestIndex,feedback.bestOffset))
+					case O.CkyCountType.bestRandom => Array[(Int,Int,Double)](
+						(feedback.bestIndex,feedback.bestOffset,feedback.bestLogProb))
 					case O.CkyCountType.bestShallow => {
 						//((get shallowest tree))
 						val ((bestI,bestOffset),depth) =
 							feedback.tiedBest.foldLeft(((-1,-1),Int.MaxValue)){
-								case ((argmin,min),(index,offset)) =>
+								case ((argmin,min),(index,offset,lprob)) =>
 									val candMin = trees(index).maxDepth
 									if(candMin < min) ((index,offset),candMin) else (argmin,min)
 								}
 						assert(!feedback.hasCorrect || bestI >= 0,"Bad shallow computation")
 						//((create list))
 						if(bestI >= 0){ 
-							Array[(Int,Int)]((bestI,bestOffset))
+							Array[(Int,Int,Double)]((bestI,bestOffset,feedback.bestLogProb))
 						} else {
-							Array[(Int,Int)]()
+							Array[(Int,Int,Double)]()
 						}
 					}
 					case O.CkyCountType.shortWithOffsetZero => {
@@ -2516,19 +2516,20 @@ class CKYParser extends Parser with Serializable{
 								(!hasZeroOffset || offset == 0)
 						}
 						//((create list))
-						matching.map{ case (i:Int,o:Int,score:Double) => (i,o) }
+						matching
 					}
 					case _ => throw fail("Unknown case: " + O.ckyCountType)
 				}
-				//  index,offset,raw_count
+				//  index,offset,raw_count[not log]
 				val correctWithRaw:Array[(Int,Int,Double)] = correct.map{ 
-						case (index:Int,offset:Int) =>
+						case (index:Int,offset:Int,score:Double) =>
 					//((get raw count))
 					val rawCount:Double = 
 						if(O.hardEM) 1.0
-						else math.exp(scored(index)._3) *
-						     scored(index)._2.prob(
-								 	Range(feedback.grounding,feedback.grounding),offset)
+						else math.exp(score)
+//						math.exp(scored(index)._3) *
+//						     scored(index)._2.prob(
+//								 	Range(feedback.grounding,feedback.grounding),offset)
 					assert(rawCount <= 1.0 && rawCount >= 0.0 && !rawCount.isNaN, 
 						"invalid raw count: " + rawCount)
 					(index,offset,rawCount)
