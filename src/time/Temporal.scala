@@ -2128,7 +2128,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](4+i*4,0,0,0)),
 			AHOUR*3,
-			ADAY).name("DOW("+i+")") }.toList).toArray
+			ADAY).name("TOD("+i+")") }.toList).toArray
 	val DOW = (List(new NoTime) ::: (1 to 7).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfWeek,
@@ -2136,6 +2136,24 @@ object Lex {
 				Array[Int](i,0,0,0,0)),
 			ADAY,
 			AWEEK).name("DOW("+i+")") }.toList).toArray
+	val DOWOM:Array[Array[Sequence]] = 
+		//(dow(0) is invalid)
+		(List[Array[Sequence]](
+			(0 to 4).map{ (dom:Int) => new NoTime }.toArray) ::: 
+		//(for each dow(i))
+		(1 to 7).map{ (dow:Int) =>
+			//(wom(0) is invalid)
+			(List(new NoTime) ::: 
+			//(for each wom(i))
+			(1 to 4).map{ (wom:Int) => new RepeatedRange(
+				//(create partial)
+				new Partial(
+					Array[DateTimeFieldType](WeekOfMonth,dayOfWeek,
+						hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
+					Array[Int](wom,dow,0,0,0,0)),
+				AWEEK,
+				AMONTH).name("DOW("+dow+")WOM("+wom+")") }.toList).toArray
+		}.toList).toArray
 	val DOM = (List(new NoTime) ::: (1 to 31).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfMonth,
@@ -2150,6 +2168,13 @@ object Lex {
 				Array[Int](i,1,0,0,0,0)),
 			AWEEK,
 			AYEAR).name("WOY("+i+")") }.toList).toArray
+	val WOM = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](WeekOfMonth,dayOfWeek,
+					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](i,1,0,0,0,0)),
+			AWEEK,
+			AMONTH).name("WOY("+i+")") }.toList).toArray
 	val MOY = (List(new NoTime) ::: (1 to 12).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](monthOfYear,dayOfMonth,

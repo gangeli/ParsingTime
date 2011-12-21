@@ -663,6 +663,7 @@ object ToyData {
 	private val lastWeekToday = ("last week today",Parse(WEEK move -1))
 	private val lastWeekNow = ("last week now",Parse(WEEK move -1))
 	private val lastWeek = ("last week",Parse(WEEK move -1))
+	private val weekLast = ("week last",Parse(WEEK move -1))
 	private val pastWeek = ("past week",Parse(REF <| AWEEK))
 	private val thePastWeek = ("the past week",Parse(REF <| AWEEK))
 	private val pastMonths2 = ("past 2 months",Parse(REF <| (AMONTH*2)))
@@ -682,7 +683,10 @@ object ToyData {
 	private val quarter = ("quarter",Parse(QUARTER))
 	private val aQuarter = ("a quarter",Parse(AQUARTER))
 	private val lastQuarter = ("last quarter",Parse(QUARTER move -1))
-	private val thirdQuarter = ("third quarter",Parse(QOY(3)))
+	private val firstQuarter = ("1 stquarter",Parse(QOY(1))) //really, should be ordinal
+	private val secondQuarter = ("2 stquarter",Parse(QOY(2)))
+	private val thirdQuarter = ("3 stquarter",Parse(QOY(3)))
+	private val fourthQuarter = ("4 stquarter",Parse(QOY(4)))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(AMONTH*2))
@@ -767,30 +771,30 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-//				//(durations)
-//				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
-//				//(sequences)
-//				week,month,quarter,year,day,theWeek,
-//				//(cannonicals -> sequences)
-//				thisWeek,thisYear,thisMonth,
-//				//(shifts -- standard)
-//				lastWeek,lastYear,lastQuarter,nextMonth,
-//				//(shifts -- noncannonical)
-//				pastWeek,thePastWeek,pastYear,pastMonths2,
-//				//(numbers -- basic)
-//				y1776,
-//				//(sequences)
-//				april,
-//				//(intersects)
-//				april1776,april2,
-//				//(days of the week)
-//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-//				//(numbers -- complex)
-//				y17sp76,
-//				//(seasons)
-//				spring,summer,fall,winter,
-//				//(floor/ciel)
-//				thirdQuarter,
+				//(durations)
+				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
+				//(sequences)
+				week,month,quarter,year,day,theWeek,
+				//(cannonicals -> sequences)
+				thisWeek,thisYear,thisMonth,
+				//(shifts -- standard)
+				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+				//(shifts -- noncannonical)
+				pastWeek,thePastWeek,pastYear,pastMonths2,
+				//(numbers -- basic)
+				y1776,
+				//(sequences)
+				april,
+				//(intersects)
+				april1776,april2,
+				//(days of the week)
+				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+				//(numbers -- complex)
+				y17sp76,
+				//(seasons)
+				spring,summer,fall,winter,
+				//(floor/ceil)
+				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
 //				//(offset -1)
 //				friday_neg1,saturday_neg1,sunday_neg1,monday,tuesday,wednesday,
 //				//(hard)
@@ -846,24 +850,26 @@ class Entry {
 			= parser.run(this.data,O.iters)
 		endTrack("Running")
 		//--External Score
-		startTrack("TempEval")
-		//(variables) //TODO make into parameters
-		Comparisons.inputDir = new File("aux/tempeval2")
-		Comparisons.outputDir = new File("res")
-		Comparisons.lang = "english"
-		//(run)
-		val (trn,tst) = Comparisons.runSystem(parser)
-		startTrack("Eval Results")
-		log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
-		logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
-		logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
-		if(!O.devTest){
-			log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
-			logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
-			logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
+		if(O.train.source == O.DataSource.English){
+			startTrack("TempEval")
+			//(variables) //TODO make into parameters
+			Comparisons.inputDir = new File("aux/tempeval2")
+			Comparisons.outputDir = Execution.touch("")
+			Comparisons.lang = "english"
+			//(run)
+			val (trn,tst) = Comparisons.runSystem(parser)
+			startTrack("Eval Results")
+			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
+			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
+			logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
+			if(!O.devTest){
+				log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
+				logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
+				logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
+			}
+			endTrack("Eval Results")
+			endTrack("TempEval")
 		}
-		endTrack("Eval Results")
-		endTrack("TempEval")
 		//--Process
 		startTrack(BOLD,"Results")
 		//(train)

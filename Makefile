@@ -13,7 +13,7 @@ CP=${LIB}/lib.jar:${LIB}/scala-compiler.jar:${LIB}/scala-library.jar:${LIB}/post
 
 
 # -- PROGRAM --
-${DIST}/time.jar: ${BUILD}/time/JITime.class
+${DIST}/time.jar: ${BUILD}/time/Entry.class
 	mkdir -p ${DIST}
 	jar cf ${DIST}/time.jar -C $(BUILD) .
 	jar uf ${DIST}/time.jar -C $(SRC) .

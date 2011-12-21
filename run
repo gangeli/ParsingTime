@@ -64,8 +64,8 @@ env!(
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
 		# <training>
-		o('beam', 100), #1500 works well
-		o('iters', 4),
+		o('beam', 500), #1500 works well
+		o('iters', 10),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<params>

@@ -50,12 +50,19 @@ object Nonterminal {
 		head
 	}
 	def apply(name:Symbol):Nonterminal = {
-		valueMap(name)
+		if(!valueMap.contains(name)){
+			throw new IllegalArgumentException("No such nonterminal: " + name)
+		} else {
+			valueMap(name)
+		}
 	}
 	def apply(name:String):Nonterminal = {
 		apply(Symbol(name))
 	}
 	def apply(name:Symbol, t:Symbol):Nonterminal = {
+		if(valueMap.contains(name)){
+			return valueMap(name)
+		}
 		nextId += 1
 		val term = new Nonterminal(name,nextId)
 		t match {
@@ -75,6 +82,7 @@ object Nonterminal {
 			case 'R => Nonterminal('Range)
 			case 'S => Nonterminal('Sequence)
 			case 'D => Nonterminal('Duration)
+			case 'N => Nonterminal('Number)
 			case _ => throw fail("No such short form: " + short)
 		}
 	}
@@ -83,6 +91,7 @@ object Nonterminal {
 			case 'Range => "R"
 			case 'Duration => "D"
 			case 'Sequence => "S"
+			case 'Number => "N"
 			case _ => term.name.name
 		}
 	}
@@ -97,6 +106,7 @@ object Nonterminal {
 	}
 
 	//--Create Nonterminals
+	import scala.collection.immutable.Set
 	val ranges = List("R","S")
 	val durations = List("D","S")
 	//(root)
@@ -110,14 +120,14 @@ object Nonterminal {
 	Nonterminal('Sequence, 'none)
 	//(arity-2 functions)
 	//((like rd2r))
-	val fn2 = ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
+	val fn2 = {ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
 			case (soFar:List[(Nonterminal,Symbol,Symbol)],r:String) =>
 		durations.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
 				case (soFar:List[(Nonterminal,Symbol,Symbol)],d:String) =>
 			( Nonterminal(Symbol("F_{"+r+d+"}2"+r), 'none),Symbol(r),Symbol(d)
 				) :: soFar
 		} ::: soFar
-	} ::: 
+	}.toSet ++
 	//((like rr2r))
 	ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
 			case (soFar:List[(Nonterminal,Symbol,Symbol)],r1:String) =>
@@ -126,19 +136,25 @@ object Nonterminal {
 			(Nonterminal(Symbol("F_{"+r1+r2+"}2"+r1),'none),
 				Symbol(r1),Symbol(r2)) :: soFar
 		} ::: soFar
-	}
+	}}.toList
 	//(arity-1 functions)
 	//((like r2r))
-	val fn1 = ranges.foldLeft(List[(Nonterminal,Symbol)]()){
-			case (soFar:List[(Nonterminal,Symbol)],r:String) =>
-		(Nonterminal(Symbol("F_{"+r+"}2"+r), 'none),Symbol(r)) :: soFar
-	} ::: 
+	val fn1 = {ranges.foldLeft(List[((Nonterminal,Symbol),Symbol)]()){
+			case (soFar:List[((Nonterminal,Symbol),Symbol)],r:String) =>
+		((Nonterminal(Symbol("F_{"+r+"}2"+r), 'none),Symbol(r)),Symbol(r)) :: soFar
+	}.toSet ++
+	//((n2r))
+	List[((Nonterminal,Symbol),Symbol)](
+		((Nonterminal(Symbol("F_{N}2S"), 'none),'S), 'N)
+	) ++
 	//((like d2d))
-	durations.foldLeft(List[(Nonterminal,Symbol)]()){
-			case (soFar:List[(Nonterminal,Symbol)],d:String) =>
-		(Nonterminal(Symbol("F_{"+d+"}2"+d), 'none),Symbol(d)) :: soFar
-	}
+	durations.foldLeft(List[((Nonterminal,Symbol),Symbol)]()){
+			case (soFar:List[((Nonterminal,Symbol),Symbol)],d:String) =>
+		((Nonterminal(Symbol("F_{"+d+"}2"+d), 'none),Symbol(d)),Symbol(d)) :: soFar
+	}}.toList
 	//--Error Checks
+//	fn1.foreach{ println(_) }
+//	fn2.foreach{ println(_) }
 	assert(
 		this.values.zipWithIndex.forall{ case (term:Nonterminal,id:Int) =>
 			term.id == id },
@@ -303,6 +319,16 @@ object Grammar {
 			(YEAR,"Year:S")
 			) :::
 		Nil
+	val indexedSequences:List[(Array[Sequence],String)]
+		= List[(Array[Sequence],String)](
+			(DOW,"DOW$(n^{th})$"),
+			(WOM,"WOM$(n^{th})$"),
+			(WOY,"WOY$(n^{th})$"),
+			(MOY,"MOY$(n^{th})$"),
+			(QOY,"QOY$(n^{th})$")
+		) :::
+		(1 to 7).map{(i:Int) => (DOWOM(i), DOW_STR(i-1)+"$(n)$")}.toList :::
+		Nil
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
@@ -345,25 +371,13 @@ object Grammar {
 				.ensureValidity( (w:Int) => w >= 0 && w < 24 ),
 				"hod(n):S"),
 			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
-				hack((num:Int) =>  DOW(num) ))
-				.ensureValidity( (w:Int) => w >= 1 && w <= 7 ),
-				"dow(n):S"),
-			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
 				hack((num:Int) =>  DOM(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 31 ),
 				"dom(n):S"),
 			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
-				hack((num:Int) =>  WOY(num) ))
-				.ensureValidity( (w:Int) => w >= 1 && w <= 52 ),
-				"woy(n):S"),
-			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
 				hack((num:Int) =>  MOY(num) ))
 				.ensureValidity( (w:Int) => w >= 1 && w <= 12 ),
 				"moy(n):S"),
-			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
-				hack((num:Int) =>  QOY(num) ))
-				.ensureValidity( (w:Int) => w >= 1 && w <= 4 ),
-				"qoy(n):S"),
 			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
 				hack((num:Int) =>  YOC(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w < 100 ),
@@ -384,7 +398,21 @@ object Grammar {
 				.ensureValidity( (w:Int) => w > -100 && w < 100 ),
 				"century(n):R")
 			)
-
+		//(indices)
+		rtn = rtn ::: indexedSequences.map{ case (fn:Array[Sequence],name:String) =>
+			(UnaryRule(Nonterminal("F_{N}2S"), Nonterminal('Word), 
+				hack((w:Int) =>  
+					(n:Int) => {
+						if(n < 0 || n >= fn.length){
+							new NoTime
+						} else {
+							fn(n)
+						}
+					}
+				)),
+				name
+			)
+		}
 		//--Arity 2 Functions
 		//(util)
 		case class F2Info[A,B](
@@ -529,20 +557,21 @@ object Grammar {
 		//(apply)
 		rtn = rtn ::: {
 			Nonterminal.fn1.foldLeft(List[(Rule,String)]()){
-					case (soFar:List[(Rule,String)],(fn:Nonterminal,a:Symbol)) =>
+					case (soFar:List[(Rule,String)],
+						((fnNode:Nonterminal,head:Symbol),a:Symbol)) =>
 				//(consume A on the left)
 				{( BinaryRule(
-					Nonterminal.fromShort(a),                                  //head
+					Nonterminal.fromShort(head),                               //head
 					Nonterminal.fromShort(a),                                  //left
-					fn,                                                        //right
-					hack2((a:Temporal,fn:(Temporal)=>Temporal) => fn(a)) ),    //function
+					fnNode,                                                    //right
+					hack2((a:Any,fn:(Any)=>Temporal) => fn(a)) ),              //function
 				"$x:"+a.name+"$") ::                                         //name
 				//(consume A on the right)
 				( BinaryRule(
-					Nonterminal.fromShort(a),                                  //head
-					fn,                                                        //left
+					Nonterminal.fromShort(head),                               //head
+					fnNode,                                                    //left
 					Nonterminal.fromShort(a),                                  //right
-					hack2((fn:(Temporal)=>Temporal,a:Temporal) => fn(a)) ),    //function
+					hack2((fn:(Any)=>Temporal,a:Any) => fn(a)) ),              //function
 				"$x:"+a.name+"$") ::                                         //name
 				Nil} ::: soFar
 			}
@@ -2390,7 +2419,7 @@ class CKYParser extends Parser with Serializable{
 				def update(index:Int,offset:Int,count:Double) = {
 					val (head,temporal,score) = scored(index)
 					val parse = trees(index)
-					startTrack("Correct: ["+offset+"] "
+					forceTrack("Correct: ["+offset+"] "
 						+temporal+" ["+G.df.format(count)+"]")
 					assert(!count.isNaN, "Trying to incorporate NaN count")
 					assert(O.rulePrior.isZero || O.lexPrior.isZero || 

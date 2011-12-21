@@ -126,7 +126,7 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 		}
 		endTrack("Reading Timexes")
 		//(return)
-		rtn.reverse.toArray
+		rtn.toArray
 	}
 }
 

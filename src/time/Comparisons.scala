@@ -35,11 +35,14 @@ case class SystemOutput(typ:Option[String],value:Option[String])
 case class SystemInput(gloss:String,typ:String,value:String,
 	ground:DateTime,isTest:Boolean,timex:Timex,
 	output:(Option[String],Option[String])=>String)
-case class AttributeScore(typeAccuracy:Double,valueAccuracy:Double,raw:String){
+case class AttributeScore(
+		typeAccuracy:Double,valueAccuracy:Double,raw:String,
+		exactValueMatch:Double){
 	def accuracy:Double = valueAccuracy
 	override def toString:String = {
 		"type: " + G.df.format(typeAccuracy) + 
-			" value: " + G.df.format(valueAccuracy)
+			" value: " + G.df.format(valueAccuracy) + 
+			" exact: " + G.df.format(exactValueMatch)
 	}
 }
 
@@ -47,14 +50,29 @@ trait OtherSystem {
 	def getTimex(input:SystemInput):Option[SystemOutput]
 	def name:String
 
-	def evaluateAttributes(data:Iterable[SystemInput],isTest:Boolean
-			):AttributeScore = {
+	def outputFile(isTest:Boolean) = Comparisons.outputDir.getPath+
+			"/attributes-"+name+"-"+{if(isTest) "test" else "train"}+".tab"
+
+	def evaluateAttributes(data:Iterable[SystemInput],isTest:Boolean,
+			otherFiles:File*):AttributeScore = {
 		//--Run
 		startTrack("Evaluating")
+		var exactMatch:Int = 0
+		var totalCount:Int = 0
 		val guess = data.zipWithIndex.foldLeft((new StringBuilder)){ 
 				case (b:StringBuilder,(input:SystemInput,i:Int)) =>
 			//(score)
 			val guess:Option[SystemOutput] = getTimex(input)
+			//(calculate exact match
+			guess match {
+				case Some(output) => output.value match {
+					case Some(timexValue) =>
+						if(input.value.equals(timexValue)){ exactMatch += 1 }
+					case None =>
+				}
+				case None =>
+			}
+			totalCount += 1
 			//(log)
 			startTrack("Timex " + i + ": " + input.gloss)
 			log("guess:  " + guess)
@@ -74,18 +92,21 @@ trait OtherSystem {
 		//--Save Temp
 		startTrack("Setting Up Script")
 		//(create file)
-		val guessAttributes:String = Comparisons.outputDir.getPath+
-			"/attributes-"+name+"-"+{if(isTest) "test" else "train"}+".tab"
-		val f:File = new File(guessAttributes)
+		val guessAttributes:String = outputFile(isTest)
 		//(save to file)
-		try {
-			if(!f.exists){ f.createNewFile }
-			val fw = new FileWriter(f)
-			fw.write(guess)
-			fw.close()
-		} catch {
-			case (e:Exception) => throw new RuntimeException(e)
+		def write(f:File):Unit = {
+			try {
+				if(!f.exists){ f.createNewFile }
+				val fw = new FileWriter(f)
+				fw.write(guess)
+				fw.close()
+			} catch {
+				case (e:Exception) => throw new RuntimeException(e)
+			}
 		}
+		write(new File(guessAttributes))
+		//(save other files)
+		otherFiles.foreach{ write(_) }
 		//(get other paths)
 		val base:String =
 			if(isTest){
@@ -135,7 +156,8 @@ trait OtherSystem {
 		log("type:  " + typAccr)
 		log("value: " + valAccr)
 		endTrack("Scoring")
-		AttributeScore(typAccr.toDouble,valAccr.toDouble,scriptOutput)
+		AttributeScore(typAccr.toDouble,valAccr.toDouble,scriptOutput,
+			exactMatch.asInstanceOf[Double] / totalCount.asInstanceOf[Double])
 	}
 
 }
