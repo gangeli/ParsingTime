@@ -437,7 +437,8 @@ trait DataStore {
 							//(debug)
 							if(O.printAllParses){
 								log(FORCE,i+"["+offset+"] "+
-									G.df.format((parse.logProb+math.log(prob)))+" "+parse)
+									G.df.format((parse.logProb+math.log(prob)))+" "+parse +" :: "+
+									parse.tree.orNull)
 							}
 							assert(parseProb == parse.logProb, "yes, I get strange bugs")
 							//(create parse)
@@ -484,6 +485,7 @@ trait DataStore {
 			if(scores.length > 2){ log(FORCE,"      then: " + scores(2)) }
 			endTrack("Scores") 
 		}
+		log("" + scores.length + " candidates")
 		//--Process Score
 		if(scores.length > 0){
 			//(get guess)
@@ -570,6 +572,7 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String)
 						= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
 					//(cleanup)
 					evalTime += watch.lap //not stirctly threadsafe
+					log("Timing parse: " + parseTime + " eval: " + evalTime)
 					endTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
 					if(shouldThread){ finishThread }
 				}
@@ -771,33 +774,33 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-//				//(durations)
-//				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
-//				//(sequences)
-//				week,month,quarter,year,day,theWeek,
-//				//(cannonicals -> sequences)
-//				thisWeek,thisYear,thisMonth,
-//				//(shifts -- standard)
-//				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
-//				//(shifts -- noncannonical)
-//				pastWeek,thePastWeek,pastYear,pastMonths2,
-//				//(numbers -- basic)
-//				y1776,
-//				//(sequences)
-//				april,
-//				//(intersects)
-//				april1776,april2,
-//				//(days of the week)
-//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-//				//(numbers -- complex)
-//				y17sp76,
-//				//(seasons)
-//				spring,summer,fall,winter,
-//				//(floor/ceil)
-//				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
-//				//(offset -1)
+				//(durations)
+				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
+				//(sequences)
+				week,month,quarter,year,day,theWeek,
+				//(cannonicals -> sequences)
+				thisWeek,thisYear,thisMonth,
+				//(shifts -- standard)
+				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+				//(shifts -- noncannonical)
+				pastWeek,thePastWeek,pastYear,pastMonths2,
+				//(numbers -- basic)
+				y1776,
+				//(sequences)
+				april,
+				//(intersects)
+				april1776,april2,
+				//(days of the week)
+				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+				//(numbers -- complex)
+				y17sp76,
+				//(seasons)
+				spring,summer,fall,winter,
+				//(floor/ceil)
+				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
+				//(offset -1)
 				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
-//				//(hard)
+				//(hard)
 //				may22sp1995,special_chars,
 				//(ref)
 				today

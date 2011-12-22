@@ -36,6 +36,20 @@ case class Nonterminal(name:Symbol,id:Int){
 	//--Methods
 	def nilWord:String = name.name.substring(4)
 	//--Default Overrides
+	override def equals(o:Any):Boolean = {
+		o match {
+			case Nonterminal(otherName,otherId) =>
+				if(name == otherName){
+					assert(id == otherId, "Names match but IDs don't")
+					return true
+				} else {
+					assert(id != otherId, "Names don't match but IDs do")
+					false
+				}
+			case _ => false
+		}
+	}
+	override def hashCode:Int = name.hashCode ^ id
 	override def toString:String = name.name
 }
 
@@ -640,6 +654,7 @@ object Grammar {
 
 		//--ROOT
 		rtn = rtn ::: List[UnaryRule](
+			//(rules)
 			UnaryRule(Nonterminal('ROOT), Nonterminal('Range), 
 				hack((r:Range) => r)),
 			UnaryRule(Nonterminal('ROOT), Nonterminal('Duration), 
@@ -723,6 +738,17 @@ object Grammar {
 
 	val str2rid:scala.collection.immutable.Map[String,Int]
 		= RULES_STR.zipWithIndex.toMap
+	
+	def findUnary(head:Nonterminal,child:Nonterminal):Int = {
+		val candidates = RULES.zipWithIndex.filter{ case (r:Rule,rid:Int) =>
+			r.arity == 1 && r.head == head && r.child == child
+		}
+		if(candidates.length != 1){
+			throw new IllegalArgumentException(
+				"Bad rule count: " + head + " -> " + child + ": " + candidates.length)
+		}
+		candidates(0)._2
+	}
 	
 }
 
@@ -1140,6 +1166,21 @@ object CKYParser {
 	
 	
 	//(learning)
+	class CountMergedPrior(toMerge:Int*) extends Prior[Int,Multinomial[Int]] {
+		override def posterior(empirical:Multinomial[Int]):Multinomial[Int] = {
+			val dist:Multinomial[Int] = empirical.clone
+			val aveCount:Double = toMerge.foldLeft(0.0){ case (sum:Double,i:Int) =>
+				sum + empirical.getCount(i)
+			} / toMerge.length.asInstanceOf[Double]
+			dist.foreach{ (key:Int) => 
+				if(toMerge.contains(key)){
+					dist.setCount(key, aveCount)
+				}
+			}
+			dist.normalize
+			dist
+		}
+	}
 	private var (pRuleGivenHead,rid2RuleGivenHeadIndices)
 			:(Array[Multinomial[Int]],Array[(Int,Int)]) = {
 		val mapping = (0 until RULES.length).map{ x => (-1,0) }.toArray
@@ -1164,7 +1205,22 @@ object CKYParser {
 		(distributions,mapping)
 	}
 	private var ruleESS:Array[ExpectedSufficientStatistics[Int,Multinomial[Int]]]
-		= pRuleGivenHead.map{ _.newStatistics(O.rulePrior) }
+		= pRuleGivenHead.zipWithIndex.map{ case (dist:Multinomial[Int],i:Int) =>
+			dist.newStatistics(
+				if(O.uniformRoot && Nonterminal.values(i) == Nonterminal('ROOT)){
+					new CountMergedPrior(
+						rid2RuleGivenHeadIndices(
+							Grammar.findUnary(Nonterminal('ROOT),Nonterminal('Range))
+						)._2,
+						rid2RuleGivenHeadIndices(
+							Grammar.findUnary(Nonterminal('ROOT),Nonterminal('Sequence))
+						)._2
+					)
+				} else {
+					O.rulePrior
+				}
+			)
+		}
 
 	private var (pWordGivenRule,rid2WordGivenRuleIndices)
 			:(Array[Multinomial[Int]],Array[Int]) = {
@@ -1446,11 +1502,14 @@ object CKYParser {
 	// K-Best List
 	//-----
 	class BestList(values:Array[ChartElem],var capacity:Int) {
+		private var deferred:List[LazyStruct] = null
+		private var lazyNextFn:Unit=>Boolean = null
+		var length = 0
+		var wasReset = false
 		
 		// -- Lazy Eval --
 		type LazyStruct = (CkyRule,BestList,BestList,(ChartElem,ChartElem)=>Double)
-		private var deferred:List[LazyStruct] = null
-		private var lazyNextFn:Unit=>Boolean = null
+
 		def markLazy = { 
 			assert(deferred == null, "marking as lazy twice")
 			deferred = List[LazyStruct]() 
@@ -1468,8 +1527,6 @@ object CKYParser {
 		}
 
 		// -- Structure --
-		var length = 0
-
 		def apply(i:Int) = {
 			if(isLazy) {
 				while(i >= length){
@@ -1494,6 +1551,8 @@ object CKYParser {
 			length = 0
 			capacity = newCapacity
 			markEvaluated
+			lazyNextFn = null
+			wasReset = true
 		}
 		def foreach(fn:ChartElem=>Any):Unit = {
 			ensureEvaluated
@@ -1517,13 +1576,13 @@ object CKYParser {
 		}
 		override def clone:BestList = {
 			ensureEvaluated
-			var rtn = new BestList(values.clone,capacity)
+			val rtn = new BestList(values.clone,capacity)
 			rtn.length = this.length
 			rtn
 		}
 		def deepclone:BestList = {
 			ensureEvaluated
-			var rtn = new BestList(values.map{ _.clone },capacity)
+			val rtn = new BestList(values.map{ _.clone },capacity)
 			rtn.length = this.length
 			rtn
 		}
@@ -1554,7 +1613,8 @@ object CKYParser {
 			for(i <- 0 until this.length) {
 				for(j <- (i+1) until this.length) {
 					if(values(i).equals(values(j))){ 
-						return (false,"not unique: " + values(i) + " versus " + values(j)) 
+						return (false,"not unique: " + 
+							values(i) + " versus " + values(j) + " (length: " + length + ")") 
 					}
 				}
 			}
@@ -1884,12 +1944,30 @@ object CKYParser {
 
 		// -- Standard Methods --
 		def add(score:Double,term:CkyRule,left:ChartElem,right:ChartElem) = {
+			//(checks)
 			assert(term.arity == 2, "must be arity 2 rule")
+			if(O.paranoid){
+				(0 until length).foreach{ (i:Int) =>
+					assert(values(i).term != term || values(i).left != left ||
+						values(i).right != right,
+						"Adding duplicate chart entry (binary)")
+				}
+			}
+			//(add)
 			values(length)(score,term,left,right)
 			length += 1
 		}
 		def add(score:Double,term:CkyRule,left:ChartElem) = {
+			//(checks)
 			assert(term.arity == 1, "must be arity 1 rule")
+			if(O.paranoid){
+				(0 until length).foreach{ (i:Int) =>
+					assert(values(i).term != term || values(i).left != left,
+						"Adding duplicate chart entry (unary -- lex?): " + term + 
+						"; was reset? " + wasReset)
+				}
+			}
+			//(add)
 			values(length)(score,term,left)
 			length += 1
 		}
@@ -1944,19 +2022,22 @@ object CKYParser {
 							}.toArray
 						}.toArray
 						//(return)
+						largestBeam = inputBeam
 						largestChart
 					} else {
 						//(cached)
 						largestChart
 					}
 					//--Reset Chart
-					for(start <- 0 until inputLength){
+					for(start <- 0 until largestChart.length){
 						for(len <- 0 until chart(start).length){
-							for(head <- 0 until chart(start)(len).length){
+							for(head <- 0 until chart(start)(len)(UNARY).length){
 								chart(start)(len)(UNARY)(head).reset(inputBeam)
+								assert(chart(start)(len)(UNARY)(head).length == 0)
+							}
+							for(head <- 0 until chart(start)(len)(BINARY).length){
 								chart(start)(len)(BINARY)(head).reset(inputBeam)
-								assert( chart(start)(len)(UNARY)(head) !=
-									chart(start)(len)(BINARY)(head), "corrupted chart")
+								assert(chart(start)(len)(BINARY)(head).length == 0)
 							}
 						}
 					}
@@ -2030,7 +2111,6 @@ object CKYParser {
 			val candidates:List[(CkyRule,Double)] = 
 				//(proposals (nil + normal))
 				(CKY_NIL.toList.filter{ _.head.nilWord.equals(U.w2str(word)) }
-				
 				::: 
 				CKY_LEX.toList.filter{ !_.head.isNil }
 						.filter{ (term:CkyRule) =>
@@ -2087,11 +2167,13 @@ class CKYParser extends Parser with Serializable{
 		val lastScore:Array[Double] = (0 until sent.length).map{ 
 			(i:Int) => Double.PositiveInfinity }.toArray
 		lexLogProb(sent, (term:CkyRule,elem:Int,score:Double) => {
-			//(add terms)
+			//(checks)
 			assert(score <= 0.0, "Lex log probability of >0: " + score)
-			lex(chart,elem,term.head.id).suggest(score,term)
 			assert(score <= lastScore(elem),
 				"KLex out of order: "+lastScore(elem)+"->"+score);
+			//(add terms)
+			lex(chart,elem,term.head.id).suggest(score,term)
+			//(return for more)
 			lastScore(elem) = score
 			true
 		})
@@ -2305,7 +2387,8 @@ class CKYParser extends Parser with Serializable{
 				if( !(begin until end).exists{ (j:Int) => 
 							val (guessH,guessV,guessS) = guess(i)
 							val (goldH,goldV,goldS) = gold(j)
-							Parse(guessH,guessV,guessS).equals( Parse(goldH,goldV,goldS) )
+							Parse(guessH,guessV,guessS).toString
+								.equals( Parse(goldH,goldV,goldS).toString )
 						} ) {
 					return (false, "no reference match for guess " + i)
 				}
@@ -2391,10 +2474,10 @@ class CKYParser extends Parser with Serializable{
 				}, "Algorithm differed in scores from algorithm 0"  )
 			val (equivalent,message) = isEquivalentOutput(scoredReference, scored)
 			if(!equivalent){
-				println("----ALGORITHM 0----")
-				println(scoredReference mkString "\n")
-				println("----ALGORITHM "+saveAlg+"----")
-				println(scored mkString "\n")
+				err(FORCE,"----ALGORITHM 0----")
+				err(FORCE,scoredReference mkString "\n")
+				err(FORCE,"----ALGORITHM "+saveAlg+"----")
+				err(FORCE,scored mkString "\n")
 			}
 			assert( equivalent, "Inconsistent with algorithm 0: " + message)
 			O.kbestCKYAlgorithm = saveAlg
