@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.7.jar"
 JAR='time'
 
-@timeDistribution = 0
+@timeDistribution = 2
 
 # -- RUN --
 env!( 
@@ -106,7 +106,7 @@ env!(
 
 		# -- DEBUG --
 		#(general)
-		o('paranoid'),
+#		o('paranoid'),
 		o('useSeed'),
 		o('seed','42'),
 		o('goldTagFile', 'aux/sentences-100-tagged'),
