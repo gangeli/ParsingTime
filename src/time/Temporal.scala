@@ -1550,22 +1550,22 @@ class RepeatedRange(
 
 	override def >>(diff:Duration):Range 
 		= new RepeatedRange(base, norm, interv, 
-				delta+diff, bound, moveOffset).name(name)
+				delta+diff, bound, moveOffset).name(name + ">>" + diff)
 	override def <<(diff:Duration):Range 
 		= new RepeatedRange(base, norm, interv, 
-				delta-diff, bound, moveOffset).name(name)
+				delta-diff, bound, moveOffset).name(name + "<<" + diff)
 	override def <|(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				delta-diff, bound, moveOffset).name(name)
+				delta-diff, bound, moveOffset).name(name + "<|" + diff)
 	override def |>(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				norm+delta, bound, moveOffset).name(name)
+				norm+delta, bound, moveOffset).name(name + "|>" + diff)
 	override def |<(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				delta, bound, moveOffset).name(name)
+				delta, bound, moveOffset).name(name + "|<" + diff)
 	override def >|(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				norm+delta-diff, bound, moveOffset).name(name)
+				norm+delta-diff, bound, moveOffset).name(name + ">|" + diff)
 
 	override def !(dur:Duration):Range = this
 	override def interval:GroundedDuration = interv.interval

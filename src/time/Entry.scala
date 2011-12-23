@@ -362,15 +362,15 @@ class Score {
 //------------------------------------------------------------------------------
 case class Data(train:DataStore,eval:DataStore){
 	def noopLoop:Unit = {
-		train.eachExample( (s,i) => (Array[Parse](),f=>{}) )
-		eval.eachExample( (s,i) => (Array[Parse](),f=>{}) )
+		train.eachExample( -1, (s,i) => (Array[Parse](),f=>{}) )
+		eval.eachExample( -1, (s,i) => (Array[Parse](),f=>{}) )
 	}
 }
 
 trait DataStore {
 	private var present:StringBuilder
 		= (new StringBuilder).append(Const.START_PRESENTATION("Debug"))
-	def eachExample(fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score
+	def eachExample(i:Int,fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any))):Score
 	def name:String
 
 	def debug(sent:Sentence,vitterbi:Parse,firstCorrect:Parse):Unit = {
@@ -540,8 +540,10 @@ trait DataStore {
 
 class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String) 
 		extends DataStore{
+
 	override def name:String = theName+{if(test){"-eval"}else{"-train"}}
 	override def eachExample( 
+			iter:Int,
 			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 		//(vars)
 		val score:Score = new Score
@@ -552,9 +554,11 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String)
 		var evalTime:Double = 0.0
 		//(create runnables)
 		startTrack("Creating Tasks")
+		val maxLength = if(iter < 1 || !O.babySteps){ Int.MaxValue } else { iter }
 		val tasks:Array[Runnable] = timexes
-				.filter{ (t:Timex) => test || U.timexOK(t.tid) }
-				.map{ (t:Timex) =>
+				.filter{ (t:Timex) => 
+					test || U.timexOK(t.tid) && t.words(test).length <= maxLength
+				}.map{ (t:Timex) =>
 			assert(t.words(test).length > 0, "Timex has no words: " + t)
 			//(variables)
 			val sent = Sentence(t.tid,t.words(test),t.pos(test),t.nums)
@@ -724,7 +728,7 @@ object ToyData {
 	private case class ToyStore(gold:Array[(String,Parse)],test:Boolean) 
 			extends DataStore {
 		override def name:String = if(test) "toy-dev" else "toy"
-		override def eachExample( 
+		override def eachExample( iter:Int,
 				fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
 			val score:Score = new Score
 			gold.zipWithIndex.foreach{ case ((sent:String,gold:Parse),id:Int) =>

@@ -67,6 +67,9 @@ function pyerr {
 #-----
 # Manage Runs
 #-----
+function l {
+	ls out | sort -n | tail
+}
 function v {
 	file=$1
 	last=`ls out | sort -nr | head -n 1`

@@ -96,7 +96,7 @@ object Nonterminal {
 			case 'R => Nonterminal('Range)
 			case 'S => Nonterminal('Sequence)
 			case 'D => Nonterminal('Duration)
-			case 'N => Nonterminal('Number)
+			case 'N => Nonterminal('NUM)
 			case _ => throw fail("No such short form: " + short)
 		}
 	}
@@ -132,6 +132,7 @@ object Nonterminal {
 	Nonterminal('Range, 'none)
 	Nonterminal('Duration, 'none)
 	Nonterminal('Sequence, 'none)
+	Nonterminal('NUM, 'none)
 	//(arity-2 functions)
 	//((like rd2r))
 	val fn2 = {ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
@@ -185,6 +186,7 @@ trait Rule {
 	def head:Nonterminal
 	def accepts(a:Nonterminal):Boolean
 	def accepts(a:Nonterminal,b:Nonterminal):Boolean
+	def characterize:String
 	
 	// -- Can Override --
 	def validInput(w:Int) = isLex
@@ -261,6 +263,7 @@ case class UnaryRule(
 	def accepts(a:Nonterminal):Boolean = a == in
 	def accepts(a:Nonterminal,b:Nonterminal):Boolean = false
 	def ensureValidity(fn:Int=>Boolean):UnaryRule = { checkValid = fn; this }
+	def characterize:String = ""+out + "->" + in
 	override def toString:String = if(str != null){
 			str
 		} else {
@@ -280,6 +283,7 @@ case class BinaryRule(
 	def head:Nonterminal = out
 	def accepts(a:Nonterminal):Boolean = false
 	def accepts(a:Nonterminal,b:Nonterminal):Boolean = (a == in1) && (b == in2)
+	def characterize:String = ""+out + "->" + in1 + "," + in1
 	override def toString:String = if(str != null){
 			str
 		} else {
@@ -373,7 +377,7 @@ object Grammar {
 			}}
 		//(numbers)
 		rtn = rtn ::: List[(Rule,String)](
-			(UnaryRule(Nonterminal('Number), Nonterminal('Number), 
+			(UnaryRule(Nonterminal('NUM), Nonterminal('Number), 
 				hack((num:Int) =>  num )),
 				"NUM"),
 			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
@@ -594,11 +598,11 @@ object Grammar {
 		//--Multiply Duration
 		rtn = rtn ::: List[(Rule,String)](
 			(BinaryRule(Nonterminal('Duration), 
-				Nonterminal('Duration), Nonterminal('Number), hack2(
+				Nonterminal('Duration), Nonterminal('NUM), hack2(
 				(d:Duration,n:Int) => d*n
 				)), "D*n"),
 			(BinaryRule(Nonterminal('Duration), 
-				Nonterminal('Number), Nonterminal('Duration), hack2(
+				Nonterminal('NUM), Nonterminal('Duration), hack2(
 				(n:Int,d:Duration) => d*n
 				)), "n*D")
 			)
@@ -1017,9 +1021,9 @@ trait Parser extends OtherSystem {
 			//(begin)
 			beginIteration(i,feedback,data)
 			//(run)
-			val score = data.eachExample{ (sent:Sentence,id:Int) => 
+			val score = data.eachExample( i, (sent:Sentence,id:Int) => {
 				parse(i, sent, feedback, data.name+":"+id)
-			}
+			})
 			//(end)
 			endIteration(i,feedback,data)
 			//(score)
@@ -2504,19 +2508,23 @@ class CKYParser extends Parser with Serializable{
 					val parse = trees(index)
 					forceTrack("Correct: ["+offset+"] "
 						+temporal+" ["+G.df.format(count)+"]")
+					log(parses(index).tree.orNull)
 					assert(!count.isNaN, "Trying to incorporate NaN count")
 					assert(O.rulePrior.isZero || O.lexPrior.isZero || 
 						count > Double.NegativeInfinity, "Parse has zero probability")
 					//(count rules) NOTE: E-STEP HERE
+					startTrack("EM Update")
 					trees(index).traverse( 
 							{ (rid:Int,nilTag:Option[Int]) =>
 								//((update rule))
 								val (hid,multI) = rid2RuleGivenHeadIndices(rid)
+								log(FORCE, "CKY["+Nonterminal.values(hid) + "]["+G.df.format(count)+"]: " + RULES(rid).characterize)
 								ruleESS(hid).updateEStep(multI,count) 
 							},
 							{(rid:Int,i:Int) => 
 								//((update rule))
 								val (hid,multI) = rid2RuleGivenHeadIndices(rid)
+								log(FORCE, "CKY["+Nonterminal.values(hid) + "]["+G.df.format(count)+"]: " + RULES(rid).characterize)
 								ruleESS(hid).updateEStep(multI,count) 
 								//((update lex))
 								try{
@@ -2526,9 +2534,11 @@ class CKYParser extends Parser with Serializable{
 									case (e:Exception) => e.printStackTrace
 								}
 								val lexI = rid2WordGivenRuleIndices(rid)
+								log(FORCE, "LEX["+RULES(rid).characterize+"("+RULES(rid)+")]["+G.df.format(count)+"]: " + sent(i))
 								lexESS(lexI).updateEStep(sent.words(i),count)
 							}
 						)
+					endTrack("EM Update")
 					//(append guesses)
 					corrects = GuessInfo(identifier,parse,count,sent) :: corrects
 					//(update time)

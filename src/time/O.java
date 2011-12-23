@@ -105,6 +105,8 @@ public class O {
 	//--TRAINING
 	@Option(name="iters", gloss="Training iterations")
 	public static int iters = 40;
+	@Option(name="babySteps", gloss="Ramp up the length of timexes gradually")
+	public static boolean babySteps = false;
 	@Option(name="parser", gloss="Parser class to use", required=true)
 	public static String parser = null;
 	@Option(name="maxSearchTime", gloss="Max Iterations")

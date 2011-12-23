@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.7.jar"
 JAR='time'
 
-@timeDistribution = 2
+@timeDistribution = 0
 
 # -- RUN --
 env!( 
@@ -36,10 +36,10 @@ env!(
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
 		o('rulePrior', 0.001),
-		o('lexPrior', 0.0001),
+		o('lexPrior', 0.1),
 		o('nilWordPrior', 0.0001),
 		o('uniformRoot'),
-		selo(4,'ckyCountType',
+		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
@@ -65,10 +65,11 @@ env!(
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
 		# <training>
-		o('beam', 100), #1500 works well
+		o('beam', 1000), #1500 works well
 		o('iters', 10),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
+#		o('babySteps'),
 		#<params>
 		o('useTime'),
 		o('pruneTime', 100),
@@ -97,7 +98,7 @@ env!(
 
 		# -- OLD --
 #		o('ignoreCase'),
-#		o('includeRuleInLexProb'), # I think including this is correct...
+#		o('includeRuleInLexProb'), # err...probably not right
 #		o('allowPartialTime'),
 #		o('hardEM'),
 #		o('freeNils'),
