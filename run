@@ -36,7 +36,7 @@ env!(
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
 		o('rulePrior', 0.001),
-		o('lexPrior', 0.1),
+		o('lexPrior', 0.001),
 		o('nilWordPrior', 0.0001),
 		o('uniformRoot'),
 		selo(0,'ckyCountType',

@@ -9,59 +9,9 @@ function score {
 	if [ "$1" != "" ]; then
 		last="$1.exec"
 	fi
-	attr_len=`wc out/$last/attributes-train.tab | awk '{ print $1 }'`
-	ext_len=`wc out/$last/extents-train.tab | awk '{ print $1 }'`
-	# -- Scoring Script
-	if [ "$2" == "trim" ]; then
-		head -$attr_len aux/tempeval2/training/english/data/timex-attributes.tab > /tmp/attr.tab
-		head -$ext_len aux/tempeval2/training/english/data/timex-extents.tab > /tmp/ext.tab
-		python aux/tempeval2/scorer/score_entities.py\
-			aux/tempeval2/training/english/data/base-segmentation.tab\
-			/tmp/attr.tab\
-			out/$last/attributes-train.tab\
-			/tmp/ext.tab\
-			out/$last/extents-train.tab
-	else
-		python aux/tempeval2/scorer/score_entities.py\
-			aux/tempeval2/training/english/data/base-segmentation.tab\
-			aux/tempeval2/training/english/data/timex-attributes.tab\
-			out/$last/attributes-train.tab\
-			aux/tempeval2/training/english/data/timex-extents.tab\
-			out/$last/extents-train.tab
-	fi
-	# -- Match
-	goldVals=`mktemp`
-	guessVals=`mktemp`
-	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep "value"\
-		> $goldVals
-	cat out/$last/attributes-train.tab | grep "value"\
-		> $guessVals
-	total=`cat $guessVals | wc | awk '{ print $1 }'`
-	missed=`diff $guessVals $goldVals | grep '^<' | wc | awk '{ print $1 }'`
-	correct=`calc $total-$missed | awk '{ print $1 }'`
-	echo ""
-	echo "---Accuracy---"
-	echo "Correct:  $correct"
-	echo "Missed:   $missed"
-	echo "Total:    $total"
-	echo ""
-	echo "Accuracy: `calc $correct / $total | awk '{ print $1 }'`"
-}
-
-function pyerr {
-	# -- Variables
-	last=`ls out | sort -nr | head -n 1`
-	if [ "$1" != "" ]; then
-		last="$1.exec"
-	fi
-	goldVals=`mktemp`
-	guessVals=`mktemp`
-	# -- Display
-	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep "value" |\
-		awk '{ print NR ". " $7 "  " $8 }' > $goldVals
-	cat out/$last/attributes-train.tab | grep "value" |\
-		awk '{ print NR ". " $7 "  " $8 }' > $guessVals
-	gvimdiff $guessVals $goldVals
+	cat out/$last/log | egrep "(accuracy)|(Iteration [0-9]+ {)" |\
+		tail -n 3 |\
+		head -n 2
 }
 
 #-----
