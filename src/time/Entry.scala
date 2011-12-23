@@ -118,7 +118,12 @@ object U {
 		if(numType != NumberType.NONE) {
 			mkNum(str,numType) 
 		} else {
-			val w:Int = G.wordIndexer.indexOf(str)
+			val w:Int = 
+					if(O.ignoreCase) {
+						G.wordIndexer.indexOf(str.toLowerCase)
+					} else {
+						G.wordIndexer.indexOf(str)
+					}
 			if(w < 0) G.UNK else w
 		}
 	}

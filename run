@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.7.jar"
 JAR='time'
 
-@timeDistribution = 0
+@timeDistribution = 2
 
 # -- RUN --
 env!( 
@@ -35,11 +35,10 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		o('rulePrior', 0.001),
-		o('lexPrior', 0.001),
-		o('nilWordPrior', 0.0001),
+		o('rulePrior', 0.1),
+		o('lexPrior', 0.1),
 		o('uniformRoot'),
-		selo(0,'ckyCountType',
+		selo(4,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
@@ -104,6 +103,7 @@ env!(
 #		o('freeNils'),
 #		o('guessRange'),
 #		o('instantAsDay'),
+#		o('nilWordPrior', 0.0001),
 
 		# -- DEBUG --
 		#(general)

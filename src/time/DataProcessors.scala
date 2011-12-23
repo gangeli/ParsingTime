@@ -512,7 +512,7 @@ object Gigaword {
 		log("(JavaNLP annotated)")
 		//(gutime annotation)
 		val gutime = new GUTimeAnnotator(new File(
-			System.getenv("HOME")+"/workspace/time/etc/"));
+			System.getenv("HOME")+"/workspace/time/etc/"))
 		gutime.annotate(doc)
 		log("(gutime annotated)")
 		//--Iterate Timexes
@@ -631,6 +631,7 @@ object Gigaword {
 			sent.remove[JList[CoreMap],TimexAnnotations](classOf[TimexAnnotations])
 		}
 		//(write)
+		log("(writing file)")
 		val outFile = outDir.getPath + "/" + filename + ".coremap"
 		try {
 			IOUtils.writeObjectToFile(doc,outFile)
@@ -640,11 +641,13 @@ object Gigaword {
 //			out.close();
 		} catch {
 			case (e:IOException) => {
+				log(e)
 				new File(outFile).delete
 				throw new RuntimeException(e);
 			}
 		}
 		//(done)
+		log("(ending track)")
 		endTrack("Document " + hdr)
 	}
 
