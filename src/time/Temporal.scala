@@ -577,6 +577,7 @@ class GroundedRange(val begin:Time,val end:Time) extends SingletonRange {
 			case DurationUnit.HOUR => AHOUR
 			case DurationUnit.MINUTE => AMIN
 			case DurationUnit.SECOND => ASEC
+			case DurationUnit.MILLIS => Duration.ZERO
 			case DurationUnit.ZERO => Duration.ZERO
 		}
 		new GroundedRange(base,base+diff)
@@ -1139,6 +1140,8 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 				={check(v,p.plusMinutes(_),v.toInt)}
 			def addSeconds(p:Period,v:Long):Period
 				={check(v,p.plusSeconds(_),v.toInt)}
+			def addMillis(p:Period,v:Long):Period
+				={check(v,p.plusMillis(_),v.toInt)}
 			var p = base.toPeriod
 			new GroundedDuration( units.foldLeft(Period.ZERO){ 
 				case (soFar:Period,term:DurationUnit.Value) => term match {
@@ -1214,6 +1217,9 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 						} else {
 							addSeconds(soFar,v)
 						}
+					case MILLIS => 
+						val v = p.getMillis.toLong*n
+						addMillis(soFar,v)
 				}
 			} )
 		} catch {
@@ -1224,21 +1230,23 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 	}
 
 	override def units:Array[DurationUnit.Value] = {
-		val period = base.toPeriod
-		var unitsAsc = List[DurationUnit.Value]()
-		if(period.getYears >= 1000){ unitsAsc = DurationUnit.MILLENIUM :: unitsAsc }
-		if(period.getYears%1000 >= 100){unitsAsc = DurationUnit.CENTURY :: unitsAsc}
-		if(period.getYears%100 >= 10){unitsAsc = DurationUnit.DECADE :: unitsAsc}
-		if(period.getYears%10 > 0){unitsAsc = DurationUnit.YEAR :: unitsAsc}
-		if(period.getMonths > 0 && period.getMonths % 3 == 0)
-			{unitsAsc = DurationUnit.QUARTER :: unitsAsc}
-		if(period.getMonths % 3 > 0){unitsAsc = DurationUnit.MONTH :: unitsAsc}
-		if(period.getWeeks > 0){unitsAsc = DurationUnit.WEEK :: unitsAsc}
-		if(period.getDays > 0){unitsAsc = DurationUnit.DAY :: unitsAsc}
-		if(period.getHours > 0){unitsAsc = DurationUnit.HOUR :: unitsAsc}
-		if(period.getMinutes > 0){unitsAsc = DurationUnit.MINUTE :: unitsAsc}
-		if(period.getSeconds > 0){unitsAsc = DurationUnit.SECOND :: unitsAsc}
-		unitsAsc.reverse.toArray
+		import DurationFieldType._
+		import edu.stanford.nlp.time.JodaTimeUtils._
+		import DurationUnit._
+		base.toPeriod.getFieldTypes.map{ (d:DurationFieldType) =>
+			if(d == centuries){ CENTURY }
+			else if(d == Decades){ DECADE }
+			else if(d == years){ YEAR }
+			else if(d == Quarters){ QUARTER }
+			else if(d == months){ MONTH }
+			else if(d == weeks){ WEEK }
+			else if(d == days){ DAY }
+			else if(d == hours){ HOUR }
+			else if(d == minutes){ MINUTE }
+			else if(d == DurationFieldType.seconds){ SECOND }
+			else if(d == millis){ DurationUnit.MILLIS }
+			else{ throw fail("Unknown duration type: " + d) }
+		}
 	}
 	override def timexString:String = {
 		import DurationUnit._
@@ -1781,6 +1789,7 @@ case class Time(base:DateTime) {
 			case DurationUnit.MINUTE => 
 				new Time(base.withSecondOfMinute(0).withMillisOfSecond(0))
 			case DurationUnit.SECOND => new Time(base.withMillisOfSecond(0))
+			case DurationUnit.MILLIS => this
 			case DurationUnit.ZERO => this
 		}
 	}
@@ -2005,7 +2014,7 @@ object PartialTime {
 // ----- DURATION UNIT -----
 object DurationUnit extends Enumeration {
 	val MILLENIUM, CENTURY, DECADE, YEAR, QUARTER, MONTH, WEEK, DAY, 
-		HOUR, MINUTE, SECOND, ZERO
+		HOUR, MINUTE, SECOND, MILLIS, ZERO
 			= Value
 }
 

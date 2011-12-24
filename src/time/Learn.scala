@@ -958,6 +958,12 @@ case class Parse(value:Temporal,logProb:Double){
 						INF //case: beginning is neg_infinity
 					} else if(guess.end == Time.END_OF && gold.end != Time.END_OF){
 						INF //case: end is pos_infinity
+					} else if(guess.begin == Time.DAWN_OF && gold.begin == Time.DAWN_OF &&
+							guess.end != Time.END_OF && gold.end != Time.END_OF){
+						(Duration.ZERO,Duration.ZERO) //case: past
+					} else if(guess.end == Time.END_OF && gold.end == Time.END_OF &&
+							guess.begin != Time.DAWN_OF && gold.begin != Time.DAWN_OF){
+						(Duration.ZERO,Duration.ZERO) //case: future
 					} else {
 						(guess.begin-gold.begin,guess.end-gold.end) //case: can subtract
 					}
@@ -983,12 +989,43 @@ case class Parse(value:Temporal,logProb:Double){
 		//--Map Iterator
 		value.distribution(ground).map{
 				case (guess:Temporal,prob:Double,offset:Long) =>
+			//(get diff)
+			val d = diff(gold,guess,false)
+			//(check timex consistency)
+			if(U.sumDiff(d) > O.exactMatchThreshold){
+				import edu.stanford.nlp.time.JodaTimeUtils._
+				val (tGold, tGuess) = (gold,guess) match {
+					case (a:UnkTime, b:Temporal) => {("not", "equal")}
+					case (a:Temporal, b:NoTime) => {("not", "equal")}
+					case (a:GroundedRange,b:GroundedRange) => {
+						(timexDateValue(a.begin.base, a.end.base),
+							timexDateValue(b.begin.base,b.end.base))
+					}
+					case (a:FuzzyDuration,b:FuzzyDuration) => {
+						(timexDurationValue(a.interval.base,true),
+							timexDurationValue(b.interval.base,true))
+					}
+					case (a:GroundedDuration,b:GroundedDuration) => {
+						(timexDurationValue(a.interval.base),
+								timexDurationValue(b.interval.base))
+					}
+					case _ => ("not","equal")
+				}
+				if(tGold.equals(tGuess)){
+					throw new IllegalStateException("Timexes match but " +
+						"difference is nonzero: gold="+tGold+" guess="+tGuess+
+						"  myGuess="+guess+"  inferredGold="+gold+" (diff="+d+") :: "+ 
+						tree.orNull)
+				}
+			}
+			//(debug)
 			assert(O.timeDistribution != O.Distribution.Point ||
 				offset == 0L ||
 				prob == 0.0,
 				"Time returned distribution when it shouldn't have: " 
 					+ guess + " (offset=" + offset + ") [prob=" + prob + "]")
-			(diff(gold,guess,false),prob,offset.toInt)
+			//(return)
+			(d,prob,offset.toInt)
 		}
 	}
 	

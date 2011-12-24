@@ -412,7 +412,7 @@ trait DataStore {
 		case class ScoreElem(index:Int,offset:Int,exact:Boolean,
 				diff:(Duration,Duration),prob:Double)
 		def isExact(diff:(Duration,Duration)):Boolean
-			= { U.sumDiff(diff) < O.exactMatchThreshold }
+			= { U.sumDiff(diff) <= O.exactMatchThreshold }
 		val vitterbi:Temporal = 
 			if(parses != null && parses.length > 0) {
 				parses(0).ground(grounding) 

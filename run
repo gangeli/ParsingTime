@@ -38,7 +38,7 @@ env!(
 		o('rulePrior', 0.1),
 		o('lexPrior', 0.1),
 		o('uniformRoot'),
-		selo(0,'ckyCountType',
+		selo(4,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
@@ -64,7 +64,7 @@ env!(
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
 		# <training>
-		o('beam', 1000), #1500 works well
+		o('beam', 100), #1500 works well
 		o('iters', 10),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
@@ -78,7 +78,7 @@ env!(
 		selo(0,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
-		o('exactMatchThreshold', 1),        # a second
+		o('exactMatchThreshold', 60),        # a second
 		o('scoreGranularity', 60*60*24),    # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
@@ -87,6 +87,7 @@ env!(
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
 		o('train', 'English[0,20]'),   o('dev',   'English[142,162]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
@@ -118,7 +119,7 @@ env!(
 #		o('printAllParses'),
 		o('todoHacks'),
 		o('reportK', 5),
-		o('ignoreTimeSequences'),
+#		o('ignoreTimeSequences'),
 		#(debug programs)
 		selo(0,'runDebug',
 			'none',
