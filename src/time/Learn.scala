@@ -329,9 +329,9 @@ object Grammar {
 			.dense.name(SEASON_STR(i-1)),SEASON_STR(i-1)) ).toList ::: 
 		(1 to 4).map(i=>(TOD(i).asInstanceOf[RepeatedRange]
 			.dense.name(TOD_STR(i-1)),TOD_STR(i-1)) ).toList ::: 
-//		{if(O.useTime) List[(Sequence,String)]( //TODO uncomment this
-//			(SEC,"Sec:S"),(MIN,"Min:S"),
-//			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
+		{if(O.useTime && !O.ignoreTimeSequences) List[(Sequence,String)](
+			(SEC,"Sec:S"),(MIN,"Min:S"),
+			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
 		List[(Sequence,String)](
 			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
 			(YEAR,"Year:S")
@@ -437,8 +437,12 @@ object Grammar {
 			fn:(_<:A,_<:B)=>_<:A,name:String,validA:List[Symbol],validB:List[Symbol])
 		//(define)
 		val function2 = List[F2Info[Temporal,Temporal]](
-			F2Info(shiftLeft,"shiftLeft",List('R,'S),List('D)),        //last/ago
-			F2Info(shiftRight,"shiftRight",List('R,'S),List('D)),      //next/from now
+			F2Info(
+				if(O.cannonicalShifts){ cannonicalLeft } else shiftLeft,
+				"shiftLeft",List('R,'S),List('D)),                       //last/ago
+			F2Info(
+				if(O.cannonicalShifts){ cannonicalRight } else shiftRight,
+				"shiftRight",List('R,'S),List('D)),                      //next
 			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D)),    //first
 			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D)),      //last
 			F2Info(catLeft,"catLeft",List('R),List('D)),               //past
@@ -2338,6 +2342,25 @@ class CKYParser extends Parser with Serializable{
 			log(FORCE,"no zero probability words")
 		}
 		endTrack("impossible words")
+		//(nil completions)
+		startTrack("Most Common Tags")
+		(0 until G.W).foreach{ (w:Int) =>
+			log(FORCE, U.w2str(w) + " -> " + 
+				(0 until RULES.length).foldLeft(List[(String,Double)]()){ 
+						case (soFar:List[(String,Double)],rid:Int) =>
+					val id = rid2WordGivenRuleIndices(rid)
+					if(id >= 0){
+						(RULES_STR(rid), pWordGivenRule(id).prob(w)) :: soFar
+					} else {
+						soFar
+					}
+				}.sortBy( -_._2 ).slice(0,5).map{ case (str:String,prob:Double) =>
+					str+":"+G.df.format(prob)
+				}.mkString(" ")
+			)
+		}
+		endTrack("Most Common Tags")
+		//--Write Parses
 		//(write guesses)
 		if(writeParses){
 			startTrack("Creating Presentation")

@@ -9,9 +9,25 @@ function score {
 	if [ "$1" != "" ]; then
 		last="$1.exec"
 	fi
+	# -- Print Score
 	cat out/$last/log | egrep "(accuracy)|(Iteration [0-9]+ {)" |\
 		tail -n 3 |\
 		head -n 2
+}
+
+function pyscore {
+	# -- Variables
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	# -- Run Script
+	aux/tempeval2/scorer/score_entities.py\
+		aux/tempeval2/training/english/data/base-segmentation.tab\
+		aux/tempeval2/training/english/data/timex-extents.tab\
+		aux/tempeval2/training/english/data/timex-extents.tab\
+		aux/tempeval2/training/english/data/timex-attributes.tab\
+		out/$last/attributes-MyTime-train.tab
 }
 
 #-----

@@ -54,7 +54,7 @@ trait OtherSystem {
 			"/attributes-"+name+"-"+{if(isTest) "test" else "train"}+".tab"
 
 	def evaluateAttributes(data:Iterable[SystemInput],isTest:Boolean,
-			otherFiles:File*):AttributeScore = {
+			quiet:Boolean,otherFiles:File*):AttributeScore = {
 		//--Run
 		startTrack("Evaluating")
 		var exactMatch:Int = 0
@@ -76,7 +76,7 @@ trait OtherSystem {
 			//(log)
 			startTrack("Timex " + i + ": " + input.gloss)
 			log("guess:  " + guess)
-			log("gold:   " + input.value)
+			if(!quiet || !isTest){ log("gold:  " + input.value) }
 			log("ground: " + input.ground)
 			endTrack("Timex " + i + ": " + input.gloss)
 			//(create string)
@@ -145,7 +145,7 @@ trait OtherSystem {
 				.toString !!;
 		//(print output)
 		startTrack("Script Output")
-		log(scriptOutput)
+		if(!quiet || !isTest){ log(scriptOutput) }
 		endTrack("Script Output")
 		//(get scores)
 		val Type =  """(?ms).*attribute type       ([0-9\.]+).*""".r
@@ -153,8 +153,10 @@ trait OtherSystem {
 		val Type(typAccr) = scriptOutput
 		val Value(valAccr) = scriptOutput
 		//(return)
-		log("type:  " + typAccr)
-		log("value: " + valAccr)
+		if(!quiet || !isTest){
+			log("type:  " + typAccr)
+			log("value: " + valAccr)
+		}
 		endTrack("Scoring")
 		AttributeScore(typAccr.toDouble,valAccr.toDouble,scriptOutput,
 			exactMatch.asInstanceOf[Double] / totalCount.asInstanceOf[Double])
@@ -245,7 +247,8 @@ object Comparisons {
 		new HeidelTimeAnnotator(
 			new File(System.getenv("HOME")+"/workspace/time/etc/")))
 
-	def runSystem(sys:OtherSystem):(AttributeScore,AttributeScore) = {
+	def runSystem(sys:OtherSystem,quiet:Boolean=false
+			):(AttributeScore,AttributeScore) = {
 		//--Score Dataset
 		def score(data:TimeDataset,isTest:Boolean) = {
 			val dataLst
@@ -260,7 +263,7 @@ object Comparisons {
 					timex,
 					timex.tempevalAttribute(_,_,timex.grounding.base,true)) :: data
 			}
-			sys.evaluateAttributes(dataLst.reverse,isTest)
+			sys.evaluateAttributes(dataLst.reverse,isTest,quiet)
 		}
 		//--Run
 		//(get data)

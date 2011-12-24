@@ -864,12 +864,12 @@ class Entry {
 		//--External Score
 		if(O.train.source == O.DataSource.English){
 			startTrack("TempEval")
-			//(variables) //TODO make into parameters
-			Comparisons.inputDir = new File("aux/tempeval2")
+			//(variables)
+			Comparisons.inputDir = O.tempevalHome
 			Comparisons.outputDir = Execution.touch("")
-			Comparisons.lang = "english"
+			Comparisons.lang = O.train.language
 			//(run)
-			val (trn,tst) = Comparisons.runSystem(parser)
+			val (trn,tst) = Comparisons.runSystem(sys=parser,quiet=true)
 			startTrack("Eval Results")
 			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
 			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)

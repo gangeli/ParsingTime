@@ -2,6 +2,7 @@ package time;
 
 import java.util.regex.*;
 import java.lang.reflect.Type;
+import java.io.File;
 
 import org.goobs.exec.Option;
 import org.goobs.stats.Dirichlet;
@@ -35,6 +36,9 @@ public class O {
 			this.begin = Integer.parseInt(m.group(2));
 			this.end = Integer.parseInt(m.group(3));
 			return this;
+		}
+		public String language(){
+			return source.toString().toLowerCase();
 		}
 		public String encode() {
 			return this.source.toString()+"["+this.begin+","+this.end+"]";
@@ -144,6 +148,8 @@ public class O {
 	public static boolean instantAsDay = false;
 	@Option(name="guessRange", gloss="Guess reference range")
 	public static boolean guessRange = false;
+	@Option(name="tempevalHome", gloss="Home for the original Tempeval files")
+	public static File tempevalHome = new File(".");
 	//--SPECIAL
 	@Option(name="pruneTime", gloss="Milliseconds which should trigger pruning")
 	public static double pruneTime = 100;
@@ -153,10 +159,14 @@ public class O {
 	public static boolean includeTimeProb = false;
 	@Option(name="sortTimeProbInScore", gloss="Compute P(parse)*P(time) or pipeline")
 	public static boolean sortTimeProbInScore = false;
+	@Option(name="cannonicalShifts", gloss="<<! instead of <<")
+	public static boolean cannonicalShifts = false;
 	
 	//--DEBUG
 	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")
 	public static boolean todoHacks = false;
+	@Option(name="ignoreTimeSequences", gloss="Turn on [time]:S terms")
+	public static boolean ignoreTimeSequences = false;
 	@Option(name="reportK", gloss="Report parse accuracy on top K parses")
 	public static int reportK = 1;
 	@Option(name="paranoid", gloss="Paranoid correctness checks")

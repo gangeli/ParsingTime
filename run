@@ -14,11 +14,11 @@ env!(
 	'java',
 	# Runtime Options
 	o('cp', 
-		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/jdom.jar:etc/joda-time.jar:etc/math.jar"),
+		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/joda-time.jar:etc/math.jar"),
 	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx3000M'),
+	o('Xmx2500M'),
 	o('ea'),
 	'time.Entry',
 
@@ -38,7 +38,7 @@ env!(
 		o('rulePrior', 0.1),
 		o('lexPrior', 0.1),
 		o('uniformRoot'),
-		selo(4,'ckyCountType',
+		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
@@ -74,14 +74,15 @@ env!(
 		o('pruneTime', 100),
 		o('pruneMinIndex',10),
 		o('includeTimeProb'),
+		o('cannonicalShifts'),
 		selo(0,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
-#		o('exactMatchThreshold', 60*60*24), # a day
 		o('exactMatchThreshold', 1),        # a second
 		o('scoreGranularity', 60*60*24),    # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
+		o('tempevalHome','aux/tempeval2'),
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
@@ -117,6 +118,7 @@ env!(
 #		o('printAllParses'),
 		o('todoHacks'),
 		o('reportK', 5),
+		o('ignoreTimeSequences'),
 		#(debug programs)
 		selo(0,'runDebug',
 			'none',
