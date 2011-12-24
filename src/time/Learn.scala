@@ -954,16 +954,14 @@ case class Parse(value:Temporal,logProb:Double){
 				} else {
 					assert(!guess.begin.equals(Time.DAWN_OF) || guess.begin==Time.DAWN_OF)
 					assert(!guess.end.equals(Time.END_OF) || guess.end==Time.END_OF)
-					if(guess.begin == Time.DAWN_OF && gold.begin != Time.DAWN_OF){
+					if(guess.begin == Time.DAWN_OF && gold.begin == Time.DAWN_OF){
+						(Duration.ZERO,Duration.ZERO) //case: past
+					} else if(guess.end == Time.END_OF && gold.end == Time.END_OF){
+						(Duration.ZERO,Duration.ZERO) //case: future
+					} else if(guess.begin == Time.DAWN_OF && gold.begin != Time.DAWN_OF){
 						INF //case: beginning is neg_infinity
 					} else if(guess.end == Time.END_OF && gold.end != Time.END_OF){
 						INF //case: end is pos_infinity
-					} else if(guess.begin == Time.DAWN_OF && gold.begin == Time.DAWN_OF &&
-							guess.end != Time.END_OF && gold.end != Time.END_OF){
-						(Duration.ZERO,Duration.ZERO) //case: past
-					} else if(guess.end == Time.END_OF && gold.end == Time.END_OF &&
-							guess.begin != Time.DAWN_OF && gold.begin != Time.DAWN_OF){
-						(Duration.ZERO,Duration.ZERO) //case: future
 					} else {
 						(guess.begin-gold.begin,guess.end-gold.end) //case: can subtract
 					}
@@ -1012,7 +1010,7 @@ case class Parse(value:Temporal,logProb:Double){
 					case _ => ("not","equal")
 				}
 				if(tGold.equals(tGuess)){
-					throw new IllegalStateException("Timexes match but " +
+					err("Timexes match but " +
 						"difference is nonzero: gold="+tGold+" guess="+tGuess+
 						"  myGuess="+guess+"  inferredGold="+gold+" (diff="+d+") :: "+ 
 						tree.orNull)
@@ -1123,7 +1121,8 @@ trait Parser extends OtherSystem {
 						//((case: grounded range))
 						Some(SystemOutput(
 							Some("DATE"),
-							Some(JodaTimeUtils.timexDateValue(gr.begin.base,gr.end.base))))
+							Some(JodaTimeUtils.timexDateValue(
+								gr.begin.base,gr.end.base,true))))
 					}
 				case (d:GroundedDuration) =>
 					//((case: duration))

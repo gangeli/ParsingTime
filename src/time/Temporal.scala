@@ -1233,20 +1233,22 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 		import DurationFieldType._
 		import edu.stanford.nlp.time.JodaTimeUtils._
 		import DurationUnit._
-		base.toPeriod.getFieldTypes.map{ (d:DurationFieldType) =>
-			if(d == centuries){ CENTURY }
-			else if(d == Decades){ DECADE }
-			else if(d == years){ YEAR }
-			else if(d == Quarters){ QUARTER }
-			else if(d == months){ MONTH }
-			else if(d == weeks){ WEEK }
-			else if(d == days){ DAY }
-			else if(d == hours){ HOUR }
-			else if(d == minutes){ MINUTE }
-			else if(d == DurationFieldType.seconds){ SECOND }
-			else if(d == millis){ DurationUnit.MILLIS }
-			else{ throw fail("Unknown duration type: " + d) }
-		}
+		val period = interval.base.toPeriod
+		var unitsAsc = List[DurationUnit.Value]()
+		if(period.getYears >= 1000){ unitsAsc = DurationUnit.MILLENIUM :: unitsAsc }
+		if(period.getYears%1000 >= 100){unitsAsc = DurationUnit.CENTURY :: unitsAsc}
+		if(period.getYears%100 >= 10){unitsAsc = DurationUnit.DECADE :: unitsAsc}
+		if(period.getYears%10 > 0){unitsAsc = DurationUnit.YEAR :: unitsAsc}
+		if(period.getMonths > 0 && period.getMonths % 3 == 0)
+			{unitsAsc = DurationUnit.QUARTER :: unitsAsc}
+		if(period.getMonths % 3 > 0){unitsAsc = DurationUnit.MONTH :: unitsAsc}
+		if(period.getWeeks > 0){unitsAsc = DurationUnit.WEEK :: unitsAsc}
+		if(period.getDays > 0){unitsAsc = DurationUnit.DAY :: unitsAsc}
+		if(period.getHours > 0){unitsAsc = DurationUnit.HOUR :: unitsAsc}
+		if(period.getMinutes > 0){unitsAsc = DurationUnit.MINUTE :: unitsAsc}
+		if(period.getSeconds > 0){unitsAsc = DurationUnit.SECOND :: unitsAsc}
+		if(period.getMillis > 0){unitsAsc = DurationUnit.MILLIS :: unitsAsc}
+		unitsAsc.reverse.toArray
 	}
 	override def timexString:String = {
 		import DurationUnit._

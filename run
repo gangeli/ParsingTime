@@ -64,7 +64,7 @@ env!(
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
 		# <training>
-		o('beam', 100), #1500 works well
+		o('beam', 2000), #1500 works well
 		o('iters', 10),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
@@ -74,7 +74,7 @@ env!(
 		o('pruneTime', 100),
 		o('pruneMinIndex',10),
 		o('includeTimeProb'),
-		o('cannonicalShifts'),
+#		o('cannonicalShifts'),
 		selo(0,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
