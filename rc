@@ -15,6 +15,10 @@ function score {
 		head -n 2
 }
 
+function scores {
+	for f in `find out -name "log"`; do egrep -IH "MyTime Train" $f; done | sort -k 8
+}
+
 function pyscore {
 	# -- Variables
 	last=`ls out | sort -nr | head -n 1`
