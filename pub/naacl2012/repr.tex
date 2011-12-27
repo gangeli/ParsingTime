@@ -1,10 +1,216 @@
 \Section{repr}{Representation}
-\Subsection{repr-background}{Theoretical Background}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TIME AS COMPOSITIONAL PARSING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Subsection{repr-compositional}{Time As Compositional Parsing}
+\todo{Compositional semantics citations}
+% -- Time is compositional
+We make the simplifying assumption that the natural language description
+	of time is compositional in nature.
+Unlike many aspects of language  -- which are either not compositional or
+	riddled with idioms -- as a temporal phrase increases in length it is
+	usually compositionally modifying the meaning of a shorter segment of itself.
+To demonstrate and introduce a running example, we consider the expression
+	\tp{last Friday the \th{13}}.
+Decomposing the example, we can construct a meaning by taking \tp{Friday},
+	and applying the modifiers \tp{last} -- taking the previous \te{Friday};
+	and \tp{the \th{13}} -- taking the previous \te{Friday} that is
+	also the \th{13} of the month.
 
+% -- Focus on time; elsewhere applicable
+While we focus entirely on temporal phrases and their meaning, this
+	compositional assumption is reasonable for a number of other domains as 
+	well -- for example describing locations or directions (e.g. the 
+	\dataset{GeoQueries} dataset \needcite).
+
+% -- Synchronous Grammar
+We construct a paradigm for parsing temporal phrases based on a synchronous
+	PCFG defining probabilities over the combinations of \textit{types}
+	of temporal expressions.
+\needfig shows an example of such a grammar.
+This defines a paradigm for expressing how natural language composes
+	temporal phrases without accounting for the sparsity inherent in composing
+	individal expressions -- as well as helps ensure that the resulting
+	expressions are semantically valid.
+In parallel, a particular temporal expression is parsed, which can then
+	be grounded by a reference time to provide the final temporal expression.
+
+% -- Table of Contents
+The representation of the semantic entries in the two aspects of this grammar
+	are described in \refsec{repr-background}.
+The lexical entries (preterminals) are described in \refsec{repr-lexicon};
+	the combination rules of the grammars are described in \refsec{repr-rules}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TEMPORAL EXPRESSIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Subsection{repr-background}{Temporal Expressions}
+% -- Intro to Types
+We define the representation of temporal entities to be used in parsing.
+We assume that every temporal expression falls into one of the following
+	categories:
+% -- Range
+\paragraph{Range}
+%(definition)
+A period between two dates (or date$+$times).
+%(examples)
+This includes entities such as \te{Today}, \te{1987}, or
+	\te{Now}.
+We denote a range by the variable \range.
+
+%(point vs. interval based)
+The third of these is worth a particular mention:
+	unlike the previous examples, the start and end of the range are the same.
+That is, \te{Today} spans a day, \te{1987} spans a year; \te{Now}
+	spans no time.
+A point-based representation of time -- such as those described in
+	certain works \needcite -- would dictate this as a distinct type.
+To simplify our grammar and representation, we adopt an interval-based
+	representation \needcite.
+
+% -- Sequence 
+\paragraph{Sequence}
+%(definition)
+A sequence of \ty{Range}s.
+%(examples)
+This includes entities such as \te{Friday}, \te{November \th{27}}, or
+	\te{last May}.
+%(anatomy)
+A given sequence is in reality a tuple of three elements
+	$\seq=(\seqelem,\seqjump,\seqcanon)$:
+\begin{enumerate}
+	\item $\seqelem(i)$: 
+		The \th{i} element of a sequence.
+		This is a \ty{Range} by type, and is the type returned when a sequence is
+			asked to ground.A
+		In the case of the sequence \te{Friday}, $\seqelem(0)$ corresponds to
+			\tp{the Friday in the current week}; 
+			$\seqelem(1)$ is the Friday in the following week, \textit{et cetera}.
+	\item \seqjump:
+		The \textit{distance} between two elements in the sequence.
+		In the case of \te{Friday}, this distance would be a \te{Week}.
+	\item \seqcanon:
+		The \textit{containing unit} of an element of a sequence.
+		For example, \seqcanonX{Friday} would be the \ty{Range}
+			corresponding to \tp{the current week}.
+		In the case of \tp{November}, or even \tp{November \th{27}}. this 
+			would correspond to the current year.
+\end{enumerate}
+
+%(definition of relative index)
+The index $i \in \BZ$ is defined as the element of the sequence
+	that is within the containing unit \seqcanon of the sequence in which the 
+	reference time also lies.
+This is consistent with our definition of \seqelem.
+
+%(sequence as distribution)
+This type warrants special attention, as the pragmatic ambiguity when
+	describing temporal expressions resides in the interpretation of these
+	terms.
+Therefore, a \ty{Sequence} denotes not only a sequence of possible
+	\ty{Range}s, but also a distribution over these ranges.
+We define this distribution -- conditioned on a reference time $t$ --
+	as a Gaussian with a mean and variance defined according
+	to the distance \seqjump\ between two elements in a given sequence $s$.
+The input to the Gaussian is the index $i$ of the element in the sequence;
+	and, the distance between the reference time and the beginning
+	of the element in question $\delta_{s,t}(i)$:
+\begin{equation}
+\label{eqn:gaussian}
+	P_t(i) = 
+	\int_{i-0.5}^{i+0.5}
+		\frac{1}{2\pi\sigma^2} 
+			\exp\left[-\frac{
+					(\frac{\delta_{s,t}(i)}{\seqjump} - \mu)^2
+				}{
+					2\sigma^2
+				}
+			\right]
+\end{equation}
+\needfig shows an example of such a distribution.
+
+%(global scope)
+The parameters $\mu$ and $\sigma$ in Equation \refeqn{gaussian} are shared
+	among all particular sequence instances; the normalization
+	with respect to \seqjump\ ensures that the distribution is applicable
+	to any particular sequence.
+For example, the distance between a Wednesday to that week's \te{Friday}
+	would be $2/7$, counted with respect to a week; 
+	the distance from April to that year's \te{November} would be a 
+	comparable $7/12$ (approximately), counted with respect to a month.
+	
+% -- Duration
+\paragraph{Duration}
+%(definition)
+A period of time -- effectively a number of milliseconds.
+%(examples)
+This includes entities like \te{Week}, \te{Month}, and \te{7 days}.
+%(etc)
+We denote a duration with the variable \dur.
+
+%(fuzzy)
+We define a special case of the \ty{Duration} type to represent 
+	\textit{approximate} durations.
+These are used to represent expressions such as \tp{a few years} or
+	\tp{some days}.
+Semantically, these are represented by a single unit of duration with the
+	quantity omitted, and are taken to be equivalent to any other approximate
+	duration with the same unit and distinct from any other \ty{Duration}.
+This is consistent with the representation of such entities in the
+	\texttt{Timex} format.
+
+% -- Functions
+\paragraph{Functions}
+\dome
+
+% -- Other
+\paragraph{Other Types}
+In addition to the types described above, there are two other types which
+	have relevance in the parsing as described in \refsec{learn}.
+Both of these types are applicable as preterminals only.
+
+The first of these types is \ty{Number} -- denoting a number without
+	any semantic meaning attached yet.
+This comes into play with expressions such as \tp{2 weeks}, in which
+	the number $2$ has no temporal meaning on its own.
+
+The other type are the \ty{Nil} types -- denoting terms which are not
+	directly contributing to the semantic meaning of the expression.
+These are intended for words such as \tp{a} or \tp{the}, which serve as cues
+	informing the resulting temporal expression without being meaningful
+	in themselves.
+The \ty{Nil} type is lexicalized with the word it generates; more details
+	are given in \refsecs{repr-lexicon}{repr-rules}.
+Naturally, our representation is incomplete in capturing all possible
+	temporal phenomena; a subset of these omissions are given below.
+
+
+\paragraph{Omitted Phenomena}
+The temporal representation described above is a simplification of the
+	possible phenomena that occur in time.
+Among these, \todo{describe and cite stuff here}.
+
+Practically, our representation is unable to represent approximate ranges;
+	for example, \tp{a year in the 90's} or \tp{some evening}.
+These are valid in the \texttt{Timex} specification; therefore, the decision
+	to omit these for simplicity comes at the expense of a small performance hit.
+
+We proceed to describe the grammar used to manipulate the types and specific
+	instances of these types.
+\refsec{repr-lexicon} describes the instances of the types described
+	above; \refsec{repr-rules} describes the grammar rules of the types,
+	and their correpsonding semantic impact on the instances.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% LEXICON
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Subsection{repr-lexicon}{Lexical Entries}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% RULES
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Subsection{repr-rules}{Rule Applications}
 
 The words in a temporal expression are treated as units of meaning that
