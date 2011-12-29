@@ -2,7 +2,8 @@
 % -- IMPORTS --
 % (lib)
 \usepackage{naaclhlt2012}
-\usepackage{times,latexsym,amsfonts,amssymb}
+\usepackage{times,latexsym,amsfonts,amssymb,amsmath}
+\usepackage[ruled,lined,linesnumbered]{algorithm2e}
 % (custom)
 \input std-macros.tex
 \input macros.tex
@@ -25,11 +26,13 @@
 
 \input abstract.tex
 \input intro.tex
-\input approach.tex
 \input repr.tex
 \input learn.tex
 \input result.tex
-\input discuss.tex
 \input conclude.tex
+
+%(bibliography)
+\bibliographystyle{naaclhlt2012}
+\bibliography{ref}
 
 \end{document}

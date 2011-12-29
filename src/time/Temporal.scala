@@ -1639,7 +1639,7 @@ object Sequence {
 					case ((numer:Double,denom:Double),(x:Double,logprob:Double)) =>
 						val prob = math.exp(logprob)
 						val count = if(O.hardEM){ x } else { x*prob }
-						(numer+count, denom+prob)
+						(numer+count, denom+{if(O.hardEM){ 1.0 } else { prob }})
 					}
 				val mu:Double = if(muDenom == 0){ muPrior } else { muNumer / muDenom }
 				//((sigma))
@@ -1647,7 +1647,8 @@ object Sequence {
 					case ((numer:Double,denom:Double),(x:Double,logprob:Double)) =>
 						val prob = math.exp(logprob)
 						val count = if(O.hardEM){ 1.0 } else { prob }
-						(numer+count*(x-mu)*(x-mu), denom+count)
+						(numer+count*(x-mu)*(x-mu), 
+							denom+{if(O.hardEM){ 1.0 } else { prob }})
 					}
 				val sigmasq:Double
 					= if(sigmaDenom == 0){ sigmaPrior*sigmaPrior } 

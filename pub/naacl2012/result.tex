@@ -1,2 +1,85 @@
-\Section{result}{Results}
-\dome
+\Section{result}{Evaluation}
+We evaluate our system against current state-of-the art systems for temporal
+	resolution on the \dataset{TempEval-2} dataset.
+We describe the dataset in \refsec{result-dataset}, and detail the previous
+	work and our results in \refsec{result-scores}.
+
+\Subsection{result-dataset}{Dataset}
+We evaluate our system on the \dataset{TempEval-2} dataset\needcite.
+The dataset contains 162 documents and 1052 temporal phrases in the training 
+	set, and an additional 20 documents and 156 phrases in the evaluation set.
+Our System was trained on 142 documents, with the remaining 20 held out as
+	a development set.
+Final reported results make use of the full 162 documents in the training
+	set.
+
+
+
+\Subsection{result-scores}{Results}
+% -- Result Table
+\begin{table}
+	\begin{tabular}{|l|c|c|c|c|}
+		\hline
+		       & \multicolumn{2}{c|}{Type Accuracy} & \multicolumn{2}{c|}{Value Accuracy} \\
+		System & Train & Test  & Train & Test\\
+		\hline
+		\hline
+		\sys{GUTime}     & 0.72 & 0.79 & 0.45 & 0.41 \\
+		\sys{SUTime}     & 0.85 & \textbf{0.90} & \textbf{0.69} & 0.67 \\
+		\sys{HeidelTime} & 0.80 & 0.85 & 0.67 & \textbf{0.71} \\
+		\hline
+		\sys{OurSystem}  & \textbf{0.90} & ? & \textbf{0.69} & ? \\
+		\hline
+	\end{tabular}
+	%(caption)
+	\caption{
+		\dataset{TempEval-2} Attribute scores for our system and three previous systems.
+		The scores are calculated using gold extents, forcing a guessed
+		interpretation for each parse.
+		The results of \sys{GUTime} have been reformatted to conform to the
+			\dataset{TempEval-2} output format.
+		\label{tab:results}
+	}
+\end{table}
+
+% -- Evaluation task
+In the \dataset{TempEval-2} task, system performance is evaluated on 
+	detection and resolution of temporal expressions.
+Since we perform only the second of these tasks, we evaluate our system
+	assuming gold detection.
+Thus, only the Timex attribute evaluation is performed and compared against.
+
+% -- Scoring Tweak
+Similarly, the original \dataset{TempEval-2} scoring scheme gave a precision 
+	and recall for detection, and an accuracy for only the temporal expressions 
+	attempted.
+Since our system will output a guess for every expression, we compare to 
+	previous system scores when constrained to make a prediction on every
+	example.
+This in general yields lower results, as the system is not allowed to
+	not guess on expressions it does not recognize.
+% -- Reference Table
+Results are summarized in \reftab{results}
+
+% -- Systems
+We compare to three previous systems, all rule-based.
+%(GUTime)
+\sys{GUTime}\needcite presents an older but widely
+	used baseline.
+Due to discrepancies in the output format of \sys{GUTime} compared to the 
+	standard used in the TempEval-2 task, the output was heuristically patched
+	and manually checked to conform to the expected format.
+%(SuTime)
+More recently, \sys{SUTime}\needcite provides a much stronger recent rule-based
+	system.
+%(HeidelTime)
+We also compare to \sys{HeidelTime}\needcite, which represents the 
+	state-of-the-art system at the TempEval-2 task.
+
+% -- Our Results
+Our system performs well above the \sys{GUTime} baseline and competitive
+	with both of the more recent systems.
+\todo{examples}
+
+
+

@@ -1,5 +1,42 @@
 
 \Section{intro}{Introduction}
-\todo{Theory of time}
-\todo{Competitive edge (versus Percy and Luke)}
-\todo{General approach -> really a latent parse and so forth}
+% -- Temporal Comparison
+%(intro to systems)
+Temporal resolution is a well-studied area, with a number of successful systems
+	implemented.
+
+%(system X) ...
+\todo{Prior work}
+
+%(ambiguities)
+\todo{2 types of ambiguity}
+
+%(segue into approach)
+Diverging from the common rule-based approach to temporal resolution,
+	we explore employing distantly supervised probabilistic parsing
+	to learn to parse these expressions.
+
+% -- Approach
+We assume that temporal phrases -- such as \tp{Last Friday} -- have
+	associated with them not only a grounded time (the date of the previous
+	Friday), but also a latent parse.
+This would assign a meaning to the terms \tp{last} and \tp{Friday}; the
+	meaning of the compound phrase would then be a compositional combination
+	of the two components.
+
+In this sense, the task can be framed as a distantly supervised parsing
+	problem.
+Given an input phrase and the constraint that the parse must ground to the
+	given gold time, the task becomes to infer a latent parse during
+	training, and to infer this parse and the grounding it refers to during
+	evaluation.
+
+Such a compositional grammar is developed, and an EM-esque algorithm is
+	employed to infer latent parses and learn the relevant parameters for
+	the grammar.
+
+% -- Theoretical backing
+\todo{theoretical backing}
+
+% -- Semantic Parsing Comparison
+\todo{compare to Percy/Luke}

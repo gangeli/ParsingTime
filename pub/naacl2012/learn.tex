@@ -1,2 +1,256 @@
 \Section{learn}{Learning}
-\dome
+We present a system architecture as described in \needfig.
+The inference procedure is described in \refsec{learn-model};
+	training is in turn detailed in \refsec{learn-train}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MODEL
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Subsection{learn-model}{Inference}
+% -- K Best
+To provide examples for semisupervised training, and to provide a list of
+	candidate expressions with their associated probabilities, we
+	employ k-best parsing techniques.
+Particularly, we implement Algorithm 3 described in 
+	\cite{key:2005huang-parsing} -- providing an algorithm which is
+	$O(n^3)$ with respect to the phrase length and $O(k\log k)$ with respect
+	to the beam size.
+In our experiments, we set the beam size to \todo{2000 for now}.
+
+% -- Time Probabilities
+Here, we revisit the notion of a temporal expression having an uncertainty
+	over possible groundings, capturing a pragmatic ambiguity when
+	referring to times.
+We represent this as a distribution with respect to the reference time.
+This distribution is in itself a reasonable output for the system --
+	an uterance of \tp{Friday} would, instead of grounding to a 
+	\textit{best guess} of what the time refers to rather give a distribution
+	over possible groundings, along with their probabilities.
+However, it is also possible to enumerate a beam of possible grounded
+	matches, along with their probabilities.
+
+% -- Combination Method
+These two factors -- capturing syntactic and pragmatic ambiguity --
+	can be combined to provide a \textit{vitterbi} decode, as well as
+	the associated probability.
+We define the probability of a syntactic parse making use of rules $R \in \sR$ 
+	as $P(w_1,\dots w_n; R) = P(R)$;
+	As described in \refsec{repr-types}, we define the probability of a 
+	temporal grounding relative to reference time $t$ and a particular
+	syntactic interpretation as $P_t(i | R)$.
+The product of these two terms provides the probability of a grounded temporal
+	interpritation:
+
+\begin{equation}
+	P_t(i, R) = 
+		P( R ) * P_t(i | R)
+\label{eqn:prob}
+\end{equation}
+
+% -- Vitterbi
+The vitterbi decode is found by maximizing these two terms sequentially;
+	the optimal grounding is found given the optimal parse.
+This is in contrast to maximizing $P_t(i,R)$ directly, however it avoids
+	assigning a penalty to proposing ambiguous expressions (e.g. \te{Friday})
+	versus unambiguous expressions (e.g. \te{a week}).
+Furthermore, it is reasonable to assume that cognitively we perform a
+	similar procedure -- resolving syntactic ambiguity before resolving
+	pragmatic ambiguity\needcite.
+
+% -- Segue
+This provides us with a framework for obtaining grounded times from a
+	temporal phrase -- in line with the annotations provided during training
+	time.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TRAINING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\Subsection{learn-train}{Training}
+% -- Intro
+%(catch phrase)
+We present an EM-like bootstrapping approach to training the parameters of
+	a fixed temporal grammar jointly with the parameters of our Gaussian
+	temporal distribution in a distantly-supervised setting.
+%(table of contents)
+The preprocessing steps are described below, followed by a characterization
+	of the setting in which the algorithm is applicable and
+	finally the algorithm itself.
+
+% -- Preprocessing
+\paragraph{Preprocessing}
+The input expression is tokenized according to Penn Treebank guidelines
+	\needcite, in addition to splitting on the characters `-' and `/,' which
+	often delimit a boundary between temporal entities.
+Thereafter, numbers written in text are heuristically converted to their
+	numeric values, and featurized according to their order of magnitude
+	and ordinality.
+For instance, the phrase \tp{three-day} would be preprocessed to create the
+	tokens $\left<\right.$ \tp{NUM(0-9,non-ordinal)} , \tp{-} , \tp{day} 
+		$\left.\right>$.
+
+Beyond this preprocessing, no language-specific information about the meanings
+	of the words are introduced, including syntactic parses, POS tags,
+	\textit{et cetera}.
+
+
+% -- Algorithm Figure
+\begin{algorithm}
+	%(algorithm)
+	\SetKw{Def}{def}
+	\SetKwFunction{generateCandidates}{generateCandidates}
+	\SetKwFunction{updateParameters}{updateParameters}
+	%(input/output)
+	\KwIn{Initial parameters $\theta_s$, $\mu$, $\sigma$; 
+		data $\sD=\left\{(w,\tau^*,t)\right\}$}
+	\KwOut{Optimal parameters $\theta_s^*$, $\mu^*$, $\sigma^*$}
+	%(main loop)
+%	\tcc{Iterative parameter update}
+	$(\theta_s',\mu',\sigma')$ := $(\theta_s,\mu,\sigma)$ \\
+	\While{not converged}{
+		$\sH$ := generateCandidates$(\theta_s',\mu',\sigma')$ \\
+%		$(\theta_s',\mu',\sigma')$ = updateParameters$(\sH)$
+		$(\theta_s',\mu',\sigma')$ = fullyObservedEM$(\sH)$
+	}
+	\KwRet $(\theta_s',\mu',\sigma')$ \\
+	%(generate candidates)
+%	\tcc{Generate candidate valid parses}
+	\Begin(\generateCandidates{$\theta_s$,$\mu$,$\sigma$}:){
+		\sH := $\left\{\right\}$ \\
+		\For{$(w,\tau^*,t) \in \sD$}{
+			Z := 0; H = $\left\{\right\}$ \\
+			\For{$(R,\tau_t,P_t) \in$ k-bestCKY(w)}{ \label{line:parsebeam}
+				\For{$i \in i_{\textrm{max}}-2 \dots i_{\textrm{max}}+2$}{ \label{line:timebeam}
+					\If{$\tau(i) = \tau^*$ \texttt{and} ok(R,i)}{ \label{line:validity}
+						H += $(R,\tau,i,P_t(i))$ \\
+						Z += $P_t(i)$
+					}
+				}
+			}
+			\For{$(R,\tau,i,p) \in H$}{ 
+				\sH += $(R,\tau,i,p/Z)$ 
+			}
+		}
+		\Return{\sH}
+	}
+%	%(update parameters)
+%	\tcc{Update parameters from guessed parses}
+%	\Begin(\updateParameters{\sH}:){
+%		\For{$(R,\tau,i,p) \in \sH$}{
+%			\tcp{Grammar parameter}
+%			\For{$v_l \rightarrow v_mv_n \in R$}{
+%				multinomialE$_{\theta_{mn|l}}$(i, p )
+%			}
+%			\tcp{Temporal parameter}
+%			gaussianE$_{\mu',\sigma'}$( diff($\tau$,i), p )
+%		}
+%	}
+%	\lFor{$v_l \rightarrow v_mv_n \in \sR$}{
+%		multinomialM$_{\theta_{mn|l}}$()
+%	} \\
+%	gaussianM$_{\mu',\sigma'}$()
+
+	%(caption)
+	\caption{
+		\label{alg:pseudocode}
+		TimEM 
+	}
+\end{algorithm}
+
+% -- Algorithm
+\paragraph{Algorithm}
+%(algorithm reference)
+The TimEM algorithm for learning the grammar and temporal distribution 
+	parameters is given in \refalg{pseudocode}.
+%(input/output)
+The input to the algorithm are the inital parameters $\theta_s$,$\mu$, and
+	$\sigma$, and a set of training instances $\sD$.
+Each training instance is a tuple consisting of the words in the temporal
+	phrase $w$, the annotated grounded time $\tau^*$, and the reference time
+	of the utterance $t$.
+The algorithm outputs the grammar rule combination parameters $\theta_s^*$,
+	as well as the parameters for the Gaussian temporal distribution
+	$\mu^*$ and $\sigma^*$.
+
+%(EM comparison)
+The algorithm operates in an EM-esque fashion as in grammar induction
+	literature \needcite -- iteratively finding the most
+	likely completion of the data given the current estimate of the parameters
+	and then updating the parameters based on this observed data.
+However, unlike EM, we are given distant supervision giving a necessary but
+	not sufficient condition for a parse being a valid completion.
+Line \ref{line:validity} in \refalg{pseudocode} accounts for this filtering.
+Our \textit{expected counts} are therefore more accurately our normalized
+	expected counts of \textit{valid} parses.
+
+%(beams)
+Additionally, the expected statistics are computed nonanalytically by use of
+	a beam on both the possible parses (line \ref{line:parsebeam}) and the
+	possible temporal groundings of a given interpretation (line
+	\ref{line:timebeam}).
+The CKY beam is guaranteed to return the highest probability parses;
+	the candidate groundings of the temporal distribution are in turn chosen
+	to be centered on the most likely index, which, combined with the Gaussian
+	shape, ensures the most likely groundings are chosen in this step as well.
+
+%(em updates)
+Given this artificially completed data, the EM updates are the standard
+	updates for multinomial and Gaussian distributions.
+In the multinomial case, our parameter updates are:
+\begin{equation}
+	\theta_{mn \mid l}' =
+		\sum\limits_{(R,\tau,i,p) \in \sH} \sum\limits_{v_{jk \mid i} \in R}
+		\frac{
+			\1(v_{jk \mid i} = v_{mn \mid l}) * p
+		}{
+			\bZ
+		}
+\label{eqn:multinomialEM}
+\end{equation}
+
+In the Gaussian case, the parameter updates are:
+\begin{align}
+	\mu' =&
+		\frac{ 1 } { \sum\limits_{(R,\tau,i,p) \in \sH}  p }
+		\sum\limits_{(R,\tau,i,p) \in \sH} i * p \\
+	\sigma' =& \sqrt{
+		\frac{ 1 } { \sum\limits_{(R,\tau,i,p) \in \sH}  p }
+		\sum\limits_{(R,\tau,i,p) \in \sH} (i-\mu')^2 * p
+	}
+\label{eqn:multinomialEM}
+\end{align}
+
+%(big picture)
+The algorithm thus presents a bootstrapping approach to learning the latent
+	parses.
+In early iterations, the beam will likely contain valid parses for short
+	utterances;
+	as the parameters converge to their optimal values, the beam incorporates
+	valid parses for longer and longer sentences.
+In this way, a progressively larger percentage of the data is available to be
+	learned from at each iteration.
+
+%(tweaks)
+\todo{word this doesn't undermine main point}
+To assist in this progressive process, and taking insight from the Gricean 
+	maxims of quality and quantity, we further restrict the set of valid 
+	parses to include only those which are as short as possible
+	(that is, maximally \ty{Nil}-padded on both ends) and which are grounded
+	at \textit{relative zero} if possible.
+These are encapsulated in the \textit{ok()} function
+	on Line \ref{line:validity} of \refalg{pseudocode}.
+That is -- with notable but practically rare exceptions --
+	more often than not we do not repeat ourselves when describing time.
+Apart from phrases such as \tp{last Friday the \th{13}} where \tp{last Friday}
+	and \tp{the \th{13}} refer to the same time, we rarely describe a time as
+	\tp{today this week} or \tp{this month Friday}, \textit{et cetera}.
+In the cases where such repeats happen, in turn, the model will still learn
+	from one of the two mentions.
+
+To balance the tendency to use short phrases, we observe that
+	temporal phrases are described as pragmatically unambiguously as possible.
+That is, I am more likely to refer to the previous Friday as \tp{last Friday}
+	than simply \tp{Friday}, though the former is somewhat longer.
+To capture this, we take candidate interpretations which ground at the
+	temporal expression's \textit{relative zero} index if possible --
+	in our example we would take \tp{last Friday} but not \tp{Friday}.
+
