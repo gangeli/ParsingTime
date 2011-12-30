@@ -87,7 +87,15 @@ The input to the Gaussian is the index $i$ of the element in the sequence;
 				}
 			\right]
 \end{equation}
-\needfig shows an example of such a distribution.
+\Fig{fig/gauss}{0.62}{distribution}{
+	An illustration of a temporal distribution.
+	The reference time is labeled as a time between \te{Nov 20} and 
+		\te{Nov 27}; the probability that this sequence is referring to
+		\te{Nov 20} is integral of the marked area.
+	Note that shifting the reference time towards \te{Nov 20} would increase
+		this probability.
+}
+\reffig{distribution} shows an example of such a distribution.
 
 %(global scope)
 The parameters $\mu$ and $\sigma$ in Equation \refeqn{gaussian} are shared
@@ -199,6 +207,14 @@ While we focus entirely on temporal phrases and their meaning, this
 	\dataset{GeoQueries} dataset).
 
 % -- Synchronous Grammar
+\FigStar{fig/grammar}{0.45}{grammar}{
+	The synchronous grammar -- (a) describes the CFG parse of the
+		temporal \textit{types}; (b) describes the corresponding semantic
+		parse.
+	The phrase is chosen to demonstrate ambiguity both in the parse
+		(\tp{last Friday} could equally well be a constituent) and in the
+		interpretation (imagine the phrase uttered on Friday the \th{14}).
+}
 %(introduction)
 We construct a paradigm for parsing temporal phrases based on a Synchronous
 	PCFG defined over the the temporal \textit{instances} and their
@@ -207,7 +223,7 @@ We construct a paradigm for parsing temporal phrases based on a Synchronous
 	\cite{key:2001yamada-syntaxmt}.
 This is in contrast to common approaches, such as making use of CCG 
 	grammars (\newcite{key:1996steedman-ccg}, \newcite{key:2000steedman-ccg}).
-\needfig shows an example of such a grammar.
+\reffig{grammar} shows an example of such a grammar.
 
 %(formal definition)
 Formally, we define a Synchonous PCFG 
