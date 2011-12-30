@@ -22,10 +22,10 @@ The third of these is worth a particular mention:
 	unlike the previous examples, the start and end of the range are the same.
 That is, \te{Today} spans a day, \te{1987} spans a year; \te{Now}
 	spans no time.
-A point-based representation of time -- such as those described in
-	certain works \needcite -- would dictate this as a distinct type.
-To simplify our grammar and representation, we adopt an interval-based
-	representation \needcite.
+Although expressions such as these could be represented as points,
+	we maintain a consistent interval-based theory of time
+	\cite{key:1981allen-temporal} and represent them as an interval with
+	zero span.
 
 % -- Sequence 
 \paragraph{Sequence}
@@ -117,7 +117,7 @@ Semantically, these are represented by a single unit of duration with the
 	quantity omitted, and are taken to be equivalent to any other approximate
 	duration with the same unit and distinct from any other \ty{Duration}.
 This is consistent with the representation of such entities in the
-	\texttt{Timex} format \needcite.
+	\texttt{Timex} format \cite{key:2003pustejovsky-timeml}.
 
 % -- Functions
 \paragraph{Function}
@@ -156,12 +156,18 @@ Naturally, our representation is incomplete in capturing all possible
 \paragraph{Omitted Phenomena}
 The temporal representation described above is a simplification of the
 	possible phenomena that occur in time.
-Among these, \todo{describe and cite stuff here -- e.g. disjoint intervals}.
+Notably, a body of work has focused on reasoning about events or states
+	relative to temporal expressions -- 
+	\newcite{key:1988moens-temporal} describes temporal expressions relating to
+	changes of state; 
+	\newcite{key:2010condoravdi-temporal} explores NPI licensing in temporal
+	expressions.
 
-Practically, our representation is unable to represent approximate ranges;
+Both the linguistics literature and the \texttt{Timex} specification
+	places an importance on approximate ranges;
 	for example, \tp{a year in the 90's} or \tp{some evening}.
-These are valid in the \texttt{Timex} specification; therefore, the decision
-	to omit these for simplicity comes at the expense of a small performance hit.
+We omit these from our representation at the expense of a small performance
+	hit.
 
 We proceed to describe the grammar used to manipulate the types and specific
 	instances of these types.
@@ -173,7 +179,6 @@ We proceed to describe the grammar used to manipulate the types and specific
 % TIME AS COMPOSITIONAL PARSING
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Subsection{repr-compositional}{Time As Compositional Parsing}
-\todo{Compositional semantics citations}
 % -- Time is compositional
 We make the simplifying assumption that the natural language description
 	of time is compositional in nature.
@@ -191,14 +196,17 @@ Decomposing the example, we can construct a meaning by taking \tp{Friday},
 While we focus entirely on temporal phrases and their meaning, this
 	compositional assumption is reasonable for a number of other domains as 
 	well -- for example describing locations or directions (e.g. the 
-	\dataset{GeoQueries} dataset \needcite).
+	\dataset{GeoQueries} dataset).
 
 % -- Synchronous Grammar
 %(introduction)
 We construct a paradigm for parsing temporal phrases based on a Synchronous
 	PCFG defined over the the temporal \textit{instances} and their
 	corresponding \textit{types}; similar in some respects but more
-	constrained than those used in machine translation \needcite.
+	constrained than those used in machine translation 
+	\cite{key:2001yamada-syntaxmt}.
+This is in contrast to common approaches, such as making use of CCG 
+	grammars (\newcite{key:1996steedman-ccg}, \newcite{key:2000steedman-ccg}).
 \needfig shows an example of such a grammar.
 
 %(formal definition)

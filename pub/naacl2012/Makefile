@@ -1,5 +1,5 @@
 
-naacl2012.pdf: $(wildcard *.tex)
+naacl2012.pdf: $(wildcard *.tex) ref.bib Makefile
 	@pdflatex naacl2012
 	@bibtex naacl2012
 	@pdflatex naacl2012

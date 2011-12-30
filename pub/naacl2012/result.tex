@@ -5,7 +5,7 @@ We describe the dataset in \refsec{result-dataset}, and detail the previous
 	work and our results in \refsec{result-scores}.
 
 \Subsection{result-dataset}{Dataset}
-We evaluate our system on the \dataset{TempEval-2} dataset\needcite.
+We evaluate our system on the \dataset{TempEval-2} dataset.
 The dataset contains 162 documents and 1052 temporal phrases in the training 
 	set, and an additional 20 documents and 156 phrases in the evaluation set.
 Our System was trained on 142 documents, with the remaining 20 held out as
@@ -62,9 +62,9 @@ This in general yields lower results, as the system is not allowed to
 Results are summarized in \reftab{results}
 
 % -- Systems
-We compare to three previous systems, all rule-based.
+We compare to three previous rule-based systems.
 %(GUTime)
-\sys{GUTime}\needcite presents an older but widely
+\sys{GUTime} \cite{key:2000mani-temporal} presents an older but widely
 	used baseline.
 Due to discrepancies in the output format of \sys{GUTime} compared to the 
 	standard used in the TempEval-2 task, the output was heuristically patched
@@ -73,8 +73,8 @@ Due to discrepancies in the output format of \sys{GUTime} compared to the
 More recently, \sys{SUTime}\needcite provides a much stronger recent rule-based
 	system.
 %(HeidelTime)
-We also compare to \sys{HeidelTime}\needcite, which represents the 
-	state-of-the-art system at the TempEval-2 task.
+We also compare to \sys{HeidelTime} \cite{key:2010strotgen-temporal}, 
+	which represents the state-of-the-art system at the TempEval-2 task.
 
 % -- Our Results
 Our system performs well above the \sys{GUTime} baseline and competitive

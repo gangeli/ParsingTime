@@ -4,19 +4,35 @@
 %(intro to systems)
 Temporal resolution is a well-studied area, with a number of successful systems
 	implemented.
-
-%(system X) ...
-\todo{Prior work}
-
-%(ambiguities)
-\todo{2 types of ambiguity}
+We compare against \sys{HeidelTime} \cite{key:2010strotgen-temporal}
+	entered into the \dataset{TempEval-2} task \cite{key:2010verhagen-tempeval},
+	although other rule based systems (
+		\newcite{key:2010grover-temporal}, 	\newcite{key:2010uzzaman-temporal},
+		\newcite{key:2000mani-temporal}, \textit{inter alia}
+	) have also been shown to be successful at the task.
 
 %(segue into approach)
-Diverging from the common rule-based approach to temporal resolution,
+Diverging from the rule-based approaches to temporal resolution,
 	we explore employing distantly supervised probabilistic parsing
 	to learn to parse these expressions.
 
 % -- Approach
+%(ambiguity)
+This probabilistic nature allows us to capture ambiguity in temporal phrases.
+In part, it allows us to propagate our uncertainty about the existance of
+	a temporal interpretation -- for example recognizing that \tp{May} could
+	refer to both a month or a person.
+Similarly, it captures syntactic ambiguity -- as in \tp{last Friday
+	the \th{13}} referring to either the previous \te{Friday} or the previous
+	\te{Friday the \th{13}}.
+In addition, temporal expressions often carry a pragmatic ambiguity.
+For instance, a speaker may refer to either the next of previous Friday
+	when he utters \tp{Friday} on a Sunday.
+We capture both of these types of ambiguity in a principled data-driven
+	framework.
+
+
+%(compositional)
 We assume that temporal phrases -- such as \tp{Last Friday} -- have
 	associated with them not only a grounded time (the date of the previous
 	Friday), but also a latent parse.
@@ -24,6 +40,7 @@ This would assign a meaning to the terms \tp{last} and \tp{Friday}; the
 	meaning of the compound phrase would then be a compositional combination
 	of the two components.
 
+%(distant supervision)
 In this sense, the task can be framed as a distantly supervised parsing
 	problem.
 Given an input phrase and the constraint that the parse must ground to the
@@ -31,12 +48,53 @@ Given an input phrase and the constraint that the parse must ground to the
 	training, and to infer this parse and the grounding it refers to during
 	evaluation.
 
+%(algorithm)
 Such a compositional grammar is developed, and an EM-esque algorithm is
 	employed to infer latent parses and learn the relevant parameters for
 	the grammar.
 
-% -- Theoretical backing
-\todo{theoretical backing}
-
 % -- Semantic Parsing Comparison
-\todo{compare to Percy/Luke}
+The approach draws inspiration from a large body of previous work
+	on semantic parsing.
+The majority of this work is focused on parsing into \textit{logical forms};
+	we instead define a custom compositional representation of temporal
+	concepts, and parse into that representation.
+Like first-order logic, the representation is compositional, and can be
+	evaluated (with a \textit{reference time} taking the place of a database 
+	of facts) to produce grounded temporal expressions.
+
+%(supervised)
+Supervised approaches to semantic parsing prominently include
+	\newcite{key:1996zelle-semantics},
+	\newcite{key:2005zettlemoyer-semantics},
+	\newcite{key:2007zettlemoyer-semantics}, 
+	\textit{inter alia}.
+We build upon these by loosening the supervision criteria and allowing a
+	completely latent semantic parse.
+That is, the annotation for temporal expressions does not imply any information
+	about the terms within the parse; therefore this, in addition to the
+	lexical and combination rules, must be learned.
+To demonstrate, consider that we may describe the date of \tp{a week ago today}
+	using the completely different terms \tp{week ago} or \tp{last [today's day
+	of the week]} or even by it's \tp{[month] [day]} form.
+\textit{A priori} each of these examples appear identical as two-word
+	temporal phrases.
+
+%(distantly supervised)
+Recent work by \newcite{key:2011liang-semantics} and 
+	\newcite{key:2010clarke-semantics} relax this supervision to require only
+	annotated answers rather than annotated logical forms.
+The presented system operates under a similar distantly-supervised framework
+	in which only the grounded date being refered to is given.
+The temporal domain however, unlike the \dataset{GeoQueries} and \dataset{Jobs}
+	datasets used in these works, has an unbounded output space.
+The equivalent of a \textit{database} of temporal expressions is the
+	unbounded set of possible periods of time and dates / times.
+In addition, we construct the full latent parse; and, make use of no intelligent
+	initialization to assist the bootstrapping process.
+
+%(table of contents)
+We describe the \textit{logic} of time -- our temporal representation
+	(\refsec{repr}), followed by the distantly supervised learning algorithm
+	(\refsec{learn}); we conclude with experimental results showing our
+	approach to be competitive with state of the art systems.

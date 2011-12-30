@@ -1,4 +1,12 @@
-
 \begin{abstract}
-\dome
+We present a probabilistic approach to interpreting temporal phrases
+	given a corpus of utterances and the times they reference.
+We approach the problem by defining a compositional \textit{grammar} of time.
+This grammar is used to construct a \textit{latent parse} representing
+	the phrase and evaluating to the time the phrase would represent.
+In this way, we can employ a distantly supervised EM-esque bootstrapping
+	approach to learning these latent parses while capturing both syntactic
+	uncertainty and pragmatic ambiguity in a probabilistic framework.
+We achieve an accuracy of \todo{X\%} on the \dataset{TempEval-2} task --
+	comparable to state of the art systems.
 \end{abstract}
