@@ -1,7 +1,7 @@
 \Section{repr}{Representation}
 A temporal representation is constructed; the type system of the representation
 	is described in \refsec{repr-types} while the grammar is outlined in
-	\refsec{repr-compositional} and descibed in detail in \refsec{repr-lexicon}
+	\refsec{repr-compositional} and described in detail in \refsec{repr-lexicon}
 	and \refsec{repr-rules}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -191,7 +191,7 @@ We proceed to describe the grammar used to manipulate the types and specific
 Our approach builds on the assumption that the natural language description
 	of time is compositional in nature.
 Unlike many aspects of language  -- which are often not compositional or
-	idomatic -- each word attached to a temporal phrase is 
+	idiomatic -- each word attached to a temporal phrase is 
 	usually compositionally modifying the meaning of the phrase.
 To demonstrate, we consider the expression \tp{last Friday the \th{13}}.
 Decomposing the example, we can construct a meaning by taking \tp{Friday},
@@ -247,7 +247,7 @@ A rule $R \in \sR$ is defined as a pair
 		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$
 The first term is a conventional PCFG rule over the types
 	$\sV$.
-In a conventional synchronous PCFGs, the second term would be the corresponding
+In a conventional synchronous PCFG, the second term would be the corresponding
 	combination rule over our nonterminals $\sW$.
 In our case, this term is a deterministic function mapping the
 	constituent expressions to the parent expression.
@@ -397,7 +397,7 @@ The learning of these probabilities is detailed in \refsec{learn}
 			(as used in parsing) are given.
 		Described in more detail in \refsec{repr-rules}, the functions generally 
 			apply generic interval or sequence modifications.
-		\todo{Functions should have clipart}
+		\todo{Functions should have clip-art}
 	}
 	\label{tab:function}
 	\end{center}
