@@ -5,8 +5,8 @@ We describe the dataset in \refsec{result-dataset}, and detail the previous
 	work and our results in \refsec{result-scores}.
 
 \Subsection{result-dataset}{Dataset}
-We evaluate our system on the \dataset{TempEval-2} dataset.
-The dataset contains 162 documents and 1052 temporal phrases in the training 
+The \dataset{TempEval-2} dataset contains 162 documents and 1052 temporal 
+	phrases in the training 
 	set, and an additional 20 documents and 156 phrases in the evaluation set.
 Our System was trained on 142 documents, with the remaining 20 held out as
 	a development set.
@@ -24,11 +24,11 @@ Final reported results make use of the full 162 documents in the training
 		System & Train & Test  & Train & Test\\
 		\hline
 		\hline
-		\sys{GUTime}     & 0.72 & 0.79 & 0.45 & 0.41 \\
-		\sys{SUTime}     & 0.85 & \textbf{0.90} & \textbf{0.69} & 0.67 \\
-		\sys{HeidelTime} & 0.80 & 0.85 & 0.67 & \textbf{0.71} \\
+		\sys{GUTime}     & 0.72          & 0.79          & 0.45          & 0.41 \\
+		\sys{SUTime}     & 0.85          & \textbf{0.90} & \textbf{0.69} & 0.67 \\
+		\sys{HeidelTime} & 0.80          & 0.85          & 0.67          & \textbf{0.71} \\
 		\hline
-		\sys{OurSystem}  & \textbf{0.90} & ? & \textbf{0.69} & ? \\
+		\sys{OurSystem}  & \textbf{0.90} & ?             & \textbf{0.69} & ? \\
 		\hline
 	\end{tabular}
 	%(caption)
@@ -55,9 +55,10 @@ Similarly, the original \dataset{TempEval-2} scoring scheme gave a precision
 	attempted.
 Since our system will output a guess for every expression, we compare to 
 	previous system scores when constrained to make a prediction on every
-	example.
+	example; if no guess is made, the output is considered incorrect.
 This in general yields lower results, as the system is not allowed to
-	not guess on expressions it does not recognize.
+	abstain on expressions it does not recognize.
+\todo{PR curves maybe?}
 % -- Reference Table
 Results are summarized in \reftab{results}
 
@@ -67,10 +68,10 @@ We compare to three previous rule-based systems.
 \sys{GUTime} \cite{key:2000mani-temporal} presents an older but widely
 	used baseline.
 Due to discrepancies in the output format of \sys{GUTime} compared to the 
-	standard used in the TempEval-2 task, the output was heuristically patched
+	format used in the TempEval-2 task, the output was heuristically patched
 	and manually checked to conform to the expected format.
 %(SuTime)
-More recently, \sys{SUTime}\needcite provides a much stronger recent rule-based
+More recently, \sys{SUTime}\needcite provides a much stronger rule-based
 	system.
 %(HeidelTime)
 We also compare to \sys{HeidelTime} \cite{key:2010strotgen-temporal}, 
