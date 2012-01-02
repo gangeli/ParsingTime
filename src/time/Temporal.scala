@@ -13,6 +13,7 @@ import edu.stanford.nlp.stats.ClassicCounter
 import edu.stanford.nlp.stats.Counter
 import edu.stanford.nlp.stats.Counters
 import edu.stanford.nlp.util.logging.Redwood.Util._
+import edu.stanford.nlp.time.JodaTimeUtils
 
 import org.apache.commons.math.distribution.NormalDistributionImpl
 
@@ -170,79 +171,33 @@ trait Temporal {
 	final def evaluateTemporal[E <: Temporal](ground:GroundedRange,offset:Long):E 
 		= evaluate(ground,offset)._2
 
-	final def timex3Type(ground:GroundedRange):String = this match {
-//		case (s:Sequence) => "SET"
-		case (r:Range) =>
-			def getType(r:Range):String = {
-				r match {
-					case (gr:GroundedRange) => 
-						if(gr.norm < Lex.DAY){ "TIME" } else { "DATE" }
-					case _ => 
-						r(ground) match {
-							case (gr:GroundedRange) => gr match {
-								case (nt:NoTime) => "UNK"
-								case _ => getType(gr)
-							}
-							case _ => 
-								throw new IllegalArgumentException("Unk grounding: "+r(ground))
-						}
-				}
-			}
-			getType(r)
-		case (d:Duration) => "DURATION"
-		case (pt:PartialTime) => "DATE"
-		case _ => "UNK"
-	}
-
-	final def timex3Value(ground:GroundedRange):String = {
-		import Lex._
-		import Temporal.{df2,df4}
-		def getValue(r:Range):String = {
-			r match {
-				case (gr:GroundedRange) => 
-					if(gr.begin == ground && gr.norm.seconds == 0){
-						"PRESENT_REF"
-					} else if((gr.begin eq Time.DAWN_OF) && (gr.end ne Time.END_OF)){
-						"FUTURE_REF"
-					} else if((gr.end eq Time.END_OF) && (gr.begin ne Time.DAWN_OF)){
-						"PAST_REF"
+	final def asTimex(ground:Time):(Option[String],Option[String]) = {
+		if(this.isInstanceOf[NoTime]){
+			return (None,None)
+		} else {
+			val grounded = this.apply(ground)
+			grounded match {
+				case (gr:GroundedRange) =>
+					if(gr.begin.equals(gr.end) && gr.begin.base.equals(ground)){
+						//((case: reference)
+						(Some("DATE"),Some("PRESENT_REF"))
 					} else {
-						val norm = gr.norm
-						val year:String = df4.format(gr.begin.year)
-						if( gr.begin.month == 1 && gr.begin.day == 1 && !gr.begin.hasTime &&
-								gr.end.month == 1 && gr.end.day == 1 && !gr.end.hasTime ) {
-							"" + gr.begin.year
-						} else if( (gr.end.month-gr.begin.month) % 3 == 0 &&
-							gr.begin.day == 1 && gr.end.day == 1 &&
-							!gr.begin.hasTime && !gr.end.hasTime) {
-							"" + year + "-Q" + gr.begin.quarter
-						} else if( gr.begin.day == 1 && !gr.begin.hasTime &&
-								gr.end.day == 1 && !gr.end.hasTime &&
-								(gr.begin.year == gr.end.year ||
-									(gr.begin.year+1 == gr.end.year && 
-									 gr.begin.month == 12 && gr.end.month == 1) ) ) {
-							"" + year + "-" + df2.format(gr.begin.month)
-						} else if( isInt(norm / WEEK) ){
-							"" + year + "-W" + df2.format(gr.begin.week)
-						} else if( isInt(norm / DAY) ){
-							"" + year + "-" + df2.format(gr.begin.month) + "-" + 
-								df2.format(gr.begin.day)
-						} else if( isInt(norm / HOUR) ){
-							"" + year + "-" + df2.format(gr.begin.month) + "-" + 
-								df2.format(gr.begin.day) + "T"+df2.format(gr.begin.hour)
-						} else {
-							gr.toString
-						}
+						//((case: grounded range))
+							(Some("DATE"),
+							 Some(JodaTimeUtils.timexDateValue(
+								gr.begin.base,gr.end.base,true)))
 					}
-				case _ => getValue(r(ground).asInstanceOf[GroundedRange])
+				case (d:GroundedDuration) =>
+					//((case: duration))
+						(Some("DURATION"),
+						 Some(JodaTimeUtils.timexDurationValue(d.base,false)))
+				case (d:FuzzyDuration) =>
+					//((case: approx. duration))
+						(Some("DURATION"),
+						 Some(JodaTimeUtils.timexDurationValue(d.interval.base,true)))
+				case _ =>
+					throw new IllegalStateException("Unknown type: "+grounded)
 			}
-		}
-		this match {
-			case (r:Range) =>
-				getValue(r)
-			case (pt:PartialTime) => getValue(pt(ground).asInstanceOf[GroundedRange])
-			case (d:Duration) => d.timexString
-			case _ => "UNK"
 		}
 	}
 }
@@ -2036,6 +1991,7 @@ object Lex {
 	val AWEEK:Duration = new GroundedDuration(Weeks.ONE)
 	val AMONTH:Duration = new GroundedDuration(Months.ONE)
 	val AQUARTER:Duration = new GroundedDuration(Months.THREE)
+	val AHALFYEAR:Duration = new GroundedDuration(Months.SIX)
 	val AYEAR:Duration = new GroundedDuration(Years.ONE)
 	val ADECADE:Duration = new GroundedDuration(Years.ONE)*10
 	val ACENTURY:Duration = new GroundedDuration(Years.ONE)*100
@@ -2093,6 +2049,14 @@ object Lex {
 				Array[Int](1,1,0,0,0,0)),
 			AMONTH*3,
 			AMONTH*3).dense.name("everyQuarter") 
+	val HALFYEAR:Sequence 
+		= new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](MonthOfHalfYear,dayOfMonth,
+					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](1,1,0,0,0,0)),
+			AMONTH*6,
+			AMONTH*6).dense.name("everyQuarter") 
 	val YEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2139,7 +2103,7 @@ object Lex {
 				Array[DateTimeFieldType](
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](4+i*4,0,0,0)),
-			AHOUR*3,
+			AHOUR*4,
 			ADAY).name("TOD("+i+")") }.toList).toArray
 	val DOW = (List(new NoTime) ::: (1 to 7).map{ i => new RepeatedRange(
 			new Partial(
@@ -2201,6 +2165,13 @@ object Lex {
 				Array[Int](i,1,1,0,0,0,0)),
 			AMONTH*3,
 			AYEAR).name("QOY("+i+")") }.toList).toArray
+	val HOY = (List(new NoTime) ::: (1 to 2).map{ i => new RepeatedRange(
+			new Partial(
+				Array[DateTimeFieldType](HalfYearOfYear,MonthOfQuarter,dayOfMonth,
+					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
+				Array[Int](i,1,1,0,0,0,0)),
+			AMONTH*6,
+			AYEAR).name("HOY("+i+")") }.toList).toArray
 	val SEASON = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
@@ -2269,6 +2240,9 @@ object Lex {
 //	val cons:(Range,Range)=>Range = _.cons(_)
 	//(concatenate two ranges -- inner)
 	//TODO
+	//(quick fix: futurify/pastify)
+	val toFuture:Range=>Range = (x:Range) => FUTURE
+	val toPast:Range=>Range   = (x:Range) => PAST
 
 	//(fuzzify a duration)
 	val fuzzify:(Duration=>Duration) = ~_:Duration

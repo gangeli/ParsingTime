@@ -14,6 +14,7 @@ import java.io.ObjectOutputStream
 import org.joda.time.DateTimeZone
 //(stanford)
 import edu.stanford.nlp.util.logging.Redwood.Util._
+import edu.stanford.nlp.io.IOUtils
 //(lib)
 import org.goobs.slib.Def
 import org.goobs.slib.Static._
@@ -681,6 +682,7 @@ object ToyData {
 	private val pastMonths2 = ("past 2 months",Parse(REF <| (AMONTH*2)))
 	private val pastYear = ("past year",Parse(REF <| AYEAR))
 	private val weeks2 = ("2 weeks",Parse(AWEEK*2))
+	private val weeksDash2 = ("2 - weeks",Parse(AWEEK*2))
 	private val week2Period = ("2 week period",Parse(AWEEK*2))
 	private val month = ("month",Parse(MONTH))
 	private val aMonth = ("a month",Parse(AMONTH))
@@ -702,6 +704,7 @@ object ToyData {
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(AMONTH*2))
+	private val monthsdash2 = ("2 - month",Parse(AMONTH*2))
 	private val years2 = ("2 years",Parse(AYEAR*2))
 	private val april = ("april",Parse(MOY(4)))
 	private val april1776 = ("april 1776",Parse(MOY(4) ^ THEYEAR(1776)))
@@ -725,6 +728,9 @@ object ToyData {
 	private val saturday_neg1 = ("saturday",Parse(DOW(6)(todaysDate,-1)))
 	private val sunday_neg1 = ("sunday",Parse(DOW(7)(todaysDate,-1)))
 	private val special_chars = ("today '",Parse(REF(todaysDate)))
+	private val lasthalf1989 = ("last half 1989",Parse(Range(Time(1989,7),Time(1990))))
+	private val lastquarter1989 = ("last quarter 1989",Parse(Range(Time(1989,10),Time(1990))))
+	private val recentMonths = ("recent months",Parse(PAST))
 	//--Hard Real Data
 	private val may22sp1995 
 		= ("May 22 , 1995", Parse(Range(Time(1995,5,22),Time(1995,5,23))))
@@ -784,7 +790,7 @@ object ToyData {
 			store(false,
 			//--Train
 				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,week2Period,
+				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,
 				//(sequences)
 				week,month,quarter,year,day,theWeek,
 				//(cannonicals -> sequences)
@@ -808,8 +814,9 @@ object ToyData {
 				//(floor/ceil)
 				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
 				//(offset -1)
-				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
+//				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
 				//(hard)
+				lasthalf1989, lastquarter1989,recentMonths,
 //				may22sp1995,special_chars,
 				//(ref)
 				today
@@ -880,6 +887,17 @@ class Entry {
 				logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
 			}
 			endTrack("Eval Results")
+			//(save info)
+			startTrack("Save Output")
+			val savData = parser.toInfo( Comparisons.dataset2inputs(
+				new TimeDataset(new SerializedCoreMapDataset(
+					System.getenv("HOME") + 
+						"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
+					)))
+			)
+			val outputFile = Execution.touch("tempeval2-output.ser")
+			IOUtils.writeObjectToFileNoExceptions(savData,outputFile.getPath)
+			endTrack("Save Output")
 			endTrack("TempEval")
 		}
 		//--Process

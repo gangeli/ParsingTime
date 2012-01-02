@@ -91,7 +91,7 @@ public class O {
 	@Option(name="kbestCKYAlgorithm", gloss="algorithm from (Huang et. al)")
 	public static int kbestCKYAlgorithm = 0;
 	public static enum CkyCountType{ 
-		all, bestAll, bestRandom, bestShallow, shortWithOffsetZero }
+		all, bestAll, bestRandom, bestShallow, shortWithOffsetZero, leastNilsWithOffsetZero }
 	@Option(name="ckyCountType", gloss="Parses to count as 'correct' for EM")
 	public static CkyCountType ckyCountType = CkyCountType.bestAll;
 	public static enum CkyCountNormalization{ none, uniform, 
@@ -161,6 +161,10 @@ public class O {
 	public static boolean sortTimeProbInScore = false;
 	@Option(name="cannonicalShifts", gloss="<<! instead of <<")
 	public static boolean cannonicalShifts = false;
+	@Option(name="functionalApproximate", gloss="approx. fxn instead of primitives")
+	public static boolean functionalApproximate = false;
+	@Option(name="functionalUnboundedRange", gloss="toFuture and toPast fxns")
+	public static boolean functionalUnboundedRange = false;
 	
 	//--DEBUG
 	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")

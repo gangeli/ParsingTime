@@ -218,6 +218,20 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 			classOf[OriginalTimeTypeAnnotation])
 	def originalValue:String = time.get[String,OriginalTimeValueAnnotation](
 			classOf[OriginalTimeValueAnnotation])
+	
+	def filterFromExtent(lines:List[String]):List[String] = {
+		//(get extent pattern)
+		val meta:TimexMetaInfo = time.get[TimexMetaInfo,OriginalTimeMetaAnnotation](
+			classOf[OriginalTimeMetaAnnotation])
+		val Regexp = ("""^.*("""+meta.doc+""").*("""+meta.tid+""").*$""").r
+		//(filter)
+		lines.filter{ (line:String) =>
+			line match {
+				case Regexp(doc,tid) => false
+				case _ => true
+			}
+		}
+	}
 
 	def tempevalAttribute(typ:Option[String],value:Option[String],ground:DateTime,
 			padMisses:Boolean):String = {

@@ -310,13 +310,21 @@ object Grammar {
 		(REF,"REF:R")
 		)
 	//(durations)
-	val durations = 
+	var durations = 
 		{if(O.useTime) List[(Duration,String)]((ASEC,"Sec:D"),(AMIN,"Min:D"),
 			(AHOUR,"Hour:D")) else List[(Duration,String)]()} :::
 		List[(Duration,String)](
 			(ADAY,"Day:D"),(AWEEK,"Week:D"),(AMONTH,"Month:D"),(AQUARTER,"Quarter:D"),
+			(AHALFYEAR,"HalfYear:D"),
 			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"Century:D")
 			)
+	durations = {if(!O.functionalApproximate){
+			durations ::: durations.map{ case (d:Duration,name:String) =>
+				(~d,"~"+name)
+			}
+		} else {
+			durations
+		}}
 	//(sequences)
 	val sequences = 
 		(1 to 7).map(i=>(DOW(i).asInstanceOf[RepeatedRange]
@@ -334,7 +342,7 @@ object Grammar {
 			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
 		List[(Sequence,String)](
 			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
-			(YEAR,"Year:S")
+			(HALFYEAR,"HalfYear:S"),(YEAR,"Year:S")
 			) :::
 		Nil
 	val indexedSequences:List[(Array[Sequence],String)]
@@ -558,10 +566,24 @@ object Grammar {
 			fn:(_<:A)=>_<:A,name:String,validA:List[Symbol])
 		//(define)
 		val function1 = List[F1Info[Temporal]](
-			F1Info(fuzzify,"fuzzify",List('D)),                  //around
 			F1Info(move(_:Sequence,-1L),"moveLeft1",List('S)),   //last [sequence]
 			F1Info(move(_:Sequence,1L),"moveRight1",List('S))    //next [sequence]
-		)
+		) ::: {if(O.functionalApproximate){
+				List[F1Info[Temporal]](
+					F1Info(fuzzify,"fuzzify",List('D))               //around
+				)
+			} else {
+				Nil
+			}
+		} ::: {if(O.functionalUnboundedRange){
+				List[F1Info[Temporal]](
+					F1Info(toPast,"toPast",List('R,'S)),             //recent months
+					F1Info(toFuture,"toFuture",List('R,'S))          //future months
+				)
+			} else {
+				Nil
+			}
+		}
 		//(intro)
 		function1.foreach{ (info:F1Info[Temporal]) =>
 			//(for every argA...)
@@ -886,6 +908,25 @@ trait ParseTree extends Tree[Nonterminal] {
 			(rid:Int,w:Int) => { terms = rid :: terms } )
 		terms.reverse.toArray
 	}
+	def countNonNils(sent:Sentence):(Int,Int) = {
+		var words = List[Int]()
+		var tags = List[Int]()
+		traverse( 
+			(rid:Int,nilTag:Option[Int]) => {}, 
+			(rid:Int,w:Int) => { 
+				tags = rid :: tags 
+				words = sent.words(w) :: words 
+			} )
+		def isNil(wordTag:(Int,Int)) = { 
+			val (w,t) = wordTag
+			Grammar.RULES(t).head.isNil 
+		}
+		val nonNilCount:Int = words.zip(tags).filter(!isNil(_)).length
+		val trimmedLength:Int = words.zip(tags)
+			.dropWhile{isNil(_)}.reverse.dropWhile{ isNil(_) }.map{_._1}
+			.toArray.length
+		(trimmedLength,nonNilCount)
+	}
 	def trim(sent:Sentence):Array[Int] = {
 		var words = List[Int]()
 		var tags = List[Int]()
@@ -1091,7 +1132,17 @@ trait Parser extends OtherSystem {
 		endTrack("Parser State")
 		(train,test)
 	}
-	def getTimex(input:SystemInput):Option[SystemOutput] = {
+	def toInfo(data:Array[SystemInput]):MySystemInfo = {
+		val valueMap = new HashMap[Int,(Option[SystemOutput],Int,Double)]
+		data.foreach{ (in:SystemInput) =>
+			val	key:Int = in.timex.index
+			val	(out,lprob):(Option[SystemOutput],Double) = getTimexAndProb(in)
+			val	len:Int = in.timex.words(true).length
+			valueMap(key) = (out,len,lprob)
+		}
+		MySystemInfo(valueMap)
+	}
+	def getTimexAndProb(input:SystemInput):(Option[SystemOutput],Double) = {
 		//--Create Sentence
 		val sent = Sentence(
 			input.timex.tid,
@@ -1105,38 +1156,26 @@ trait Parser extends OtherSystem {
 			= parse(1,sent,false,input.timex.index.toString)
 		O.beam = saveBeam
 		//--Digest Result
-		//(get best parse)
 		val parsesWithTime:Array[Parse] 
 			= parses.dropWhile{ (p:Parse) => p.value.isInstanceOf[NoTime] }
 		if(parsesWithTime.length == 0){
-			return None
+			(None,Double.NegativeInfinity)
 		} else {
-			val grounded = parsesWithTime(0).value(new Time(input.ground))
-			grounded match {
-				case (gr:GroundedRange) =>
-					if(gr.begin.equals(gr.end) && gr.begin.base.equals(input.ground)){
-						//((case: reference)
-						Some(SystemOutput(Some("DATE"),Some("PRESENT_REF")))
-					} else {
-						//((case: grounded range))
-						Some(SystemOutput(
-							Some("DATE"),
-							Some(JodaTimeUtils.timexDateValue(
-								gr.begin.base,gr.end.base,true))))
-					}
-				case (d:GroundedDuration) =>
-					//((case: duration))
-					Some(SystemOutput(
-						Some("DURATION"),
-						Some(JodaTimeUtils.timexDurationValue(d.base,false))))
-				case (d:FuzzyDuration) =>
-					//((case: approx. duration))
-					Some(SystemOutput(
-						Some("DURATION"),
-						Some(JodaTimeUtils.timexDurationValue(d.interval.base,true))))
-				case _ =>
-					throw new IllegalStateException("Unknown type: "+grounded)
-			}
+			val (typ,value) = parsesWithTime(0).value.asTimex(new Time(input.ground))
+			(Some(SystemOutput(typ,value)),parsesWithTime(0).logProb)
+		}
+	}
+	def getTimex(input:SystemInput,minProb:Double):Option[SystemOutput] = {
+		//(parse)
+		val (output,lprob) = getTimexAndProb(input)
+		//(get probability)
+		val numRules:Int = 2*input.timex.words(true).length-1
+		val aveRuleProb:Double = math.exp(lprob*(1.0/numRules.asInstanceOf[Double]))
+		//(return)
+		if(aveRuleProb >= minProb){
+			output
+		} else {
+			None
 		}
 	}
 	def name:String = "MyTime"
@@ -2665,6 +2704,38 @@ class CKYParser extends Parser with Serializable{
 						val matching:Array[(Int,Int,Double)] = feedback.correct.filter{
 								case (index:Int,offset:Int,score:Double) =>
 							trees(index).trim(sent).length <= shortest &&
+								(!hasZeroOffset || offset == 0)
+						}
+						//((create list))
+						matching
+					}
+					case O.CkyCountType.leastNilsWithOffsetZero => {
+						//((has an offset zero term?))
+						val hasZeroOffset:Boolean = feedback.correct.exists{ _._2 == 0 }
+						//((get shortest length))
+						val shortest:(Int,Int) = feedback.correct
+								.foldLeft( (Int.MaxValue,Int.MaxValue) ){
+								case ((shortestTrim:Int,leastNils:Int),
+								      (index:Int,offset:Int,score:Double)) =>
+							if(hasZeroOffset && offset == 0){
+								val (trim,nilCount) = trees(index).countNonNils(sent)
+								if(trim < shortestTrim){
+									(trim,nilCount)
+								} else if(trim == shortestTrim){
+									(trim,math.min(leastNils,nilCount))
+								} else {
+									(shortestTrim,leastNils)
+								}
+							} else {
+								(shortestTrim,leastNils)
+							}
+						}
+						//((get matching trees))
+						val (shortestTrim,leastNils) = shortest
+						val matching:Array[(Int,Int,Double)] = feedback.correct.filter{
+								case (index:Int,offset:Int,score:Double) =>
+							val (trim,nilCount) = trees(index).countNonNils(sent)
+							trim <= shortestTrim && nilCount <= leastNils &&
 								(!hasZeroOffset || offset == 0)
 						}
 						//((create list))

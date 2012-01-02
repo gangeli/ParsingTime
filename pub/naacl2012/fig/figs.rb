@@ -125,25 +125,34 @@ printObj(
 # SYSTEM
 ################################################################################
 def sys
-	rtable(
+	table(
 		#(input)
-		ctable(
-			'(',
-			phrase('Last Friday the 13 th'),
-			',',
-			ground('May 16 2011'),
-			')',
-		nil).center,
-		darrow,
+		[
+			_('Input').color(darkblue),
+			ctable(
+				'(',
+				phrase('Last Friday the 13 th'),
+				',',
+				ground('May 16 2011'),
+				')',
+			nil).center,
+		nil],
+		['',darrow],
 		#(parse)
-		lastFriday.scale(0.75),
-		darrow,
+		[
+			rtable(_('Latent').color(darkblue),_('parse').color(darkblue)).cjustify('c'),
+			lastFriday.scale(0.75),
+		nil],
+		['',darrow],
 		#(output)
-		time('May 13 2011'),
-	nil).cjustify('c').rmargin(u(0.3))
+		[
+			_('Output').color(darkblue),
+			time('May 13 2011'),
+		nil],
+	nil).cjustify('c').rjustify('c').rmargin(u(0.3))
 end
 printObj(
-	:obj => sys.signature(3),
+	:obj => sys.signature(5),
 	:outPrefix => 'system'
 )
 
