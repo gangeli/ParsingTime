@@ -9,6 +9,8 @@ import java.util.Properties
 import java.io.File
 
 import scala.collection.mutable.HashMap
+import scala.collection.mutable.HashSet
+import scala.collection.mutable.Set
 import scala.collection.JavaConversions._
 import scala.util.Random
 
@@ -17,6 +19,7 @@ import edu.stanford.nlp.ling._
 import edu.stanford.nlp.util._
 import edu.stanford.nlp.time.TimeAnnotations._
 import edu.stanford.nlp.time.GUTimeAnnotator
+import edu.stanford.nlp.time.TimeAnnotator
 
 import org.goobs.internet._
 import org.goobs.graphics.Drawing
@@ -75,6 +78,7 @@ object State {
 	var nextID:Int = 0
 	val freedom = new HashMap[(Int,Int,Int),Freedom]
 	val duration = new HashMap[Int,Duration]
+	val guesses = new HashMap[Int,Set[String]]
 	//(CoreNLP)
 	val pipeline:AnnotationPipeline = {
 			val props = new Properties
@@ -446,6 +450,18 @@ def getDay(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 		values("day").toInt)
 }
 //--Validate
+def suTime(input:String):Boolean = {
+	//(annotate)
+	val map:Annotation = new Annotation(input)
+	State.pipeline.annotate(map)
+	val sutime = new TimeAnnotator
+	sutime.annotate(map)
+	//(get timexes)
+	val timexes:java.util.List[CoreMap] = 
+		map.get[java.util.List[CoreMap],TimexAnnotations](
+		classOf[TimexAnnotations])
+	return timexes != null && !timexes.isEmpty
+}
 def validate(id:Int,input:String,begin:String,end:String):String = {
 	//(error check)
 	print("["+id+"] validate " + begin + " until " + end + ": '"+input+"'...")
@@ -457,22 +473,12 @@ def validate(id:Int,input:String,begin:String,end:String):String = {
 	val endTime:Time = Time(end)
 	val rangeCheck = endTime >= beginTime
 	//--Text
-	//(annotate)
-	val map:Annotation = new Annotation(input)
-	State.pipeline.annotate(map)
-	val gutime = new GUTimeAnnotator(new File(
-		System.getenv("HOME")+"/workspace/time/etc/"));
-	gutime.annotate(map)
-	//(get timexes)
-	val timexes:java.util.List[CoreMap] = 
-		map.get[java.util.List[CoreMap],TimexAnnotations](
-		classOf[TimexAnnotations])
 	//(get conclusion)
 	val rtn = 
 		if(!rangeCheck){
 			"range"
-		} else if(timexes == null || timexes.isEmpty){
-			"gutime"
+		} else if(suTime(input)){
+			"sutime"
 		} else {
 			"good"
 		}
@@ -491,7 +497,32 @@ def validate(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 		case (r:RuntimeException) => "SERVER ERROR: " + r.getMessage
 	}
 }
-
+//--New Expression
+def novel(id:Int,guess:String):String = {
+	print("["+id+"] checking " + guess + "...")
+	if(!State.guesses.contains(id)){ State.guesses(id) = new HashSet[String] }
+	val alreadyGuessed = State.guesses(id)
+	if( alreadyGuessed.contains(guess.toLowerCase) ){
+		println("duplicate")
+		"false"
+	} else if(!suTime(guess)){
+		println("sutime")
+		"sutime"
+	} else {
+		println("OK")
+		alreadyGuessed.add(guess.toLowerCase)
+		"true"
+	}
+}
+def novel(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	try {
+		novel(
+			values("id").toInt,
+			values("guess"))
+	} catch {
+		case (r:RuntimeException) => "SERVER ERROR: " + r.getMessage
+	}
+}
 //--Add Listeners
 //(implicit conversion)
 implicit def fn2handler(
@@ -526,6 +557,7 @@ new WebServer(3000).start
 	.register("/month",getMonth(_:HashMap[String,String],_:WebServer.HttpInfo))
 	.register("/day",getDay(_:HashMap[String,String],_:WebServer.HttpInfo))
 	.register("/validate",validate(_:HashMap[String,String],_:WebServer.HttpInfo))
+	.register("/novel",novel(_:HashMap[String,String],_:WebServer.HttpInfo))
 //(run)
 State.pipeline
 println("Ready...")

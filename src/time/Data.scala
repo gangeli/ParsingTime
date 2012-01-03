@@ -19,6 +19,7 @@ import org.joda.time.DateTimeZone
 import org.goobs.database._
 import org.goobs.stanford.CoreMapDatum
 import org.goobs.testing.Dataset
+import org.goobs.stanford.SerializedCoreMapDataset
 
 //------------------------------------------------------------------------------
 // UTILITIES
@@ -75,6 +76,17 @@ class OriginalEndIndexAnnotation
 //------------------------------------------------------------------------------
 // DATA
 //------------------------------------------------------------------------------
+object TimeDataset {
+	def main(args:Array[String]) = {
+		new TimeDataset(new SerializedCoreMapDataset(
+			System.getenv("HOME") + 
+				"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
+			)
+		).timexes.zipWithIndex.foreach{ case (t:Timex,i:Int) =>
+			println(i + ",\"" + t.gloss + "\"")
+		}
+	}
+}
 class TimeDataset(data:Dataset[CoreMapDatum]) {
 	def slice(minInclusive:Int,maxExclusive:Int):TimeDataset
 		= new TimeDataset(data.slice(minInclusive,maxExclusive))

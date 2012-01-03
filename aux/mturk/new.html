@@ -1,0 +1,83 @@
+<script src="http://plato42.stanford.edu/static/jquery-1.7.1.min.js"></script>
+<script language="Javascript">
+	var guesses = []
+	
+	function submit(){
+		$('#mturkForm').submit();
+	}
+
+	$(document).ready(function(){
+		$('#submitButton').click(function() {
+			var guess = $('#guess').val()
+			$.getJSON(
+				'http://plato42.stanford.edu:3000/novel?callback=?&id=' + "0" +
+					'&guess='+guess,
+				function(data) {
+					//(set id)
+					resp = data['value']
+					if(resp == "true"){
+						submit();
+					} else if(resp == "sutime"){
+						if($.inArray(guess.toLowerCase(),guesses) < 0){
+							$("#guesses").append(
+								'<li style="color: darkorange;"> ' + 
+									'Likely not a date or time: ' + guess + ' ' +
+									'<a class="override" href="javascript:submit();">(use anyways)</a>' +
+								'</li>'
+							)
+						}
+						guesses[guesses.length] = guess.toLowerCase()
+					} else if(resp == "false"){
+						if($.inArray(guess.toLowerCase(),guesses) < 0){
+							$("#guesses").append(
+								'<li style="color: red;"> ' + guess + '</li>'
+							)
+						}
+						guesses[guesses.length] = guess.toLowerCase()
+					} else {
+						$("#guesses").append(
+							'<li style="color: red;"> ' + resp + '</li>'
+						)
+					}
+				});
+		})
+	})
+</script>
+
+
+<b>Instructions</b>
+<ul>
+	<li>Please describe the date, time or duration below in a novel way</li>
+	<li>If you repeat another turker's guess (max 4 such other guesses
+	    exist), it will show up in red and we'd appreciate you trying
+			another phrase.</li>
+</ul>
+
+<!--Input-->
+"<span id="input">${PHRASE}</span>" could also be described as 
+<input 
+	type="text" id="guess" name="guess"
+	style="width:300px; background-color:#A6FCE4;">
+</input>
+
+<!--Validation-->
+<div style="margin-top:24px;">
+	<b>Tried Guesses:</b>
+	<ul id="guesses">
+	</ul>
+</div>
+
+
+<!--Notes-->
+<table id="notes" style="margin-bottom:24pt; margin-top:24pt;">
+	<tr>
+	<td>
+		<div style="font-weight:bold;">Notes:</div>
+		<i>(optional)</i>
+	</td>
+	<td><textarea id="notes" cols="80" rows="2" name="notes"></textarea></td>
+	</tr>
+</table>
+
+
+<button id="submitButton">Submit</button>
