@@ -19,6 +19,36 @@ function scores {
 	for f in `find out -name "log"`; do egrep -IH "MyTime Train" $f; done | sort -k 8
 }
 
+function evaltrain {
+	sys="$1"
+	aux/tempeval2/scorer/score_entities.py\
+		aux/tempeval2/training/english/data/base-segmentation.tab\
+		aux/tempeval2/training/english/data/timex-extents.tab\
+		aux/tempeval2/training/english/data/timex-extents.tab\
+		aux/tempeval2/training/english/data/timex-attributes.tab\
+		$sys
+}
+
+function evaltest {
+	sys="$1"
+	aux/tempeval2/scorer/score_entities.py\
+		aux/tempeval2/test/english/key/base-segmentation.tab\
+		aux/tempeval2/test/english/key/timex-extents.tab\
+		aux/tempeval2/test/english/key/timex-extents.tab\
+		aux/tempeval2/test/english/key/timex-attributes.tab\
+		$sys
+}
+
+function evaltestrel {
+	sys="$1"
+	aux/tempeval2/scorer/score_entities.py\
+		aux/tempeval2/test/english/relations/base-segmentation.tab\
+		aux/tempeval2/test/english/relations/timex-extents.tab\
+		aux/tempeval2/test/english/relations/timex-extents.tab\
+		aux/tempeval2/test/english/relations/timex-attributes.tab\
+		$sys
+}
+
 function pyscore {
 	# -- Variables
 	last=`ls out | sort -nr | head -n 1`
@@ -26,12 +56,7 @@ function pyscore {
 		last="$1.exec"
 	fi
 	# -- Run Script
-	aux/tempeval2/scorer/score_entities.py\
-		aux/tempeval2/training/english/data/base-segmentation.tab\
-		aux/tempeval2/training/english/data/timex-extents.tab\
-		aux/tempeval2/training/english/data/timex-extents.tab\
-		aux/tempeval2/training/english/data/timex-attributes.tab\
-		out/$last/attributes-MyTime-train.tab
+	evaltrain out/$last/attributes-MyTime-train.tab
 }
 
 #-----

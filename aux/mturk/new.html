@@ -2,15 +2,25 @@
 <script language="Javascript">
 	var guesses = []
 	
+	function cancelEvent(e) {
+		if (!e) e = window.event;
+		if (e.preventDefault) {
+			e.preventDefault();
+		} else {
+			e.returnValue = false;
+		}
+	}
+	
 	function submit(){
-		$('#mturkForm').submit();
+		$('#mturk_form').submit();
 	}
 
 	$(document).ready(function(){
-		$('#submitButton').click(function() {
+		$('#submitButton').click(function(e) {
 			var guess = $('#guess').val()
+			cancelEvent(e);
 			$.getJSON(
-				'http://plato42.stanford.edu:3000/novel?callback=?&id=' + "0" +
+				'http://plato42.stanford.edu:3000/novel?callback=?&id=' + ${ID} +
 					'&guess='+guess,
 				function(data) {
 					//(set id)
@@ -63,8 +73,7 @@
 <!--Validation-->
 <div style="margin-top:24px;">
 	<b>Tried Guesses:</b>
-	<ul id="guesses">
-	</ul>
+	<ul id="guesses"><!--empty for now--></ul>
 </div>
 
 
