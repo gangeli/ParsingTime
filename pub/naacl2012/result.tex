@@ -1,17 +1,24 @@
 \Section{result}{Evaluation}
 We evaluate our system against current state-of-the art systems for temporal
-	resolution on the \dataset{TempEval-2} dataset.
+	resolution on the english portion of the \tempeval\ Task A dataset.
 We describe the dataset in \refsec{result-dataset}, and detail the previous
 	work and our results in \refsec{result-scores}.
 
 \Subsection{result-dataset}{Dataset}
-The \dataset{TempEval-2} dataset contains 162 documents and 1052 temporal 
-	phrases in the training 
-	set, and an additional 20 documents and 156 phrases in the evaluation set.
+The \tempeval\ dataset contains 162 documents and 1052 temporal 
+	phrases in the training set,
+	and an additional 20 documents and 156 phrases in the evaluation set.
+Each temporal phrase was annotated as a \timex\footnote{
+		see \url{http://www.timeml.org} for details on the TimeML format and
+		\timex\ tag.
+	}
+	tag around an adverbial or prepositional phrase
+
 Our System was trained on 142 documents, with the remaining 20 held out as
 	a development set.
 Final reported results make use of the full 162 documents in the training
 	set.
+
 
 
 
@@ -33,24 +40,25 @@ Final reported results make use of the full 162 documents in the training
 	\end{tabular}
 	%(caption)
 	\caption{
-		\dataset{TempEval-2} Attribute scores for our system and three previous systems.
+		\tempeval\ Attribute scores for our system and three previous systems.
 		The scores are calculated using gold extents, forcing a guessed
 		interpretation for each parse.
 		The results of \sys{GUTime} have been reformatted to conform to the
-			\dataset{TempEval-2} output format.
+			\tempeval\ output format.
 		\label{tab:results}
 	}
 \end{table}
 
 % -- Evaluation task
-In the \dataset{TempEval-2} task, system performance is evaluated on 
+In the \tempeval\ A Task, system performance is evaluated on 
 	detection and resolution of temporal expressions.
-Since we perform only the second of these tasks, we evaluate our system
+Since we perform only the second of these, we evaluate our system
 	assuming gold detection.
-Thus, only the Timex attribute evaluation is performed and compared against.
+\todo{PR curves maybe?}
+%Thus, only the \timex\ attribute evaluation is compared against.
 
 % -- Scoring Tweak
-Similarly, the original \dataset{TempEval-2} scoring scheme gave a precision 
+Similarly, the original \tempeval\ scoring scheme gave a precision 
 	and recall for detection, and an accuracy for only the temporal expressions 
 	attempted.
 Since our system will output a guess for every expression, we compare to 
@@ -58,7 +66,6 @@ Since our system will output a guess for every expression, we compare to
 	example; if no guess is made, the output is considered incorrect.
 This in general yields lower results, as the system is not allowed to
 	abstain on expressions it does not recognize.
-\todo{PR curves maybe?}
 % -- Reference Table
 Results are summarized in \reftab{results}
 
@@ -68,17 +75,17 @@ We compare to three previous rule-based systems.
 \sys{GUTime} \cite{key:2000mani-temporal} presents an older but widely
 	used baseline.
 Due to discrepancies in the output format of \sys{GUTime} compared to the 
-	format used in the TempEval-2 task, the output was heuristically patched
+	format used in the \tempeval\ task, the output was heuristically patched
 	and manually checked to conform to the expected format.
 %(SuTime)
-More recently, \sys{SUTime}\needcite provides a much stronger rule-based
-	system.
+More recently, \sys{SUTime} \textit{(under submission 2011)} 
+	provides a much stronger comparison.
 %(HeidelTime)
 We also compare to \sys{HeidelTime} \cite{key:2010strotgen-temporal}, 
-	which represents the state-of-the-art system at the TempEval-2 task.
+	which represents the state-of-the-art system at the \tempeval\ task.
 
 % -- Our Results
-Our system performs well above the \sys{GUTime} baseline and competitive
+Our system performs well above the \sys{GUTime} baseline and is competitive
 	with both of the more recent systems.
 \todo{examples}
 

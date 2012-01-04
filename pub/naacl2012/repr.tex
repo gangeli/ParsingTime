@@ -1,8 +1,8 @@
 \Section{repr}{Representation}
 A temporal representation is constructed; the type system of the representation
 	is described in \refsec{repr-types} while the grammar is outlined in
-	\refsec{repr-compositional} and described in detail in \refsec{repr-lexicon}
-	and \refsec{repr-rules}
+	\refsec{repr-compositional} and described in detail in 
+	\refsecs{repr-lexicon}{repr-rules}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TEMPORAL EXPRESSIONS
@@ -65,6 +65,10 @@ The sequence index $i \in \BZ$ is defined relative to the
 	which is within the containing unit \seqcanon\ of the sequence in which the 
 	reference time also lies.
 This is consistent with our definition of \seqelem.
+%(definition of reference time)
+We define the \textit{reference time} $t$ to be the instant when the phrase 
+	is uttered; for the \tempeval\ corpus, we assume that this is the 
+	publication time of the article.
 
 %(sequence as distribution)
 The \ty{Sequence} type warrants special attention, as the pragmatic ambiguity 
@@ -78,6 +82,7 @@ This distribution -- conditioned on a reference time $t$ --
 The input to the Gaussian is a function $\delta_{s,t}$ evaluated
 	at the index $i$, defined as the distance between the reference time 
 	and the element in question.
+% -- Gaussian Equation
 \begin{equation}
 \label{eqn:gaussian}
 	P_t(i) = 
@@ -93,14 +98,23 @@ The input to the Gaussian is a function $\delta_{s,t}$ evaluated
 			2\pi\sigma^2
 		}
 \end{equation}
-\Fig{fig/gauss}{0.62}{distribution}{
-	An illustration of a temporal distribution.
-	The reference time is labeled as time $t$ between \te{Nov 20} and 
-		\te{Nov 27}; the probability that this sequence is referring to
-		\te{Nov 20} is integral of the marked area.
-	Note that shifting the reference time towards \te{Nov 20} would increase
-		this probability.
-}
+% -- Gaussian Plot
+\begin{figure}[t]
+\begin{center}
+	\resizebox{1.1\hsize}{!}{
+		\input fig/gauss.tex
+	}
+	\caption{
+		\label{fig:distribution}
+		An illustration of a temporal distribution.
+		The reference time is labeled as time $t$ between \te{Nov 20} and 
+			\te{Nov 27}; the probability that this sequence is referring to
+			\te{Nov 20} is integral of the marked area.
+		Note that shifting the reference time towards \te{Nov 20} would increase
+			this probability.
+	}
+\end{center}
+\end{figure}
 \reffig{distribution} shows an example of such a distribution.
 
 %(global scope)
@@ -157,7 +171,7 @@ The first of these types is \ty{Number} -- denoting a number without
 This comes into play representing expressions such as \tp{2 weeks}.
 The other type is the \ty{Nil} type -- denoting terms which are not
 	directly contributing to the semantic meaning of the expression.
-These are intended for words such as \tp{a} or \tp{the}, which serve as cues
+This is intended for words such as \tp{a} or \tp{the}, which serve as cues
 	without bearing temporal content themselves.
 The \ty{Nil} type is lexicalized with the word it generates; more details
 	are given in \refsecs{repr-lexicon}{repr-rules}.
@@ -172,10 +186,8 @@ Notably, a body of work has focused on reasoning about events or states
 	changes of state; 
 	\newcite{key:2010condoravdi-temporal} explores NPI licensing in temporal
 	expressions.
-Both the linguistics literature and the \texttt{Timex} specification
-	places an importance on approximate ranges;
-	for example, \tp{a year in the 90's} or \tp{some evening}.
-This representation does not capture these, among other phenomena.
+In contrast, NLP evaluations have generally not included such vague 
+	time expressions.
 
 We proceed to describe the grammar used to manipulate the types and specific
 	instances of these types.
@@ -202,7 +214,7 @@ Decomposing the example, we can construct a meaning by taking \tp{Friday},
 % -- Focus on time; elsewhere applicable
 While we focus entirely on temporal phrases and their meaning, this
 	compositional assumption is reasonable for a number of other domains as 
-	well -- for example describing locations (e.g. the 
+	well -- for example describing locations (e.g., the 
 	\dataset{GeoQueries} dataset) or directions.
 
 % -- Synchronous Grammar
@@ -217,11 +229,12 @@ While we focus entirely on temporal phrases and their meaning, this
 %(introduction)
 We construct a paradigm for parsing temporal phrases based on a Synchronous
 	PCFG defined over the temporal \textit{instances} and their
-	corresponding \textit{types}; similar in some respects but more
+	corresponding \textit{types}, similar in some respects but more
 	constrained than those used in machine translation 
-	(e.g. \newcite{key:2001yamada-syntaxmt}).
+	(e.g., \newcite{key:2001yamada-syntaxmt}).
 This is in contrast to common approaches, such as making use of CCG 
-	grammars (\newcite{key:1996steedman-ccg}, \newcite{key:2000steedman-ccg}),
+	grammars 
+	\cite{key:2000steedman-ccg,key:2004bos-ccg,2011kwiatkowski-semantics}
 	giving us more flexibility in the composition rules.
 \reffig{grammar} shows an example of the grammar.
 
@@ -251,8 +264,8 @@ In a conventional synchronous PCFG, the second term would be the corresponding
 	combination rule over our nonterminals $\sW$.
 In our case, this term is a deterministic function mapping the
 	constituent expressions to the parent expression.
-This both handles the unbounded domain of temporal expressions,
-	as well as constrains the formalism.
+%This both handles the unbounded domain of temporal expressions,
+%	as well as constrains the formalism.
 Note that the definition above is trivially adapted for the case of unary
 	rules.
 The application of these rules is described in more detail in 
@@ -265,7 +278,7 @@ In line with the usual interpretation, this defines a probability
 Importantly, note that the distribution over possible groundings
 	of a temporal expression are not included in the grammar
 	formalism.
-The learning of these probabilities is detailed in \refsec{learn}
+The learning of these probabilities is detailed in \refsec{learn}.
 
 %%(motivation)
 %We defined a paradigm for expressing how natural language composes
@@ -467,15 +480,18 @@ This deterministic procedure is in effect a function application,
 		This roughly equates to applying a special \textit{intersect} function
 			without requiring that it be explicit in the temporal phrase.
 		The intersect function treats both arguments as intervals, and will return
-			the overlap between the intervals.
+			the overlap between the intervals\footnote{
+				In the case of sequences (e.g., \te{\th{13}} intersect \te{May}) a
+					search is performed to find overlapping ranges in the two sequences;
+					the \textit{zero index} is updated to refer to the closest such
+					match to the reference time.
+				In cases where this search cannot be solved analytically
+					(e.g., \te{\th{13}} intersect \te{Friday}), an A$^{*}$
+					search is used to find an overlapping pair of ranges
+					in time logarithmic with respect to
+					the distance in miliseconds to the match.
+		}.
 
-		In the case of sequences (e.g. \te{\th{13}} intersect \te{Friday}) a
-			search is performed to find overlapping ranges in the two sequences;
-			the \textit{zero index} is updated according to proximity to the
-			reference time.
-		In cases where this search cannot be solved analytically, an A$^{*}$
-			search is used to find a solution in time logarithmic with respect to
-			the distance to the next overlapping interval.
 	%(noop)
 	\item Combining a non-\ty{Nil} element with \ty{Nil} with no change to the
 			temporal expression.

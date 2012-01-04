@@ -5,4 +5,4 @@ default:
 	cp figs/system.pdf .
 
 clean:
-	rm -rf *.pdf figs
+	rm -rf *.pdf *.tex figs

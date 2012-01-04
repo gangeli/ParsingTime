@@ -28,16 +28,16 @@ Here, we revisit the notion of a temporal expression having an uncertainty
 We represent this as a distribution with respect to the reference time.
 In a sense, the most semantically complete output of the system would be
 	such a distribution -- 
-	an utterance of \tp{Friday} would, instead of grounding to a 
-	\textit{best guess} of what the time refers to rather give a distribution
-	over possible groundings, along with their probabilities.
+	an utterance of \tp{Friday}, instead of grounding to a 
+	\textit{best guess} of what the time refers to, would rather give a 
+	distribution over possible groundings along with their probabilities.
 However, often it is advantageous to resolve to a concrete expression with a
 	certain probability.
 
 % -- Combination Method
 The CKY k-best beam and the temporal distribution 
 	-- capturing syntactic and pragmatic ambiguity --
-	can be combined to provide a \textit{vitterbi} decode, as well as
+	can be combined to provide a \textit{viterbi} decode, as well as
 	its associated probability.
 We define the probability of a syntactic parse making use of rules $R \in \sR$ 
 	as $P(R) = P(w_1,\dots w_n; R) = \sum_{i \rightarrow j,k \in R}P(j,k \mid i)$;
@@ -49,16 +49,16 @@ The product of these two terms provides the probability of a grounded temporal
 
 \begin{equation}
 	P_t(i, R) = 
-		P( R ) * P_t(i | R)
+		P( R ) \times P_t(i | R)
 \label{eqn:prob}
 \end{equation}
 
-% -- Vitterbi
-The vitterbi decode is found by maximizing these two terms sequentially:
+% -- Viterbi
+The viterbi decode is found by maximizing these two terms sequentially:
 	the optimal grounding is found within the optimal syntactic parse.
 This is in contrast to maximizing $P_t(i,R)$ directly, however it avoids
-	assigning a penalty to proposing ambiguous expressions (e.g. \te{Friday})
-	versus unambiguous expressions (e.g. \te{a week}).
+	assigning a penalty to proposing ambiguous expressions (e.g., \te{Friday})
+	versus unambiguous expressions (e.g., \te{a week}).
 Furthermore, it is reasonable to assume that cognitively we perform a
 	similar procedure -- resolving syntactic ambiguity before resolving
 	pragmatic ambiguity.
@@ -85,7 +85,7 @@ The preprocessing steps are described below, followed by an overview
 % -- Preprocessing
 \paragraph{Preprocessing}
 The input phrase is tokenized according to Penn Treebank guidelines,
-	in addition to splitting on the characters `-' and `/,' which
+	except we additionally split on the characters `-' and `/,' which
 	often delimit a boundary between temporal entities.
 Thereafter, numbers written in text are heuristically converted to their
 	numeric values, and featurized according to their order of magnitude
@@ -100,7 +100,7 @@ Beyond this preprocessing, no language-specific information about the meanings
 
 
 % -- Algorithm Figure
-\begin{algorithm}
+\begin{algorithm}[t]
 	%(algorithm)
 	\SetKw{Def}{def}
 	\SetKwFunction{generateCandidates}{generateCandidates}
@@ -118,6 +118,9 @@ Beyond this preprocessing, no language-specific information about the meanings
 		$(\theta_s',\mu',\sigma')$ = fullyObservedEM$(\sH)$
 	}
 	\KwRet $(\theta_s',\mu',\sigma')$ \\
+
+	\BlankLine
+	\BlankLine
 	%(generate candidates)
 %	\tcc{Generate candidate valid parses}
 	\Begin(\generateCandidates{$\theta_s$,$\mu$,$\sigma$}:){
@@ -168,7 +171,7 @@ Beyond this preprocessing, no language-specific information about the meanings
 Our TimEM algorithm for learning the grammar and temporal distribution 
 	parameters is given in \refalg{pseudocode}.
 %(input/output)
-The input to the algorithm are the initial parameters $\theta_s$,$\mu$, and
+The inputs to the algorithm are the initial parameters $\theta_s$,$\mu$, and
 	$\sigma$, and a set of training instances $\sD$.
 Each training instance is a tuple consisting of the words in the temporal
 	phrase $w$, the annotated grounded time $\tau^*$, and the reference time
@@ -249,7 +252,7 @@ Apart from phrases such as \tp{last Friday the \th{13}} where \tp{last Friday}
 	and \tp{the \th{13}} refer to the same time, we rarely describe a time as
 	\tp{today this week} or \tp{this month Friday}, \textit{et cetera}.
 It's important to note that the model still handles these cases, only that it
-	dis-prefers them during training.
+	disprefers them during training.
 
 To balance the tendency to use short phrases, we observe that
 	temporal phrases are described as pragmatically unambiguously as possible.

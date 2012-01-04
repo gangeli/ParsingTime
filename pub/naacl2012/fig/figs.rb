@@ -105,7 +105,10 @@ end
 ################################################################################
 # FIGURES
 ################################################################################
-initFigureSet
+initFigureSet(
+	:latexHeader => IO.readlines("#{ENV['HOME']}/lib/latex/std-macros.tex") +
+	                IO.readlines("#{ENV['HOME']}/workspace/time/pub/naacl2012/macros.tex")
+)
 
 ################################################################################
 # GRAMMAR
@@ -128,7 +131,7 @@ def sys
 	table(
 		#(input)
 		[
-			_('Input').color(darkblue),
+			_('Input (\phrase,$t$)').color(darkblue),
 			ctable(
 				'(',
 				phrase('Last Friday the 13 th'),
@@ -140,19 +143,23 @@ def sys
 		['',darrow],
 		#(parse)
 		[
-			rtable(_('Latent').color(darkblue),_('parse').color(darkblue)).cjustify('c'),
+			rtable(
+				_('Latent').color(darkblue),
+				_('parse').color(darkblue),
+				_('\latent').color(darkblue),
+			nil).cjustify('c'),
 			lastFriday.scale(0.75),
 		nil],
 		['',darrow],
 		#(output)
 		[
-			_('Output').color(darkblue),
+			_('Output \grounded').color(darkblue),
 			time('May 13 2011'),
 		nil],
 	nil).cjustify('c').rjustify('c').rmargin(u(0.3))
 end
 printObj(
-	:obj => sys.signature(5),
+	:obj => sys.signature(7),
 	:outPrefix => 'system'
 )
 

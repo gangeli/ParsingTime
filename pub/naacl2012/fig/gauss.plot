@@ -1,5 +1,5 @@
-set term pdf 
-set output "gauss.pdf"
+set term latex
+set output "gauss.tex"
 set border 1
 set xlabel ""
 set xrange [ -3 : 3 ]
@@ -19,9 +19,9 @@ set arrow from -0.5,f(-0.5) to -0.5,0 nohead linestyle 2
 set arrow from 1,p-0.2   to u,p-0.2 linestyle 1
 set label "Reference time" at 1,p-0.2
 set arrow from 1,f(-1)-0.15   to -1,f(-1)-0.15 linestyle 2
-set label "P(Nov 20)" at 1,f(-1)-0.15
+set label "$P(\\texttt{Nov 20}) = \\int_{-1.5}^{1.5} f(x)$" at 1,f(-1)-0.15
 
 
-set xtics nomirror ("Nov 13" -2, "Nov 20" -1, "t" u, "" 0, "Dec 4" 1, "Dec 11" 2)
+set xtics nomirror ("\\begin{tabular}{c} \\\\ -2 \\\\ \\texttt{Nov 13} \\end{tabular}" -2, "\\begin{tabular}{c} \\\\ -1 \\\\ \\texttt{Nov 20} \\end{tabular}" -1,  "$\\frac{t}{\\Delta_s}$" u, "" 0, "\\begin{tabular}{c} \\\\ 1 \\\\ \\texttt{Dec 4} \\end{tabular}" 1, "\\begin{tabular}{c} \\\\ 2 \\\\ \\texttt{Dec 11} \\end{tabular}" 2)
 set ytics nomirror ("" 0)
 plot  f(x) notitle with lines linestyle 3
