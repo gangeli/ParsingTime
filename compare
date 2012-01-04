@@ -1,0 +1,45 @@
+#!/bin/bash
+
+JAR="time"
+
+JAVANLP="$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.6.jar:etc/models.jar:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar"
+CP="dist/$JAR.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:$JAVANLP:etc/jdom.jar:etc/joda-time.jar"
+
+if [ "$1" == "" ]; then
+	echo "USAGE `basename $0` [other/run_#]"
+	exit 1
+fi
+
+echo "
+set xr[0.0:1.0]
+set yr[0.0:1.0]
+plot \"out/$1.exec/pr-train.dat\" using 2:4
+pause -1
+" > "/tmp/$1.dat"
+
+if [ -e "out/$1.exec" ]; then
+	# -- PR Curve (likely)
+	if [ -e "out/$1.exec/pr-train.dat" ]; then
+		#(plot)
+		gnuplot "/tmp/$1.dat"
+	else
+		#(run program)
+		java -Xrunhprof:cpu=samples -cp $CP -server -Xmx2000M -ea time.Comparisons\
+			"$HOME/workspace/time/res"\
+			"$HOME/workspace/time/aux/tempeval2"\
+			english\
+			$1
+		#(maybe plot)
+		if [ -e "out/$1.exec/pr-train.dat" ]; then
+			gnuplot "/tmp/$1.dat"
+		fi
+	fi
+else
+	# -- Unknown Activity
+	java -Xrunhprof:cpu=samples -cp $CP -server -Xmx2000M -ea time.Comparisons\
+		"$HOME/workspace/time/res"\
+		"$HOME/workspace/time/aux/tempeval2"\
+		english\
+		$1
+fi
+
