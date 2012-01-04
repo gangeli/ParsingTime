@@ -2,26 +2,26 @@
 \Section{intro}{Introduction}
 % -- Intro
 Temporal resolution is the task of mapping from a textual phrase describing
-	a possible complex time, date or duration expression to a normalized temporal
+	a possibly complex time, date or duration expression, to a normalized temporal
 	representation.
 
 % -- Temporal Comparison
 %(intro to systems)
 The dominant approach to this problem in previous work has been to use
-	rule-basaed methods, generally a combination of regular-expression matching
+	rule-based methods, generally a combination of regular-expression matching
 	followed by hand-written interpretation functions
 	% Edinburgh, TRIPS/TRIOS, TERSEO, KUL, Marta's Friend, random,
 	\cite{key:2000mani-temporal,key:2003saquete-temporal,key:2004puscasu-temporal,key:2010grover-temporal,key:2010uzzaman-temporal,key:2010kolomiyets-temporal}.
 We in particular compare against \sys{HeidelTime} 
 	\cite{key:2010strotgen-temporal}, which won the \tempeval\ 
-	\cite{key:2010verhagen-tempeval} task at SemEval 2010.
+	task at SemEval 2010.
 
 % -- Motivation
 %(motivation)
 In general, it is appealing to learn the interpretation of temporal expressions,
 	rather than hand-building systems, but beyond this general motivation,
-	we complex temporal expressions such as \tp{the Tuesday before last} or
-	\tp{the third Wednesday of each month} which are poorly handled by current
+	we note that complex temporal expressions such as \tp{the Tuesday before last}
+	or \tp{the third Wednesday of each month} are poorly handled by current
 	systems and suggest the need for recursive phrase structure representations.
 %(approach)
 Therefore, in contrast to previous rule-based approaches, we attempt to learn
@@ -40,14 +40,14 @@ Therefore, in contrast to previous rule-based approaches, we attempt to learn
 %We describe the representation of this parse in depth in \refsec{repr}.
 
 %(distant supervision)
-In this sense, the task can be framed as a distantly supervised parsing
+In this sense, the task can be framed as a loosly supervised parsing
 	problem (\refsec{learn}).
 Given an input phrase (\phrase) and the constraint that the parse must 
-	resolve (\textit{ground}) to the
+	resolve -- \textit{ground} -- to the
 	given gold time (\grounded), the system constructs a latent 
-	parse (\latent) from which \grounded\ can be inferred;
-	the parameters of this parse are learned via distant supervision during
-	training.
+	parse (\latent) from which \grounded\ can be inferred.
+%	the parameters of this parse are learned via looser supervision during
+%	training.
 
 % -- Approach
 %(ambiguity)
@@ -62,7 +62,7 @@ For instance, a speaker may refer to either the next or previous Friday
 Furthermore, probabilistic systems in general allow propagation of uncertainty
 	to higher-level components -- for example recognizing that \tp{May} could
 	refer to both a month or a person and allowing a system with a broader
-	contextual scope to make a concrete judgment.
+	contextual scope to make the final judgment.
 
 
 %%(algorithm)
@@ -130,7 +130,7 @@ Furthermore, our system makes use of neither lexical cues nor intelligent
 
 %(table of contents)
 We describe the \textit{logic} of time -- our temporal representation
-	(\refsec{repr}), followed by the distantly supervised learning algorithm
+	(\refsec{repr}), followed by the learning algorithm
 	(\refsec{learn}); we conclude with experimental results 
 	(\refsec{result}) showing our
 	approach to be competitive with state of the art systems.

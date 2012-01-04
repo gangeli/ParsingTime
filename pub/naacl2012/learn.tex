@@ -77,7 +77,7 @@ This provides us with a framework for obtaining grounded times from a
 %(catch phrase)
 We present an EM-\textit{esque} bootstrapping approach to training the 
 	parameters of our \textit{type} grammar jointly with the parameters of our 
-	Gaussian temporal distribution in a distantly-supervised setting.
+	Gaussian temporal distribution.
 %(table of contents)
 The preprocessing steps are described below, followed by an overview
 	of the training regime and finally the algorithm itself.
@@ -187,7 +187,7 @@ The algorithm operates in an EM-\textit{esque} fashion, similar in style
 It iteratively finds the most
 	likely completion of the data given the current estimate of the parameters
 	and then updates the parameters based on this observed data.
-However, unlike grammar induction, we are given distant supervision giving a 
+However, unlike grammar induction, we are given loose supervision giving a 
 	necessary but not sufficient condition for a parse being a valid completion.
 Line \ref{line:validity} in \refalg{pseudocode} accounts for this filtering.
 Our \textit{expected counts} are therefore more accurately our normalized

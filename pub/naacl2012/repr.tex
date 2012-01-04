@@ -66,7 +66,8 @@ The sequence index $i \in \BZ$ is defined relative to the
 	reference time also lies.
 This is consistent with our definition of \seqelem.
 %(definition of reference time)
-We define the \textit{reference time} $t$ to be the instant when the phrase 
+We define the \textit{reference time} $t$ \cite{key:1947reichenback-temporal}
+	to be the instant when the phrase 
 	is uttered; for the \tempeval\ corpus, we assume that this is the 
 	publication time of the article.
 
@@ -264,6 +265,8 @@ In a conventional synchronous PCFG, the second term would be the corresponding
 	combination rule over our nonterminals $\sW$.
 In our case, this term is a deterministic function mapping the
 	constituent expressions to the parent expression.
+That is, we are learning a rule-to-rule translation 
+	\cite{key:1976bach-semantics}.
 %This both handles the unbounded domain of temporal expressions,
 %	as well as constrains the formalism.
 Note that the definition above is trivially adapted for the case of unary
@@ -410,7 +413,6 @@ The learning of these probabilities is detailed in \refsec{learn}.
 			(as used in parsing) are given.
 		Described in more detail in \refsec{repr-rules}, the functions generally 
 			apply generic interval or sequence modifications.
-		\todo{clip-art for Functions?}
 	}
 	\label{tab:function}
 	\end{center}
@@ -504,6 +506,5 @@ This deterministic procedure is in effect a function application,
 % -- Segue
 We have defined a framework for representing and parsing temporal phrases
 	based on a synchronous PCFG.
-We proceed to describe learning the parameters of this grammar in a
-	distantly-supervised setting.
+We proceed to describe learning the parameters of this grammar.
 
