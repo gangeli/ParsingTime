@@ -178,7 +178,7 @@ trait Temporal {
 			val grounded = this.apply(ground)
 			grounded match {
 				case (gr:GroundedRange) =>
-					if(gr.begin.equals(gr.end) && gr.begin.base.equals(ground)){
+					if(gr.begin.equals(gr.end) && gr.begin.base.equals(ground.base)){
 						//((case: reference)
 						(Some("DATE"),Some("PRESENT_REF"))
 					} else {
