@@ -451,16 +451,20 @@ def getDay(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
 }
 //--Validate
 def suTime(input:String):Boolean = {
-	//(annotate)
-	val map:Annotation = new Annotation(input)
-	State.pipeline.annotate(map)
-	val sutime = new TimeAnnotator
-	sutime.annotate(map)
-	//(get timexes)
-	val timexes:java.util.List[CoreMap] = 
-		map.get[java.util.List[CoreMap],TimexAnnotations](
-		classOf[TimexAnnotations])
-	return timexes != null && !timexes.isEmpty
+	try {
+		//(annotate)
+		val map:Annotation = new Annotation(input)
+		State.pipeline.annotate(map)
+		val sutime = new TimeAnnotator
+		sutime.annotate(map)
+		//(get timexes)
+		val timexes:java.util.List[CoreMap] = 
+			map.get[java.util.List[CoreMap],TimexAnnotations](
+			classOf[TimexAnnotations])
+		return timexes != null && !timexes.isEmpty
+	} catch {
+		case (e:Exception) => true
+	}
 }
 def validate(id:Int,input:String,begin:String,end:String):String = {
 	//(error check)
