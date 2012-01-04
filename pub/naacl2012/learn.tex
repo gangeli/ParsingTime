@@ -17,8 +17,7 @@ To provide a list of
 	employ a k-best CKY parser.
 Particularly, we implement Algorithm 3 described in 
 	\newcite{key:2005huang-parsing} -- providing an algorithm which is
-	$O(n^3)$ with respect to the phrase length and $O(k\log k)$ with respect
-	to the beam size.
+	$O(k\log k)$ with respect to the beam size.
 In our experiments, we set the beam size to 2000.
 
 % -- Time Probabilities
@@ -58,7 +57,7 @@ The viterbi decode is found by maximizing these two terms sequentially:
 	the optimal grounding is found within the optimal syntactic parse.
 This is in contrast to maximizing $P_t(i,R)$ directly, however it avoids
 	assigning a penalty to proposing ambiguous expressions (e.g., \te{Friday})
-	versus unambiguous expressions (e.g., \te{a week}).
+	versus unambiguous expressions (e.g., \te{today}).
 Furthermore, it is reasonable to assume that cognitively we perform a
 	similar procedure -- resolving syntactic ambiguity before resolving
 	pragmatic ambiguity.
@@ -176,9 +175,7 @@ The inputs to the algorithm are the initial parameters $\theta_s$,$\mu$, and
 Each training instance is a tuple consisting of the words in the temporal
 	phrase $w$, the annotated grounded time $\tau^*$, and the reference time
 	of the utterance $t$.
-The algorithm outputs the grammar rule combination parameters $\theta_s^*$,
-	as well as the parameters for the Gaussian temporal distribution
-	$\mu^*$ and $\sigma^*$.
+The algorithm outputs the final parameters $\theta_s^*$, $\mu^*$ and $\sigma^*$.
 
 %(EM comparison)
 The algorithm operates in an EM-\textit{esque} fashion, similar in style
@@ -198,10 +195,6 @@ Additionally, the expected statistics are computed non-analytically by use of
 	a beam on both the possible parses (line \ref{line:parsebeam}) and the
 	possible temporal groundings of a given interpretation (line
 	\ref{line:timebeam}).
-The CKY beam is guaranteed to return the highest probability parses;
-	the candidate groundings of the temporal distribution are in turn chosen
-	to be centered on the most likely index, which, combined with the Gaussian
-	shape ensures the most likely groundings are chosen in this step as well.
 
 %(em updates)
 Given this artificially completed data, the EM updates are the standard
@@ -241,17 +234,17 @@ In this way, a progressively larger percentage of the data is available to be
 	learned from at each iteration.
 
 %(tweaks)
-To assist in this progressive process, and taking insight from the Gricean 
+To assist in this process, and taking insight from the Gricean 
 	maxims of quantity and quality, we further restrict the set of valid 
 	parses to include only those which are as short as possible
-	(that is, maximally \ty{Nil}-padded on both ends) and which are grounded
+	(that is, maximally \ty{Nil}-padded) and which are grounded
 	at the \textit{zero index} if possible.
 That is -- with notable but practically relatively rare exceptions --
 	more often than not we do not repeat ourselves when describing time.
 Apart from phrases such as \tp{last Friday the \th{13}} where \tp{last Friday}
 	and \tp{the \th{13}} refer to the same time, we rarely describe a time as
 	\tp{today this week} or \tp{this month Friday}, \textit{et cetera}.
-It's important to note that the model still handles these cases, only that it
+It's important to note that the model still handles these cases, only it
 	disprefers them during training.
 
 To balance the tendency to use short phrases, we observe that

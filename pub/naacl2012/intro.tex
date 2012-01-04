@@ -30,15 +30,6 @@ Therefore, in contrast to previous rule-based approaches, we attempt to learn
 	latent, with only the input phrase and its grounded interpretation given
 	to the learning system.
 
-%%(compositional)
-%Our approach assumes that temporal phrases -- such as \tp{last Friday} -- have
-%	associated with them not only a grounded time (the date of the previous
-%	Friday), but also a latent semantic parse.
-%This would assign a meaning to the terms \tp{last} and \tp{Friday}; the
-%	meaning of the compound phrase would then be a compositional combination
-%	of the two components.
-%We describe the representation of this parse in depth in \refsec{repr}.
-
 %(distant supervision)
 In this sense, the task can be framed as a loosly supervised parsing
 	problem (\refsec{learn}).
@@ -46,8 +37,6 @@ Given an input phrase (\phrase) and the constraint that the parse must
 	resolve -- \textit{ground} -- to the
 	given gold time (\grounded), the system constructs a latent 
 	parse (\latent) from which \grounded\ can be inferred.
-%	the parameters of this parse are learned via looser supervision during
-%	training.
 
 % -- Approach
 %(ambiguity)
@@ -64,48 +53,32 @@ Furthermore, probabilistic systems in general allow propagation of uncertainty
 	refer to both a month or a person and allowing a system with a broader
 	contextual scope to make the final judgment.
 
-
-%%(algorithm)
-%Such a compositional grammar is developed, and an EM-esque algorithm is
-%	employed to infer latent parses and learn the relevant parameters for
-%	the grammar.
-
 % -- Semantic Parsing Comparison
-This approach draws inspiration from a large body of work
+Our approach draws inspiration from a large body of work
 	on parsing expressions into a logical form.
 The latent parse \latent\ parallels the formal semantics of previous work,
 	e.g., Montague Semantics.
-Like these representations, a complete parse -- in conjunction with
+Like these representations, a parse -- in conjunction with
 	the reference time -- completely defines a set of
 	matching entities, in this case the single grounded time \grounded.
-%Rather than employing first-order logic, however,
-%	we instead define a custom representation of temporal
-%	concepts, and parse into that representation.
-%Like first-order logic, the representation is compositional, and can be
-%	evaluated to produce grounded temporal expressions
-%	-- with a \textit{reference time} taking the place of a database 
-%	of facts.
 
 %(supervised)
 Supervised approaches to the task prominently include
+	\newcite{key:1996zelle-semantics},
 	\newcite{key:2005zettlemoyer-semantics},
 	\newcite{key:2005kate-semantics}, 
-	\newcite{key:1996zelle-semantics},
 	\newcite{key:2007zettlemoyer-semantics}, 
 	\textit{inter alia}.
-We loosen the supervision required in these systems by making the
-	parse latent.
+We loosen the supervision required in these systems by allowing the parse to
+	be latent.
 The annotation of the grounded time \grounded\ neither defines, nor gives any
-	direct cues about the elements of the latent parse, as many parses evaluate
+	direct cues about the elements of the latent parse, since many parses evaluate
 	to the same grounding.
-%The annotation for temporal expressions does not imply any information
-%	about the terms within the parse; therefore the parse must be constructed
-%	without any cues hinting at its constituents.
 To demonstrate, consider a two word phrase describing the date corresponding to
 	\te{a week ago today}.
 \textit{A priori}, the annotation gives no preference among assigning the
 	words the interpretation \te{week ago}, \te{last [today's day of the week]},
-	\te{[month] [day]}, \textit{etc}.
+	or \te{[month] [day]}, perhaps among others.
 
 %(distantly supervised)
 Recent work by \newcite{key:2010clarke-semantics} and 
@@ -119,17 +92,8 @@ Rather than querying from a finite database; however, our system must compare
 Furthermore, our system makes use of neither lexical cues nor intelligent
 	initialization.
 
-%The presented system operates under a similar distantly-supervised framework,
-%	with grounded dates acting as annotated answers.
-%The temporal domain, however, unlike the \dataset{GeoQueries} and \dataset{Jobs}
-%	datasets used in these works, has a more unconstrained output space.
-%The equivalent of a database of temporal expressions is the
-%	unbounded set of possible periods of time and dates / times.
-%In addition, we  make use of no intelligent
-%	initialization to assist the bootstrapping process.
-
 %(table of contents)
-We describe the \textit{logic} of time -- our temporal representation
+We describe our temporal representation
 	(\refsec{repr}), followed by the learning algorithm
 	(\refsec{learn}); we conclude with experimental results 
 	(\refsec{result}) showing our
