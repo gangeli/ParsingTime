@@ -76,7 +76,7 @@ env!(
 		o('pruneMinIndex',100),
 		o('includeTimeProb'),
 #		o('functionalUnboundedRange'), # BROKEN
-		o('functionalApproximate'),
+#		o('functionalApproximate'),
 #		o('cannonicalShifts'),
 		selo(0,'sortTimeProbInScore','false','true'),
 

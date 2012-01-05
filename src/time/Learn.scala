@@ -567,15 +567,9 @@ object Grammar {
 		//(define)
 		val function1 = List[F1Info[Temporal]](
 			F1Info(move(_:Sequence,-1L),"moveLeft1",List('S)),   //last [sequence]
-			F1Info(move(_:Sequence,1L),"moveRight1",List('S))    //next [sequence]
-		) ::: {if(O.functionalApproximate){
-				List[F1Info[Temporal]](
-					F1Info(fuzzify,"fuzzify",List('D))               //around
-				)
-			} else {
-				Nil
-			}
-		} ::: {if(O.functionalUnboundedRange){
+			F1Info(move(_:Sequence,1L),"moveRight1",List('S)),   //next [sequence]
+			F1Info(fuzzify,"fuzzify",List('D))                   //around
+		) ::: {if(O.functionalUnboundedRange){
 				List[F1Info[Temporal]](
 					F1Info(toPast,"toPast",List('R,'S)),             //recent months
 					F1Info(toFuture,"toFuture",List('R,'S))          //future months
