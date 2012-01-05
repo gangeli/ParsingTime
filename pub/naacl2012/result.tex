@@ -1,6 +1,7 @@
 \Section{result}{Evaluation}
 We evaluate our system against current state-of-the art systems for temporal
-	resolution on the english portion of the \tempeval\ Task A dataset.
+	resolution on the english portion of the \tempeval\ Task A dataset
+	\cite{key:2010verhagen-tempeval} .
 We describe the dataset in \refsec{result-dataset}, and detail the previous
 	work and our results in \refsec{result-scores}.
 
@@ -14,7 +15,7 @@ Each temporal phrase was annotated as a \timex\footnote{
 	}
 	tag around an adverbial or prepositional phrase
 
-Our System was trained on 142 documents, with the remaining 20 held out as
+Our system was trained on 142 documents, with the remaining 20 held out as
 	a development set.
 Final reported results make use of the full 162 documents in the training
 	set.
@@ -74,8 +75,8 @@ We compare to three previous rule-based systems.
 %(GUTime)
 \sys{GUTime} \cite{key:2000mani-temporal} presents an older but widely
 	used baseline.
-Due to discrepancies in the output format of \sys{GUTime} compared to the 
-	format used in the \tempeval\ task, the output was heuristically patched
+Due to discrepancies in output formats, 
+	the output of \sys{GUTime} was heuristically patched
 	and manually checked to conform to the expected format.
 %(SuTime)
 More recently, \sys{SUTime} \textit{(under submission 2011)} 

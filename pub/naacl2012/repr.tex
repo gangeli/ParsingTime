@@ -13,19 +13,13 @@ Instances of temporal expressions are grouped into one of the following types:
 % -- Range
 \paragraph{Range}
 %(definition)
-A period between two dates (or date$+$times).
+A period between two dates (or times).
 %(examples)
 This includes entities such as \te{Today}, \te{1987}, or
 	\te{Now}.
 We denote a range by the variable \range.
-
-%(point vs. interval based)
-The third example is worth a particular mention:
-	unlike the previous examples, the start and end of the range are the same.
-That is, \te{Today} spans a day, \te{1987} spans a year; \te{Now} has no span.
-Although expressions such as these could be represented as points,
-	we maintain a consistent interval-based theory of time
-	\cite{key:1981allen-temporal} and represent them as intervals with
+We maintain a consistent interval-based theory of time
+	\cite{key:1981allen-temporal} and instances as intervals with
 	zero span.
 
 % -- Sequence 
@@ -39,8 +33,9 @@ This includes entities such as \te{Friday}, \te{November \th{27}}, or
 A given sequence is in reality a tuple of three elements
 	$\seq=(\seqelem,\seqjump,\seqcanon)$:
 \begin{enumerate}
+	\setlength{\itemsep}{-5pt} 
 	\item $\seqelem(i)$: 
-		The \th{i} element of a sequence.
+		The \th{i} \ty{Range} of a sequence.
 		This is a \ty{Range} by type, and is the term which the sequence ultimately
 			grounds to, for some $i$.
 		In the case of the sequence \te{Friday}, $\seqelem(0)$ corresponds to
@@ -54,19 +49,13 @@ A given sequence is in reality a tuple of three elements
 		The \textit{containing unit} of an element of a sequence.
 		For example, \seqcanonX{Friday} would be the \ty{Range}
 			corresponding to \tp{the current week}.
-		In the case of \tp{November}, or even \tp{November \th{27}}. This 
-			would correspond to the current year.
+		The sequence index $i \in \BZ$ is defined relative to $\seqelem(0)$ --
+			the range in the same containing unit as the reference time.
 \end{enumerate}
 
-%(definition of relative index)
-The sequence index $i \in \BZ$ is defined relative to the 
-	\textit{zero index} of the sequence:
-	the element of the sequence
-	which is within the containing unit \seqcanon\ of the sequence in which the 
-	reference time also lies.
-This is consistent with our definition of \seqelem.
 %(definition of reference time)
-We define the \textit{reference time} $t$ to be the instant when the phrase 
+We define the \textit{reference time} $t$ \cite{key:1947reichenback-temporal}
+	to be the instant when the phrase 
 	is uttered; for the \tempeval\ corpus, we assume that this is the 
 	publication time of the article.
 
@@ -76,11 +65,11 @@ The \ty{Sequence} type warrants special attention, as the pragmatic ambiguity
 	terms.
 A \ty{Sequence} denotes not only a sequence of possible
 	\ty{Range}s, but also a distribution over these ranges.
-This distribution -- conditioned on a reference time $t$ --
+This distribution -- conditioned on $t$ --
 	is defined as a Gaussian with a mean and variance defined according
-	to the distance \seqjump\ between two elements in a given sequence $s$.
-The input to the Gaussian is a function $\delta_{s,t}$ evaluated
-	at the index $i$, defined as the distance between the reference time 
+	to the distance \seqjump\.
+The input to the Gaussian is a function $\delta_{s,t}$:
+	the distance between the reference time 
 	and the element in question.
 % -- Gaussian Equation
 \begin{equation}
@@ -119,13 +108,9 @@ The input to the Gaussian is a function $\delta_{s,t}$ evaluated
 
 %(global scope)
 The parameters $\mu$ and $\sigma$ in Equation \refeqn{gaussian} are shared
-	among all particular sequence instances; the normalization
+	among all sequence instances; the normalization
 	with respect to \seqjump\ ensures that the distribution is applicable
 	to any particular sequence.
-For example, the distance between a Wednesday to that week's \te{Friday}
-	would be $2/7$, counted with respect to a \te{Week}; 
-	the distance from April to that year's \te{November} would be a 
-	comparable $7/12$ (approximately), counted with respect to a \te{Month}.
 	
 % -- Duration
 \paragraph{Duration}
@@ -141,8 +126,7 @@ We define a special case of the \ty{Duration} type to represent
 	\textit{approximate} durations.
 These are used to represent expressions such as \tp{a few years} or
 	\tp{some days}.
-Semantically, the representation is as a single unit of duration with the
-	quantity omitted; they are equivalent to any other approximate
+Semantically, they are equivalent to any other approximate
 	duration with the same unit and distinct from any other \ty{Duration}.
 This is consistent with the representation of such entities in the
 	\texttt{Timex} format \cite{key:2003pustejovsky-timeml}.
@@ -163,7 +147,7 @@ The particular functions and their application are discussed in
 % -- Other
 \paragraph{Other Types}
 Two other types bear auxiliary roles in representing temporal expressions,
-	although not directly temporal concepts.
+	though they are not directly temporal concepts.
 In the grammar, these appear as preterminals only.
 
 The first of these types is \ty{Number} -- denoting a number without
@@ -186,14 +170,10 @@ Notably, a body of work has focused on reasoning about events or states
 	changes of state; 
 	\newcite{key:2010condoravdi-temporal} explores NPI licensing in temporal
 	expressions.
+Furthermore, vague times represent a notable chunk of temporal expressions
+	uttered.
 In contrast, NLP evaluations have generally not included such vague 
 	time expressions.
-
-We proceed to describe the grammar used to manipulate the types and specific
-	instances of these types.
-\refsec{repr-lexicon} describes the instances of the types described
-	above; \refsec{repr-rules} describes the grammar rules of the types,
-	and the corresponding manipulation of the instance.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TIME AS COMPOSITIONAL PARSING
@@ -206,9 +186,10 @@ Unlike many aspects of language  -- which are often not compositional or
 	idiomatic -- each word attached to a temporal phrase is 
 	usually compositionally modifying the meaning of the phrase.
 To demonstrate, we consider the expression \tp{last Friday the \th{13}}.
-Decomposing the example, we can construct a meaning by taking \tp{Friday},
-	and applying the modifiers \tp{last} -- taking the previous \te{Friday};
-	and \tp{the \th{13}} -- taking the previous \te{Friday} that is
+Decomposing the example, we can construct a meaning by 
+	applying the modifiers \tp{last} to \tp{Friday} -- 
+	creating the previous \te{Friday};
+	and \tp{the \th{13}} -- creating the previous \te{Friday} that is
 	also the \th{13} of the month.
 
 % -- Focus on time; elsewhere applicable
@@ -218,7 +199,7 @@ While we focus entirely on temporal phrases and their meaning, this
 	\dataset{GeoQueries} dataset) or directions.
 
 % -- Synchronous Grammar
-\FigStar{fig/grammar}{0.45}{grammar}{
+\Fig{fig/grammar}{0.45}{grammar}{
 	The synchronous grammar -- (a) describes the CFG parse of the
 		temporal \textit{types}; (b) describes the corresponding combination
 		of the temporal \textit{instances}.
@@ -249,10 +230,9 @@ We define a set $\sV$ to be the set of types as described in
 For each $v \in \sV$ we define an (unbounded) set $W$ corresponding to the 
 	possible instances of type $v$.
 Concretely, if $v=\ty{Sequence}$, our set $W_v \in \sW$ could contain elements
-	corresponding to \tp{Friday}, \tp{last Friday}, \tp{the Friday after next},
+	corresponding to \tp{Friday}, \tp{last Friday}, \tp{Nov. \th{27}},
 	\textit{et cetera}.
 The synchronous grammar is constructed over pairs $(v,w \in W_v)$.
-The details are described in more detail in \refsec{repr-lexicon}.
 
 %(rules)
 A rule $R \in \sR$ is defined as a pair 
@@ -264,6 +244,8 @@ In a conventional synchronous PCFG, the second term would be the corresponding
 	combination rule over our nonterminals $\sW$.
 In our case, this term is a deterministic function mapping the
 	constituent expressions to the parent expression.
+That is, we are learning a rule-to-rule translation 
+	\cite{key:1976bach-semantics}.
 %This both handles the unbounded domain of temporal expressions,
 %	as well as constrains the formalism.
 Note that the definition above is trivially adapted for the case of unary
@@ -274,7 +256,7 @@ The application of these rules is described in more detail in
 %(probabilities)
 The last term in our grammar formalism denotes the rule probabilities $P$.
 In line with the usual interpretation, this defines a probability
-	of applying a particular rule $R$.
+	of applying a particular rule $r \in R$.
 Importantly, note that the distribution over possible groundings
 	of a temporal expression are not included in the grammar
 	formalism.
@@ -296,7 +278,7 @@ The learning of these probabilities is detailed in \refsec{learn}.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Subsection{repr-lexicon}{Preterminals}
 % -- Static Lexicon
-\begin{table}
+\begin{table}[tb]
 	\begin{center}
 	\begin{tabular}{|l|l|}
 		\hline
@@ -349,68 +331,68 @@ The learning of these probabilities is detailed in \refsec{learn}.
 \end{table}
 
 % -- Function Lexicon
-\begin{table*}
+\begin{table*}[t]
 	\begin{center}
 	\begin{tabular}{|l|l|l|}
 		\hline
-		\textbf{Function} & \textbf{Description} & \textbf{Signature} \\
+		\textbf{Function} & \textbf{Description} & \textbf{Signature(s)} \\
 		\hline
 		\hline
 		% -- Arity 2
 		%(shift left)
 		\texttt{shiftLeft}
 			& Shift a \ty{Range} or \ty{Sequence} left by a \ty{Duration}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\texttt{shiftRight}
 			& Shift a \ty{Range} or \ty{Sequence} right by a \ty{Duration}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\hline
 		%(shrink begin)
 		\texttt{shrinkBegin}
 			& Take the first \ty{Duration} of a \ty{Range}/\ty{Sequence}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\texttt{shrinkEnd}
 			& Take the last \ty{Duration} of a \ty{Range}/\ty{Sequence}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\hline
 		\texttt{catLeft}
 			& Take \ty{Duration} units after the end of a \ty{Range}
-			& $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\texttt{catRight}
 			& Take \ty{Duration} units before the start of a \ty{Range}
-			& $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\hline
 		% -- Arity 1
 		%(seq move)
 		\texttt{moveLeft1}
 			& Move the \textit{zero index} of a \ty{sequence} left by 1
-			& $f : \ty{Sequence} \rightarrow \ty{Sequence}$ \\
+			& $f : \ty{S} \rightarrow \ty{S}$ \\
 		\texttt{moveRight1}
 			& Move the \textit{zero index} of a sequence right by 1
-			& $f : \ty{Sequence} \rightarrow \ty{Sequence}$ \\
+			& $f : \ty{S} \rightarrow \ty{S}$ \\
 		\hline
 		%(n^th element)
 		\texttt{\th{$n$} $x$ of $y$}
 			& Take the \th{$n$} \ty{Sequence} in $y$ (Day of Week, \textit{etc})
-			& $f : \ty{Number} \rightarrow \ty{Sequence}$ \\
+			& $f : \ty{Number} \rightarrow \ty{S}$ \\
 		\hline
 		%(fuzzify)
 		\texttt{approximate}
 			& Make a \ty{Duration} approximate
-			& $f : \ty{Duration} \rightarrow \ty{Duration}$ \\
+			& $f : \ty{D} \rightarrow \ty{D}$ \\
 		\hline
 	\end{tabular}
 	\caption{
-		The functional preterminals of the grammar.
+		The functional preterminals of the grammar; \ty{R}, \ty{S}, and \ty{D}
+			denote \ty{Range}s \ty{Sequence}s and \ty{Duration}s respectively.
 		The name, a brief description, and the type signature of the function
 			(as used in parsing) are given.
 		Described in more detail in \refsec{repr-rules}, the functions generally 
 			apply generic interval or sequence modifications.
-		\todo{clip-art for Functions?}
 	}
 	\label{tab:function}
 	\end{center}
@@ -419,7 +401,7 @@ The learning of these probabilities is detailed in \refsec{learn}.
 % -- Intro
 We define a set of preterminals, consisting of pairs of 
 	\textit{types} and \textit{instances}	of temporal expressions.
-A distinction is made in describing these entities between entities with 
+A distinction is made in our description between entities with 
 	content roles versus entities with a functional role.
 
 % -- Content
@@ -429,15 +411,13 @@ A total of 57 such preterminals are defined in the implemented system,
 	although this list is easily adaptable to fit specialized domains.
 It should be noted that, although the expressions are described in English,
 	their meaning is purely semantic.
-That is, there is no relation between the concept \te{Today} and the
-	word \tp{today}.
 Furthermore, entities which are subject to interpretation -- for example
 	\te{Quarter} or \te{Season} -- are given a concrete interpretation.
 The \th{$n$} quarter is defined by evenly splitting a year into four;
 	the seasons are defined in the same way but with winter beginning in December.
 
 % -- Functional
-The functional entities are described in \reftab{function} and correspond to
+The functional entities are described in \reftab{function}, and correspond to
 	the \ty{Function} type.
 The majority of these mirror generic operations on intervals on a timeline,
 	or manipulations of a sequence.
@@ -449,7 +429,6 @@ Additionally, a sequence can be modified by shifting its \textit{zero index}
 	(\tp{last Friday}), 
 	or taking the \th{$n$} element of the sequence within some bound
 	(\tp{fourth Sunday in November}).
-Lastly, a rule is included to make a concrete \ty{Duration} approximate.
 
 % -- Other
 The lexical entries for the \ty{Nil} and \ty{Number} types are straightforward,
@@ -469,12 +448,12 @@ This deterministic procedure is in effect a function application,
 
 % -- Operators
 \begin{itemize}
+	\setlength{\itemsep}{-5pt} 
 	%(function application)
 	\item Applying (or partially applying) a function with one of its
 			arguments.
 		A separate rule exists for applying on the left versus on the right --
 		that is, for composing $f(x,y) \odot x$ versus $x \odot f(x,y)$.
-		\todo{reference logical paradigm}
 	%(intersection)
 	\item Intersecting two ranges or sequences.
 		This roughly equates to applying a special \textit{intersect} function
@@ -495,15 +474,12 @@ This deterministic procedure is in effect a function application,
 	%(noop)
 	\item Combining a non-\ty{Nil} element with \ty{Nil} with no change to the
 			temporal expression.
-		This rule allows for terms in the temporal phrase to not contribute 
-			to the final interpretation.
-			The lexicalization of the \ty{Nil} type allows the algorithm
+		The lexicalization of the \ty{Nil} type allows the algorithm
 			to take hints from these supporting words.
 \end{itemize}
 
 % -- Segue
 We have defined a framework for representing and parsing temporal phrases
 	based on a synchronous PCFG.
-We proceed to describe learning the parameters of this grammar in a
-	distantly-supervised setting.
+We proceed to describe learning the parameters of this grammar.
 
