@@ -199,7 +199,7 @@ While we focus entirely on temporal phrases and their meaning, this
 	\dataset{GeoQueries} dataset) or directions.
 
 % -- Synchronous Grammar
-\FigStar{fig/grammar}{0.45}{grammar}{
+\Fig{fig/grammar}{0.45}{grammar}{
 	The synchronous grammar -- (a) describes the CFG parse of the
 		temporal \textit{types}; (b) describes the corresponding combination
 		of the temporal \textit{instances}.
@@ -335,59 +335,60 @@ The learning of these probabilities is detailed in \refsec{learn}.
 	\begin{center}
 	\begin{tabular}{|l|l|l|}
 		\hline
-		\textbf{Function} & \textbf{Description} & \textbf{Signature} \\
+		\textbf{Function} & \textbf{Description} & \textbf{Signature(s)} \\
 		\hline
 		\hline
 		% -- Arity 2
 		%(shift left)
 		\texttt{shiftLeft}
 			& Shift a \ty{Range} or \ty{Sequence} left by a \ty{Duration}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\texttt{shiftRight}
 			& Shift a \ty{Range} or \ty{Sequence} right by a \ty{Duration}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\hline
 		%(shrink begin)
 		\texttt{shrinkBegin}
 			& Take the first \ty{Duration} of a \ty{Range}/\ty{Sequence}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\texttt{shrinkEnd}
 			& Take the last \ty{Duration} of a \ty{Range}/\ty{Sequence}
-			& $f : \ty{Sequence},\ty{Duration} \rightarrow \ty{Sequence}$ \\
-			& & $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{S},\ty{D} \rightarrow \ty{S}$; ~~
+			  $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\hline
 		\texttt{catLeft}
 			& Take \ty{Duration} units after the end of a \ty{Range}
-			& $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\texttt{catRight}
 			& Take \ty{Duration} units before the start of a \ty{Range}
-			& $f : \ty{Range},\ty{Duration} \rightarrow \ty{Range}$ \\
+			& $f : \ty{R},\ty{D} \rightarrow \ty{R}$ \\
 		\hline
 		% -- Arity 1
 		%(seq move)
 		\texttt{moveLeft1}
 			& Move the \textit{zero index} of a \ty{sequence} left by 1
-			& $f : \ty{Sequence} \rightarrow \ty{Sequence}$ \\
+			& $f : \ty{S} \rightarrow \ty{S}$ \\
 		\texttt{moveRight1}
 			& Move the \textit{zero index} of a sequence right by 1
-			& $f : \ty{Sequence} \rightarrow \ty{Sequence}$ \\
+			& $f : \ty{S} \rightarrow \ty{S}$ \\
 		\hline
 		%(n^th element)
 		\texttt{\th{$n$} $x$ of $y$}
 			& Take the \th{$n$} \ty{Sequence} in $y$ (Day of Week, \textit{etc})
-			& $f : \ty{Number} \rightarrow \ty{Sequence}$ \\
+			& $f : \ty{Number} \rightarrow \ty{S}$ \\
 		\hline
 		%(fuzzify)
 		\texttt{approximate}
 			& Make a \ty{Duration} approximate
-			& $f : \ty{Duration} \rightarrow \ty{Duration}$ \\
+			& $f : \ty{D} \rightarrow \ty{D}$ \\
 		\hline
 	\end{tabular}
 	\caption{
-		The functional preterminals of the grammar.
+		The functional preterminals of the grammar; \ty{R}, \ty{S}, and \ty{D}
+			denote \ty{Range}s \ty{Sequence}s and \ty{Duration}s respectively.
 		The name, a brief description, and the type signature of the function
 			(as used in parsing) are given.
 		Described in more detail in \refsec{repr-rules}, the functions generally 

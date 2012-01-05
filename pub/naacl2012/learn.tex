@@ -140,23 +140,6 @@ Beyond this preprocessing, no language-specific information about the meanings
 		}
 		\Return{\sH}
 	}
-%	%(update parameters)
-%	\tcc{Update parameters from guessed parses}
-%	\Begin(\updateParameters{\sH}:){
-%		\For{$(R,\tau,i,p) \in \sH$}{
-%			\tcp{Grammar parameter}
-%			\For{$v_l \rightarrow v_mv_n \in R$}{
-%				multinomialE$_{\theta_{mn|l}}$(i, p )
-%			}
-%			\tcp{Temporal parameter}
-%			gaussianE$_{\mu',\sigma'}$( diff($\tau$,i), p )
-%		}
-%	}
-%	\lFor{$v_l \rightarrow v_mv_n \in \sR$}{
-%		multinomialM$_{\theta_{mn|l}}$()
-%	} \\
-%	gaussianM$_{\mu',\sigma'}$()
-
 	%(caption)
 	\caption{
 		\label{alg:pseudocode}

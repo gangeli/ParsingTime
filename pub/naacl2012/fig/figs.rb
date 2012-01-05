@@ -102,6 +102,28 @@ def fridayDist
   :contents => [[0.1], [0.2], [0.4], [0.15], [0.05]].transpose)
 end
 
+def next2daysTypes
+	Parse.new(
+	  ['\texttt{Range}',
+	    ['$f(\texttt{Duration}):\texttt{Range}$','next'],
+	    ['\texttt{Duration}',
+	      ['\texttt{Number}','2'],
+	      ['\texttt{Duration}','days'],
+	    ],
+	]).constituency
+end
+
+def next2days
+	Parse.new(
+	  [catRight(nowPadded,time('  2D')),
+	    [catRight(nowPadded,''),'next'],
+	    [time('2D'),
+	      [time('Num(2)'),'2'],
+	      [time('1D'),'days'],
+	    ],
+	]).constituency
+end
+
 ################################################################################
 # FIGURES
 ################################################################################
@@ -114,13 +136,19 @@ initFigureSet(
 # GRAMMAR
 ################################################################################
 def grammar
-	table(
-		[lastFriday13Types,lastFriday13],
-		['(a)','(b)'],
-	nil).cjustify('c').cmargin(u(0.3)).rmargin(u(0.5))
+	rtable(
+		rtable(
+			next2daysTypes,
+			'(a)',
+		nil).cjustify('c').rmargin(u(0.1)),
+		rtable(
+			next2days,
+			'(b)',
+		nil).cjustify('c').rmargin(u(0.1)),
+	nil).cjustify('c').rmargin(u(0.5))
 end
 printObj(
-	:obj => grammar.signature(11),
+	:obj => grammar.signature(26),
 	:outPrefix => 'grammar'
 )
 	
@@ -159,7 +187,7 @@ def sys
 	nil).cjustify('c').rjustify('c').rmargin(u(0.3))
 end
 printObj(
-	:obj => sys.signature(7),
+	:obj => sys.signature(8),
 	:outPrefix => 'system'
 )
 

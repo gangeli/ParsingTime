@@ -1,7 +1,8 @@
 def phrase(txt); _("\\textit{#{txt}}").color(darkgreen); end
 def ground(time); _("\\texttt{#{time}}").color(blue); end
 def time(time); _("\\texttt{#{time}}").color(darkred); end
-def now; time('$x$'); end
+def now; time('$t$'); end
+def nowPadded; time('  $t$  '); end
 def interval(start,duration,finish)
 	overlay(
 		ctable(
@@ -123,7 +124,7 @@ def catRight(range=nil,duration="")
 		nil).arrow.curved.dashed('evenly').color(darkgrey),
 		shift( tup(p).post{ |x| x.add(upair(-0.2,0.07)) } ),
 		ctable(
-			_(duration).scale(0.5).color(blue),
+			_(duration).scale(0.5),
 		nil).opaque,
 	nil)
 end
