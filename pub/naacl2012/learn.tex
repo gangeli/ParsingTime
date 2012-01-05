@@ -39,7 +39,7 @@ The CKY k-best beam and the temporal distribution
 	can be combined to provide a \textit{viterbi} decode, as well as
 	its associated probability.
 We define the probability of a syntactic parse making use of rules $R \in \sR$ 
-	as $P(R) = P(w_1,\dots w_n; R) = \sum_{i \rightarrow j,k \in R}P(j,k \mid i)$;
+	as $P(R) = P(w_1,\dots w_n; R) = \sum_{i \rightarrow j,k \in R}P(j,k \mid i)$.
 	As described in \refsec{repr-types}, we define the probability of a 
 	grounding relative to reference time $t$ and a particular
 	syntactic interpretation as $P_t(i | R)$.
@@ -55,7 +55,7 @@ The product of these two terms provides the probability of a grounded temporal
 % -- Viterbi
 The viterbi decode is found by maximizing these two terms sequentially:
 	the optimal grounding is found within the optimal syntactic parse.
-This is in contrast to maximizing $P_t(i,R)$ directly, however it avoids
+This is in contrast to maximizing $P_t(i,R)$ directly, however, it avoids
 	assigning a penalty to proposing ambiguous expressions (e.g., \te{Friday})
 	versus unambiguous expressions (e.g., \te{today}).
 Furthermore, it is reasonable to assume that cognitively we perform a
@@ -75,7 +75,7 @@ This provides us with a framework for obtaining grounded times from a
 % -- Intro
 %(catch phrase)
 We present an EM-\textit{esque} bootstrapping approach to training the 
-	parameters of our \textit{type} grammar jointly with the parameters of our 
+	parameters of our grammar jointly with the parameters of our 
 	Gaussian temporal distribution.
 %(table of contents)
 The preprocessing steps are described below, followed by an overview
@@ -163,10 +163,7 @@ The algorithm outputs the final parameters $\theta_s^*$, $\mu^*$ and $\sigma^*$.
 %(EM comparison)
 The algorithm operates in an EM-\textit{esque} fashion, similar in style
 	to algorithms used in the grammar induction
-	literature \needcite.
-It iteratively finds the most
-	likely completion of the data given the current estimate of the parameters
-	and then updates the parameters based on this observed data.
+	literature \cite{key:2004klein-induction,key:1992carroll-induction}.
 However, unlike grammar induction, we are given loose supervision giving a 
 	necessary but not sufficient condition for a parse being a valid completion.
 Line \ref{line:validity} in \refalg{pseudocode} accounts for this filtering.
@@ -207,11 +204,7 @@ In the Gaussian case, the parameter updates are:
 \end{align}
 
 %(big picture)
-The algorithm thus presents a bootstrapping approach to learning the latent
-	parses.
-In early iterations, the beam will likely contain valid parses for short
-	phrases;
-	as the parameters converge to their optimal values, the beam incorporates
+As the parameters converge to their optimal values, the beam incorporates
 	valid parses for longer and longer phrases.
 In this way, a progressively larger percentage of the data is available to be
 	learned from at each iteration.
@@ -220,8 +213,7 @@ In this way, a progressively larger percentage of the data is available to be
 To assist in this process, and taking insight from the Gricean 
 	maxims of quantity and quality, we further restrict the set of valid 
 	parses to include only those which are as short as possible
-	(that is, maximally \ty{Nil}-padded) and which are grounded
-	at the \textit{zero index} if possible.
+	(that is, maximally \ty{Nil}-padded) and which are pragmatically clear.
 That is -- with notable but practically relatively rare exceptions --
 	more often than not we do not repeat ourselves when describing time.
 Apart from phrases such as \tp{last Friday the \th{13}} where \tp{last Friday}
@@ -235,7 +227,7 @@ To balance the tendency to use short phrases, we observe that
 That is, I am more likely to refer to the previous Friday as \tp{last Friday}
 	than simply \tp{Friday}, though the former is somewhat longer.
 To capture this, we take candidate interpretations which ground at the
-	temporal expression's \textit{relative zero} index if possible --
+	temporal expression's origin if possible --
 	in our example we would take \tp{last Friday} but not \tp{Friday}.
 
 These are encapsulated in the \textit{ok()} function

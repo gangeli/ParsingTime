@@ -19,7 +19,7 @@ This includes entities such as \te{Today}, \te{1987}, or
 	\te{Now}.
 We denote a range by the variable \range.
 We maintain a consistent interval-based theory of time
-	\cite{key:1981allen-temporal} and instances as intervals with
+	\cite{key:1981allen-temporal} and represent instances as intervals with
 	zero span.
 
 % -- Sequence 
@@ -35,9 +35,7 @@ A given sequence is in reality a tuple of three elements
 \begin{enumerate}
 	\setlength{\itemsep}{-5pt} 
 	\item $\seqelem(i)$: 
-		The \th{i} \ty{Range} of a sequence.
-		This is a \ty{Range} by type, and is the term which the sequence ultimately
-			grounds to, for some $i$.
+		The \th{i} interval of a sequence.
 		In the case of the sequence \te{Friday}, $\seqelem(0)$ corresponds to
 			\tp{the Friday in the current week}; 
 			$\seqelem(1)$ is the Friday in the following week, \textit{et cetera}.
@@ -50,13 +48,13 @@ A given sequence is in reality a tuple of three elements
 		For example, \seqcanonX{Friday} would be the \ty{Range}
 			corresponding to \tp{the current week}.
 		The sequence index $i \in \BZ$ is defined relative to $\seqelem(0)$ --
-			the range in the same containing unit as the reference time.
+			the element in the same containing unit as the reference time.
 \end{enumerate}
 
 %(definition of reference time)
 We define the \textit{reference time} $t$ \cite{key:1947reichenback-temporal}
 	to be the instant when the phrase 
-	is uttered; for the \tempeval\ corpus, we assume that this is the 
+	is uttered; for the \tempeval\ corpus, we approximate this as the
 	publication time of the article.
 
 %(sequence as distribution)
@@ -67,10 +65,9 @@ A \ty{Sequence} denotes not only a sequence of possible
 	\ty{Range}s, but also a distribution over these ranges.
 This distribution -- conditioned on $t$ --
 	is defined as a Gaussian with a mean and variance defined according
-	to the distance \seqjump\.
+	to the distance \seqjump.
 The input to the Gaussian is a function $\delta_{s,t}$:
-	the distance between the reference time 
-	and the element in question.
+	the distance between the reference time and the element in question:
 % -- Gaussian Equation
 \begin{equation}
 \label{eqn:gaussian}
@@ -128,8 +125,6 @@ These are used to represent expressions such as \tp{a few years} or
 	\tp{some days}.
 Semantically, they are equivalent to any other approximate
 	duration with the same unit and distinct from any other \ty{Duration}.
-This is consistent with the representation of such entities in the
-	\texttt{Timex} format \cite{key:2003pustejovsky-timeml}.
 
 % -- Functions
 \paragraph{Function}
@@ -153,12 +148,11 @@ In the grammar, these appear as preterminals only.
 The first of these types is \ty{Number} -- denoting a number without
 	any temporal meaning attached.
 This comes into play representing expressions such as \tp{2 weeks}.
-The other type is the \ty{Nil} type -- denoting terms which are not
+The other is the \ty{Nil} type -- denoting terms which are not
 	directly contributing to the semantic meaning of the expression.
 This is intended for words such as \tp{a} or \tp{the}, which serve as cues
 	without bearing temporal content themselves.
-The \ty{Nil} type is lexicalized with the word it generates; more details
-	are given in \refsecs{repr-lexicon}{repr-rules}.
+The \ty{Nil} type is lexicalized with the word it generates.
 
 
 \paragraph{Omitted Phenomena}
@@ -192,12 +186,6 @@ Decomposing the example, we can construct a meaning by
 	and \tp{the \th{13}} -- creating the previous \te{Friday} that is
 	also the \th{13} of the month.
 
-% -- Focus on time; elsewhere applicable
-While we focus entirely on temporal phrases and their meaning, this
-	compositional assumption is reasonable for a number of other domains as 
-	well -- for example describing locations (e.g., the 
-	\dataset{GeoQueries} dataset) or directions.
-
 % -- Synchronous Grammar
 \Fig{fig/grammar}{0.45}{grammar}{
 	The synchronous grammar -- (a) describes the CFG parse of the
@@ -215,7 +203,7 @@ We construct a paradigm for parsing temporal phrases based on a Synchronous
 	(e.g., \newcite{key:2001yamada-syntaxmt}).
 This is in contrast to common approaches, such as making use of CCG 
 	grammars 
-	\cite{key:2000steedman-ccg,key:2004bos-ccg,2011kwiatkowski-semantics}
+	\cite{key:2000steedman-ccg,key:2004bos-ccg,2011kwiatkowski-semantics},
 	giving us more flexibility in the composition rules.
 \reffig{grammar} shows an example of the grammar.
 
@@ -250,8 +238,6 @@ That is, we are learning a rule-to-rule translation
 %	as well as constrains the formalism.
 Note that the definition above is trivially adapted for the case of unary
 	rules.
-The application of these rules is described in more detail in 
-	\refsec{repr-rules}.
 
 %(probabilities)
 The last term in our grammar formalism denotes the rule probabilities $P$.
@@ -369,10 +355,10 @@ The learning of these probabilities is detailed in \refsec{learn}.
 		% -- Arity 1
 		%(seq move)
 		\texttt{moveLeft1}
-			& Move the \textit{zero index} of a \ty{sequence} left by 1
+			& Move the origin of a \ty{sequence} left by 1
 			& $f : \ty{S} \rightarrow \ty{S}$ \\
 		\texttt{moveRight1}
-			& Move the \textit{zero index} of a sequence right by 1
+			& Move the origin of a sequence right by 1
 			& $f : \ty{S} \rightarrow \ty{S}$ \\
 		\hline
 		%(n^th element)
@@ -425,7 +411,7 @@ Notably, like intervals, times can be moved (\tp{3 weeks ago}) or
 	their size changed (\tp{the first two days of the month}), or
 	a new interval can be started from one of the endpoints
 	(\tp{the last 2 days}).
-Additionally, a sequence can be modified by shifting its \textit{zero index}
+Additionally, a sequence can be modified by shifting its origin
 	(\tp{last Friday}), 
 	or taking the \th{$n$} element of the sequence within some bound
 	(\tp{fourth Sunday in November}).
@@ -444,7 +430,7 @@ The synchronous PCFG grammar consists of a standard CFG rule over temporal
 	types (in $\sV$) paired with a deterministic procedure for combining instances
 	of those types (in $W_v \in \sW$).
 This deterministic procedure is in effect a function application,
-	though in particular it breaks down into three operations:
+	though in particular it breaks down into four operations:
 
 % -- Operators
 \begin{itemize}
@@ -462,24 +448,23 @@ This deterministic procedure is in effect a function application,
 			the overlap between the intervals\footnote{
 				In the case of sequences (e.g., \te{\th{13}} intersect \te{May}) a
 					search is performed to find overlapping ranges in the two sequences;
-					the \textit{zero index} is updated to refer to the closest such
+					the origin is updated to refer to the closest such
 					match to the reference time.
 				In cases where this search cannot be solved analytically
 					(e.g., \te{\th{13}} intersect \te{Friday}), an A$^{*}$
 					search is used to find an overlapping pair of ranges
 					in time logarithmic with respect to
-					the distance in miliseconds to the match.
+					the distance in milliseconds to the match.
 		}.
-
-	%(noop)
-	\item Combining a non-\ty{Nil} element with \ty{Nil} with no change to the
+	%(mult)
+	\item Multiplying a \ty{Number} with a \ty{Duration}.
+	%(nil)
+	\item Combining a non-\ty{Nil} and \ty{Nil} elements with no change to the
 			temporal expression.
 		The lexicalization of the \ty{Nil} type allows the algorithm
 			to take hints from these supporting words.
 \end{itemize}
 
 % -- Segue
-We have defined a framework for representing and parsing temporal phrases
-	based on a synchronous PCFG.
 We proceed to describe learning the parameters of this grammar.
 
