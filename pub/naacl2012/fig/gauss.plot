@@ -41,6 +41,8 @@ set label "$P(\\texttt{11/20}) = \\int_{-1.5}^{-0.5} f(x)$" at 1,f(-1)-0.15
 
 #(label)
 set xtics nomirror ("\\begin{tabular}{c} \\\\ -2 \\\\ \\texttt{11/13} \\end{tabular}" -2, "\\begin{tabular}{c} \\\\ -1 \\\\ \\texttt{11/20} \\end{tabular}" -1,  "\\begin{tabular}{c} \\\\ -0.3 \\\\ $\\frac{t}{\\Delta_s}$ \\end{tabular}" u, "" 0, "\\begin{tabular}{c} \\\\ 1 \\\\ \\texttt{12/4} \\end{tabular}" 1, "\\begin{tabular}{c} \\\\ 2 \\\\ \\texttt{12/11} \\end{tabular}" 2)
+set label "0" at -0.05,0.03
+set label "\\texttt{11/27}" at -0.05,0.07
 #(no top tick)
 set ytics nomirror ("" 0)
 #(plot)
