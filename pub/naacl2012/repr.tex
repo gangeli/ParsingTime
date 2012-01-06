@@ -1,5 +1,5 @@
 \Section{repr}{Representation}
-We define a compositional representation of tiem; a type system 
+We define a compositional representation of time; a type system 
 	is described in \refsec{repr-types} while the grammar is outlined in
 	\refsec{repr-compositional} and described in detail in 
 	\refsecs{repr-lexicon}{repr-rules}
@@ -41,7 +41,7 @@ A \ty{Sequence} is a tuple of three elements
 		The \th{i} interval of a sequence.
 		In the case of the sequence \te{Friday}, $\seqelem(0)$ corresponds to
 			\tp{the Friday in the current week}; 
-			$\seqelem(1)$ is the Friday in the following week, \textit{et cetera}.
+			$\seqelem(1)$ is the Friday in the following week, etc.
 	\item \seqjump:
 		The \textit{distance} between two elements in the sequence -- approximated
 			if this distance is not constant.
@@ -72,7 +72,7 @@ Particularly, we define a Gaussian -- conditioned on $t$ -- with mean and
 	variance defined according to the distance \seqjump.
 The input to the Gaussian is a function $\delta_{s,t}$:
 	the distance between the reference time and the element in question:
-\reffig{distribution} shows an example of such a distribution.
+\reffig{distribution} shows an example of such a distribution:
 % -- Gaussian Plot
 \begin{figure}[t]
 \begin{center}
@@ -159,7 +159,7 @@ Notably, a body of work has focused on reasoning about events or states
 	changes of state; 
 	\newcite{key:2010condoravdi-temporal} explores NPI licensing in temporal
 	expressions.
-Furthermore, vague times (e.g. \tp{in the 90's})represent a notable chunk of 
+Furthermore, vague times (e.g. \tp{in the 90's}) represent a notable chunk of 
 	temporal expressions uttered.
 In contrast, NLP evaluations have generally not included such vague 
 	time expressions.
@@ -195,8 +195,7 @@ We construct a paradigm for parsing temporal phrases based on a Synchronous
 	corresponding \textit{types}, similar in some respects but more
 	constrained than those used in machine translation 
 	(e.g., \newcite{key:2001yamada-syntaxmt}).
-This is in contrast to common approaches, such CCG 
-	grammars 
+This is in contrast to common approaches, such as CCG grammars 
 	\cite{key:2000steedman-ccg,key:2004bos-ccg,2011kwiatkowski-semantics},
 	giving us more flexibility in the composition rules.
 \reffig{grammar} shows an example of the grammar.
@@ -441,8 +440,8 @@ Three functions are defined in addition to those in \reftab{function};
 \begin{itemize}
 	%(intersection)
 	\item Intersecting two ranges or sequences.
-		This roughly equates to applying a special \textit{intersect} function
-			without requiring that it be explicit in the temporal phrase.
+%		This roughly equates to applying a special \textit{intersect} function
+%			without requiring that it be explicit in the temporal phrase.
 		The intersect function treats both arguments as intervals, and will return
 			the overlap between the intervals\footnote{
 				In the case of sequences (e.g., \te{\th{13}} intersect \te{May}) a

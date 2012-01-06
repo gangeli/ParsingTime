@@ -28,9 +28,9 @@ We represent this as a distribution with respect to the reference time.
 In a sense, the most semantically complete output of the system would be
 	such a distribution -- 
 	an utterance of \tp{Friday}, instead of grounding to a 
-	\textit{best guess} of what the time refers to, would rather give a 
+	best guess of what the time refers to, would rather give a 
 	distribution over possible groundings along with their probabilities.
-However, often it is advantageous to normalize to a concrete expression with a
+However, often it is advantageous to ground to a concrete expression with a
 	certain probability.
 
 % -- Combination Method
@@ -56,7 +56,7 @@ The product of these two terms provides the probability of a grounded temporal
 % -- Viterbi
 The Viterbi decoding is found by maximizing these two terms sequentially:
 	the optimal grounding is found within the optimal syntactic parse.
-This is in contrast to maximizing $P_t(i,y)$ directly, however, it avoids
+This is in contrast to maximizing $P_t(i,y)$ directly, but avoids
 	assigning a penalty to proposing ambiguous expressions (e.g., \te{Friday})
 	versus unambiguous expressions (e.g., \te{today}).
 %Furthermore, it is reasonable to assume that cognitively we perform a
@@ -208,9 +208,9 @@ The algorithm operates similar to the EM algorithms used for grammar induction
 	\cite{key:2004klein-induction,key:1992carroll-induction}.
 However, unlike grammar induction, we are allowed a certain amount of
 	supervision by requiring that the predicted temporal expression
-	matches the annotation.
+	match the annotation.
 Line \ref{line:validity} in \refalg{pseudocode} accounts for this filtering.
-Our \textit{expected counts} are therefore more accurately our normalized
+Our \textit{expected statistics} are therefore more accurately our normalized
 	expected counts of \textit{valid} parses.
 
 %(beams)
@@ -259,7 +259,7 @@ To assist in this process, and taking insight from the Gricean
 	(that is, maximally \ty{Nil}-padded) and which are pragmatically clear.
 That is -- with notable but practically relatively rare exceptions --
 	more often than not we do not repeat ourselves when describing time.
-Apart from phrases such as \tp{last Friday the \th{13}} where \tp{last Friday}
+Apart from phrases such as \tp{last Friday the \th{13}}, where \tp{last Friday}
 	and \tp{the \th{13}} refer to the same time, we rarely describe a time as
 	\tp{today this week} or \tp{this month Friday}, \textit{et cetera}.
 It's important to note that the model still handles these cases, only it
