@@ -15,7 +15,7 @@ The inference procedure is described in \refsec{learn-model};
 To provide a list of
 	candidate expressions with their associated probabilities, we
 	employ a k-best CKY parser.
-Particularly, we implement Algorithm 3 described in 
+Specifically, we implement Algorithm 3 described in 
 	\newcite{key:2005huang-parsing} -- providing an algorithm which is
 	$O(k\log k)$ with respect to the beam size.
 In our experiments, we set the beam size to 2000.
@@ -30,37 +30,37 @@ In a sense, the most semantically complete output of the system would be
 	an utterance of \tp{Friday}, instead of grounding to a 
 	\textit{best guess} of what the time refers to, would rather give a 
 	distribution over possible groundings along with their probabilities.
-However, often it is advantageous to resolve to a concrete expression with a
+However, often it is advantageous to normalize to a concrete expression with a
 	certain probability.
 
 % -- Combination Method
 The CKY k-best beam and the temporal distribution 
 	-- capturing syntactic and pragmatic ambiguity --
-	can be combined to provide a \textit{viterbi} decode, as well as
+	can be combined to provide a \textit{Viterbi} decoding, as well as
 	its associated probability.
-We define the probability of a syntactic parse making use of rules $R \in \sR$ 
-	as $P(R) = P(w_1,\dots w_n; R) = \sum_{i \rightarrow j,k \in R}P(j,k \mid i)$.
+We define the probability of a syntactic parse $y$ making use of rules $R \in \sR$ 
+	as $P(y) = P(w_1,\dots w_n; R) = \prod_{i \rightarrow j,k \in R}P(j,k \mid i)$.
 	As described in \refsec{repr-types}, we define the probability of a 
 	grounding relative to reference time $t$ and a particular
-	syntactic interpretation as $P_t(i | R)$.
+	syntactic interpretation as $P_t(i | y)$.
 The product of these two terms provides the probability of a grounded temporal
 	interpretation:
 
 \begin{equation}
-	P_t(i, R) = 
-		P( R ) \times P_t(i | R)
+	P_t(i, y) = 
+		P( y ) \times P_t(i | y)
 \label{eqn:prob}
 \end{equation}
 
 % -- Viterbi
-The viterbi decode is found by maximizing these two terms sequentially:
+The Viterbi decoding is found by maximizing these two terms sequentially:
 	the optimal grounding is found within the optimal syntactic parse.
 This is in contrast to maximizing $P_t(i,R)$ directly, however, it avoids
 	assigning a penalty to proposing ambiguous expressions (e.g., \te{Friday})
 	versus unambiguous expressions (e.g., \te{today}).
-Furthermore, it is reasonable to assume that cognitively we perform a
-	similar procedure -- resolving syntactic ambiguity before resolving
-	pragmatic ambiguity.
+%Furthermore, it is reasonable to assume that cognitively we perform a
+%	similar procedure -- resolving syntactic ambiguity before resolving
+%	pragmatic ambiguity.
 
 % -- Segue
 This provides us with a framework for obtaining grounded times from a
@@ -100,46 +100,88 @@ Beyond this preprocessing, no language-specific information about the meanings
 
 % -- Algorithm Figure
 \begin{algorithm}[t]
-	%(algorithm)
+	%(defines)
 	\SetKw{Def}{def}
-	\SetKwFunction{generateCandidates}{generateCandidates}
-	\SetKwFunction{updateParameters}{updateParameters}
+	\SetKwFunction{estep}{E-Step}
+	\SetKwFunction{mstep}{M-Step}
 	%(input/output)
-	\KwIn{Initial parameters $\theta_s$, $\mu$, $\sigma$; 
+	\KwIn{Initial parameters $\theta$, $\mu$, $\sigma$; 
 		data $\sD=\left\{(w,\tau^*,t)\right\}$}
-	\KwOut{Optimal parameters $\theta_s^*$, $\mu^*$, $\sigma^*$}
-	%(main loop)
-%	\tcc{Iterative parameter update}
-	$(\theta_s',\mu',\sigma')$ := $(\theta_s,\mu,\sigma)$ \\
-	\While{not converged}{
-		$\sH$ := generateCandidates$(\theta_s',\mu',\sigma')$ \\
-%		$(\theta_s',\mu',\sigma')$ = updateParameters$(\sH)$
-		$(\theta_s',\mu',\sigma')$ = fullyObservedEM$(\sH)$
-	}
-	\KwRet $(\theta_s',\mu',\sigma')$ \\
+	\KwOut{Optimal parameters $\theta^*$, $\mu^*$, $\sigma^*$}
+	\BlankLine
 
+	%(main loop)
+	\While{not converged}{
+		$\bar M$ := \estep$(\sD$,$\theta$,$\mu$,$\sigma)$ \\
+		$(\theta,\mu,\sigma)$ := \mstep$(\bar M)$
+	}
+	\KwRet $(\theta_s,\mu,\sigma)$ \\
 	\BlankLine
 	\BlankLine
-	%(generate candidates)
-%	\tcc{Generate candidate valid parses}
-	\Begin(\generateCandidates{$\theta_s$,$\mu$,$\sigma$}:){
-		\sH := $\left\{\right\}$ \\
+
+	%(E-Step)
+	\Begin(\estep{$\theta$,$\mu$,$\sigma$}){
 		\For{$(w,\tau^*,t) \in \sD$}{
-			Z := 0; H = $\left\{\right\}$ \\
-			\For{$(R,\tau_t,P_t) \in$ k-bestCKY(w)}{ \label{line:parsebeam}
-				\For{$i \in i_{\textrm{max}}-2 \dots i_{\textrm{max}}+2$}{ \label{line:timebeam}
-					\If{$\tau(i) = \tau^*$ \texttt{and} ok(R,i)}{ \label{line:validity}
-						H += $(R,\tau,i,P_t(i))$ \\
-						Z += $P_t(i)$
+			$\bar m$ = emptyESS() \\
+			\For{$y \in$ k-bestCKY$(w,\theta)$}{ \label{line:parsebeam}
+				\For{$\tau_i \in$ groundings$(y,\mu,\sigma)$}{ \label{line:timebeam}
+					\If{$\tau_i = \tau^*$ \texttt{and} ok(y,i)}{ \label{line:validity}
+						$\bar m_{\theta}$ += count($y$,$P_t(i,y)$) \\
+						$\bar m_{\mu,\sigma}$ += $\left(i,P_t(i,y)\right)$ \\
+						$Z$ += $P_t(i,y)$ \\
 					}
 				}
 			}
-			\For{$(R,\tau,i,p) \in H$}{ 
-				\sH += $(R,\tau,i,p/Z)$ 
-			}
+			$\bar M$ += normalize$(\bar m_{\theta}, \bar m_{\mu,\sigma}, Z)$ \\
 		}
-		\Return{\sH}
+		\KwRet $\bar M$ \\
 	}
+%	\BlankLine
+%	\BlankLine
+%	\Begin(\mstep{$\hat M$}){
+%		\tcc{Standard M step}
+%	}
+
+%	%(algorithm)
+%	\SetKw{Def}{def}
+%	\SetKwFunction{generateCandidates}{generateCandidates}
+%	\SetKwFunction{updateParameters}{updateParameters}
+%	%(input/output)
+%	\KwIn{Initial parameters $\theta$, $\mu$, $\sigma$; 
+%		data $\sD=\left\{(w,\tau^*,t)\right\}$}
+%	\KwOut{Optimal parameters $\theta^*$, $\mu^*$, $\sigma^*$}
+%	%(main loop)
+%%	\tcc{Iterative parameter update}
+%	$(\theta',\mu',\sigma')$ := $(\theta_s,\mu,\sigma)$ \\
+%	\While{not converged}{
+%		$\sH$ := generateCandidates$(\theta_s',\mu',\sigma')$ \\
+%%		$(\theta_s',\mu',\sigma')$ = updateParameters$(\sH)$
+%		$(\theta_s',\mu',\sigma')$ = fullyObservedEM$(\sH)$
+%	}
+%	\KwRet $(\theta_s',\mu',\sigma')$ \\
+%
+%	\BlankLine
+%	\BlankLine
+%	%(generate candidates)
+%%	\tcc{Generate candidate valid parses}
+%	\Begin(\generateCandidates{$\theta_s$,$\mu$,$\sigma$}:){
+%		\sH := $\left\{\right\}$ \\
+%		\For{$(w,\tau^*,t) \in \sD$}{
+%			Z := 0; H = $\left\{\right\}$ \\
+%			\For{$(R,\tau_t,P_t) \in$ k-bestCKY(w)}{ \label{line:parsebeam}
+%				\For{$i \in i_{\textrm{max}}-2 \dots i_{\textrm{max}}+2$}{ \label{line:timebeam}
+%					\If{$\tau(i) = \tau^*$ \texttt{and} ok(R,i)}{ \label{line:validity}
+%						H += $(R,\tau,i,P_t(i))$ \\
+%						Z += $P_t(i)$
+%					}
+%				}
+%			}
+%			\For{$(R,\tau,i,p) \in H$}{ 
+%				\sH += $(R,\tau,i,p/Z)$ 
+%			}
+%		}
+%		\Return{\sH}
+%	}
 	%(caption)
 	\caption{
 		\label{alg:pseudocode}
@@ -150,15 +192,16 @@ Beyond this preprocessing, no language-specific information about the meanings
 % -- Algorithm
 \paragraph{Algorithm}
 %(algorithm reference)
-Our TimEM algorithm for learning the grammar and temporal distribution 
-	parameters is given in \refalg{pseudocode}.
+Our TimEM algorithm for learning the parameters for the grammar ($\theta$),
+	jointly with the temporal distribution ($\mu$ and $\sigma$) is given 
+	in \refalg{pseudocode}.
 %(input/output)
-The inputs to the algorithm are the initial parameters $\theta_s$,$\mu$, and
+The inputs to the algorithm are the initial parameters $\theta$,$\mu$, and
 	$\sigma$, and a set of training instances $\sD$.
 Each training instance is a tuple consisting of the words in the temporal
 	phrase $w$, the annotated grounded time $\tau^*$, and the reference time
 	of the utterance $t$.
-The algorithm outputs the final parameters $\theta_s^*$, $\mu^*$ and $\sigma^*$.
+The algorithm outputs the final parameters $\theta^*$, $\mu^*$ and $\sigma^*$.
 
 %(EM comparison)
 The algorithm operates in an EM-\textit{esque} fashion, similar in style
@@ -184,7 +227,7 @@ In the multinomial case, our parameter updates are:
 	\theta_{mn \mid l}' =
 		\sum\limits_{(R,\tau,i,p) \in \sH} \sum\limits_{v_{jk \mid i} \in R}
 		\frac{
-			\1(v_{jk \mid i} = v_{mn \mid l}) * p
+			\1(v_{jk \mid i} = v_{mn \mid l}) \times p
 		}{
 			\bZ
 		}
@@ -195,10 +238,10 @@ In the Gaussian case, the parameter updates are:
 \begin{align}
 	\mu' =&
 		\frac{ 1 } { \sum\limits_{(R,\tau,i,p) \in \sH}  p }
-		\sum\limits_{(R,\tau,i,p) \in \sH} i * p \\
+		\sum\limits_{(R,\tau,i,p) \in \sH} i \times p \\
 	\sigma' =& \sqrt{
 		\frac{ 1 } { \sum\limits_{(R,\tau,i,p) \in \sH}  p }
-		\sum\limits_{(R,\tau,i,p) \in \sH} (i-\mu')^2 * p
+		\sum\limits_{(R,\tau,i,p) \in \sH} (i-\mu')^2 \times p
 	}
 \label{eqn:multinomialEM}
 \end{align}
@@ -224,7 +267,7 @@ It's important to note that the model still handles these cases, only it
 
 To balance the tendency to use short phrases, we observe that
 	temporal phrases are described as pragmatically unambiguously as possible.
-That is, I am more likely to refer to the previous Friday as \tp{last Friday}
+That is, one is more likely to refer to the previous Friday as \tp{last Friday}
 	than simply \tp{Friday}, though the former is somewhat longer.
 To capture this, we take candidate interpretations which ground at the
 	temporal expression's origin if possible --

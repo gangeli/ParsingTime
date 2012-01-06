@@ -8,9 +8,9 @@ require 'lib.rb'
 ################################################################################
 def lastFriday
 	Parse.new(
-		[ctable( shiftLeft(friday,'1'), '$\cap$', dom(13) ).rjustify('c'),
-			[shiftLeft(friday,'1'),
-				[shiftLeft(rangeFig(blue),'1'),'last'],
+		[intersect( ctable('\texttt{\darkred{moveLeft1}}(',friday,')'), dom(13) ),
+			[ctable('\texttt{\darkred{moveLeft1}}(',friday,')'),
+				['\texttt{\darkred{moveLeft1$(-)$}}','last'],
 				[friday,'friday'],
 			],
 			[dom(13),
@@ -22,7 +22,7 @@ def lastFriday
 end
 def lastFriday13
 	Parse.new(
-		[shiftLeft(intersect(friday,dom(13)),'1'),
+		[ctable('\texttt{\darkred{shiftLeft}}(',intersect(friday,dom(13)),')'),
 			[shiftLeft(rangeFig(blue),'1'),'last'],
 			[intersect(friday,dom(13)),
 				[friday,'friday'],
@@ -115,8 +115,8 @@ end
 
 def next2days
 	Parse.new(
-	  [catRight(nowPadded,time('  2D')),
-	    [catRight(nowPadded,''),'next'],
+		[ctable('\texttt{\darkred{catRight$(t$}},',time('2D'),'$)$'),
+	    ['\texttt{\darkred{catRight$(t,-)$}}','next'],
 	    [time('2D'),
 	      [time('Num(2)'),'2'],
 	      [time('1D'),'days'],
@@ -148,7 +148,7 @@ def grammar
 	nil).cjustify('c').rmargin(u(0.5))
 end
 printObj(
-	:obj => grammar.signature(26),
+	:obj => grammar.signature(32),
 	:outPrefix => 'grammar'
 )
 	
@@ -187,7 +187,7 @@ def sys
 	nil).cjustify('c').rjustify('c').rmargin(u(0.3))
 end
 printObj(
-	:obj => sys.signature(8),
+	:obj => sys.signature(13),
 	:outPrefix => 'system'
 )
 

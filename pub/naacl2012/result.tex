@@ -1,7 +1,7 @@
 \Section{result}{Evaluation}
 We evaluate our system against current state-of-the art systems for temporal
 	resolution on the English portion of the \tempeval\ Task A dataset
-	\cite{key:2010verhagen-tempeval} .
+	\cite{key:2010verhagen-tempeval}.
 We describe the dataset in \refsec{result-dataset}, and detail the previous
 	work and our results in \refsec{result-scores}.
 
@@ -10,7 +10,7 @@ The \tempeval\ dataset contains 162 documents and 1052 temporal
 	phrases in the training set,
 	and an additional 20 documents and 156 phrases in the evaluation set.
 Each temporal phrase was annotated as a \timex\footnote{
-		see \url{http://www.timeml.org} for details on the TimeML format and
+		See \url{http://www.timeml.org} for details on the TimeML format and
 		\timex\ tag.
 	}
 	tag around an adverbial or prepositional phrase
@@ -28,15 +28,15 @@ Final reported results make use of the full 162 documents in the training
 \begin{table}
 	\begin{tabular}{|l|c|c|c|c|}
 		\hline
-		       & \multicolumn{2}{c|}{Type Accuracy} & \multicolumn{2}{c|}{Value Accuracy} \\
-		System & Train & Test  & Train & Test\\
+		       & \multicolumn{2}{c|}{Train} & \multicolumn{2}{c|}{Test} \\
+		System & Type & Attribute  & Type & Attribute\\
 		\hline
 		\hline
-		\sys{GUTime}     & 0.72          & 0.79          & 0.45          & 0.41 \\
-		\sys{SUTime}     & 0.85          & 0.90          & 0.69          & 0.67 \\
-		\sys{HeidelTime} & 0.80          & 0.85          & 0.67          & \textbf{0.71} \\
-		\hline
-		\sys{OurSystem}  & \textbf{0.89} & \textbf{0.93+} & \textbf{0.71} & \textbf{0.71+} \\
+		\sys{GUTime}     & 0.72          & 0.45          & 0.79           & 0.41 \\
+		\sys{SUTime}     & 0.85          & 0.69          & 0.90           & 0.67 \\
+		\sys{HeidelTime} & 0.80          & 0.67          & 0.85           & \textbf{0.71} \\
+		\hline                                           
+		\sys{OurSystem}  & \textbf{0.89} & \textbf{0.71} & \textbf{0.93+} & \textbf{0.71+} \\
 		\hline
 	\end{tabular}
 	%(caption)
@@ -69,15 +69,19 @@ Similarly, the original \tempeval\ scoring scheme gave a precision
 	and recall for detection, and an accuracy for only the temporal expressions 
 	attempted.
 Since our system is able to produce a guess for every expression, we produce
-	a precision-recall curve on which competing systems may be plotted
+	a precision-recall curve on which competing systems are plotted
 	(see \reffig{pr}).
+Note that the downward slope of the curve indicates that the probabilities
+	returned by the system are indicative of its confidence -- the probability
+	of a parse correlates with the probability of that parse being correct.
+
 Additionally, and perhaps more accurately, we compare to 
 	previous system scores when constrained to make a prediction on every
 	example; if no guess is made, the output is considered incorrect.
 This in general yields lower results, as the system is not allowed to
 	abstain on expressions it does not recognize.
 % -- Reference Table
-Results are summarized in \reftab{results}
+Results are summarized in \reftab{results}.
 
 % -- Systems
 We compare to three previous rule-based systems.

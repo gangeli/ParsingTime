@@ -355,6 +355,8 @@ object Grammar {
 		) :::
 		(1 to 7).map{(i:Int) => (DOWOM(i), DOW_STR(i-1)+"$(n)$")}.toList :::
 		Nil
+	val sequenceToIndexedSequence:Map[Sequence,Int=>Sequence] = Map(
+		)
 	
 	private val NAMED_RULES:Array[(Rule,String)] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]

@@ -9,7 +9,10 @@ A temporal representation is constructed; the type system of the representation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Subsection{repr-types}{Temporal Expression Types}
 % -- Intro to Types
-Instances of temporal expressions are grouped into one of the following types:
+We represent temporal expressions as either a \ty{Range}, \ty{Sequence},
+	or \ty{Duration}.
+We describe these, the \ty{Function} type, and the miscellaneous
+	\ty{Number} and \ty{Nil} types below:
 % -- Range
 \paragraph{Range}
 %(definition)
@@ -28,9 +31,9 @@ We maintain a consistent interval-based theory of time
 A sequence of \ty{Range}s, not necessarily occurring at regular intervals.
 %(examples)
 This includes entities such as \te{Friday}, \te{November \th{27}}, or
-	\te{last May}.
+	\te{last Friday}.
 %(anatomy)
-A given sequence is in reality a tuple of three elements
+A \ty{Sequence} is a tuple of three elements
 	$\seq=(\seqelem,\seqjump,\seqcanon)$:
 \begin{enumerate}
 	\setlength{\itemsep}{-5pt} 
@@ -58,32 +61,18 @@ We define the \textit{reference time} $t$ \cite{key:1947reichenback-temporal}
 	publication time of the article.
 
 %(sequence as distribution)
-The \ty{Sequence} type warrants special attention, as the pragmatic ambiguity 
-	when describing temporal expressions resides in the interpretation of these
-	terms.
-A \ty{Sequence} denotes not only a sequence of possible
-	\ty{Range}s, but also a distribution over these ranges.
-This distribution -- conditioned on $t$ --
-	is defined as a Gaussian with a mean and variance defined according
-	to the distance \seqjump.
+To contrast with \ty{Range}s, a \ty{Sequence} can represent a number of specific
+	times.
+Nonetheless, pragmatically, not all of these are given equal weight --
+	an utterance of \tp{last Friday} may mean either of the previous two Fridays,
+	but is unlikely to ground to anything else.
+We represent this ambiguity by defining a distribution over the elements
+	of the \ty{Sequence}.
+Particularly, we define a Gaussian -- conditioned on $t$ -- with mean and
+	variance defined according to the distance \seqjump.
 The input to the Gaussian is a function $\delta_{s,t}$:
 	the distance between the reference time and the element in question:
-% -- Gaussian Equation
-\begin{equation}
-\label{eqn:gaussian}
-	P_t(i) = 
-	\int_{i-0.5}^{i+0.5}
-		\frac{
-			\exp\left[-\frac{
-					(\frac{\delta_{s,t}(i)-\delta_{s,t}(0)}{\seqjump} - \mu)^2
-				}{
-					2\sigma^2
-				}
-			\right]
-		}{
-			2\pi\sigma^2
-		}
-\end{equation}
+\reffig{distribution} shows an example of such a distribution.
 % -- Gaussian Plot
 \begin{figure}[t]
 \begin{center}
@@ -92,7 +81,7 @@ The input to the Gaussian is a function $\delta_{s,t}$:
 	}
 	\caption{
 		\label{fig:distribution}
-		An illustration of a temporal distribution.
+		An illustration of a temporal distribution, e.g., \te{Friday}.
 		The reference time is labeled as time $t$ between \te{Nov 20} and 
 			\te{Nov 27}; the probability that this sequence is referring to
 			\te{Nov 20} is integral of the marked area.
@@ -101,7 +90,13 @@ The input to the Gaussian is a function $\delta_{s,t}$:
 	}
 \end{center}
 \end{figure}
-\reffig{distribution} shows an example of such a distribution.
+% -- Gaussian Equation
+\begin{equation}
+\label{eqn:gaussian}
+	P_t(i) = 
+	\int_{i-0.5}^{i+0.5}
+		\textrm{Norm}\left(\frac{\delta_{s,t}(i)-\delta_{s,t}(0)}{\seqjump}\right)
+\end{equation}
 
 %(global scope)
 The parameters $\mu$ and $\sigma$ in Equation \refeqn{gaussian} are shared
@@ -191,9 +186,8 @@ Decomposing the example, we can construct a meaning by
 	The synchronous grammar -- (a) describes the CFG parse of the
 		temporal \textit{types}; (b) describes the corresponding combination
 		of the temporal \textit{instances}.
-	The phrase is chosen to demonstrate ambiguity both in the parse
-		(\tp{last Friday} could equally well be a constituent) and in the
-		interpretation (imagine the phrase uttered on Friday the \th{14}).
+	The parse in (b) is deterministic given the grammar combination rules
+		in (a).
 }
 %(introduction)
 We construct a paradigm for parsing temporal phrases based on a Synchronous
@@ -201,7 +195,7 @@ We construct a paradigm for parsing temporal phrases based on a Synchronous
 	corresponding \textit{types}, similar in some respects but more
 	constrained than those used in machine translation 
 	(e.g., \newcite{key:2001yamada-syntaxmt}).
-This is in contrast to common approaches, such as making use of CCG 
+This is in contrast to common approaches, such CCG 
 	grammars 
 	\cite{key:2000steedman-ccg,key:2004bos-ccg,2011kwiatkowski-semantics},
 	giving us more flexibility in the composition rules.
@@ -209,13 +203,13 @@ This is in contrast to common approaches, such as making use of CCG
 
 %(formal definition)
 Formally, we define a Synchronous PCFG 
-	$G = \left(\Sigma,S,\sV,\sW,\sR,P\right)$.
+	$G = \left(\Sigma,S,\sV,\sW,\sR,\theta\right)$.
 The alphabet $\Sigma$ and start symbol $S$ retain their usual interpretations.
 
 %(nonterminals)
 We define a set $\sV$ to be the set of types as described in
 	\refsec{repr-types} -- these act as our nonterminals.
-For each $v \in \sV$ we define an (unbounded) set $W$ corresponding to the 
+For each $v \in \sV$ we define an (unbounded) set $W_v$ corresponding to the 
 	possible instances of type $v$.
 Concretely, if $v=\ty{Sequence}$, our set $W_v \in \sW$ could contain elements
 	corresponding to \tp{Friday}, \tp{last Friday}, \tp{Nov. \th{27}},
@@ -240,7 +234,7 @@ Note that the definition above is trivially adapted for the case of unary
 	rules.
 
 %(probabilities)
-The last term in our grammar formalism denotes the rule probabilities $P$.
+The last term in our grammar formalism denotes the rule probabilities $\theta$.
 In line with the usual interpretation, this defines a probability
 	of applying a particular rule $r \in R$.
 Importantly, note that the distribution over possible groundings
@@ -280,22 +274,25 @@ The learning of these probabilities is detailed in \refsec{learn}.
 		% -- Sequences
 		\ty{Sequence} 
 			%(named sequences)
-			& \te{Morning}, \te{Afternoon}, $\dots$ \\
-			& \te{Monday}, \te{Tuesday}, $\dots$ \\
-			& \te{January}, \te{February}, $\dots$ \\
-			& \te{Winter}, \te{Spring}, $\dots$ \\
-			%(from number)
-			& \te{MinuteOfHour($0 \dots 59$)}, \\
-			& \te{HourOfDay($0 \dots 23$)}, \\
-			& \te{DayOfMonth($1 \dots 31$)}, \\
-			& \te{MonthOfYear($1 \dots 12$)}, \\
-			& \te{YearOfCentury($0 \dots 99$)}, \\
-			& \te{DecadeOfCentury($0 \dots 9$)}, \\
-			& \te{YearOfDecade($0 \dots 9$)}, \\
-			%(durational)
-			& \te{EveryDay}, \te{EveryWeek}, \\
-			& \te{EveryMonth}, \te{EveryQuarter}, \\
-			& \te{EverySeason} \\
+			& \te{Friday}, \te{January}, $\dots$ \\
+			& \te{DayOfMonth}, \te{DayOfWeek}, $\dots$ \\
+			& \te{EveryDay}, \te{EveryWeek}, $\dots$ \\
+%			& \te{Morning}, \te{Afternoon}, $\dots$ \\
+%			& \te{Monday}, \te{Tuesday}, $\dots$ \\
+%			& \te{January}, \te{February}, $\dots$ \\
+%			& \te{Winter}, \te{Spring}, $\dots$ \\
+%			%(from number)
+%			& \te{MinuteOfHour($0 \dots 59$)}, \\
+%			& \te{HourOfDay($0 \dots 23$)}, \\
+%			& \te{DayOfMonth($1 \dots 31$)}, \\
+%			& \te{MonthOfYear($1 \dots 12$)}, \\
+%			& \te{YearOfCentury($0 \dots 99$)}, \\
+%			& \te{DecadeOfCentury($0 \dots 9$)}, \\
+%			& \te{YearOfDecade($0 \dots 9$)}, \\
+%			%(durational)
+%			& \te{EveryDay}, \te{EveryWeek}, \\
+%			& \te{EveryMonth}, \te{EveryQuarter}, \\
+%			& \te{EverySeason} \\
 		\hline
 		% -- Durations
 		\ty{Duration}
@@ -307,10 +304,9 @@ The learning of these probabilities is detailed in \refsec{learn}.
 	\caption{
 		The content-bearing preterminals of the grammar, arranged by their
 			types.
-		Note that the elements on the right denote the semantic meaning of the
-			element and have no relation to the phrase given;
-			furthermore, lines ending with ellipses denote more elements of the
-			same type which have been omitted for brevity.
+		Note that the \ty{Sequence} type contains significantly more elements
+			than enumerated here; however, these are condensed for the sake of
+			brevity.
 	}
 	\label{tab:content}
 	\end{center}
@@ -395,8 +391,9 @@ The first -- consisting of \ty{Range}s, \ty{Sequence}s, and \ty{Duration}s --
 	are listed in \reftab{content}.
 A total of 57 such preterminals are defined in the implemented system,
 	although this list is easily adaptable to fit specialized domains.
-It should be noted that, although the expressions are described in English,
-	their meaning is purely semantic.
+It should be noted that, although the expressions are described textually,
+	their meaning is purely semantic, and any association with their 
+	textual realization must be learned.
 Furthermore, entities which are subject to interpretation -- for example
 	\te{Quarter} or \te{Season} -- are given a concrete interpretation.
 The \th{$n$} quarter is defined by evenly splitting a year into four;
@@ -424,22 +421,24 @@ The lexical entries for the \ty{Nil} and \ty{Number} types are straightforward,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % RULES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\Subsection{repr-rules}{Grammar}
+\Subsection{repr-rules}{Combination Rules}
 % -- Intro
 The synchronous PCFG grammar consists of a standard CFG rule over temporal
 	types (in $\sV$) paired with a deterministic procedure for combining instances
 	of those types (in $W_v \in \sW$).
-This deterministic procedure is in effect a function application,
-	though in particular it breaks down into four operations:
+This procedure can be summarized as function application: 
+applying (or partially applying) a function with one of its
+		arguments.
+A separate rule exists for applying on the left versus on the right --
+that is, for composing $f(x,y) \odot x$ versus $x \odot f(x,y)$.
+
+% -- Special Cases
+Three functions are defined in addition to those in \reftab{function};
+	these are unique in that they can be applied without needing explicit 
+	support from the text:
 
 % -- Operators
 \begin{itemize}
-	\setlength{\itemsep}{-5pt} 
-	%(function application)
-	\item Applying (or partially applying) a function with one of its
-			arguments.
-		A separate rule exists for applying on the left versus on the right --
-		that is, for composing $f(x,y) \odot x$ versus $x \odot f(x,y)$.
 	%(intersection)
 	\item Intersecting two ranges or sequences.
 		This roughly equates to applying a special \textit{intersect} function

@@ -236,8 +236,8 @@ object Temporal {
 	def interactive = {
 		import scala.tools.nsc.interpreter.{IMain,JLineReader,JLineCompletion}
 		import scala.tools.nsc.Settings
-//		O.timeDistribution = O.Distribution.Multinomial
-//		O.timeDistributionParams = Array[Double](1.0,1.0).map{ x => x.asInstanceOf[java.lang.Double] }
+		O.timeDistribution = O.Distribution.Gaussian
+		O.timeDistributionParams = Array[Double](0.0,1.0).map{ x => x.asInstanceOf[java.lang.Double] }
 		//--Create Interpreter
 		println("Loading interpreter...")
 		if(reader == null){

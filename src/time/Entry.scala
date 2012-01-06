@@ -697,10 +697,10 @@ object ToyData {
 	private val quarter = ("quarter",Parse(QUARTER))
 	private val aQuarter = ("a quarter",Parse(AQUARTER))
 	private val lastQuarter = ("last quarter",Parse(QUARTER move -1))
-	private val firstQuarter = ("1 stquarter",Parse(QOY(1))) //really, should be ordinal
-	private val secondQuarter = ("2 stquarter",Parse(QOY(2)))
-	private val thirdQuarter = ("3 stquarter",Parse(QOY(3)))
-	private val fourthQuarter = ("4 stquarter",Parse(QOY(4)))
+	private val firstQuarter = ("1 - quarter",Parse(QOY(1))) //really, should be ordinal
+	private val secondQuarter = ("2 - quarter",Parse(QOY(2)))
+	private val thirdQuarter = ("3 - quarter",Parse(QOY(3)))
+	private val fourthQuarter = ("4 - quarter",Parse(QOY(4)))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(AMONTH*2))
@@ -789,36 +789,36 @@ object ToyData {
 		Data(
 			store(false,
 			//--Train
-				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,
-				//(sequences)
-				week,month,quarter,year,day,theWeek,
-				//(cannonicals -> sequences)
-				thisWeek,thisYear,thisMonth,
-				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
-				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastYear,pastMonths2,
-				//(numbers -- basic)
-				y1776,
-				//(sequences)
-				april,
-				//(intersects)
-				april1776,april2,
-				//(days of the week)
-				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-				//(numbers -- complex)
-				y17sp76,
-				//(seasons)
-				spring,summer,fall,winter,
-				//(floor/ceil)
+//				//(durations)
+//				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,
+//				//(sequences)
+//				week,month,quarter,year,day,theWeek,
+//				//(cannonicals -> sequences)
+//				thisWeek,thisYear,thisMonth,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastYear,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
+//				//(days of the week)
+//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+//				//(numbers -- complex)
+//				y17sp76,
+//				//(seasons)
+//				spring,summer,fall,winter,
+//				//(floor/ceil)
 				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
-				//(offset -1)
-//				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
-				//(hard)
-				lasthalf1989, lastquarter1989,recentMonths,
-//				may22sp1995,special_chars,
-				//(ref)
+//				//(offset -1)
+////				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
+//				//(hard)
+//				lasthalf1989, lastquarter1989,recentMonths,
+////				may22sp1995,special_chars,
+//				//(ref)
 				today
 			).internWords,
 			//--Test
