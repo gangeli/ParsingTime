@@ -2,16 +2,19 @@
 % -- IMPORTS --
 % (lib)
 \usepackage{naaclhlt2012}
-\usepackage{times,latexsym,amsfonts,amssymb,amsmath,graphicx,url}
+\usepackage{times,latexsym,amsfonts,amssymb,amsmath,graphicx,url,bbm}
+\usepackage[usenames,dvipsnames]{xcolor}
 \usepackage[ruled,lined,linesnumbered]{algorithm2e}
 % (custom)
 \input std-macros.tex
-\input macros.tex
+\input macros.tex	
+% (tweaks)
+\definecolor{darkred}{rgb}{0.5451, 0.0, 0.0}
+\definecolor{darkgreen}{rgb}{0.0, 0.3922, 0.0}
 
 % -- PAPER --
 % (metadata)
-\title{Parsing Time: A Probabilistic Loosely
-	Supervised Approach To Interpreting Time Expressions}
+\title{Parsing Time: Learning to Interpret Time Expressions}
 \author{ 
 %	Author1 \\
 %	\texttt{email@domain.com}

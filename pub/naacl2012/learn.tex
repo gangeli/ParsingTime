@@ -38,8 +38,9 @@ The CKY k-best beam and the temporal distribution
 	-- capturing syntactic and pragmatic ambiguity --
 	can be combined to provide a \textit{Viterbi} decoding, as well as
 	its associated probability.
-We define the probability of a syntactic parse $y$ making use of rules $R \in \sR$ 
-	as $P(y) = P(w_1,\dots w_n; R) = \prod_{i \rightarrow j,k \in R}P(j,k \mid i)$.
+We define the probability of a syntactic parse $y$ making use of rules 
+	$R \in \sR$ as
+	$P(y) = P(w_1,\dots w_n; R) = \prod_{i \rightarrow j,k \in R}P(j,k \mid i)$.
 	As described in \refsec{repr-types}, we define the probability of a 
 	grounding relative to reference time $t$ and a particular
 	syntactic interpretation as $P_t(i | y)$.
@@ -55,7 +56,7 @@ The product of these two terms provides the probability of a grounded temporal
 % -- Viterbi
 The Viterbi decoding is found by maximizing these two terms sequentially:
 	the optimal grounding is found within the optimal syntactic parse.
-This is in contrast to maximizing $P_t(i,R)$ directly, however, it avoids
+This is in contrast to maximizing $P_t(i,y)$ directly, however, it avoids
 	assigning a penalty to proposing ambiguous expressions (e.g., \te{Friday})
 	versus unambiguous expressions (e.g., \te{today}).
 %Furthermore, it is reasonable to assume that cognitively we perform a
@@ -74,7 +75,7 @@ This provides us with a framework for obtaining grounded times from a
 \Subsection{learn-train}{Training}
 % -- Intro
 %(catch phrase)
-We present an EM-\textit{esque} bootstrapping approach to training the 
+We present an EM-style bootstrapping approach to training the 
 	parameters of our grammar jointly with the parameters of our 
 	Gaussian temporal distribution.
 %(table of contents)
@@ -94,8 +95,7 @@ For instance, the phrase \tp{three-day} would be preprocessed to create the
 		$\left.\right>$.
 
 Beyond this preprocessing, no language-specific information about the meanings
-	of the words are introduced, including syntactic parses, POS tags,
-	\textit{et cetera}.
+	of the words are introduced, including syntactic parses, POS tags, etc.
 
 
 % -- Algorithm Figure
@@ -126,7 +126,7 @@ Beyond this preprocessing, no language-specific information about the meanings
 			\For{$y \in$ k-bestCKY$(w,\theta)$}{ \label{line:parsebeam}
 				\For{$\tau_i \in$ groundings$(y,\mu,\sigma)$}{ \label{line:timebeam}
 					\If{$\tau_i = \tau^*$ \texttt{and} ok(y,i)}{ \label{line:validity}
-						$\bar m_{\theta}$ += count($y$,$P_t(i,y)$) \\
+						$\bar m_{\theta}$ += $\left(y,P_t(i,y)\right)$ \\
 						$\bar m_{\mu,\sigma}$ += $\left(i,P_t(i,y)\right)$ \\
 						$Z$ += $P_t(i,y)$ \\
 					}
@@ -204,11 +204,11 @@ Each training instance is a tuple consisting of the words in the temporal
 The algorithm outputs the final parameters $\theta^*$, $\mu^*$ and $\sigma^*$.
 
 %(EM comparison)
-The algorithm operates in an EM-\textit{esque} fashion, similar in style
-	to algorithms used in the grammar induction
-	literature \cite{key:2004klein-induction,key:1992carroll-induction}.
-However, unlike grammar induction, we are given loose supervision giving a 
-	necessary but not sufficient condition for a parse being a valid completion.
+The algorithm operates similar to the EM algorithms used for grammar induction
+	\cite{key:2004klein-induction,key:1992carroll-induction}.
+However, unlike grammar induction, we are allowed a certain amount of
+	supervision by requiring that the predicted temporal expression
+	matches the annotation.
 Line \ref{line:validity} in \refalg{pseudocode} accounts for this filtering.
 Our \textit{expected counts} are therefore more accurately our normalized
 	expected counts of \textit{valid} parses.
@@ -225,9 +225,9 @@ Given this artificially completed data, the EM updates are the standard
 In the multinomial case, our parameter updates are:
 \begin{equation}
 	\theta_{mn \mid l}' =
-		\sum\limits_{(R,\tau,i,p) \in \sH} \sum\limits_{v_{jk \mid i} \in R}
+		\sum\limits_{(y,p) \in \bar M} \sum\limits_{v_{jk \mid i} \in y}
 		\frac{
-			\1(v_{jk \mid i} = v_{mn \mid l}) \times p
+			\mathbbm{1}\left(v_{jk \mid i} = v_{mn \mid l}\right) \cdot p
 		}{
 			\bZ
 		}
@@ -237,13 +237,13 @@ In the multinomial case, our parameter updates are:
 In the Gaussian case, the parameter updates are:
 \begin{align}
 	\mu' =&
-		\frac{ 1 } { \sum\limits_{(R,\tau,i,p) \in \sH}  p }
-		\sum\limits_{(R,\tau,i,p) \in \sH} i \times p \\
+		\frac{ 1 } { \sum\limits_{(i,p) \in \bar M}  p }
+		\sum\limits_{(i,p) \in \sH} i \cdot p \\
 	\sigma' =& \sqrt{
-		\frac{ 1 } { \sum\limits_{(R,\tau,i,p) \in \sH}  p }
-		\sum\limits_{(R,\tau,i,p) \in \sH} (i-\mu')^2 \times p
+		\frac{ 1 } { \sum\limits_{(i,p) \in \bar M}  p }
+		\sum\limits_{(i,p) \in \bar M} (i-\mu')^2 \cdot p
 	}
-\label{eqn:multinomialEM}
+\label{eqn:gaussianEM}
 \end{align}
 
 %(big picture)

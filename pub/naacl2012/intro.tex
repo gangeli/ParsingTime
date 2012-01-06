@@ -2,24 +2,33 @@
 \Section{intro}{Introduction}
 % -- Intro
 Temporal resolution is the task of mapping from a textual phrase describing
-	a potentially complex time, date or duration expression, to a normalized 
-	temporal representation.
+	a potentially complex time, date or duration expression, to a normalized
+	(\textit{grounded}) temporal representation:
+
+% -- Table
+\begin{center}
+\begin{tabular}{ccccc}
+\textit{(Reference Time)} & \textbf{Phrase} & & \textbf{Grounding} \\
+{\color{blue}11/24/2011} 
+	& \tp{\color{darkgreen}Sunday} 
+		& $\rightarrow$ 
+	& \color{darkred}11/27/2011 \\
+\end{tabular}
+\end{center}
 
 % -- Temporal Comparison
 %(intro to systems)
 The dominant approach to this problem in previous work has been to use
 	rule-based methods, generally a combination of regular-expression matching
 	followed by hand-written interpretation functions
-	% Edinburgh, TRIPS/TRIOS, TERSEO, KUL, Marta's Friend, random,
+	% Edinburgh, TRIPS/TRIOS, TERSEO, KUL, Marta's Friend, random, Heideltime
 	\cite{key:2000mani-temporal,key:2003saquete-temporal,key:2004puscasu-temporal,key:2010grover-temporal,key:2010uzzaman-temporal,key:2010kolomiyets-temporal,key:2010strotgen-temporal}.
-%We in particular compare against \sys{HeidelTime} 
-%	\cite{key:2010strotgen-temporal}, which won the \tempeval\ 
-%	task at SemEval 2010.
 
 % -- Motivation
 %(motivation)
 In general, it is appealing to learn the interpretation of temporal expressions,
-	rather than hand-building systems, but beyond this general motivation,
+	rather than hand-building systems.
+Beyond this general motivation, however,
 	we note that complex temporal expressions such as \tp{the Tuesday before last}
 	or \tp{the third Wednesday of each month} are poorly handled by current
 	systems and suggest the need for recursive phrase structure representations.

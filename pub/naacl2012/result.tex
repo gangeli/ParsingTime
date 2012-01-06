@@ -21,15 +21,14 @@ Final reported results make use of the full 162 documents in the training
 	set.
 
 
-
-
 \Subsection{result-scores}{Results}
 % -- Result Table
 \begin{table}
+	\begin{center}
 	\begin{tabular}{|l|c|c|c|c|}
 		\hline
 		       & \multicolumn{2}{c|}{Train} & \multicolumn{2}{c|}{Test} \\
-		System & Type & Attribute  & Type & Attribute\\
+		System & Type & Value  & Type & Value \\
 		\hline
 		\hline
 		\sys{GUTime}     & 0.72          & 0.45          & 0.79           & 0.41 \\
@@ -44,10 +43,11 @@ Final reported results make use of the full 162 documents in the training
 		\tempeval\ Attribute scores for our system and three previous systems.
 		The scores are calculated using gold extents, forcing a guessed
 		interpretation for each parse.
-		The results of \sys{GUTime} have been reformatted to conform to the
-			\tempeval\ output format.
+%		The results of \sys{GUTime} have been reformatted to conform to the
+%			\tempeval\ output format.
 		\label{tab:results}
 	}
+	\end{center}
 \end{table}
 
 % -- Evaluation task
@@ -104,9 +104,10 @@ Our system performs well above the \sys{GUTime} baseline and is competitive
 	with both of the more recent systems.
 % -- Improvements
 In part, this is from a more sophisticated modeling of syntactic ambiguity:
-	e.g., \tp{the past few weeks} has a clause \tp{the past} -- which
-	should be parsed as \te{PAST} -- yet the system correctly tags both
-	elements as \ty{Nil} and returns an approximate duration \te{~2 weeks}.
+	e.g., \tp{the past few weeks} has a clause \tp{the past} -- which, alone,
+	should be parsed as \te{PAST} -- yet the system correctly disprefers
+	incorporating this interpretation and 
+	returns the approximate duration \te{~2 weeks}.
 Furthermore, we often capture cases of pragmatic ambiguity -- for example,
 	empirically, \tp{August} refers to the previous August when mentioned in
 	February.
