@@ -32,10 +32,10 @@ Final reported results make use of the full 162 documents in the training
 		\hline
 		\hline
 		\sys{GUTime}     & 0.72          & 0.45          & 0.79           & 0.41 \\
-		\sys{SUTime}     & 0.85          & 0.69          & 0.90           & 0.67 \\
+		\sys{SUTime}     & 0.85          & \textbf{0.69} & 0.90           & 0.67 \\
 		\sys{HeidelTime} & 0.80          & 0.67          & 0.85           & \textbf{0.71} \\
 		\hline                                           
-		\sys{OurSystem}  & \textbf{0.89} & \textbf{0.71} & \textbf{0.93+} & \textbf{0.71+} \\
+		\sys{OurSystem}  & \textbf{0.90} & \textbf{0.69} & \textbf{0.93} & \textbf{0.71} \\
 		\hline
 	\end{tabular}
 	%(caption)
@@ -61,7 +61,6 @@ Since we perform only the second of these, we evaluate our system
 	A precision-recall curve for our system, compared to prior work.
 	The data points are obtained by setting a threshold minimum probability,
 	creating different recall values.
-	\todo{make prettier / use test data}
 }
 
 % -- Scoring Tweak
