@@ -18,7 +18,7 @@ env!(
 	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx3500M'),
+	o('Xmx800M'),
 	o('ea'),
 	'time.Entry',
 
@@ -35,10 +35,10 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		o('rulePrior', 0.35),
-		o('lexPrior', 0.005),
+		o('rulePrior', 0.325),
+		o('lexPrior', 0.0025),
 		o('uniformRoot'),
-		selo(4,'ckyCountType',
+		selo(5,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
@@ -66,10 +66,10 @@ env!(
 		o('lexNils'),
 		# <training>
 		o('beam', 2000), #1500 works well
-		o('iters', 13),
+		o('iters', 20),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
-#		o('babySteps'),
+		o('babySteps'),
 		#<params>
 		o('useTime'),
 		o('pruneTime', 100),
@@ -81,7 +81,7 @@ env!(
 		selo(0,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
-		o('exactMatchThreshold', 1),        # a second
+		o('exactMatchThreshold', 61),        # a second
 		o('scoreGranularity', 60*60*24),    # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
