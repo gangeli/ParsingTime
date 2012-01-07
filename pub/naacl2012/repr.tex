@@ -70,7 +70,7 @@ We represent this ambiguity by defining a distribution over the elements
 	of the \ty{Sequence}.
 Particularly, we define a Gaussian -- conditioned on $t$ -- with mean and
 	variance defined according to the distance \seqjump.
-The input to the Gaussian is a function $\delta_{s,t}$:
+The input to the Gaussian uses a function $\delta_{s,t}$:
 	the distance between the reference time and the element in question.
 % -- Gaussian Plot
 \begin{figure}[t]
@@ -130,7 +130,7 @@ A function of arity less than or equal to two representing some
 	general modification to one of the above types.
 %(examples)
 This captures semantic entities such as those implied in
-	\tp{last $x$} (\texttt{moveLeft1}), 
+	\tp{last $x$}, 
 	\tp{the third $x$ [of $y$]}, or \tp{$x$ days ago}.
 %(etc.)
 The particular functions and their application are enumerated in 
@@ -157,12 +157,12 @@ The \ty{Nil} type is lexicalized with the word it generates.
 The representation described is a simplification of the complexities of
 	time.
 Notably, a body of work has focused on reasoning about events or states
-	relative to temporal expressions -- 
-	\newcite{key:1988moens-temporal} describes temporal expressions relating to
+	relative to temporal expressions.
+\newcite{key:1988moens-temporal} describes temporal expressions relating to
 	changes of state; 
 	\newcite{key:2010condoravdi-temporal} explores NPI licensing in temporal
 	expressions.
-Furthermore, vague times (e.g. \tp{in the 90's}) represent a notable chunk of 
+Furthermore, vague times (e.g., \tp{in the 90's}) represent a notable chunk of 
 	temporal expressions uttered.
 In contrast, NLP evaluations have generally not included such vague 
 	time expressions.
@@ -180,7 +180,7 @@ Unlike many aspects of language  -- which are often idiomatic or not composition
 To demonstrate, we consider the expression \tp{the week before last week}.
 Decomposing the example, we can construct a meaning by 
 	applying the modifier \tp{last} to \tp{week} -- 
-	creating the previous \te{week};
+	creating the previous week;
 	and then applying \tp{before} to \tp{week} and \tp{last week} 
 	to create our intended expression.
 
@@ -211,7 +211,7 @@ The alphabet $\Sigma$ and start symbol $S$ retain their usual interpretations.
 %(nonterminals)
 We define a set $\sV$ to be the set of types as described in
 	\refsec{repr-types} -- these act as our nonterminals.
-For each $v \in \sV$ we define an (unbounded) set $W_v$ corresponding to the 
+For each $v \in \sV$ we define an (infinite) set $W_v$ corresponding to the 
 	possible instances of type $v$.
 Concretely, if $v=\ty{Sequence}$, our set $W_v \in \sW$ could contain elements
 	corresponding to \tp{Friday}, \tp{last Friday}, \tp{Nov. \th{27}}, etc.
@@ -220,14 +220,14 @@ The synchronous grammar is constructed over pairs $(v,w \in W_v)$.
 %(rules)
 A rule $R \in \sR$ is defined as a pair 
 	$R = \left(v_i \rightarrow v_jv_k, 
-		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$
+		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$.
 The first term is a conventional PCFG rule over the types
 	$\sV$.
 In a conventional synchronous PCFG, the second term would be the corresponding
 	combination rule over our nonterminals $\sW$.
 In our case, this term is a deterministic function mapping the
 	constituent expressions to the parent expression.
-That is, we are learning a rule-to-rule translation 
+That is, we are applying a rule-to-rule translation 
 	\cite{key:1976bach-semantics}.
 %This both handles the unbounded domain of temporal expressions,
 %	as well as constrains the formalism.

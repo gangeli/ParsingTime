@@ -2,8 +2,8 @@
 % -- Semantic Parsing Comparison
 Our approach draws inspiration from a large body of work
 	on parsing expressions into a logical form.
-The latent parse parallels the formal semantics of previous work,
-	e.g., Montague Semantics.
+The latent parse parallels the formal semantics in previous work,
+	e.g., Montague semantics.
 Like these representations, a parse -- in conjunction with
 	the reference time -- completely defines a set of
 	matching entities, in this case the single grounded time.
@@ -18,7 +18,7 @@ Supervised approaches to the task prominently include
 For example, \newcite{key:2007zettlemoyer-semantics} learn a mapping from
 	textual queries to a logical form.
 This logical form importantly contains all the predicates and entities
-	used in parsing.
+	used in their parse.
 We loosen the supervision required in these systems by allowing the parse to
 	be entirely latent;
 	the annotation of the grounded time neither defines, nor gives any
@@ -36,7 +36,7 @@ Recent work by \newcite{key:2010clarke-semantics} and
 For example, \newcite{key:2011liang-semantics} constructs a latent parse
 	similar in structure to a dependency grammar, but representing a logical
 	form.
-Our proposed lexical entries and combination rules can be thought of as
+Our proposed lexical entries and grammar combination rules can be thought of as
 	paralleling the lexical entries and predicates, and the implicit combination 
 	rules respectively in this framework.
 Rather than querying from a finite database, however, our system must compare

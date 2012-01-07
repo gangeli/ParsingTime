@@ -6,8 +6,8 @@ We describe the dataset in \refsec{result-dataset}, and detail the previous
 	work and our results in \refsec{result-scores}.
 
 \Subsection{result-dataset}{Dataset}
-The \tempeval\ dataset contains 162 documents and 1052 temporal 
-	phrases in the training set,
+The \tempeval\ dataset is relatively small,
+	containing 162 documents and 1052 temporal phrases in the training set
 	and an additional 20 documents and 156 phrases in the evaluation set.
 Each temporal phrase was annotated as a \timex\footnote{
 		See \url{http://www.timeml.org} for details on the TimeML format and
@@ -32,10 +32,11 @@ Final reported results make use of the full 162 documents in the training
 		\hline
 		\hline
 		\sys{GUTime}     & 0.72          & 0.45          & 0.79           & 0.41 \\
-		\sys{SUTime}     & 0.85          & 0.69          & 0.90           & 0.67 \\
+		\sys{SUTime}     & 0.85          & 0.69          & \textbf{0.90}  & 0.67 \\
 		\sys{HeidelTime} & 0.80          & 0.67          & 0.85           & \textbf{0.71} \\
 		\hline                                           
-		\sys{OurSystem}  & \textbf{0.90} & \textbf{0.71} & \textbf{0.93} & 0.70 \\
+		% -- RUN 649; on Cluster --
+		\sys{OurSystem}  & \textbf{0.89} & \textbf{0.71} & \textbf{0.90} & \textbf{0.71} \\
 		\hline
 	\end{tabular}
 	%(caption)
