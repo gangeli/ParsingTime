@@ -59,7 +59,7 @@ trait OtherSystem {
 		var b = new StringBuilder
 		b.append("# MinProb\tPercentAttempted\tTypeAccuracy\tValueAccuracy\tValueExactMatch\n")
 		//--Get Scores
-		for( prob <- 1.0 to 0.0 by -0.01 ){
+		for( prob <- 1.0 to 0.0 by -0.001 ){
 			startTrack("Prob Bound " + prob)
 			val score:AttributeScore = evaluateAttributes(data,isTest,true,prob,false,
 				File.createTempFile("attr", ".tab"))

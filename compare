@@ -11,27 +11,42 @@ if [ "$1" == "" ]; then
 fi
 
 echo "
+set terminal pdf
+set output 'out/$1.exec/pr.pdf'
+set xtics nomirror
+set ytics nomirror
+set border 3
 set xr[0.0:1.0]
 set yr[0.0:1.0]
-plot \"out/$1.exec/pr-train.dat\" using 2:4
-pause -1
-" > "/tmp/$1.dat"
+set xlabel 'Recall'
+set ylabel 'Precision'
+#(HEIDEL1)
+set arrow from 0.80,0.70 to 0.82,0.85
+set label 'HeidelTime1' at 0.63,0.70
+#(HEIDEL2)
+set arrow from 0.80,0.60 to 0.91,0.77
+set label 'HeidelTime2' at 0.63,0.60
+#(SUTIME)
+set arrow from 0.80,0.50 to 0.95,0.77
+set label 'SUTime' at 0.69,0.50
+plot \"out/$1.exec/pr-train.dat\" using 2:4 with lines title 'OurSystem'
+" > "/tmp/$1.plot"
 
 if [ -e "out/$1.exec" ]; then
 	# -- PR Curve (likely)
 	if [ -e "out/$1.exec/pr-train.dat" ]; then
 		#(plot)
-		gnuplot "/tmp/$1.dat"
+		gnuplot "/tmp/$1.plot"
 	else
 		#(run program)
-		java -Xrunhprof:cpu=samples -cp $CP -server -Xmx2000M -ea time.Comparisons\
+		java -Xrunhprof:cpu=samples -cp $CP -server -Xmx1000M -ea time.Comparisons\
 			"$HOME/workspace/time/res"\
 			"$HOME/workspace/time/aux/tempeval2"\
 			english\
 			$1
 		#(maybe plot)
-		if [ -e "out/$1.exec/pr-train.dat" ]; then
-			gnuplot "/tmp/$1.dat"
+		if [ -e "out/$1.exec/pr-test.dat" ]; then
+			gnuplot "/tmp/$1.plot"
 		fi
 	fi
 else
