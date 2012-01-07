@@ -14,7 +14,7 @@ We represent temporal expressions as either a \ty{Range}, \ty{Sequence},
 We describe these, the \ty{Function} type, and the miscellaneous
 	\ty{Number} and \ty{Nil} types below:
 % -- Range
-\paragraph{Range}
+\paragraph{Range [and Instant]}
 %(definition)
 A period between two dates (or times).
 %(examples)
@@ -22,7 +22,7 @@ This includes entities such as \te{Today}, \te{1987}, or
 	\te{Now}.
 We denote a range by the variable \range.
 We maintain a consistent interval-based theory of time
-	\cite{key:1981allen-temporal} and represent instances as intervals with
+	\cite{key:1981allen-temporal} and represent instants as intervals with
 	zero span.
 
 % -- Sequence 
@@ -38,7 +38,7 @@ A \ty{Sequence} is a tuple of three elements
 \begin{enumerate}
 	\setlength{\itemsep}{-5pt} 
 	\item $\seqelem(i)$: 
-		The \th{i} interval of a sequence.
+		The \th{i} element of a sequence, of type \ty{Range}.
 		In the case of the sequence \te{Friday}, $\seqelem(0)$ corresponds to
 			\tp{the Friday in the current week}; 
 			$\seqelem(1)$ is the Friday in the following week, etc.
@@ -71,8 +71,7 @@ We represent this ambiguity by defining a distribution over the elements
 Particularly, we define a Gaussian -- conditioned on $t$ -- with mean and
 	variance defined according to the distance \seqjump.
 The input to the Gaussian is a function $\delta_{s,t}$:
-	the distance between the reference time and the element in question:
-\reffig{distribution} shows an example of such a distribution:
+	the distance between the reference time and the element in question.
 % -- Gaussian Plot
 \begin{figure}[t]
 \begin{center}
@@ -95,10 +94,13 @@ The input to the Gaussian is a function $\delta_{s,t}$:
 \label{eqn:gaussian}
 	P_t(i) = 
 	\int_{i-0.5}^{i+0.5}
-		\textrm{Norm}\left(\frac{\delta_{s,t}(i)-\delta_{s,t}(0)}{\seqjump}\right)
+		\sN_{\mu,\sigma}\left(\frac{\delta_{s,t}(i)-\delta_{s,t}(0)}{\seqjump}\right)
 \end{equation}
 
 %(global scope)
+\reffig{distribution} shows an example of such a distribution;
+	importantly, note that moving the reference time between two elements
+	dynamically changes the probability assigned to each.
 The parameters $\mu$ and $\sigma$ in Equation \refeqn{gaussian} are shared
 	among all sequence instances; the normalization
 	with respect to \seqjump\ ensures that the distribution is applicable
@@ -128,9 +130,10 @@ A function of arity less than or equal to two representing some
 	general modification to one of the above types.
 %(examples)
 This captures semantic entities such as those implied in
-	\tp{last $x$}, \tp{the third $x$ [of $y$]}, or \tp{$x$ days ago}.
+	\tp{last $x$} (\texttt{moveLeft1}), 
+	\tp{the third $x$ [of $y$]}, or \tp{$x$ days ago}.
 %(etc.)
-The particular functions and their application are discussed in 
+The particular functions and their application are enumerated in 
 	\reftab{function}.
 
 
@@ -171,15 +174,15 @@ In contrast, NLP evaluations have generally not included such vague
 % -- Time is compositional
 Our approach builds on the assumption that the natural language description
 	of time is compositional in nature.
-Unlike many aspects of language  -- which are often not compositional or
-	idiomatic -- each word attached to a temporal phrase is 
+Unlike many aspects of language  -- which are often idiomatic or not compositional
+	-- each word attached to a temporal phrase is 
 	usually compositionally modifying the meaning of the phrase.
-To demonstrate, we consider the expression \tp{last Friday the \th{13}}.
+To demonstrate, we consider the expression \tp{the week before last week}.
 Decomposing the example, we can construct a meaning by 
-	applying the modifiers \tp{last} to \tp{Friday} -- 
-	creating the previous \te{Friday};
-	and \tp{the \th{13}} -- creating the previous \te{Friday} that is
-	also the \th{13} of the month.
+	applying the modifier \tp{last} to \tp{week} -- 
+	creating the previous \te{week};
+	and then applying \tp{before} to \tp{week} and \tp{last week} 
+	to create our intended expression.
 
 % -- Synchronous Grammar
 \Fig{fig/grammar}{0.45}{grammar}{
@@ -456,7 +459,7 @@ Three functions are defined in addition to those in \reftab{function};
 	%(mult)
 	\item Multiplying a \ty{Number} with a \ty{Duration}.
 	%(nil)
-	\item Combining a non-\ty{Nil} and \ty{Nil} elements with no change to the
+	\item Combining a non-\ty{Nil} and \ty{Nil} element with no change to the
 			temporal expression.
 		The lexicalization of the \ty{Nil} type allows the algorithm
 			to take hints from these supporting words.
