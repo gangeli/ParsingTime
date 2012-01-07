@@ -29,7 +29,10 @@ set label 'HeidelTime2' at 0.63,0.60
 #(SUTIME)
 set arrow from 0.80,0.50 to 0.95,0.77
 set label 'SUTime' at 0.69,0.50
-plot \"out/$1.exec/pr-train.dat\" using 2:4 with lines title 'OurSystem'
+plot \"out/$1.exec/pr-train.dat\" using 2:4 with lines title 'OurSystem',\
+		\"<echo '0.95 0.77'\" with points ls 3 title '',\
+		\"<echo '0.82 0.85'\" with points ls 3 title '',\
+		\"<echo '0.91 0.77'\" with points ls 3 title ''
 " > "/tmp/$1.plot"
 
 if [ -e "out/$1.exec" ]; then
