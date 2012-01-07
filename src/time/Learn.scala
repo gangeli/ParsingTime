@@ -96,7 +96,7 @@ object Nonterminal {
 			case 'R => Nonterminal('Range)
 			case 'S => Nonterminal('Sequence)
 			case 'D => Nonterminal('Duration)
-			case 'N => Nonterminal('NUM)
+			case 'N => Nonterminal('Number)
 			case _ => throw fail("No such short form: " + short)
 		}
 	}
@@ -133,6 +133,7 @@ object Nonterminal {
 	Nonterminal('Duration, 'none)
 	Nonterminal('Sequence, 'none)
 	Nonterminal('NUM, 'none)
+	Nonterminal('NUMth, 'none)
 	//(arity-2 functions)
 	//((like rd2r))
 	val fn2 = {ranges.foldLeft(List[(Nonterminal,Symbol,Symbol)]()){
@@ -388,6 +389,9 @@ object Grammar {
 			(UnaryRule(Nonterminal('NUM), Nonterminal('Number), 
 				hack((num:Int) =>  num )),
 				"NUM"),
+			(UnaryRule(Nonterminal('NUMth), Nonterminal('Number), 
+				hack((num:Int) =>  num )),
+				"NUMth"),
 			(UnaryRule(Nonterminal('Sequence), Nonterminal('Number), 
 				hack((num:Int) =>  MOH(num) ))
 				.ensureValidity( (w:Int) => w >= 0 && w < 60 ),
@@ -426,7 +430,7 @@ object Grammar {
 			)
 		//(indices)
 		rtn = rtn ::: indexedSequences.map{ case (fn:Array[Sequence],name:String) =>
-			(UnaryRule(Nonterminal("F_{N}2S"), Nonterminal('Word), 
+			(UnaryRule(Nonterminal("F_{Nth}2S"), Nonterminal('Word), 
 				hack((w:Int) =>  
 					(n:Int) => {
 						if(n < 0 || n >= fn.length){

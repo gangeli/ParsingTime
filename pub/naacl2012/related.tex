@@ -15,7 +15,7 @@ Supervised approaches to the task prominently include
 	\newcite{key:2005kate-semantics}, 
 	\newcite{key:2007zettlemoyer-semantics}, 
 	\textit{inter alia}.
-For example, \newcite{key:2007zettlemoyer-semantics} learns a mapping from
+For example, \newcite{key:2007zettlemoyer-semantics} learn a mapping from
 	textual queries to a logical form.
 This logical form importantly contains all the predicates and entities
 	used in parsing.
@@ -24,8 +24,8 @@ We loosen the supervision required in these systems by allowing the parse to
 	the annotation of the grounded time neither defines, nor gives any
 	direct cues about the elements of the parse, since many parses evaluate
 	to the same grounding.
-To demonstrate, the date corresponding to \te{a week ago today} could be
-	specified as a month and day, or as a \tp{week ago}, or as \tp{last
+To demonstrate, the grounding for \tp{a week ago} could be
+	described by specifying a month and day, or as a \tp{week ago}, or as \tp{last
 	Friday} -- substituting today's day of the week for \tp{Friday}.
 Each of these correspond to a completely different parse.
 
@@ -36,7 +36,7 @@ Recent work by \newcite{key:2010clarke-semantics} and
 For example, \newcite{key:2011liang-semantics} constructs a latent parse
 	similar in structure to a dependency grammar, but representing a logical
 	form.
-Our proposed lexical entries and combination rules can be though of as
+Our proposed lexical entries and combination rules can be thought of as
 	paralleling the lexical entries and predicates, and the implicit combination 
 	rules respectively in this framework.
 Rather than querying from a finite database, however, our system must compare

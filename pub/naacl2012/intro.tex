@@ -3,18 +3,20 @@
 % -- Intro
 Temporal resolution is the task of mapping from a textual phrase describing
 	a potentially complex time, date or duration expression, to a normalized
-	(\textit{grounded}) temporal representation:
+	(\textit{grounded}) temporal representation.
+For example, possibly complex pharses such as \tp{the week before last} are
+	often more useful in their grounded form -- e.g., \te{January 1 - January 7}.
 
-% -- Table
-\begin{center}
-\begin{tabular}{ccccc}
-\textit{(Reference Time)} & \textbf{Phrase} & & \textbf{Grounding} \\
-{\color{blue}11/24/2011} 
-	& \tp{\color{darkgreen}Sunday} 
-		& $\rightarrow$ 
-	& \color{darkred}11/27/2011 \\
-\end{tabular}
-\end{center}
+%% -- Table
+%\begin{center}
+%\begin{tabular}{ccccc}
+%\textit{(Reference Time)} & \textbf{Phrase} & & \textbf{Grounding} \\
+%{\color{blue}11/24/2011} 
+%	& \tp{\color{darkgreen}Sunday} 
+%		& $\rightarrow$ 
+%	& \color{darkred}11/27/2011 \\
+%\end{tabular}
+%\end{center}
 
 % -- Temporal Comparison
 %(intro to systems)
@@ -28,7 +30,7 @@ The dominant approach to this problem in previous work has been to use
 %(motivation)
 In general, it is appealing to learn the interpretation of temporal expressions,
 	rather than hand-building systems.
-Beyond this general motivation, however,
+Moreover,
 	we note that complex temporal expressions such as \tp{the Tuesday before last}
 	or \tp{the third Wednesday of each month} are poorly handled by current
 	systems and suggest the need for recursive phrase structure representations.
@@ -44,21 +46,22 @@ Therefore, in contrast to previous rule-based approaches, we attempt to learn
 Employing probabilistic techniques allows us to capture ambiguity in temporal 
 	phrases in two important respects.
 In part, it captures syntactic ambiguity -- as in \tp{last Friday
-	the \th{13}} referring may bracket as \tp{[last Friday] [the \th{13}]}, or
+	the \th{13}} bracketing as either \tp{[last Friday] [the \th{13}]}, or
 	\tp{last [Friday the \th{13}]}.
+This also includes examples of lexical ambiguity -- e.g., two
+	meanings of \tp{last} in \tp{last week of November} verus \tp{last week}.
 In addition, temporal expressions often carry a pragmatic ambiguity.
 For instance, a speaker may refer to either the next or previous Friday
 	when he utters \tp{Friday} on a Sunday.
 Furthermore, probabilistic systems in general allow propagation of uncertainty
 	to higher-level components -- for example recognizing that \tp{May} could
-	hav a number of non-temporal meanings and allowing a system with a broader
+	have a number of non-temporal meanings and allowing a system with a broader
 	contextual scope to make the final judgment.
 
 %(table of contents)
-We describe our temporal representation
-	(\refsec{repr}), followed by the learning algorithm
-	(\refsec{learn}); we conclude with experimental results 
-	(\refsec{result}) showing our
+We describe our temporal representation,
+	followed by the learning algorithm; 
+	we conclude with experimental results showing our
 	approach to be competitive with state of the art systems.
 
 

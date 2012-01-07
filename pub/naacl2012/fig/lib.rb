@@ -163,10 +163,12 @@ def clock(txt,img)
 		time(txt),
 	nil)
 end
-def dom(n); calendar("$#{n}^{\\textrm{th}}$",'img/months.png'); end
+#def dom(n); calendar("$#{n}^{\\textrm{th}}$",'img/months.png'); end
+def dom(n); "\\darkred{$#{n}^{\\textrm{th}}$}"; end
 def domrd(n); calendar("$#{n}^{\\textrm{rd}}$",'img/months.png'); end
 def thursday; calendar('THU','img/months.png'); end
-def friday; calendar('FRI','img/months.png'); end
+#def friday; calendar('FRI','img/months.png'); end
+def friday; '\darkred{\texttt{FRI}}'; end
 def monday; calendar('MON','img/months.png'); end
 def tuesday; calendar('TUE','img/months.png'); end
 def jan; calendar('JAN','img/months.png'); end

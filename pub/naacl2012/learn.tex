@@ -21,17 +21,17 @@ Specifically, we implement Algorithm 3 described in
 We set the beam size to 2000.
 
 % -- Time Probabilities
-Here, we revisit the notion of a temporal expression having an uncertainty
-	over possible groundings, capturing a pragmatic ambiguity when
-	referring to \ty{Sequence}s.
-We represent this as a distribution with respect to the reference time.
-In a sense, the most semantically complete output of the system would be
-	such a distribution -- 
-	an utterance of \tp{Friday}, instead of grounding to a 
-	\textit{best guess} of what the time refers to, would rather give a 
-	distribution over possible groundings along with their probabilities.
-However, often it is advantageous to normalize to a concrete expression with a
-	certain probability.
+%Here, we revisit the notion of a temporal expression having an uncertainty
+%	over possible groundings, capturing a pragmatic ambiguity when
+%	referring to \ty{Sequence}s.
+%We represent this as a distribution with respect to the reference time.
+Revisiting the notion of pragmatic ambiguity,
+	in a sense the most semantically complete output of the system would be
+	a distribution -- 
+	an utterance of \tp{Friday}, would give a distribution over Fridays
+	rather than a best guess of its grounding.
+However, often it is advantageous to ground to a concrete expression with a
+	corresponding probability.
 
 % -- Combination Method
 The CKY k-best beam and the temporal distribution 
@@ -56,7 +56,7 @@ The product of these two terms provides the probability of a grounded temporal
 % -- Viterbi
 The Viterbi decoding is found by maximizing these two terms sequentially:
 	the optimal grounding is found within the optimal syntactic parse.
-This is in contrast to maximizing $P_t(i,y)$ directly, however, it avoids
+This is in contrast to maximizing $P_t(i,y)$ directly, but avoids
 	assigning a penalty to proposing ambiguous expressions (e.g., \te{Friday})
 	versus unambiguous expressions (e.g., \te{today}).
 %Furthermore, it is reasonable to assume that cognitively we perform a
@@ -87,7 +87,8 @@ The preprocessing steps are described below, followed by an overview
 The input phrase is tokenized according to Penn Treebank guidelines,
 	except we additionally split on the characters `-' and `/,' which
 	often delimit a boundary between temporal entities.
-Thereafter, numbers written in text are heuristically converted to their
+Thereafter, for the type grammar, 
+	numbers written in text are heuristically converted to their
 	numeric values, and featurized according to their order of magnitude
 	and ordinality.
 For instance, the phrase \tp{three-day} would be preprocessed to create the
@@ -208,9 +209,9 @@ The algorithm operates similar to the EM algorithms used for grammar induction
 	\cite{key:2004klein-induction,key:1992carroll-induction}.
 However, unlike grammar induction, we are allowed a certain amount of
 	supervision by requiring that the predicted temporal expression
-	matches the annotation.
+	match the annotation.
 Line \ref{line:validity} in \refalg{pseudocode} accounts for this filtering.
-Our \textit{expected counts} are therefore more accurately our normalized
+Our \textit{expected statistics} are therefore more accurately our normalized
 	expected counts of \textit{valid} parses.
 
 %(beams)
@@ -256,12 +257,13 @@ In this way, a progressively larger percentage of the data is available to be
 To assist in this process, and taking insight from the Gricean 
 	maxims of quantity and quality, we further restrict the set of valid 
 	parses to include only those which are as short as possible
-	(that is, maximally \ty{Nil}-padded) and which are pragmatically clear.
+	(that is, maximally \ty{Nil}-padded on both sides) 
+	and which are pragmatically clear.
 That is -- with notable but practically relatively rare exceptions --
 	more often than not we do not repeat ourselves when describing time.
-Apart from phrases such as \tp{last Friday the \th{13}} where \tp{last Friday}
+Apart from phrases such as \tp{last Friday the \th{13}}, where \tp{last Friday}
 	and \tp{the \th{13}} refer to the same time, we rarely describe a time as
-	\tp{today this week} or \tp{this month Friday}, \textit{et cetera}.
+	\tp{today this week} or \tp{this month Friday}, etc.
 It's important to note that the model still handles these cases, only it
 	disprefers them during training.
 

@@ -697,10 +697,10 @@ object ToyData {
 	private val quarter = ("quarter",Parse(QUARTER))
 	private val aQuarter = ("a quarter",Parse(AQUARTER))
 	private val lastQuarter = ("last quarter",Parse(QUARTER move -1))
-	private val firstQuarter = ("1 - quarter",Parse(QOY(1))) //really, should be ordinal
-	private val secondQuarter = ("2 - quarter",Parse(QOY(2)))
-	private val thirdQuarter = ("3 - quarter",Parse(QOY(3)))
-	private val fourthQuarter = ("4 - quarter",Parse(QOY(4)))
+	private val firstQuarter = ("1st - quarter",Parse(QOY(1))) //really, should be ordinal
+	private val secondQuarter = ("2st - quarter",Parse(QOY(2)))
+	private val thirdQuarter = ("3st - quarter",Parse(QOY(3)))
+	private val fourthQuarter = ("4st - quarter",Parse(QOY(4)))
 	private val y1776 = ("1776",Parse(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
 	private val months2 = ("2 months",Parse(AMONTH*2))
@@ -744,9 +744,17 @@ object ToyData {
 			val score:Score = new Score
 			gold.zipWithIndex.foreach{ case ((sent:String,gold:Parse),id:Int) =>
 				//(variables)
-				val words = sent.split(" ").map{ (str:String) => 
-					U.str2wTest(str,
-						if(str matches G.CanInt) NumberType.NUMBER else NumberType.NONE)
+				val words = sent.split(" ").map{ (raw:String) => 
+					val (str,typ) = 
+						if(raw.length > 2 || raw.endsWith("st") &&
+								(raw.substring(0,raw.length-2) matches G.CanInt)){
+							(raw.substring(0,raw.length-2),NumberType.ORDINAL)
+						} else if(raw matches G.CanInt){
+							(raw,NumberType.NUMBER)
+						} else {
+							(raw, NumberType.NONE)
+						}
+					U.str2wTest(str,typ)
 				}
 				val s = Sentence(
 					id,
