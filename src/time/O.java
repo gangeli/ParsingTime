@@ -6,7 +6,7 @@ import java.io.File;
 
 import org.goobs.exec.Option;
 import org.goobs.stats.Dirichlet;
-import org.goobs.utils.Decodable;
+import org.goobs.util.Decodable;
 
 public class O {
 	public static enum Distribution{ Point, Multinomial, Gaussian }
@@ -112,7 +112,7 @@ public class O {
 	@Option(name="babySteps", gloss="Ramp up the length of timexes gradually")
 	public static boolean babySteps = false;
 	@Option(name="parser", gloss="Parser class to use", required=true)
-	public static String parser = null;
+	public static String parser = "org.goobs.nlp.CKYParser";
 	@Option(name="maxSearchTime", gloss="Max Iterations")
 	public static int maxSearchTime = 1000000;
 	@Option(name="crfTag", gloss="Use a CRF (versus PCFG) tagger")

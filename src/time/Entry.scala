@@ -16,18 +16,22 @@ import org.joda.time.DateTimeZone
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.io.IOUtils
 //(lib)
-import org.goobs.slib.Def
-import org.goobs.slib.Static._
 import org.goobs.exec.Execution
-import org.goobs.utils.Indexer
-import org.goobs.utils.MetaClass
-import org.goobs.utils.Stopwatch
+import org.goobs.util.Indexer
+import org.goobs.util.MetaClass
+import org.goobs.util.Stopwatch
+import org.goobs.util.Def
+import org.goobs.util.Static._
 import org.goobs.stanford.SerializedCoreMapDataset
 import org.goobs.stanford.StanfordExecutionLogInterface
 import org.goobs.stats.CountStore
+import org.goobs.nlp._
 
 
 
+//------------------------------------------------------------------------------
+// GLOBAL UTILITIES
+//------------------------------------------------------------------------------
 /**
 	Globally accessible values
 */
@@ -177,6 +181,9 @@ object U {
 			case _ => false
 		}
 	}
+	def isInt(w:Int):Boolean = {
+		isInt(w2str(w))
+	}
 	def str2int(str:String):Int = {
 		str match {
 			case G.IsInt(e) => str.toInt
@@ -274,8 +281,8 @@ object Score {
 }
 
 class Score {
-	case class Result(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean,
-			timex:Timex,ground:Time) {
+	case class Result(sent:TimeSent,guess:Temporal,gold:Temporal,exact:Boolean,
+			ground:Time) {
 		override def toString:String = {
 			"" + {if(exact) "HIT  " else if(guess != null) "MISS " else "FAIL "} +
 			sent + " as " + 
@@ -291,7 +298,7 @@ class Score {
 	private var totalWithNonzeroPos = 0
 	private var goldMinusGuess = List[(Double,Double)]()
 	private var resultList:List[Result] = List[Result]()
-	private var failedList = List[(Sentence,Temporal,Time)]()
+	private var failedList = List[(TimeSent,Temporal,Time)]()
 
 	def releaseResults:Unit = { resultList = List[Result]() }
 	def enter(exact:Boolean,diff:(Duration,Duration), position:Int) = {
@@ -318,11 +325,11 @@ class Score {
 			if(anyOK){ exactRightK(i) += 1 }
 		}
 	}
-	def store(sent:Sentence,guess:Temporal,gold:Temporal,exact:Boolean,t:Timex,
+	def store(sent:TimeSent,guess:Temporal,gold:Temporal,exact:Boolean,
 			ground:Time)={
-		resultList = Result(sent,guess,gold,exact,t,ground) :: resultList
+		resultList = Result(sent,guess,gold,exact,ground) :: resultList
 	}
-	def logFailure(sent:Sentence,gold:Temporal,ground:Time) = {
+	def logFailure(sent:TimeSent,gold:Temporal,ground:Time) = {
 		failedList = (sent,gold,ground) :: failedList
 	}
 
@@ -351,7 +358,7 @@ class Score {
 		}.mkString("  ")
 	}
 	def reportFailures(y:(String=>Any)):Unit = {
-		failedList.foreach{ case (sent:Sentence,gold:Temporal,ground:Time) =>
+		failedList.foreach{ case (sent:TimeSent,gold:Temporal,ground:Time) =>
 			y(sent.toString + " :: " + gold + " :: " + ground)
 		}
 	}
@@ -364,253 +371,34 @@ class Score {
 }
 
 //------------------------------------------------------------------------------
-// DATA STORES
+// DATA
 //------------------------------------------------------------------------------
-case class Data(train:DataStore,eval:DataStore){
+case class Data[T](train:DataStore[T],eval:DataStore[T]) {
 	def noopLoop:Unit = {
-		train.eachExample( -1, (s,i) => (Array[Parse](),f=>{}) )
-		eval.eachExample( -1, (s,i) => (Array[Parse](),f=>{}) )
+		train.eachExample( -1 ).foreach{ x =>  }
+		eval.eachExample( -1 ).foreach{ x =>  }
 	}
 }
-
-trait DataStore {
-	private var present:StringBuilder
-		= (new StringBuilder).append(Const.START_PRESENTATION("Debug"))
-	def eachExample(i:Int,fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any))):Score
+trait DataStore[T] {
 	def name:String
-
-	def debug(sent:Sentence,vitterbi:Parse,firstCorrect:Parse):Unit = {
-		//(error checks)
-		assert(vitterbi.tree.orNull != None, "Parse (f) has no tree!")
-		assert(vitterbi.probs.orNull != None, "Parse (f) has no probs!")
-		assert(firstCorrect.tree.orNull != None, "Parse (c) has no tree!")
-		assert(firstCorrect.probs.orNull != None, "Parse (c) has no probs!")
-		//(append)
-		present.append(Const.DIFF(
-			id=name+sent.id,
-			guess=vitterbi.tree.orNull, guessProbs=vitterbi.probs.orNull,
-			gold=firstCorrect.tree.orNull, goldProbs=firstCorrect.probs.orNull
-		))
-	}
-
-	def debugEnd:Unit = {
-		present.append(Const.END_PRESENTATION)
-		val writer = new java.io.FileWriter(Execution.touch(name+".rb"))
-		writer.write(present.toString)
-		writer.close
-		present = (new StringBuilder).append(Const.START_PRESENTATION("Debug"))
-	}
-
-	def handleParse(
-			parses:Array[Parse], 
-			gold:Temporal, 
-			grounding:Time,
-			score:Score,
-			sent:Sentence,
-			feedback:(Feedback=>Any),
-			timex:Timex):Temporal = {
-		//--Util
-		case class ScoreElem(index:Int,offset:Int,exact:Boolean,
-				diff:(Duration,Duration),prob:Double)
-		def isExact(diff:(Duration,Duration)):Boolean
-			= { U.sumDiff(diff) <= O.exactMatchThreshold }
-		val vitterbi:Temporal = 
-			if(parses != null && parses.length > 0) {
-				parses(0).ground(grounding) 
-			} else {
-				null
-			}
-		log("Gold:   " + gold)
-		log("Ground: " + grounding)
-		//--Score Parses
-		if(O.printAllParses){ forceTrack("Scores") }
-		val scores:Array[ScoreElem]
-			//(for each parse...)
-			= parses.zipWithIndex.foldLeft((List[ScoreElem](),false)){ 
-			case ((soFar:List[ScoreElem],isPruned:Boolean),(parse:Parse,i:Int)) => 
-				if(!isPruned){
-					//(variables)
-					val ground:GroundedRange 
-						= if(O.guessRange){ grounding.guessRange }
-						  else{ Range(grounding,grounding) }
-					val parseProb = parse.logProb
-					//(timing)
-					val parseWatch:Stopwatch = new Stopwatch
-					parseWatch.start
-					//(for each offset of parse...)
-					val rtn = soFar ::: parse.scoreFrom(gold,ground).slice(0,O.scoreBeam)
-						.map{ case (diff:(Duration,Duration),prob:Double,offset:Int) =>
-							//(debug)
-							if(O.printAllParses){
-								log(FORCE,i+"["+offset+"] "+
-									G.df.format((parse.logProb+math.log(prob)))+" "+parse +" :: "+
-									parse.tree.orNull)
-							}
-							assert(parseProb == parse.logProb, "yes, I get strange bugs")
-							//(create parse)
-							val resultProb = 
-								if(O.includeTimeProb){ parse.logProb+math.log(prob) }
-								else{ parse.logProb }
-							ScoreElem(i,offset,isExact(diff),diff,resultProb)
-						}.toList
-					//(timing & return)
-					val lapTime = parseWatch.lap
-					if(lapTime > O.pruneTime && i > O.pruneMinIndex){
-						log("pruning after " + i)
-						(rtn,true)
-					} else {
-						(rtn,false)
-					}
-				} else {
-					(soFar,isPruned)
-				}
-		}._1.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
-			if(O.sortTimeProbInScore){
-				//(case: order by P(parse)*P(time))
-				if( (b.prob - a.prob).abs < 1e-6 ){
-					if(a.index == b.index){
-						b.offset.abs > a.offset.abs
-					} else {
-						b.index > a.index
-					}
-				} else {
-					b.prob < a.prob 
-				}
-			} else {
-				//(case: order by P(parse) breaking ties with P(time))
-				if(a.index == b.index){
-					b.prob < a.prob
-				} else {
-					b.index > a.index
-				}
-			}
-		}.toArray
-		if(O.printAllParses) { 
-			if(scores.length > 0){ log(FORCE,"best score: " + scores(0)) }
-			if(scores.length > 1){ log(FORCE,"      then: " + scores(1)) }
-			if(scores.length > 2){ log(FORCE,"      then: " + scores(2)) }
-			endTrack("Scores") 
-		}
-		log("" + scores.length + " candidates")
-		//--Process Score
-		if(scores.length > 0){
-			//(get guess)
-			val bestGuess = scores(0)
-			assert(O.timeDistribution != O.Distribution.Point || 
-				bestGuess.offset == 0,
-				"Sanity check for time distribution")
-			//(is in beam?)
-			val correct:Array[ScoreElem] = scores.filter{ (elem:ScoreElem) => 
-				assert(!elem.prob.isNaN && elem.prob <= 0.0, "invalid probability")
-				elem.exact }
-			//(record)
-			log(FORCE,"Entering " + bestGuess + " " + bestGuess.exact)
-			score.enter(bestGuess.exact,bestGuess.diff, 
-				if(correct.length > 0) correct(0).index else -1)
-			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
-			score.store(sent,vitterbi,gold,bestGuess.exact,timex,grounding)
-			if(correct.length == 0){ score.logFailure(sent,gold,grounding) }
-			//(debug)
-			if(correct.length > 0
-					&& !(scores(0).index == correct(0).index && 
-						scores(0).offset == correct(0).offset)){
-				debug(sent,parses(scores(0).index),parses(correct(0).index))
-			}
-			if(O.printAllParses){
-				forceTrack("Correct")
-				correct.foreach{ case (e:ScoreElem) => 
-					log(FORCE,"Guess: " + parses(e.index).value(grounding,e.offset) +
-						" Gold: " + gold + " [" + e + "]")
-				}
-				endTrack("Correct")
-			}
-			//(feedback)
-			feedback(Feedback(
-				gold, 
-				grounding,
-				correct.map{ elem => (elem.index,elem.offset,elem.prob) },
-				scores.
-					filter{ elem => !elem.exact }.
-					map{ elem => (elem.index,elem.offset,elem.prob) },
-				bestGuess.exact
-				))
-		} else {
-			//(miss)
-			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
-			score.store(sent,vitterbi,gold,false,timex,grounding)
-			score.logFailure(sent,gold,grounding)
-		}
-		vitterbi
-	}
+	def eachExample(i:Int):Iterable[T]
 }
+trait GroundingData extends DataStore[(TimeSent,Temporal,Time)]
 
 class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String) 
-		extends DataStore{
-
+		extends GroundingData {
 	override def name:String = theName+{if(test){"-eval"}else{"-train"}}
-	override def eachExample( 
-			iter:Int,
-			fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
-		//(vars)
-		val score:Score = new Score
-		val shouldThread:Boolean = Execution.numThreads > 1
-		//--Iterate
-		//(timing variables)
-		var parseTime:Double = 0.0
-		var evalTime:Double = 0.0
-		//(create runnables)
-		startTrack("Creating Tasks")
-		val maxLength = if(iter < 1 || !O.babySteps){ Int.MaxValue } else { iter }
-		val tasks:Array[Runnable] = timexes
-				.filter{ (t:Timex) => 
-					test || U.timexOK(t.tid) && t.words(test).length <= maxLength
-				}.map{ (t:Timex) =>
-			assert(t.words(test).length > 0, "Timex has no words: " + t)
-			//(variables)
-			val sent = Sentence(t.tid,t.words(test),t.pos(test),t.nums)
-			new Runnable {
-				override def run:Unit = {
-					//(init)
-					startTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
-					val watch:Stopwatch = new Stopwatch
-					watch.start
-					//(parse)
-					val (parses,feedback) = fn(sent, t.tid)
-					parseTime += watch.lap //not strictly threadsafe
-					//(score)
-					val best:Temporal
-						= handleParse(parses,t.gold,t.grounding,score,sent,feedback,t)
-					//(cleanup)
-					evalTime += watch.lap //not stirctly threadsafe
-					log("Timing parse: " + parseTime + " eval: " + evalTime)
-					endTrack("Timex "+t.tid+"/"+timexes.length+": "+sent.toString)
-					if(shouldThread){ finishThread }
-				}
+	override def eachExample(iter:Int):Iterable[(TimeSent,Temporal,Time)] = {
+		new Iterable[(TimeSent,Temporal,Time)] {
+		override def iterator:Iterator[(TimeSent,Temporal,Time)] 
+			= timexes.iterator.map{ (t:Timex) => 
+				(TimeSent(t.tid,t.words(test),t.pos(test),t.nums), t.gold, t.grounding)
 			}
 		}
-		endTrack("Creating Tasks")
-		//(run runnables)
-		if(shouldThread){
-			val exec = Executors.newFixedThreadPool(Execution.numThreads)
-			startThreads("Parsing")
-			tasks.foreach{ (r:Runnable) => exec.submit(r) }
-			exec.shutdown
-			exec.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
-			endThreads("Parsing")
-		} else {
-			tasks.foreach{ (r:Runnable) => r.run }
-		}
-		//--Return
-		debugEnd
-		log("Timing: [parse] " + G.df.format(parseTime) +
-			"  [eval] " + G.df.format(evalTime) + 
-			" [parse/eval] " + G.df.format(parseTime/(parseTime+evalTime)) )
-		score
 	}
 }
-
 object SimpleTimexStore {
-	def apply(train:O.DataInfo,eval:O.DataInfo):Data = {
+	def apply(train:O.DataInfo,eval:O.DataInfo):Data[(TimeSent,Temporal,Time)] = {
 		log("INPUT: /workspace/time/aux/coremap/tempeval2-english" +
 							{if(O.retokenize) "-retok" else "" } +
 							{if(O.collapseNumbers) "-numbers" else "" })
@@ -639,7 +427,8 @@ object SimpleTimexStore {
 		log("creating data")
 		val data = 
 			if(train.source == O.DataSource.Toy || eval.source == O.DataSource.Toy){
-				ToyData.STANDARD
+				throw fail("Toy commented out!")
+//				ToyData.STANDARD TODO
 			} else {
 				Data(
 					new SimpleTimexStore(mkDataset(train),false,train.source.toString),
@@ -650,266 +439,341 @@ object SimpleTimexStore {
 		startTrack("NOOP loop")
 		data.noopLoop
 		endTrack("NOOP loop")
-		log("lexicalizing")
-		Nonterminal.lexicalize(G.wordIndexer)
 		//(return)
 		endTrack("Loading Timexes")
 		data
 	}
 }
 
-object ToyData {
-	import Lex._
-	private val toys = new HashMap[String,Int]
+//------------------------------------------------------------------------------
+// GROUNDING TASK
+//------------------------------------------------------------------------------
+trait TemporalTask {
+	def run:Unit
+}
+class GroundingTask extends TemporalTask {
+	//--Initialize JodaTime
+	log("JodaTime settings")
+	DateTimeZone.setDefault(DateTimeZone.UTC);
+	//--Create Data
+	//(dataset)
+	forceTrack("loading dataset")
+	//(timexes)
+	val data = SimpleTimexStore(O.train,if(O.devTest) O.dev else O.test)
+	endTrack("loading dataset")
+	//--Create Parser
+	startTrack("Creating Parser")
+	assert(G.W > 0, "Words have not been interned yet!")
+	Grammar.init(G.wordIndexer)
+	var initialParser = CKYParser(G.W, Grammar.RULES)
+	endTrack("Creating Parser")
 
-	private val NONE = ToyStore(Array[(String,Parse)](),false)
-	private def store(test:Boolean,args:(String,Parse)*):ToyStore 
-		= ToyStore(args.toArray,test)
-	//--Toy
-	private val thisMorning = ("this morning",Parse(TOD(1)))
-	private val today = ("today",Parse(TODAY))
-	private val day = ("day",Parse(DAY(todaysDate)))
-	private val week = ("week",Parse(WEEK(todaysDate)))
-	private val aWeek = ("a week",Parse(AWEEK))
-	private val theWeek = ("the week",Parse(WEEK(todaysDate)))
-	private val thisWeek = ("this week",Parse(REF ! AWEEK))
-	private val lastWeekToday = ("last week today",Parse(WEEK move -1))
-	private val lastWeekNow = ("last week now",Parse(WEEK move -1))
-	private val lastWeek = ("last week",Parse(WEEK move -1))
-	private val weekLast = ("week last",Parse(WEEK move -1))
-	private val pastWeek = ("past week",Parse(REF <| AWEEK))
-	private val thePastWeek = ("the past week",Parse(REF <| AWEEK))
-	private val pastMonths2 = ("past 2 months",Parse(REF <| (AMONTH*2)))
-	private val pastYear = ("past year",Parse(REF <| AYEAR))
-	private val weeks2 = ("2 weeks",Parse(AWEEK*2))
-	private val weeksDash2 = ("2 - weeks",Parse(AWEEK*2))
-	private val week2Period = ("2 week period",Parse(AWEEK*2))
-	private val month = ("month",Parse(MONTH))
-	private val aMonth = ("a month",Parse(AMONTH))
-	private val theMonth = ("the month",Parse(MONTH))
-	private val lastMonth = ("last month",Parse(MONTH move -1))
-	private val nextMonth = ("next month",Parse(MONTH move 1))
-	private val thisMonth = ("this month",Parse(MONTH))
-	private val spring = ("spring",Parse(SEASON(1)))
-	private val summer = ("summer",Parse(SEASON(2)))
-	private val fall = ("fall",Parse(SEASON(3)))
-	private val winter = ("winter",Parse(SEASON(4)))
-	private val quarter = ("quarter",Parse(QUARTER))
-	private val aQuarter = ("a quarter",Parse(AQUARTER))
-	private val lastQuarter = ("last quarter",Parse(QUARTER move -1))
-	private val firstQuarter = ("1st - quarter",Parse(QOY(1))) //really, should be ordinal
-	private val secondQuarter = ("2st - quarter",Parse(QOY(2)))
-	private val thirdQuarter = ("3st - quarter",Parse(QOY(3)))
-	private val fourthQuarter = ("4st - quarter",Parse(QOY(4)))
-	private val y1776 = ("1776",Parse(THEYEAR(1776)))
-	private val y17sp76 = ("17 76",Parse(THEYEAR(1776)))
-	private val months2 = ("2 months",Parse(AMONTH*2))
-	private val monthsdash2 = ("2 - month",Parse(AMONTH*2))
-	private val years2 = ("2 years",Parse(AYEAR*2))
-	private val april = ("april",Parse(MOY(4)))
-	private val april1776 = ("april 1776",Parse(MOY(4) ^ THEYEAR(1776)))
-	private val april2 = ("april 2",Parse(MOY(4) ^ DOM(2)))
-	private val year = ("year",Parse(YEAR))
-	private val ayear = ("a year",Parse(AYEAR))
-	private val lastYear = ("last year",Parse(YEAR move -1))
-	private val thisYear = ("this year",Parse(YEAR))
-	private val monday = ("monday",Parse(DOW(1)(todaysDate,0)))
-	private val tuesday = ("tuesday",Parse(DOW(2)(todaysDate,0)))
-	private val wednesday = ("wednesday",Parse(DOW(3)(todaysDate,0)))
-	private val thursday = ("thursday",Parse(DOW(4)(todaysDate,0)))
-	private val friday = ("friday",Parse(DOW(5)(todaysDate,0)))
-	private val saturday = ("saturday",Parse(DOW(6)(todaysDate,0)))
-	private val sunday = ("sunday",Parse(DOW(7)(todaysDate,0)))
-	private val monday_neg1 = ("monday",Parse(DOW(1)(todaysDate,-1)))
-	private val tuesday_neg1 = ("tuesday",Parse(DOW(2)(todaysDate,-1)))
-	private val wednesday_neg1 = ("wednesday",Parse(DOW(3)(todaysDate,-1)))
-	private val thursday_neg1 = ("thursday",Parse(DOW(4)(todaysDate,-1)))
-	private val friday_neg1 = ("friday",Parse(DOW(5)(todaysDate,-1)))
-	private val saturday_neg1 = ("saturday",Parse(DOW(6)(todaysDate,-1)))
-	private val sunday_neg1 = ("sunday",Parse(DOW(7)(todaysDate,-1)))
-	private val special_chars = ("today '",Parse(REF(todaysDate)))
-	private val lasthalf1989 = ("last half 1989",Parse(Range(Time(1989,7),Time(1990))))
-	private val lastquarter1989 = ("last quarter 1989",Parse(Range(Time(1989,10),Time(1990))))
-	private val recentMonths = ("recent months",Parse(PAST))
-	//--Hard Real Data
-	private val may22sp1995 
-		= ("May 22 , 1995", Parse(Range(Time(1995,5,22),Time(1995,5,23))))
-
-
-	private case class ToyStore(gold:Array[(String,Parse)],test:Boolean) 
-			extends DataStore {
-		override def name:String = if(test) "toy-dev" else "toy"
-		override def eachExample( iter:Int,
-				fn:((Sentence,Int)=>(Array[Parse],Feedback=>Any)) ):Score ={
-			val score:Score = new Score
-			gold.zipWithIndex.foreach{ case ((sent:String,gold:Parse),id:Int) =>
-				//(variables)
-				val words = sent.split(" ").map{ (raw:String) => 
-					val (str,typ) = 
-						if(raw.length > 2 || raw.endsWith("st") &&
-								(raw.substring(0,raw.length-2) matches G.CanInt)){
-							(raw.substring(0,raw.length-2),NumberType.ORDINAL)
-						} else if(raw matches G.CanInt){
-							(raw,NumberType.NUMBER)
-						} else {
-							(raw, NumberType.NONE)
-						}
-					U.str2wTest(str,typ)
-				}
-				val s = Sentence(
-					id,
-					words, 
-					words.map{ (w:Int) => U.str2posTest("UNK") },
-					sent.split(" ").map{ (str:String) =>
-						if(U.isInt(str)) U.str2int(str) else -1 }
-					)
-				if(!toys.contains(sent)){ toys(sent) = toys.size }
-				//(parse)
-				forceTrack("Datum " + id + ": "+sent)
-				val (parses, feedback) = fn(s,toys(sent))
-				//(feedback)
-				handleParse(parses,
-					gold.value(Range(todaysDate,todaysDate)),todaysDate,
-					score,s,feedback,null)
-				endTrack("Datum " + id + ": " + sent)
-			}
-			debugEnd
-			score
-		}
-		def internWords:ToyStore = {
-			gold.foreach{ case (sent:String,gold:Parse) =>
-				sent.split(" ").foreach{ (str:String) => 
-					U.str2w(str, str match {
-						case G.CanInt(i) => NumberType.NUMBER
-						case _ => NumberType.NONE
-					}) 
-				}
-			}
-			this
-		}
-	}
-
-	def TODAY_ONLY:Data = {
-		Data(store(false,today).internWords,store(true,today))
+	case class GoodOutput(tree:EvalTree[Any],value:Temporal,offset:Int)
+	case class CompareElem(offset:Int,diff:(Duration,Duration),prob:Double)
+	case class ScoreElem(index:Int,offset:Int,diff:(Duration,Duration),
+			logProb:Double, temporal:Temporal){
+		def exact:Boolean = { U.sumDiff(diff) <= O.exactMatchThreshold }
 	}
 	
-	def STANDARD:Data = {
-		Data(
-			store(false,
-			//--Train
-//				//(durations)
-//				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,
-//				//(sequences)
-//				week,month,quarter,year,day,theWeek,
-//				//(cannonicals -> sequences)
-//				thisWeek,thisYear,thisMonth,
-//				//(shifts -- standard)
-//				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
-//				//(shifts -- noncannonical)
-//				pastWeek,thePastWeek,pastYear,pastMonths2,
-//				//(numbers -- basic)
-//				y1776,
-//				//(sequences)
-//				april,
-//				//(intersects)
-//				april1776,april2,
-//				//(days of the week)
-//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-//				//(numbers -- complex)
-//				y17sp76,
-//				//(seasons)
-//				spring,summer,fall,winter,
-//				//(floor/ceil)
-				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
-//				//(offset -1)
-////				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
-//				//(hard)
-//				lasthalf1989, lastquarter1989,recentMonths,
-////				may22sp1995,special_chars,
-//				//(ref)
-				today
-			).internWords,
-			//--Test
-			store(true,lastMonth))
-	}
-}
-
-//------------------------------------------------------------------------------
-// ENTRY
-//------------------------------------------------------------------------------
-class Entry {
-	private var data:Data = null
-	private var parser:Parser = null
-
-//------
-// INIT
-//------
-	def init:Entry = {
-		startTrack("Initializing")
-		//--Initialize JodaTime
-		log("JodaTime settings")
-		DateTimeZone.setDefault(DateTimeZone.UTC);
-		//--Load Data
-		//(dataset)
-		forceTrack("loading dataset")
-		//(timexes)
-		this.data = SimpleTimexStore(O.train,if(O.devTest) O.dev else O.test)
-		endTrack("loading dataset")
-		//--Create Parser
-		startTrack("Creating Parser")
-		assert(G.W > 0, "Words have not been interned yet!")
-		parser = new MetaClass("time."+O.parser).createInstance(classOf[Parser])
-		endTrack("Creating Parser")
-		//--Return
-		endTrack("Initializing")
-		this
-	}
-
-
-//------
-// TRAIN/TEST
-//------
-	def run:Entry = {
-		val logger = Execution.getLogger();
-		//--Run
-		startTrack("Running")
-		val (trainScores:Array[Score],testScore:Score)
-			= parser.run(this.data,O.iters)
-		endTrack("Running")
-		//--External Score
-		if(O.train.source == O.DataSource.English){
-			startTrack("TempEval")
-			//(variables)
-			Comparisons.inputDir = O.tempevalHome
-			Comparisons.outputDir = Execution.touch("")
-			Comparisons.lang = O.train.language
-			//(run)
-			val (trn,tst) = Comparisons.runSystem(sys=parser,quiet=true)
-			startTrack("Eval Results")
-			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
-			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
-			logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
-			if(!O.devTest){
-				log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
-				logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
-				logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
-			}
-			endTrack("Eval Results")
-			//(save info)
-			startTrack("Save Output")
-			val savData = parser.toInfo( Comparisons.dataset2inputs(
-				new TimeDataset(new SerializedCoreMapDataset(
-					System.getenv("HOME") + 
-						"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
-					)))
-			)
-			val outputFile = Execution.touch("tempeval2-output.ser")
-			IOUtils.writeObjectToFileNoExceptions(savData,outputFile.getPath)
-			endTrack("Save Output")
-			endTrack("TempEval")
+	def compare(guess:Temporal, gold:Temporal,ground:GroundedRange
+			):Iterator[CompareElem] = {
+		import Lex._
+		val INF = (Duration.INFINITE,Duration.INFINITE)
+		def diff(gold:Temporal,guess:Temporal,second:Boolean):(Duration,Duration) 
+				= (gold,guess) match {
+			//--Immediate Invalids
+			//(case: unks)
+			case (gold:UnkTime,guess:Temporal) => INF
+			case (gold:Temporal,guess:NoTime) => INF
+			case (gold:Temporal,guess:Sequence) =>
+				throw fail("Distribution returned a sequence: " + guess)
+			case (gold:Sequence,guess:Temporal) =>
+				throw fail("Gold is a sequence: " + gold)
+			//(case: type errors)
+			case (gold:FuzzyDuration,guess:GroundedDuration) => INF
+			case (gold:GroundedDuration,guess:FuzzyDuration) => INF
+			//--Valid
+			//(case: durations)
+			case (gold:FuzzyDuration,guess:FuzzyDuration) => 
+				if(gold.largestUnit == guess.largestUnit){(Duration.ZERO,Duration.ZERO)}
+				else{ INF }
+			case (gold:GroundedDuration,guess:GroundedDuration) => 
+				(guess-gold,Duration.ZERO)
+			//(case: grounded ranges)
+			case (gold:GroundedRange,guess:GroundedRange) => 
+				if(guess.norm.seconds == 0 && gold.norm.seconds == 0){
+					(Duration.ZERO,guess.begin-gold.begin) //case: instant
+				} else if(O.instantAsDay && gold.norm.seconds == 0){
+					(guess.begin-gold.begin,guess.end-(gold.end+DAY))
+				} else {
+					assert(!guess.begin.equals(Time.DAWN_OF) || guess.begin==Time.DAWN_OF)
+					assert(!guess.end.equals(Time.END_OF) || guess.end==Time.END_OF)
+					if(guess.begin == Time.DAWN_OF && gold.begin == Time.DAWN_OF){
+						(Duration.ZERO,Duration.ZERO) //case: past
+					} else if(guess.end == Time.END_OF && gold.end == Time.END_OF){
+						(Duration.ZERO,Duration.ZERO) //case: future
+					} else if(guess.begin == Time.DAWN_OF && gold.begin != Time.DAWN_OF){
+						INF //case: beginning is neg_infinity
+					} else if(guess.end == Time.END_OF && gold.end != Time.END_OF){
+						INF //case: end is pos_infinity
+					} else {
+						(guess.begin-gold.begin,guess.end-gold.end) //case: can subtract
+					}
+				}
+			//--Possibly Valid
+			//(case: backoffs)
+			case (gold:Range,guess:GroundedRange) => 
+				if(second){ INF }
+				else { val gr:GroundedRange = gold(ground); diff(gr,guess,true) }
+			case (gold:PartialTime,guess:Temporal) =>
+				if(second){ INF }
+				else { val gr:GroundedRange = gold(ground); diff(gr,guess,true) }
+			//--Not Valid
+			//(case: didn't catch above)
+			case (gold:Duration,guess:Duration) => throw fail("case: 2 durations")
+			case (gold:Range,guess:Range) => throw fail("case: 2 durations")
+			//(case: type error)
+			case (gold:Duration,guess:Temporal) =>  INF
+			case (gold:Range,guess:Temporal) => INF
+			//(case: default fail)
+			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}
+		//--Map Iterator
+		guess.distribution(ground).map{
+				case (guess:Temporal,prob:Double,offset:Long) =>
+			//(get diff)
+			val d = diff(gold,guess,false)
+			//(check timex consistency)
+			if(U.sumDiff(d) > O.exactMatchThreshold){
+				import edu.stanford.nlp.time.JodaTimeUtils._
+				val (tGold, tGuess) = (gold,guess) match {
+					case (a:UnkTime, b:Temporal) => {("not", "equal")}
+					case (a:Temporal, b:NoTime) => {("not", "equal")}
+					case (a:GroundedRange,b:GroundedRange) => {
+						(timexDateValue(a.begin.base, a.end.base),
+							timexDateValue(b.begin.base,b.end.base))
+					}
+					case (a:FuzzyDuration,b:FuzzyDuration) => {
+						(timexDurationValue(a.interval.base,true),
+							timexDurationValue(b.interval.base,true))
+					}
+					case (a:GroundedDuration,b:GroundedDuration) => {
+						(timexDurationValue(a.interval.base),
+								timexDurationValue(b.interval.base))
+					}
+					case _ => ("not","equal")
+				}
+				if(tGold.equals(tGuess)){
+					err("Timexes match but " +
+						"difference is nonzero: gold="+tGold+" guess="+tGuess+
+						"  myGuess="+guess+"  inferredGold="+gold+" (diff="+d+") :: ")
+				}
+			}
+			//(debug)
+			assert(O.timeDistribution != O.Distribution.Point ||
+				offset == 0L ||
+				prob == 0.0,
+				"Time returned distribution when it shouldn't have: " 
+					+ guess + " (offset=" + offset + ") [prob=" + prob + "]")
+			//(return)
+			CompareElem(offset.toInt,d,prob)
+		}
+	}
+
+	def handleParses(
+			parses:Array[EvalTree[Any]],
+			gold:Temporal,
+			grounding:Time,
+			score:Score,
+			sent:TimeSent
+			):Iterable[GoodOutput] = {
+		//--Util
+		val viterbi:Option[Temporal] = 
+			if(parses != null && parses.length > 0) {
+				val parse:Any = parses(0).evaluate
+				parse match {
+					case (time:Temporal) => Some(time(grounding))
+					case _ => throw new IllegalStateException("Not a temporal: " + parse)
+				}
+			} else {
+				None
+			}
+		log("Guess:  " + viterbi.orNull)
+		log("Gold:   " + gold)
+		log("Ground: " + grounding)
+		//--Score Parses
+		val scores:Array[ScoreElem]
+			//(for each parse...)
+			= parses.zipWithIndex.foldLeft((List[ScoreElem](),false)){ 
+					case ((soFar:List[ScoreElem],isPruned:Boolean),
+					      (parse:EvalTree[Any],i:Int)) => 
+				if(!isPruned){
+					//(variables)
+					val ground:GroundedRange 
+						= if(O.guessRange){ grounding.guessRange }
+						  else{ Range(grounding,grounding) }
+					val parseProb = parse.logProb
+					//(timing)
+					val parseWatch:Stopwatch = new Stopwatch
+					parseWatch.start
+					//(get guess temporal)
+					val guess:Temporal = parse.evaluate match {
+						case (t:Temporal) => t
+						case _ => throw new IllegalStateException("Not a temporal: "+parse)
+					}
+					//(for each offset of parse...)
+					val rtn = soFar ::: compare(guess,gold,ground).slice(0,O.scoreBeam)
+						.map{ (elem:CompareElem) =>
+							//(create parse)
+							val resultLogProb = 
+								if(O.includeTimeProb){ parse.logProb+math.log(elem.prob) }
+								else{ parse.logProb }
+							ScoreElem(i,elem.offset,elem.diff,resultLogProb,guess)
+						}.toList
+					//(timing & return)
+					val lapTime = parseWatch.lap
+					if(lapTime > O.pruneTime && i > O.pruneMinIndex){
+						log("pruning after " + i)
+						(rtn,true)
+					} else {
+						(rtn,false)
+					}
+				} else {
+					(soFar,isPruned)
+				}
+		}._1.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
+			if(O.sortTimeProbInScore){
+				//(case: order by P(parse)*P(time))
+				if( (b.logProb - a.logProb).abs < 1e-6 ){
+					if(a.index == b.index){
+						b.offset.abs > a.offset.abs
+					} else {
+						b.index > a.index
+					}
+				} else {
+					b.logProb < a.logProb 
+				}
+			} else {
+				//(case: order by P(parse) breaking ties with P(time))
+				if(a.index == b.index){
+					b.logProb < a.logProb
+				} else {
+					b.index > a.index
+				}
+			}
+		}.toArray
+		log("" + scores.length + " candidates")
+		//--Score Parses
+		if(scores.length == 0){
+			//(case: no scores)
+			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
+			score.store(sent,viterbi.orNull,gold,false,grounding)
+			score.logFailure(sent,gold,grounding)
+		} else {
+			//(case: have score)
+			//((get guess))
+			val bestGuess = scores(0)
+			assert(O.timeDistribution != O.Distribution.Point || 
+				bestGuess.offset == 0,
+				"Sanity check for time distribution")
+			//((is in beam?))
+			val correct:Array[ScoreElem] = scores.filter{ (elem:ScoreElem) => 
+				assert(!elem.logProb.isNaN && elem.logProb <= 0.0, 
+					"invalid probability")
+				elem.exact }
+			//((enter score))
+			score.enter(bestGuess.exact,bestGuess.diff, 
+				if(correct.length > 0) correct(0).index else -1)
+			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
+			score.store(sent,viterbi.get,gold,bestGuess.exact,grounding)
+			log("" + correct.length + " in beam")
+		}
+		//--Format Output
+		//(case: scores)
+		scores.map{ (elem:ScoreElem) =>
+			if(elem.exact){
+				Some(GoodOutput(parses(elem.index),elem.temporal,elem.offset))
+			} else {
+				None
+			}
+		}.filter{ _.isDefined }.map{ _.get }
+	}
+
+	override def run:Unit = {
+		//--Run
+		forceTrack("Running")
+		//(train)
+		val (parser,trainScores) =
+				((O.iters-1) to 0 by -1).foldRight( (initialParser,List[Score]()) ){
+					case (iter:Int,(parser:CKYParser,scores:List[Score])) =>
+			forceTrack("Iteration " + iter)
+			//(create score)
+			val score = new Score
+			//(iterate over timexes)
+			val goodParses:Iterable[GoodOutput] 
+					= data.train.eachExample(iter).zipWithIndex.flatMap{
+						case ((sent:TimeSent,gold:Temporal,ground:Time),i:Int) =>
+				startTrack("[" + i + "] " + sent.toString)
+				//((parse))
+				val parses:Array[EvalTree[Any]] = parser.parse(sent,O.beam)
+				//((handle parses))
+				val filteredParses = handleParses(parses, gold, ground, score, sent)
+				//((continue map))
+				endTrack("[" + i + "] " + sent.toString)
+				filteredParses
+			}
+			log("finished parsing")
+			//(update parser)
+			val newParser = parser.update(goodParses.map{ _.tree })
+			log("updated parser")
+			//(update time)
+			log("TODO update time distribution") //TODO
+			//(continue loop)
+			endTrack("Iteration " + iter)
+			(newParser,scores)
+		}
+		endTrack("Running")
+		//--Score
+		startTrack(FORCE,BOLD,"Results")
+//	reportScores(trainScores,testScore) //TODO
+		endTrack("Results")
+	}
+
+	def reportScores(trainScores:Array[Score],testScore:Score) {
+		val logger = Execution.getLogger();
+		//--External Score
+//		if(O.train.source == O.DataSource.English){ //TODO run me!
+//			startTrack("TempEval")
+//			//(variables)
+//			Comparisons.inputDir = O.tempevalHome
+//			Comparisons.outputDir = Execution.touch("")
+//			Comparisons.lang = O.train.language
+//			//(run)
+//			val (trn,tst) = Comparisons.runSystem(sys=parser,quiet=true)
+//			startTrack("Eval Results")
+//			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
+//			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
+//			logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
+//			if(!O.devTest){
+//				log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
+//				logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
+//				logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
+//			}
+//			endTrack("Eval Results")
+//			//(save info)
+//			startTrack("Save Output")
+//			val savData = parser.toInfo( Comparisons.dataset2inputs(
+//				new TimeDataset(new SerializedCoreMapDataset(
+//					System.getenv("HOME") + 
+//						"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
+//					)))
+//			)
+//			val outputFile = Execution.touch("tempeval2-output.ser")
+//			IOUtils.writeObjectToFileNoExceptions(savData,outputFile.getPath)
+//			endTrack("Save Output")
+//			endTrack("TempEval")
+//		}
 		//--Process
-		startTrack(BOLD,"Results")
 		//(train)
 		startTrack(BOLD,"train")
 		logger.setGlobalResult("train.accuracy",
@@ -941,7 +805,6 @@ class Entry {
 		log(FORCE,YELLOW,s+".inbeam: "+ testScore.percentParsable)
 		log(FORCE,YELLOW,s+".score: "+ testScore.aveScore())
 		endTrack(s)
-		endTrack("Results")
 		//--Debug dump
 		log("saving parses")
 		trainScores.zipWithIndex.foreach( pair => {
@@ -957,10 +820,14 @@ class Entry {
 			writer.write(r.toString); writer.write("\n")
 		})
 		writer.close
-		this
 	}
+	
 }
 
+//------------------------------------------------------------------------------
+// ENTRY
+//------------------------------------------------------------------------------
+class Entry {}
 object Entry {
 	import edu.stanford.nlp.util.logging._
 	def main(args:Array[String]):Unit = {
@@ -970,11 +837,9 @@ object Entry {
 				O.runDebug.toLowerCase match {
 					//(case: time expression console)
 					case "console" => Temporal.interactive
-					//(case: read the gold tag file)
-					case "goldtagread" => Const.goldTag; log(FORCE,"OK")
 					//(case: don't run a debug sequence)
 					case "none" => {
-						(new Entry).init.run
+						(new GroundingTask).run
 					}
 					case _ => {
 						throw fail("invalid runDebug flag")

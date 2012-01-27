@@ -190,7 +190,7 @@ trait OtherSystem {
 		//--Score
 		startTrack("Scoring")
 		import Process._
-		import org.goobs.slib.Static._
+		import org.goobs.util.Static._
 		//(run script)
 		val scriptOutput:String = {
 			try {

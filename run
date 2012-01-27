@@ -18,7 +18,7 @@ env!(
 	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('Xmx800M'),
+	o('mx3g'),
 	o('ea'),
 	'time.Entry',
 
@@ -66,7 +66,7 @@ env!(
 		o('lexNils'),
 		# <training>
 		o('beam', 2000), #1500 works well
-		o('iters', 20),
+		o('iters', 2),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		o('babySteps'),
@@ -89,8 +89,8 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,20]'),   o('dev',   'English[142,162]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data

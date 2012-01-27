@@ -60,7 +60,7 @@ nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
 """
 }
 
-def AUTO_MISS(id:String,sent:Sentence,gold:Any) = 
+def AUTO_MISS(id:String,sent:TimeSent,gold:Any) = 
 """
 ################################################################################
 # Datum """+id+"""
@@ -68,7 +68,7 @@ def AUTO_MISS(id:String,sent:Sentence,gold:Any) =
 slide!('Datum """+id+""" \red{(no parses)}',
 	'',
 	center,
-	_('Sentence: """+
+	_('TimeSent: """+
 		sent.toString.replaceAll("\"","\\\\\"").replaceAll("'","\\\\'")+"""'),
 	_('Gold: """+{if(gold != null) gold else "???"}+"""'),
 nil){ |slide| slide.label('datum"""+id+"""').signature(0).titleSpacing(u(0)) }
@@ -82,7 +82,7 @@ def END_PRESENTATION =
 finishPresentation
 """
 
-def CRF_DATA_NOAMBIGUITY:Array[(Sentence,Array[Int])] = {
+def CRF_DATA_NOAMBIGUITY:Array[(TimeSent,Array[Int])] = {
 	val strings = Array[String]("today", "week", "last week today", "last week", 
 		"month", "a month", "april", "a year")
 	strings.map{ (str:String) =>
@@ -91,7 +91,7 @@ def CRF_DATA_NOAMBIGUITY:Array[(Sentence,Array[Int])] = {
 		}
 	}.map{ (arr:Array[(Int,String)]) =>
 		val words = arr.map(_._1)
-		(Sentence(
+		(TimeSent(
 				-1,
 				words, 
 				words.map{(w:Int) => U.str2pos("POS")}, 
@@ -100,67 +100,6 @@ def CRF_DATA_NOAMBIGUITY:Array[(Sentence,Array[Int])] = {
 		)
 	}
 }
-
-import CKYParser._
-lazy val goldTag:(Sentence,(CkyRule,Int,Double)=>Boolean)=>Array[Int] = {
-	import scala.io.Source.fromFile
-	import java.io.File
-	import scala.collection.immutable.Map
-	val Sent = """([0-9]+)\s*::\s*(.*?)\s*::\s*(.*?)""".r
-	val Fail = """\s+[Ff][Aa][Ii][Ll]\s*""".r
-	val Tags = """\s+(.+)""".r
-	val Tag =  """[^\s]+""".r
-	val Whitespace = """\s*""".r
-	val tagMap:Map[Int,Array[Int]] = fromFile(new File(O.goldTagFile))
-			.getLines.foldLeft(
-			(-1,List[(Int,Array[Int])]())){ 
-			case ((sid:Int,soFar:List[(Int,Array[Int])]),line:String) =>
-		line match {
-			case Sent(newSid,gloss,value) => (newSid.toInt,soFar)
-			case Fail(_*) => {
-				assert(sid >= 0, "No SID for [failed] line " + line)
-				(-1,(sid,Array[Int]()) :: soFar)
-			}
-			case Tags(tags) => {
-				assert(sid >= 0, "No SID for line " + line)
-				(-1, 
-					(sid,Tag.findAllIn(tags).map( Grammar.str2rid(_) ).toArray) :: soFar)
-			}
-			case Whitespace(_*) => (sid,soFar)
-			case _ => throw new IllegalArgumentException("Unknown line: '"+line+"'")
-		}
-	}._2.toMap
-	//--Function
-	(sent:Sentence,y:(CkyRule,Int,Double)=>Boolean) => {
-		val tags = tagMap(sent.id)
-		if(tagMap(sent.id) == null){ 
-			throw new IllegalStateException("No saved tags for sid " + sent.id)
-		}
-		assert(tags.length == 0 || sent.length == tags.length,
-			"Bad tag count for " + sent.id + ": " + sent + " sent: " 
-				+ sent.length + " vs tags: " + tags.length)
-		if(tags.length == 0){
-			throw new IllegalArgumentException("No tags given")
-//			(0 until sent.length).toArray.map{ (i:Int) =>
-//				y(CKY_LEX(rid2lexI(Grammar.NIL_RID)),i,0.0)
-//				1
-//			}
-		} else {
-			tags.zipWithIndex.map{ case (tag:Int,i:Int) =>
-				y(CKY_LEX(rid2lexI(tag)),i,0.0)
-				1
-			}
-		}
-	}
-}
-
-
-
-
-
-
-
-
 }
 
 
