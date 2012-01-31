@@ -54,6 +54,30 @@ case class TimeSent(id:Int,words:Array[Int],pos:Array[Int],nums:Array[Int])
 // GRAMMAR
 //------------------------------------------------------------------------------
 
+class TimeUnary(lambda:Option[Any=>Any],_parent:NodeType,_child:NodeType)
+		extends CKYUnary(lambda,_parent,_child) {
+	def this(lambda:Any=>Any,_parent:NodeType,_child:NodeType) 
+		= this(Some(lambda),_parent,_child)
+	def this(_parent:NodeType,_child:NodeType) = this(None,_parent,_child)
+	override def equals(o:Any) = o match {
+		case (a:AnyRef) => this eq a
+		case _ => false
+	}
+}
+class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
+		_leftChild:NodeType,_rightChild:NodeType) 
+		extends CKYBinary(lambda,_parent,_leftChild,_rightChild) {
+	def this(lambda:(Any,Any)=>Any,_parent:NodeType,
+			_leftChild:NodeType,_rightChild:NodeType)
+		= this(Some(lambda),_parent,_leftChild,_rightChild)
+	def this(_parent:NodeType,_leftChild:NodeType,_rightChild:NodeType)
+		= this(None,_parent,_leftChild,_rightChild)
+	override def equals(o:Any) = o match {
+		case (a:AnyRef) => this eq a
+		case _ => false
+	}
+}
+
 object Grammar {
 	case class NIL()
 	//----------
@@ -205,70 +229,70 @@ object Grammar {
 		var rtn = List[(GrammarRule,String)]()
 		//--Lex
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
-			(new CKYUnary(hack((w:Int) => r), NodeType('Range), 
+			(new TimeUnary(hack((w:Int) => r), NodeType('Range), 
 				NodeType('Word)), s)}
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
-			(new CKYUnary(hack((w:Int) => d), NodeType('Duration), 
+			(new TimeUnary(hack((w:Int) => d), NodeType('Duration), 
 				NodeType('Word)), s)}
 		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
-			(new CKYUnary(hack((w:Int) => d), NodeType('Sequence), 
+			(new TimeUnary(hack((w:Int) => d), NodeType('Sequence), 
 				NodeType('Word)), s)}
 		//(nil)
 		rtn = rtn ::: 
 			{if(O.lexNils){
 				assert(G.wordIndexer.size > 0, "Haven't initialized indexer yet")
 				G.wordIndexer.map{ (word:String) =>
-					(new CKYUnary(hack((w:Int) => new NIL),
+					(new TimeUnary(hack((w:Int) => new NIL),
 						NodeType(Symbol("NIL-"+word)), NodeType('Word)), "nil-"+word)
 				}.toList
 			} else {
-				List[(GrammarRule,String)]((new CKYUnary(hack((w:Int) => new NIL),
+				List[(GrammarRule,String)]((new TimeUnary(hack((w:Int) => new NIL),
 					NodeType('NIL), NodeType('Word)), "nil"))
 			}}
 		//(numbers)
 		rtn = rtn ::: List[(GrammarRule,String)](
-			(new CKYUnary(hack((num:Int) =>  num ),
+			(new TimeUnary(hack((num:Int) =>  num ),
 				NodeType('NUM), NodeType('Number)),
 				"NUM"),
-			(new CKYUnary(hack((num:Int) =>  MOH(num) ),
+			(new TimeUnary(hack((num:Int) =>  MOH(num) ),
 				NodeType('Sequence), NodeType('Number)) 
 				.restrict( (w:Int) => w >= 0 && w < 60 ),
 				"moh(n):S"),
-			(new CKYUnary(hack((num:Int) =>  HOD(num) ),
+			(new TimeUnary(hack((num:Int) =>  HOD(num) ),
 				NodeType('Sequence), NodeType('Number))
 				.restrict( (w:Int) => w >= 0 && w < 24 ),
 				"hod(n):S"),
-			(new CKYUnary(hack((num:Int) =>  DOM(num) ),
+			(new TimeUnary(hack((num:Int) =>  DOM(num) ),
 				NodeType('Sequence), NodeType('Number))
 				.restrict( (w:Int) => w >= 1 && w <= 31 ),
 				"dom(n):S"),
-			(new CKYUnary(hack((num:Int) =>  MOY(num) ),
+			(new TimeUnary(hack((num:Int) =>  MOY(num) ),
 				NodeType('Sequence), NodeType('Number))
 				.restrict( (w:Int) => w >= 1 && w <= 12 ),
 				"moy(n):S"),
-			(new CKYUnary(hack((num:Int) =>  YOC(num) ),
+			(new TimeUnary(hack((num:Int) =>  YOC(num) ),
 				NodeType('Sequence), NodeType('Number)) 
 				.restrict( (w:Int) => w >= 0 && w < 100 ),
 				"yoc(n):S"),
-			(new CKYUnary(hack((num:Int) =>  DOC(num) ),
+			(new TimeUnary(hack((num:Int) =>  DOC(num) ),
 				NodeType('Sequence), NodeType('Number)) 
 				.restrict( (w:Int) => w >= 0 && w < 10 ),
 				"doc(n):S"),
-			(new CKYUnary(hack((num:Int) =>  YOD(num) ),
+			(new TimeUnary(hack((num:Int) =>  YOD(num) ),
 				NodeType('Sequence), NodeType('Number)) 
 				.restrict( (w:Int) => w >= 0 && w < 10 ),
 				"yod(n):S"),
-			(new CKYUnary(hack((num:Int) =>  THEYEAR(num) ),
+			(new TimeUnary(hack((num:Int) =>  THEYEAR(num) ),
 				NodeType('Range), NodeType('Number)),
 				"year(n):R"),
-			(new CKYUnary(hack((num:Int) =>  CENTURY(num)),
+			(new TimeUnary(hack((num:Int) =>  CENTURY(num)),
 				NodeType('Range), NodeType('Number))
 				.restrict( (w:Int) => w > -100 && w < 100 ),
 				"century(n):R")
 			)
 		//(indices)
 		rtn = rtn ::: indexedSequences.map{ case (fn:Array[Sequence],name:String) =>
-			(new CKYUnary(hack((w:Int) =>  
+			(new TimeUnary(hack((w:Int) =>  
 					(n:Int) => {
 						if(n < 0 || n >= fn.length){
 							new NoTime
@@ -305,14 +329,14 @@ object Grammar {
 					case (soFar:List[(GrammarRule,String)],
 						((fnNode:NodeType,head:Symbol),a:Symbol)) =>
 				//(consume A on the left)
-				{(new CKYBinary(
+				{(new TimeBinary(
 					hack2((a:Any,fn:(Any)=>Temporal) => fn(a)),       //function
 					fromShort(head),                                  //head
 					fromShort(a),                                     //left
 					fnNode ),                                         //right
 				"$x:"+a.name+"$") ::                                //name
 				//(consume A on the right)
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2((fn:(Any)=>Temporal,a:Any) => fn(a)),       //function
 					fromShort(head),                                  //head
 					fnNode,                                           //left
@@ -327,7 +351,7 @@ object Grammar {
 			rtn = rtn ::: info.validA.foldLeft(List[(GrammarRule,String)]()){ 
 					case (soFarOuter:List[(GrammarRule,String)],a:Symbol) =>
 				//(create rule)
-				val rule = (new CKYUnary(
+				val rule = (new TimeUnary(
 					hack((w:Int) => info.fn),
 					NodeType("F_{"+a.name+"}2"+a.name),
 					NodeType('Word)),
@@ -361,7 +385,7 @@ object Grammar {
 					case (soFar:List[(GrammarRule,String)],
 					      (fn:NodeType,a:Symbol,b:Symbol)) =>
 				//(consume B on the left)
-				{(new CKYBinary(
+				{(new TimeBinary(
 					hack2((b:Temporal,fn:(Temporal,Temporal)=>Temporal) =>     //function
 						fn(_:Temporal,b)),
 					NodeType(Symbol("F_{"+a.name+"}2"+a.name)),                //head
@@ -369,7 +393,7 @@ object Grammar {
 					fn),                                                       //right
 				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
 				//(consume B on the right)
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2((fn:(Temporal,Temporal)=>Temporal,b:Temporal) =>     //function
 						fn(_:Temporal,b)), 
 					NodeType(Symbol("F_{"+a.name+"}2"+a.name)),                //head
@@ -388,7 +412,7 @@ object Grammar {
 				     (fn:NodeType,a:Symbol,b:Symbol))=>
 			{if(b == 'R){
 				//(consume A on the left -- B is Range)
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2((a:Temporal,fn:(Temporal,Range)=>Temporal) => {      //function
 						fn(a,REF)}),
 					fromShort(a),                                     //head
@@ -396,7 +420,7 @@ object Grammar {
 					fn ),                                                      //right
 				"$r:"+a.name+"$") ::                                         //name
 				//(consume A on the right -- B is Range)
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2((fn:(Temporal,Range)=>Temporal,a:Temporal) => {      //function
 						fn(a,REF)}),
 					fromShort(a),                                     //head
@@ -407,7 +431,7 @@ object Grammar {
 			} else {List[(GrammarRule,String)]()} :::
 			{if(a == 'R){
 				//(consume B on the left -- A is Range)
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2((b:Temporal,fn:(Range,Temporal)=>Temporal) => {      //function
 						fn(REF,b)}),
 					fromShort(a),                                     //head
@@ -415,7 +439,7 @@ object Grammar {
 					fn ),                                                      //right
 				"$r:"+a.name+"$") ::                                         //name
 				//(consume B on the right -- A is Range)
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2((fn:(Range,Temporal)=>Temporal,b:Temporal) => {      //function
 						fn(REF,b)}),
 					fromShort(a),                                     //head
@@ -434,7 +458,7 @@ object Grammar {
 				soFarOuter ::: info.validB.foldLeft(List[(GrammarRule,String)]()){
 						case (soFarInner:List[(GrammarRule,String)],b:Symbol) =>
 					//(create rule)
-					val rule = (new CKYUnary(
+					val rule = (new TimeUnary(
 						hack((w:Int) => info.fn),
 						NodeType("F_{"+a.name+b.name+"}2"+a.name),
 						NodeType('Word)),
@@ -447,13 +471,13 @@ object Grammar {
 		
 		//--Multiply Duration
 		rtn = rtn ::: List[(GrammarRule,String)](
-			(new CKYBinary(
+			(new TimeBinary(
 				hack2( (d:Duration,n:Int) => d*n ),
 				NodeType('Duration),
 				NodeType('Duration), 
 				NodeType('NUM)
 				), "D*n"),
-			(new CKYBinary(
+			(new TimeBinary(
 				hack2( (n:Int,d:Duration) => d*n ),
 				NodeType('Duration), 
 				NodeType('NUM), 
@@ -467,7 +491,7 @@ object Grammar {
 			rangeTypes.foldLeft(List[(GrammarRule,String)]()){
 					case (soFarInner:List[(GrammarRule,String)],rB:String) =>
 				val head = {if(rA == "R" || rB == "R") "R" else rA}
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2( (r1:Range,r2:Range) => r1 ^ r2), 
 					fromShort(head), 
 					fromShort(rA),
@@ -491,13 +515,13 @@ object Grammar {
 			//(add identities)
 			nilList.foldLeft(List[(GrammarRule,String)]()){ 
 					case (lst:List[(GrammarRule,String)],nil:NodeType) =>
-				(new CKYBinary(
+				(new TimeBinary(
 						hack2( (x:Any,n:NIL) => x ),
 						term,
 						term,
 						nil
 					),"$x:"+term.name+"$") ::
-				(new CKYBinary(
+				(new TimeBinary(
 					hack2( (n:NIL,x:Any) => x),
 					term,
 					nil,
@@ -523,17 +547,17 @@ object Grammar {
 		//--ROOT
 		rtn = rtn ::: List[GrammarRule](
 			//(rules)
-			new CKYUnary(hack((r:Range) => r),
+			new TimeUnary(hack((r:Range) => r),
 				NodeType.ROOT, NodeType('Range)), 
-			new CKYUnary(hack((d:Duration) => d),
+			new TimeUnary(hack((d:Duration) => d),
 				NodeType.ROOT, NodeType('Duration)), 
-			new CKYUnary(hack((s:Range) => s), //note: range
+			new TimeUnary(hack((s:Range) => s), //note: range
 				NodeType.ROOT, NodeType('Sequence))
 			) ::: { if(O.allowPartialTime)
-								List[CKYUnary]( 
-									new CKYUnary(hack((fn:Range=>Range) => fn),
+								List[TimeUnary]( 
+									new TimeUnary(hack((fn:Range=>Range) => fn),
 										NodeType.ROOT, NodeType('F_R2R)) )
-							else List[CKYUnary]() }
+							else List[TimeUnary]() }
 		//--LEX
 		rtn = rtn ::: List[GrammarRule](
 			GrammarRule(

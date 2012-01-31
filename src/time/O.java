@@ -91,7 +91,7 @@ public class O {
 	@Option(name="kbestCKYAlgorithm", gloss="algorithm from (Huang et. al)")
 	public static int kbestCKYAlgorithm = 0;
 	public static enum CkyCountType{ 
-		all, bestAll, bestRandom, bestShallow, shortWithOffsetZero, leastNilsWithOffsetZero }
+		all, bestAll, bestRandom, shortWithOffsetZero, leastNilsWithOffsetZero }
 	@Option(name="ckyCountType", gloss="Parses to count as 'correct' for EM")
 	public static CkyCountType ckyCountType = CkyCountType.bestAll;
 	public static enum CkyCountNormalization{ none, uniform, 

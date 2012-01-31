@@ -38,11 +38,10 @@ env!(
 		o('rulePrior', 0.325),
 		o('lexPrior', 0.0025),
 		o('uniformRoot'),
-		selo(5,'ckyCountType',
+		selo(4,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
-			'bestShallow',
 			'shortWithOffsetZero',
 			'leastNilsWithOffsetZero'),
 		selo(3,'CkyCountNormalization',
@@ -89,9 +88,9 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
-#		o('train', 'English[0,20]'),   o('dev',   'English[142,162]'),
+		o('train', 'English[0,20]'),   o('dev',   'English[142,162]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test

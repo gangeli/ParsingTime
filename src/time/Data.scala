@@ -353,11 +353,12 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 				classOf[NumericCompositeTypeAnnotation]))
 			val w = if(t != NumberType.NONE){ numVal.toString } else { lbl.word }
 			//(get word)
-			if(test) {
+			val wInt = if(test) {
 				U.str2wTest(w, t) 
 			} else {
 				U.str2w(w, t)
 			}
+			wInt
 		}.toArray
 	}
 	def gloss:String = {
@@ -390,7 +391,5 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 	
 	def grounding:Time = pubTime
 
-	override def toString:String 
-		= "timex["+tid+"] "+words(false).map{ U.w2str(_) }.mkString(" * ")
-//		= "timex["+tid+"] "+span.map{ _.word }.mkString(" * ")
+	override def toString:String = "timex["+tid+"] "
 }

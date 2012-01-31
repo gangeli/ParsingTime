@@ -44,19 +44,24 @@ object G {
 	val F_R = new Def[Range=>Range]
 	val random:scala.util.Random =
 		if(O.useSeed) new scala.util.Random(O.seed) else new scala.util.Random 
-	def W:Int = wordIndexer.size
+	lazy val W:Int = wordIndexer.size+1
 	def P:Int = posIndexer.size
-	def UNK:Int = W
-	def PUNK:Int = P
+	lazy val UNK:Int = W-1
 	val NUM:Int = wordIndexer.addAndGetIndex("--NUM--")
-	def NUM(digits:Int,numType:NumberType.Value) = {
+	def PUNK:Int = P
+	def NUM(digits:Int,numType:NumberType.Value,test:Boolean) = {
 		val suffix:String = numType match {
 			case NumberType.NONE => "<<?>>"
 			case NumberType.UNIT => "u"
 			case NumberType.NUMBER => ""
 			case NumberType.ORDINAL => "nd"
 		}
-		wordIndexer.addAndGetIndex("--NUM("+digits+")"+suffix+"--")
+		if(test){
+			val w = wordIndexer.indexOf("--NUM("+digits+")"+suffix+"--")
+			if(w < 0){ wordIndexer.indexOf("--NUM--") } else { w }
+		} else {
+			wordIndexer.addAndGetIndex("--NUM("+digits+")"+suffix+"--")
+		}
 	}
 	val IsInt = """^(\-?[0-9]+)$""".r
 	val CanInt = """^\-?[0-9]+(\.0+)?(E[0-9]+)?$""".r
@@ -84,22 +89,22 @@ object U {
 			case _ => false
 		}
 	}
-	private def mkNum(str:String,numType:NumberType.Value):Int = {
+	private def mkNum(str:String,numType:NumberType.Value,test:Boolean):Int = {
 		assert(numType != NumberType.NONE, "NONE number type not allowed: "+str)
 		if(O.bucketNumbers) {
-			G.NUM(str2int(str).toString.length,numType)
+			G.NUM(str2int(str).toString.length,numType,test)
 		} else {
 			G.NUM
 		}
 	}
 
 	def w2str(w:Int):String = {
-		if(w < G.W) G.wordIndexer.get(w) else "--UNK--"
+		if(w < G.wordIndexer.size) G.wordIndexer.get(w) else "--UNK--"
 	}
 	def str2w(str:String):Int = str2w(str,NumberType.NONE)
 	def str2w(str:String,numType:NumberType.Value):Int = {
 		if(numType != NumberType.NONE) {
-			val w = mkNum(str,numType) 
+			val w = mkNum(str,numType,false) 
 			assert(isNum(w), "Not recognized as number: " + w2str(w))
 			w
 		} else {
@@ -120,8 +125,10 @@ object U {
 	}
 	def str2wTest(str:String):Int = str2wTest(str,NumberType.NONE)
 	def str2wTest(str:String,numType:NumberType.Value):Int = {
+		assert(G.W == G.wordIndexer.size + 1)
+		assert(G.UNK == G.wordIndexer.size)
 		if(numType != NumberType.NONE) {
-			mkNum(str,numType) 
+			mkNum(str,numType,true) 
 		} else {
 			val w:Int = 
 					if(O.ignoreCase) {
@@ -129,6 +136,7 @@ object U {
 					} else {
 						G.wordIndexer.indexOf(str)
 					}
+			assert(w < 0 || w < G.wordIndexer.size, "Invalid word returned")
 			if(w < 0) G.UNK else w
 		}
 	}
@@ -369,6 +377,173 @@ class Score {
 			G.df.format(aveScore())
 	}
 }
+//------------------------------------------------------------------------------
+// TOY DATA(S)
+//------------------------------------------------------------------------------
+object ToyData {
+	import Lex._
+	private val toys = new HashMap[String,Int]
+
+	private val NONE = ToyStore(Array[(String,Temporal)](),false)
+	private def store(test:Boolean,args:(String,Temporal)*):ToyStore 
+		= ToyStore(args.toArray,test)
+	//--Toy
+	private val thisMorning = ("this morning",(TOD(1)))
+	private val today = ("today",(TODAY))
+	private val day = ("day",(DAY(todaysDate)))
+	private val week = ("week",(WEEK(todaysDate)))
+	private val aWeek = ("a week",(AWEEK))
+	private val theWeek = ("the week",(WEEK(todaysDate)))
+	private val thisWeek = ("this week",(REF ! AWEEK))
+	private val lastWeekToday = ("last week today",(WEEK move -1))
+	private val lastWeekNow = ("last week now",(WEEK move -1))
+	private val lastWeek = ("last week",(WEEK move -1))
+	private val weekLast = ("week last",(WEEK move -1))
+	private val pastWeek = ("past week",(REF <| AWEEK))
+	private val thePastWeek = ("the past week",(REF <| AWEEK))
+	private val pastMonths2 = ("past 2 months",(REF <| (AMONTH*2)))
+	private val pastYear = ("past year",(REF <| AYEAR))
+	private val weeks2 = ("2 weeks",(AWEEK*2))
+	private val weeksDash2 = ("2 - weeks",(AWEEK*2))
+	private val week2Period = ("2 week period",(AWEEK*2))
+	private val month = ("month",(MONTH))
+	private val aMonth = ("a month",(AMONTH))
+	private val theMonth = ("the month",(MONTH))
+	private val lastMonth = ("last month",(MONTH move -1))
+	private val nextMonth = ("next month",(MONTH move 1))
+	private val thisMonth = ("this month",(MONTH))
+	private val spring = ("spring",(SEASON(1)))
+	private val summer = ("summer",(SEASON(2)))
+	private val fall = ("fall",(SEASON(3)))
+	private val winter = ("winter",(SEASON(4)))
+	private val quarter = ("quarter",(QUARTER))
+	private val aQuarter = ("a quarter",(AQUARTER))
+	private val lastQuarter = ("last quarter",(QUARTER move -1))
+	private val firstQuarter = ("1st - quarter",(QOY(1))) //really, should be ordinal
+	private val secondQuarter = ("2st - quarter",(QOY(2)))
+	private val thirdQuarter = ("3st - quarter",(QOY(3)))
+	private val fourthQuarter = ("4st - quarter",(QOY(4)))
+	private val y1776 = ("1776",(THEYEAR(1776)))
+	private val y17sp76 = ("17 76",(THEYEAR(1776)))
+	private val months2 = ("2 months",(AMONTH*2))
+	private val monthsdash2 = ("2 - month",(AMONTH*2))
+	private val years2 = ("2 years",(AYEAR*2))
+	private val april = ("april",(MOY(4)))
+	private val april1776 = ("april 1776",(MOY(4) ^ THEYEAR(1776)))
+	private val april2 = ("april 2",(MOY(4) ^ DOM(2)))
+	private val year = ("year",(YEAR))
+	private val ayear = ("a year",(AYEAR))
+	private val lastYear = ("last year",(YEAR move -1))
+	private val thisYear = ("this year",(YEAR))
+	private val monday = ("monday",(DOW(1)(todaysDate,0)))
+	private val tuesday = ("tuesday",(DOW(2)(todaysDate,0)))
+	private val wednesday = ("wednesday",(DOW(3)(todaysDate,0)))
+	private val thursday = ("thursday",(DOW(4)(todaysDate,0)))
+	private val friday = ("friday",(DOW(5)(todaysDate,0)))
+	private val saturday = ("saturday",(DOW(6)(todaysDate,0)))
+	private val sunday = ("sunday",(DOW(7)(todaysDate,0)))
+	private val monday_neg1 = ("monday",(DOW(1)(todaysDate,-1)))
+	private val tuesday_neg1 = ("tuesday",(DOW(2)(todaysDate,-1)))
+	private val wednesday_neg1 = ("wednesday",(DOW(3)(todaysDate,-1)))
+	private val thursday_neg1 = ("thursday",(DOW(4)(todaysDate,-1)))
+	private val friday_neg1 = ("friday",(DOW(5)(todaysDate,-1)))
+	private val saturday_neg1 = ("saturday",(DOW(6)(todaysDate,-1)))
+	private val sunday_neg1 = ("sunday",(DOW(7)(todaysDate,-1)))
+	private val special_chars = ("today '",(REF(todaysDate)))
+	private val lasthalf1989 = ("last half 1989",(Range(Time(1989,7),Time(1990))))
+	private val lastquarter1989 = ("last quarter 1989",(Range(Time(1989,10),Time(1990))))
+	private val recentMonths = ("recent months",(PAST))
+	//--Hard Real Data
+	private val may22sp1995 
+		= ("May 22 , 1995", (Range(Time(1995,5,22),Time(1995,5,23))))
+
+
+	private case class ToyStore(gold:Array[(String,Temporal)],test:Boolean) 
+			extends DataStore[(TimeSent,Temporal,Time)] {
+		override def name:String = if(test) "toy-dev" else "toy"
+		override def eachExample(iter:Int):Iterable[(TimeSent,Temporal,Time)] = {
+			val score:Score = new Score
+			gold.zipWithIndex.map{ case ((sent:String,gold:Temporal),id:Int) =>
+				//(variables)
+				val words = sent.split(" ").map{ (raw:String) => 
+					val (str,typ) = 
+						if((raw.length > 2 || raw.endsWith("st")) &&
+								(raw.substring(0,raw.length-2) matches G.CanInt)){
+							(raw.substring(0,raw.length-2),NumberType.ORDINAL)
+						} else if(raw matches G.CanInt){
+							(raw,NumberType.NUMBER)
+						} else {
+							(raw, NumberType.NONE)
+						}
+					U.str2wTest(str,typ)
+				}
+				val s = TimeSent(
+					id,
+					words, 
+					words.map{ (w:Int) => U.str2posTest("UNK") },
+					sent.split(" ").map{ (str:String) =>
+						if(U.isInt(str)) U.str2int(str) else -1 }
+					)
+				(s,gold(todaysDate,0),todaysDate)
+			}
+		}
+		def internWords:ToyStore = {
+			gold.foreach{ case (sent:String,gold:Temporal) =>
+				sent.split(" ").foreach{ (str:String) => 
+					U.str2w(str, str match {
+						case G.CanInt(i) => NumberType.NUMBER
+						case _ => NumberType.NONE
+					}) 
+				}
+			}
+			this
+		}
+	}
+
+	def TODAY_ONLY:Data[(TimeSent,Temporal,Time)] = {
+		Data(store(false,today).internWords,store(true,today))
+	}
+	
+	def STANDARD:Data[(TimeSent,Temporal,Time)] = {
+		Data(
+			store(false,
+			//--Train
+//				//(durations)
+//				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,
+//				//(sequences)
+//				week,month,quarter,year,day,theWeek,
+//				//(cannonicals -> sequences)
+//				thisWeek,thisYear,thisMonth,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastYear,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
+//				//(days of the week)
+//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+//				//(numbers -- complex)
+//				y17sp76,
+//				//(seasons)
+//				spring,summer,fall,winter,
+//				//(floor/ceil)
+//				firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
+//				//(offset -1)
+////				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
+//				//(hard)
+//				lasthalf1989, lastquarter1989,recentMonths,
+////				may22sp1995,special_chars,
+//				//(ref)
+				today
+			).internWords,
+			//--Test
+			store(true,lastMonth))
+	}
+}
 
 //------------------------------------------------------------------------------
 // DATA
@@ -427,8 +602,7 @@ object SimpleTimexStore {
 		log("creating data")
 		val data = 
 			if(train.source == O.DataSource.Toy || eval.source == O.DataSource.Toy){
-				throw fail("Toy commented out!")
-//				ToyData.STANDARD TODO
+				ToyData.STANDARD
 			} else {
 				Data(
 					new SimpleTimexStore(mkDataset(train),false,train.source.toString),
@@ -451,6 +625,56 @@ object SimpleTimexStore {
 trait TemporalTask {
 	def run:Unit
 }
+case class MyTime(parser:CKYParser) extends OtherSystem {
+	//<<other sytem overrides>>
+	override def getTimex(input:SystemInput,minProb:Double):Option[SystemOutput]={
+		//(parse)
+		val (output,lprob) = getTimexAndProb(input)
+		//(get probability)
+		val numRules:Int = 2*input.timex.words(true).length-1
+		val aveRuleProb:Double = math.exp(lprob*(1.0/numRules.asInstanceOf[Double]))
+		//(return)
+		if(aveRuleProb >= minProb){
+			output
+		} else {
+			None
+		}
+	}
+	override def name:String = "MyTime"
+	//<<other utils>>
+	def toInfo(data:Array[SystemInput]):MySystemInfo = {
+		val valueMap = new HashMap[Int,(Option[SystemOutput],Int,Double)]
+		data.foreach{ (in:SystemInput) =>
+			val	key:Int = in.timex.index
+			val	(out,lprob):(Option[SystemOutput],Double) = getTimexAndProb(in)
+			val	len:Int = in.timex.words(true).length
+			valueMap(key) = (out,len,lprob)
+		}
+		MySystemInfo(valueMap)
+	}
+	private def getTimexAndProb(input:SystemInput):(Option[SystemOutput],Double)={
+		//--Create Sentence
+		val sent = TimeSent(
+			input.timex.tid,
+			input.timex.words(true),
+			input.timex.pos(true),
+			input.timex.nums)
+		//--Run Parser
+		O.beam = 10
+		val parses = parser.parse(sent,10)
+		//--Digest Result
+		val parsesWithTime:Array[EvalTree[Any]] 
+			= parses.dropWhile{ (p:EvalTree[Any]) => p.evaluate.isInstanceOf[NoTime] }
+		if(parsesWithTime.length == 0) {
+			(None,Double.NegativeInfinity)
+		} else {
+			val (typ,value) 
+				= parsesWithTime(0).evaluate
+					.asInstanceOf[Temporal].asTimex(new Time(input.ground))
+			(Some(SystemOutput(typ,value)),parsesWithTime(0).logProb)
+		}
+	}
+}
 class GroundingTask extends TemporalTask {
 	//--Initialize JodaTime
 	log("JodaTime settings")
@@ -468,7 +692,18 @@ class GroundingTask extends TemporalTask {
 	var initialParser = CKYParser(G.W, Grammar.RULES)
 	endTrack("Creating Parser")
 
-	case class GoodOutput(tree:EvalTree[Any],value:Temporal,offset:Int)
+	//<<scoring>>
+	case class GoodOutput(tree:EvalTree[Any],value:Temporal,
+			offset:Long,prob:Double,ground:Time,sent:TimeSent) {
+		assert(prob >= 0 && prob <= 1.0, "Invalid probability: " + prob)
+		def normalize(total:Double,count:Int):GoodOutput = {
+			if(total == 0.0){
+				GoodOutput(tree,value,offset,1.0/count.asInstanceOf[Double],ground,sent)
+			} else {
+				GoodOutput(tree,value,offset,prob/total,ground,sent)
+			}
+		}
+	}
 	case class CompareElem(offset:Int,diff:(Duration,Duration),prob:Double)
 	case class ScoreElem(index:Int,offset:Int,diff:(Duration,Duration),
 			logProb:Double, temporal:Temporal){
@@ -580,6 +815,121 @@ class GroundingTask extends TemporalTask {
 		}
 	}
 
+	def filterCorrect(correct:Array[GoodOutput]):Iterable[GoodOutput] = {
+		//--Utility Functions
+		def countNonNils(tree:ParseTree,sent:Sentence):(Int,Int) = {
+			var words = List[Int]()
+			var tags = List[CKYUnary]()
+			tree.traverse( 
+				(rule:CKYRule) => {}, 
+				(rule:CKYUnary,w:Int) => { 
+					tags = rule :: tags 
+					words = w :: words 
+				} )
+			val nonNilCount:Int = tags.filter(_.parent.flag('nil)).length
+			val trimmedLength:Int = words.zip(tags)
+				.dropWhile{_._2.parent.flag('nil)}
+				.reverse
+				.dropWhile{ _._2.parent.flag('nil) }
+				.map{_._1}
+				.length
+			(trimmedLength,nonNilCount)
+		}
+		def trim(tree:ParseTree,sent:Sentence):Array[Int] = {
+			var words = List[Int]()
+			var tags = List[CKYRule]()
+			tree.traverse( 
+				(rule:CKYRule) => {}, 
+				(rule:CKYUnary,w:Int) => { 
+					tags = rule :: tags 
+					words = w :: words 
+				} )
+			words.zip(tags)
+				.dropWhile{_._2.parent.flag('nil)}
+				.reverse
+				.dropWhile{_._2.parent.flag('nil)}
+				.map{_._1}
+				.toArray
+		}
+		//--Filter
+		O.ckyCountType match {
+			case O.CkyCountType.all => 
+				//(all parses valid)
+				val total:Double = correct.map{_.prob}.sum
+				correct.map{ _.normalize(total,correct.length) }
+			case O.CkyCountType.bestAll => 
+				//(all best-scoring parses valid)
+				val maxProb = correct.maxBy( _.prob ).prob
+				val ok = correct.filter( _.prob == maxProb )
+				val total:Double = ok.map{_.prob}.sum
+				ok.map{ _.normalize(total,ok.length) }
+			case O.CkyCountType.bestRandom => 
+				//(single best scoring parse valid)
+				val maxProb = correct.maxBy( _.prob ).prob
+				val ok = correct.filter( _.prob == maxProb )
+				if(ok.length == 0){
+					Array[GoodOutput]()
+				} else {
+					Array[GoodOutput](ok(0).normalize(ok(0).prob,1))
+				}
+			case O.CkyCountType.shortWithOffsetZero => {
+				//((has an offset zero term?))
+				val hasZeroOffset:Boolean = correct.exists{ _.offset == 0L }
+				//((get shortest length))
+				val shortest:Int = correct.foldLeft(Int.MaxValue){
+						case (shortest:Int,output:GoodOutput) =>
+					if(hasZeroOffset && output.offset == 0L){
+						math.min(shortest, trim(output.tree,output.sent).length)
+					} else {
+						shortest
+					}
+				}
+				//((get matching trees))
+				val matching:Array[GoodOutput] = correct.filter{
+						(output:GoodOutput) =>
+					trim(output.tree,output.sent).length <= shortest &&
+						(!hasZeroOffset || output.offset == 0L)
+				}
+				//((create list))
+				val total:Double = matching.map{_.prob}.sum
+				matching.map{ _.normalize(total,matching.length) }
+			}
+			case O.CkyCountType.leastNilsWithOffsetZero => {
+				//((has an offset zero term?))
+				val hasZeroOffset:Boolean = correct.exists{ _.offset == 0L }
+				//((get shortest length))
+				val shortest:(Int,Int) = correct
+						.foldLeft( (Int.MaxValue,Int.MaxValue) ){
+						case ((shortestTrim:Int,leastNils:Int),output:GoodOutput) =>
+					if(hasZeroOffset && output.offset == 0L){
+						val (trim,nilCount) = countNonNils(output.tree,output.sent)
+						if(trim < shortestTrim){
+							(trim,nilCount)
+						} else if(trim == shortestTrim){
+							(trim,math.min(leastNils,nilCount))
+						} else {
+							(shortestTrim,leastNils)
+						}
+					} else {
+						(shortestTrim,leastNils)
+					}
+				}
+				//((get matching trees))
+				val (shortestTrim,leastNils) = shortest
+				val matching:Array[GoodOutput] = correct.filter{
+						(output:GoodOutput) =>
+					val (trim,nilCount) = countNonNils(output.tree,output.sent)
+					trim <= shortestTrim && nilCount <= leastNils &&
+						(!hasZeroOffset || output.offset == 0)
+				}
+				//((create list))
+				val total:Double = matching.map{_.prob}.sum
+				matching.map{ _.normalize(total,matching.length) }
+			}
+			case _ => throw fail("Unknown case: " + O.ckyCountType)
+		}
+	}
+
 	def handleParses(
 			parses:Array[EvalTree[Any]],
 			gold:Temporal,
@@ -688,24 +1038,31 @@ class GroundingTask extends TemporalTask {
 			score.store(sent,viterbi.get,gold,bestGuess.exact,grounding)
 			log("" + correct.length + " in beam")
 		}
-		//--Format Output
-		//(case: scores)
-		scores.map{ (elem:ScoreElem) =>
+		//--Post-Filter
+		def allOutput:Iterable[GoodOutput] = scores.map{ (elem:ScoreElem) =>
 			if(elem.exact){
-				Some(GoodOutput(parses(elem.index),elem.temporal,elem.offset))
+				Some(GoodOutput(
+					parses(elem.index),
+					elem.temporal,
+					elem.offset,
+					math.exp(elem.logProb),
+					grounding,
+					sent))
 			} else {
 				None
 			}
 		}.filter{ _.isDefined }.map{ _.get }
+		filterCorrect(allOutput.toArray)
 	}
 
 	override def run:Unit = {
 		//--Run
 		forceTrack("Running")
 		//(train)
-		val (parser,trainScores) =
-				((O.iters-1) to 0 by -1).foldRight( (initialParser,List[Score]()) ){
-					case (iter:Int,(parser:CKYParser,scores:List[Score])) =>
+		startTrack("Training")
+		val (parser,trainScoresRev) =
+				((O.iters-1) to 0 by -1).foldLeft( (initialParser,List[Score]()) ){
+					case ((parser:CKYParser,scores:List[Score]),iter:Int) =>
 			forceTrack("Iteration " + iter)
 			//(create score)
 			val score = new Score
@@ -727,52 +1084,77 @@ class GroundingTask extends TemporalTask {
 			val newParser = parser.update(goodParses.map{ _.tree })
 			log("updated parser")
 			//(update time)
-			log("TODO update time distribution") //TODO
+			startTrack("Updating Times")
+			goodParses.foreach{ case GoodOutput(tree,value,offset,prob,ground,s) =>
+				log("["+offset+" P="+G.df.format(prob)+"] "+tree.prettyPrint())
+				value.updateE(Range(ground,ground),offset,math.log(prob))
+			}
+			endTrack("Updating Times")
 			//(continue loop)
+			log(FORCE,BOLD,YELLOW,""+score)
+			log(FORCE,YELLOW,""+score.reportK)
 			endTrack("Iteration " + iter)
-			(newParser,scores)
+			(newParser,score :: scores)
 		}
+		endTrack("Training")
+		//(test)
+		startTrack("Eval")
+		val testScore = new Score
+		data.eval.eachExample(Int.MaxValue).zipWithIndex.foreach {
+					case ((sent:TimeSent,gold:Temporal,ground:Time),i:Int) =>
+			startTrack("[" + i + "] " + {if(O.devTest){ sent.toString } else { "" }})
+			//((parse))
+			val parses:Array[EvalTree[Any]] = parser.parse(sent,O.beam)
+			//((handle parses))
+			handleParses(parses, gold, ground, testScore, sent)
+			//((continue map))
+			endTrack("[" + i + "] " + {if(O.devTest){ sent.toString } else { "" }})
+		}
+		log(FORCE,BOLD,YELLOW,""+testScore)
+		log(FORCE,YELLOW,""+testScore.reportK)
+		endTrack("Eval")
 		endTrack("Running")
 		//--Score
 		startTrack(FORCE,BOLD,"Results")
-//	reportScores(trainScores,testScore) //TODO
+		reportScores(parser,trainScoresRev.reverse.toArray,testScore)
 		endTrack("Results")
 	}
 
-	def reportScores(trainScores:Array[Score],testScore:Score) {
+	def reportScores(parser:CKYParser,trainScores:Array[Score],testScore:Score) {
 		val logger = Execution.getLogger();
 		//--External Score
-//		if(O.train.source == O.DataSource.English){ //TODO run me!
-//			startTrack("TempEval")
-//			//(variables)
-//			Comparisons.inputDir = O.tempevalHome
-//			Comparisons.outputDir = Execution.touch("")
-//			Comparisons.lang = O.train.language
-//			//(run)
-//			val (trn,tst) = Comparisons.runSystem(sys=parser,quiet=true)
-//			startTrack("Eval Results")
-//			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
-//			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
-//			logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
-//			if(!O.devTest){
-//				log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
-//				logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
-//				logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
-//			}
-//			endTrack("Eval Results")
-//			//(save info)
-//			startTrack("Save Output")
-//			val savData = parser.toInfo( Comparisons.dataset2inputs(
-//				new TimeDataset(new SerializedCoreMapDataset(
-//					System.getenv("HOME") + 
-//						"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
-//					)))
-//			)
-//			val outputFile = Execution.touch("tempeval2-output.ser")
-//			IOUtils.writeObjectToFileNoExceptions(savData,outputFile.getPath)
-//			endTrack("Save Output")
-//			endTrack("TempEval")
-//		}
+		if(O.train.source == O.DataSource.English) {
+			startTrack("TempEval")
+			//(variables)
+			Comparisons.inputDir = O.tempevalHome
+			Comparisons.outputDir = Execution.touch("")
+			Comparisons.lang = O.train.language
+			//(run)
+			val timexSys = MyTime(parser)
+			val (trn,tst) = Comparisons.runSystem(sys=timexSys,quiet=true)
+			startTrack("Eval Results")
+			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
+			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
+			logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
+			if(!O.devTest){
+				log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
+				logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
+				logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
+			}
+			endTrack("Eval Results")
+			//(save info)
+			startTrack("Save Output")
+			val savData = timexSys.toInfo( Comparisons.dataset2inputs(
+				new TimeDataset(new SerializedCoreMapDataset(
+					System.getenv("HOME") + 
+						"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
+					)))
+			)
+			val outputFile = Execution.touch("tempeval2-output.ser")
+			IOUtils.writeObjectToFileNoExceptions(savData,outputFile.getPath)
+			endTrack("Save Output")
+			endTrack("TempEval")
+		}
 		//--Process
 		//(train)
 		startTrack(BOLD,"train")
