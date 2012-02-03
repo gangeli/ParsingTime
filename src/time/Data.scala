@@ -354,9 +354,9 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 			val w = if(t != NumberType.NONE){ numVal.toString } else { lbl.word }
 			//(get word)
 			val wInt = if(test) {
-				U.str2wTest(w, t) 
+				U.str2wTest(w) 
 			} else {
-				U.str2w(w, t)
+				U.str2w(w)
 			}
 			wInt
 		}.toArray
@@ -383,6 +383,12 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 			} else {
 				-1
 			}
+		}.toArray
+	}
+	def numTypes:Array[NumberType.Value] = {
+		span.map{ (lbl:CoreLabel) => 
+			numType(lbl.get[String,NumericCompositeTypeAnnotation](
+				classOf[NumericCompositeTypeAnnotation]))
 		}.toArray
 	}
 	def gold:Temporal

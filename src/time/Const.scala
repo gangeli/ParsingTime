@@ -95,7 +95,8 @@ def CRF_DATA_NOAMBIGUITY:Array[(TimeSent,Array[Int])] = {
 				-1,
 				words, 
 				words.map{(w:Int) => U.str2pos("POS")}, 
-				words.map{w => -1} ),
+				words.map{w => -1},
+				words.map{w => NumberType.NONE} ),
 			words
 		)
 	}
