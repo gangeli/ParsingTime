@@ -344,51 +344,48 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 	}
 
 	def tid:Int = index
-	def words(test:Boolean):Array[Int] = { 
+	private def number(lbl:CoreLabel):(NumberType.Value,Int) = {
+		//(get annotation)
+		val numVal = lbl.get[Number,NumericCompositeValueAnnotation](
+			classOf[NumericCompositeValueAnnotation])
+		val t = numType(lbl.get[String,NumericCompositeTypeAnnotation](
+			classOf[NumericCompositeTypeAnnotation]))
+		//(get number)
+		if(t == null || t == NumberType.NONE){
+			(NumberType.NONE,Int.MinValue)
+		} else {
+			assert(numVal != null && numVal != Int.MinValue, "Bad number value")
+			assert(math.floor(numVal.doubleValue) == numVal.doubleValue, 
+				"Number is not an integer: " + numVal)
+			(t,numVal.intValue)
+		}
+	}
+	def words(str2w:String=>Int,numTerm:Int):Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 
-			//(get annotation)
-			val numVal = lbl.get[Number,NumericCompositeValueAnnotation](
-				classOf[NumericCompositeValueAnnotation])
-			val t = numType(lbl.get[String,NumericCompositeTypeAnnotation](
-				classOf[NumericCompositeTypeAnnotation]))
-			val w = if(t != NumberType.NONE){ numVal.toString } else { lbl.word }
-			//(get word)
-			val wInt = if(test) {
-				U.str2wTest(w) 
+			val (typ,num) = number(lbl)
+			if(typ != NumberType.NONE){
+				numTerm
 			} else {
-				U.str2w(w)
+				str2w(lbl.word)
 			}
-			wInt
 		}.toArray
 	}
 	def gloss:String = {
 		span.map{ (lbl:CoreLabel) => lbl.word }.mkString(" ")
-		
 	}
-	def pos(test:Boolean):Array[Int] = { 
-		span.map{ (lbl:CoreLabel) => 
-			if(test) U.str2posTest(lbl.tag) else U.str2pos(lbl.tag)
-		}.toArray
+	def pos(pos2w:String=>Int):Array[Int] = { 
+		span.map{ (lbl:CoreLabel) => pos2w(lbl.tag) }.toArray
 	}
 	def nums:Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 
-			//(get annotation)
-			val numVal = lbl.get[Number,NumericCompositeValueAnnotation](
-				classOf[NumericCompositeValueAnnotation])
-			val numType = lbl.get[String,NumericCompositeTypeAnnotation](
-				classOf[NumericCompositeTypeAnnotation])
-			//(get number)
-			if(numVal != null){
-				numVal.intValue
-			} else {
-				-1
-			}
+			val (typ,num) = number(lbl)
+			num
 		}.toArray
 	}
 	def numTypes:Array[NumberType.Value] = {
 		span.map{ (lbl:CoreLabel) => 
-			numType(lbl.get[String,NumericCompositeTypeAnnotation](
-				classOf[NumericCompositeTypeAnnotation]))
+			val (typ,num) = number(lbl)
+			typ
 		}.toArray
 	}
 	def gold:Temporal

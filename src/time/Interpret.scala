@@ -2,9 +2,9 @@ package time
 
 //(scala)
 import scala.collection.JavaConversions._
-import scala.collection.mutable.PriorityQueue
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
+import scala.collection.immutable.Map
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(lib)
@@ -36,13 +36,17 @@ import Lex._
 case class TimeSent(id:Int,words:Array[Int],pos:Array[Int],
 		nums:Array[Int],ordinality:Array[NumberType.Value])
 		extends Sentence{
+	//<<error checks>>
+	assert(words.zip(nums).forall{ case (w,n) => 
+		(w == G.NUM && n != Int.MinValue) || (w != G.NUM && n == Int.MinValue) },
+		"Words and numbers should match: "+this.toString+" :: "+nums.mkString(","))
 	//<<required overrides>>
 	override def apply(i:Int):Int = words(i)
 	override def length:Int = words.length
 	override def gloss(i:Int):String = {
 		if(words(i) == G.NUM){
 			assert(nums(i) != Int.MinValue, 
-				"Returning number that was not set: " + U.w2str(words(i)))
+				"Returning number that was not set: "+U.w2str(words(i))+" "+nums(i))
 			nums(i).toString
 		} else {
 			U.w2str(words(i))
@@ -665,7 +669,12 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String)
 		new Iterable[(TimeSent,Temporal,Time)] {
 		override def iterator:Iterator[(TimeSent,Temporal,Time)] 
 			= timexes.iterator.map{ (t:Timex) => 
-				(TimeSent(t.tid,t.words(test),t.pos(test),t.nums,t.numTypes), 
+				(TimeSent(
+					t.tid,
+					t.words(if(test){ U.str2wTest(_,false) } else {U.str2w(_,false) },G.NUM),
+					t.pos(if(test){ U.str2posTest(_) } else {U.str2pos(_) }),
+					t.nums,
+					t.numTypes), 
 					t.gold, t.grounding)
 			}
 		}
@@ -724,13 +733,38 @@ object SimpleTimexStore {
 trait TemporalTask {
 	def run:Unit
 }
-case class MyTime(parser:CKYParser) extends OtherSystem {
+case class MyTime(
+		parser:CKYParser,
+		wordIndexer:Indexer[String],
+		posIndexer:Indexer[String],
+		unk:Int,
+		num:Int,
+		timeDist:Map[Temporal,Sequence.Updater]) extends OtherSystem {
+	//<<Error checks>>
+	assert(unk < parser.numWords, "UNK is out of bounds: " 
+		+ unk + " " + parser.numWords)
+	assert(num < parser.numWords, "NUM is out of bounds: "
+		+ num + " " + parser.numWords)
+
+	//<<Initialization>>
+	def updateState:MyTime = {
+		//(indexers)
+		G.wordIndexer = wordIndexer
+		G.posIndexer = posIndexer
+		assert(G.W == wordIndexer.size+1)
+		assert(G.UNK == wordIndexer.size)
+		//(temporal distribution)
+		Lex.sequences.foreach{ x => x.updater = timeDist(x) }
+		//(return)
+		this
+	}
+		
 	//<<other sytem overrides>>
 	override def getTimex(input:SystemInput,minProb:Double):Option[SystemOutput]={
 		//(parse)
 		val (output,lprob) = getTimexAndProb(input)
 		//(get probability)
-		val numRules:Int = 2*input.timex.words(true).length-1
+		val numRules:Int = 2*input.timex.words(str2w(_),num).length-1
 		val aveRuleProb:Double = math.exp(lprob*(1.0/numRules.asInstanceOf[Double]))
 		//(return)
 		if(aveRuleProb >= minProb){
@@ -746,7 +780,7 @@ case class MyTime(parser:CKYParser) extends OtherSystem {
 		data.foreach{ (in:SystemInput) =>
 			val	key:Int = in.timex.index
 			val	(out,lprob):(Option[SystemOutput],Double) = getTimexAndProb(in)
-			val	len:Int = in.timex.words(true).length
+			val	len:Int = in.timex.words(str2w(_),num).length
 			valueMap(key) = (out,len,lprob)
 		}
 		MySystemInfo(valueMap)
@@ -755,8 +789,8 @@ case class MyTime(parser:CKYParser) extends OtherSystem {
 		//--Create Sentence
 		val sent = TimeSent(
 			input.timex.tid,
-			input.timex.words(true),
-			input.timex.pos(true),
+			input.timex.words(str2w(_),num),
+			input.timex.pos(str2pos(_)),
 			input.timex.nums,
 			input.timex.numTypes)
 		//--Run Parser
@@ -773,6 +807,23 @@ case class MyTime(parser:CKYParser) extends OtherSystem {
 					.asInstanceOf[Temporal].asTimex(new Time(input.ground))
 			(Some(SystemOutput(typ,value)),parsesWithTime(0).logProb)
 		}
+	}
+	private def str2w(str:String):Int = {
+		val w = if(O.ignoreCase) {
+			wordIndexer.indexOf(str.toLowerCase)
+		} else {
+			wordIndexer.indexOf(str)
+		}
+		if(w < 0) unk else w
+	}
+	private def str2pos(str:String):Int = {
+		val p = if(O.ignoreCase) {
+			posIndexer.indexOf(str.toLowerCase)
+		} else {
+			posIndexer.indexOf(str)
+		}
+		assert(p >= 0, "Unknown POS: " + str)
+		p
 	}
 }
 class GroundingTask extends TemporalTask {
@@ -1143,7 +1194,7 @@ class GroundingTask extends TemporalTask {
 					"invalid probability")
 				elem.exact }
 			//((enter score))
-			if(bestGuess.exact){ log("CORRECT") } else { log("WRONG") }
+			if(bestGuess.exact){log(GREEN,"CORRECT")} else {log(FORCE,RED,"WRONG")}
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)
 			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
@@ -1169,7 +1220,8 @@ class GroundingTask extends TemporalTask {
 		//(debug)
 		startTrack("Good Output")
 		filtered.foreach{ t => 
-			log(t.tree.asParseString(U.w2str(_),Grammar.r2str(_))) 
+			log(FORCE,
+				"["+t.offset + "] "+t.tree.asParseString(U.w2str(_),Grammar.r2str(_))) 
 		}
 		endTrack("Good Output")
 		//(return)
@@ -1181,52 +1233,88 @@ class GroundingTask extends TemporalTask {
 		forceTrack("Running")
 		//(train)
 		startTrack("Training")
-		val (parser,trainScoresRev) =
+		val (parser,trainScoresRev):(CKYParser,List[Score]) 
+			= if(O.runInterpretModel){
 				(0 until O.iters).foldLeft( (initialParser,List[Score]()) ){
-					case ((parser:CKYParser,scores:List[Score]),iter:Int) =>
-			forceTrack("Iteration " + iter)
-			//(create score)
-			val score = new Score
-			//(iterate over timexes)
-			val goodParses:Iterable[GoodOutput] 
-					= data.train.eachExample(iter).zipWithIndex.flatMap{
-						case ((sent:TimeSent,gold:Temporal,ground:Time),i:Int) =>
-				startTrack("[timex " + i + "] " + sent.toString)
-				//((parse))
-				val parses:Array[EvalTree[Any]] = parser.parse(sent,O.beam)
-				//((handle parses))
-				val filteredParses = handleParses(parses, gold, ground, score, sent)
-				//((continue map))
-				endTrack("[timex " + i + "] " + sent.toString)
-				filteredParses
+						case ((parser:CKYParser,scores:List[Score]),iter:Int) =>
+				forceTrack("Iteration " + iter)
+				//(create score)
+				val score = new Score
+				//(iterate over timexes)
+				val goodParses:Iterable[GoodOutput] 
+						= data.train.eachExample(iter).zipWithIndex.flatMap{
+							case ((sent:TimeSent,gold:Temporal,ground:Time),i:Int) =>
+					startTrack("[timex " + i + "] " + sent.toString)
+					//((parse))
+					val parses:Array[EvalTree[Any]] = parser.parse(sent,O.beam)
+					//((handle parses))
+					val filteredParses = handleParses(parses, gold, ground, score, sent)
+					//((continue map))
+					endTrack("[timex " + i + "] " + sent.toString)
+					filteredParses
+				}
+				assert(goodParses.toArray.length == 0 || 
+					goodParses.exists( _.prob > 0.0 ), 
+					"All good parses have zero mass" )
+				log("finished parsing")
+				//(filter prob>0 parses)
+				val nonZeroGoodParses = goodParses
+						.filter{ _.logProb > Double.NegativeInfinity }
+				//(update parser)
+				val newParser = parser.update(
+					nonZeroGoodParses
+						.map{ (o:GoodOutput) => 
+							new ReweightedParseTree(o.tree,o.logProb) 
+						}
+					)
+				log("updated parser")
+				//(update time)
+				startTrack("Updating Times")
+				//((E-step))
+				nonZeroGoodParses.foreach{ 
+						case GoodOutput(tree,value,offset,prob,ground,s) =>
+					val gr:GroundedRange = Range(ground,ground)
+					assert(prob > 0.0 && prob <= 1.0, "Bad time probability: " + prob)
+					value.traverse(gr,offset,
+						(term:Temporal,trueOffset:Long) => {
+							term.updateE(gr,trueOffset,if(O.hardEM) 0 else U.safeLn(prob))
+						}
+					)
+				}
+				//((M-step))
+				nonZeroGoodParses.foreach{ 
+						case GoodOutput(tree,value,offset,prob,ground,s) =>
+					val gr:GroundedRange = Range(ground,ground)
+					value.traverse(gr,offset,
+						(term:Temporal,trueOffset:Long) => term.runM)
+				}
+				Grammar.ranges.foreach{ _._1.runM }
+				Grammar.durations.foreach{ _._1.runM }
+				Grammar.sequences.foreach{ _._1.runM }
+				endTrack("Updating Times")
+				//(debug)
+				startTrack("Parameters")
+				debug(newParser.parameters(U.w2str(_),Grammar.r2str(_)))
+				endTrack("Parameters")
+				//(continue loop)
+				log(FORCE,BOLD,YELLOW,""+score)
+				log(FORCE,YELLOW,""+score.reportK)
+				endTrack("Iteration " + iter)
+				(newParser,score :: scores)
 			}
-			assert(goodParses.toArray.length == 0 || goodParses.exists( _.prob > 0.0 ), 
-				"All good parses have zero mass" )
-			log("finished parsing")
-			//(update parser)
-			val newParser = parser.update(
-				goodParses
-					.filter{ _.logProb > Double.NegativeInfinity }
-					.map{ (o:GoodOutput) => 
-						new ReweightedParseTree(o.tree,o.logProb) 
-					}
-				)
-			log("updated parser")
-			//(update time)
-			startTrack("Updating Times")
-			goodParses.foreach{ case GoodOutput(tree,value,offset,prob,ground,s) =>
-				value.updateE(Range(ground,ground),offset,math.log(prob))
-			}
-			endTrack("Updating Times")
-			//(debug)
-			startTrack("Parameters")
-			log(newParser.parameters(U.w2str(_),Grammar.r2str(_)))
-			endTrack("Parameters")
-			//(continue loop)
-			log(FORCE,BOLD,YELLOW,""+score)
-			log(FORCE,YELLOW,""+score.reportK)
-			endTrack("Iteration " + iter)
-			(newParser,score :: scores)
+		} else {
+			val parser:CKYParser = 
+				try {
+					log("Loading parser at: " + O.interpretModel)
+					edu.stanford.nlp.io.IOUtils.readObjectFromFile(O.interpretModel)
+					.asInstanceOf[MyTime]
+					.updateState
+					.parser
+				} catch {
+					case (e:Throwable) => throw new RuntimeException(e)
+				}
+			val trainScoresRev:List[Score] = List[Score]()
+			(parser,trainScoresRev)
 		}
 		endTrack("Training")
 		//(test)
@@ -1234,7 +1322,7 @@ class GroundingTask extends TemporalTask {
 		val testScore = new Score
 		data.eval.eachExample(Int.MaxValue).zipWithIndex.foreach {
 					case ((sent:TimeSent,gold:Temporal,ground:Time),i:Int) =>
-			startTrack("[" + i + "] " + {if(O.devTest){ sent.toString } else { "" }})
+			startTrack("[" + i + "] "+{if(O.devTest){ sent.toString } else { "" }})
 			//((parse))
 			val parses:Array[EvalTree[Any]] = parser.parse(sent,O.beam)
 			//((handle parses))
@@ -1250,6 +1338,18 @@ class GroundingTask extends TemporalTask {
 		startTrack(FORCE,BOLD,"Results")
 		reportScores(parser,trainScoresRev.reverse.toArray,testScore)
 		endTrack("Results")
+		//--Save Model
+		if(O.interpretModel != null){
+			try {
+				val sys=
+					MyTime(parser,G.wordIndexer,G.posIndexer,G.UNK,G.NUM,Lex.updaters)
+				edu.stanford.nlp.io.IOUtils.writeObjectToFile(sys,O.interpretModel)
+				edu.stanford.nlp.io.IOUtils.writeObjectToFile(sys,
+					Execution.touch("interpretModel.ser.gz"))
+			} catch {
+				case (e:Throwable) => throw new RuntimeException(e)
+			}
+		}
 	}
 
 	def reportScores(parser:CKYParser,trainScores:Array[Score],testScore:Score) {
@@ -1262,7 +1362,8 @@ class GroundingTask extends TemporalTask {
 			Comparisons.outputDir = Execution.touch("")
 			Comparisons.lang = O.train.language
 			//(run)
-			val timexSys = MyTime(parser)
+			val timexSys 
+				= MyTime(parser,G.wordIndexer,G.posIndexer,G.UNK,G.NUM,Lex.updaters)
 			val (trn,tst) = Comparisons.runSystem(sys=timexSys,quiet=true)
 			startTrack("Eval Results")
 			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
@@ -1289,24 +1390,26 @@ class GroundingTask extends TemporalTask {
 		}
 		//--Process
 		//(train)
-		startTrack(BOLD,"train")
-		logger.setGlobalResult("train.accuracy",
-			trainScores(trainScores.length-1).accuracy)
-		logger.setGlobalResult("train.averank",
-			trainScores(trainScores.length-1).avePos)
-		logger.setGlobalResult("train.inbeam",
-			trainScores(trainScores.length-1).percentParsable)
-		logger.setGlobalResult("train.score",
-			trainScores(trainScores.length-1).aveScore())
-		log(FORCE,BOLD,YELLOW,"train.accuracy: " + 
-			trainScores(trainScores.length-1).accuracy)
-		log(FORCE,YELLOW,"train.averank: " +	
-			trainScores(trainScores.length-1).avePos)
-		log(FORCE,YELLOW,"train.inbeam: " + 
-			trainScores(trainScores.length-1).percentParsable)
-		log(FORCE,YELLOW,"train.score: " + 
-			trainScores(trainScores.length-1).aveScore())
-		endTrack("train")
+		if(trainScores.length > 0){
+			startTrack(BOLD,"train")
+			logger.setGlobalResult("train.accuracy",
+				trainScores(trainScores.length-1).accuracy)
+			logger.setGlobalResult("train.averank",
+				trainScores(trainScores.length-1).avePos)
+			logger.setGlobalResult("train.inbeam",
+				trainScores(trainScores.length-1).percentParsable)
+			logger.setGlobalResult("train.score",
+				trainScores(trainScores.length-1).aveScore())
+			log(FORCE,BOLD,YELLOW,"train.accuracy: " + 
+				trainScores(trainScores.length-1).accuracy)
+			log(FORCE,YELLOW,"train.averank: " +	
+				trainScores(trainScores.length-1).avePos)
+			log(FORCE,YELLOW,"train.inbeam: " + 
+				trainScores(trainScores.length-1).percentParsable)
+			log(FORCE,YELLOW,"train.score: " + 
+				trainScores(trainScores.length-1).aveScore())
+			endTrack("train")
+		}
 		//(test)
 		val s = if(O.devTest) "dev" else "test"
 		startTrack(BOLD,s)
@@ -1561,7 +1664,7 @@ object ToyData {
 					words.map{ _._1 }, 
 					words.map{ x => U.str2posTest("UNK") },
 					words.map{ case (w:Int,t:NumberType.Value,str:String) =>
-						if(t != NumberType.NONE){ str.toInt } else { -1 }
+						if(t != NumberType.NONE){ str.toInt } else { Int.MinValue }
 					},
 					words.map{ _._2 }
 					)

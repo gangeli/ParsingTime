@@ -17,12 +17,15 @@ import edu.stanford.nlp.time.JodaTimeUtils
 
 import org.apache.commons.math.distribution.NormalDistributionImpl
 
+import org.goobs.nlp._
+import org.goobs.util._
+
 import Temporal.{TraverseFn,TraverseTask}
 
 //------------------------------------------------------------------------------
 // TEMPORAL
 //------------------------------------------------------------------------------
-trait Temporal {
+trait Temporal extends Serializable {
 
 	import Temporal.isInt
 	//(get values)
@@ -380,7 +383,7 @@ trait SingletonRange extends Range {
 	def isAllTime:Boolean = {
 		this match {
 			case (gr:GroundedRange) => 
-				(gr.begin eq Time.DAWN_OF) && (gr.end == Time.END_OF)
+				(gr.begin == Time.DAWN_OF) && (gr.end == Time.END_OF)
 			case _ => false
 		}
 	}
@@ -561,9 +564,9 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){ 
 			val gr:GroundedRange = 
-				if(normVal eq Duration.NEG_INFINITE){
+				if(normVal == Duration.NEG_INFINITE){
 					new GroundedRange(Time.DAWN_OF, ground.begin+beginOffset)
-				} else if(normVal eq Duration.INFINITE){
+				} else if(normVal == Duration.INFINITE){
 					new GroundedRange(ground.begin+beginOffset,Time.END_OF)
 				} else if(normVal.seconds == 0){
 					new GroundedRange(ground.begin+beginOffset,
@@ -1067,7 +1070,7 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 				new GroundedDuration(base.toPeriod.minus(diff.interval.base))
 			}
 	override def *(n:Long):Duration = {
-		if((this eq Duration.NEG_INFINITE) || (this eq Duration.INFINITE)){
+		if((this == Duration.NEG_INFINITE) || (this == Duration.INFINITE)){
 			return this
 		}
 		def check(v:Long,fn:Int=>Period,i:Int):Period = {
@@ -1315,7 +1318,7 @@ trait Sequence extends Range with Duration {
 	
 	
 	// -- EM --
-	protected lazy val updater:Updater = {
+	var updater:Updater = {
 		//(overhead)
 		import O.Distribution._
 		import O.Scope._
@@ -1801,17 +1804,17 @@ case class Time(base:DateTime) {
 	}
 
 	def -(other:Time):Duration = {
-		assert(this.equals(Time.DAWN_OF) || !(this eq Time.DAWN_OF), "eq check")
-		assert(this.equals(Time.END_OF) || !(this eq Time.END_OF), "eq check")
+		assert(this.equals(Time.DAWN_OF) || !(this == Time.DAWN_OF), "eq check")
+		assert(this.equals(Time.END_OF) || !(this == Time.END_OF), "eq check")
 		val tM:Long = this.base.toInstant.getMillis
 		val oM:Long = other.base.toInstant.getMillis
-		if(this eq Time.DAWN_OF){
+		if(this == Time.DAWN_OF){
 			//(case: subtracting from neg_infinity)
-			if(other eq Time.DAWN_OF){ Duration.ZERO }
+			if(other == Time.DAWN_OF){ Duration.ZERO }
 			else { Duration.NEG_INFINITE }
-		} else if(this eq Time.END_OF){
+		} else if(this == Time.END_OF){
 			//(case: subtracting from pos_infinity)
-			if(other eq Time.END_OF){ Duration.ZERO }
+			if(other == Time.END_OF){ Duration.ZERO }
 			else { Duration.INFINITE }
 		} else if(oM < 0 && Long.MaxValue + oM < tM){
 			//(case: overflowing a Long)
@@ -1982,6 +1985,16 @@ object DurationUnit extends Enumeration {
 object Lex {
 	import DateTimeFieldType._
 	import edu.stanford.nlp.time.JodaTimeUtils._
+
+	def sequences:Iterable[Sequence] = {
+		val fields = this.getClass.getFields
+		fields.toArray
+			.filter{ x => classOf[Sequence].isAssignableFrom(x.getType) }
+			.map{ _.get().asInstanceOf[Sequence] }
+	}
+	def updaters:scala.collection.immutable.Map[Temporal,Sequence.Updater] = {
+		sequences.map{ s => (s,s.updater) }.toMap
+	}
 
 	//--Durations
 	val ASEC:Duration = new GroundedDuration(Seconds.ONE)

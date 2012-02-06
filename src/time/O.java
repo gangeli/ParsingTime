@@ -166,6 +166,12 @@ public class O {
 	@Option(name="functionalUnboundedRange", gloss="toFuture and toPast fxns")
 	public static boolean functionalUnboundedRange = false;
 	
+	//--SAVING
+	@Option(name="runInterpretModel", gloss="Run the time interpretation model")
+	public static boolean runInterpretModel = false;
+	@Option(name="interpretModel", gloss="Location of the interpretation model")
+	public static File interpretModel = null;
+	
 	//--DEBUG
 	@Option(name="todoHacks", gloss="Turn on to enable quickfixes")
 	public static boolean todoHacks = false;

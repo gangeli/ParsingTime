@@ -36,8 +36,8 @@ import org.goobs.nlp._
 	Globally accessible values
 */
 object G {
-	val wordIndexer = new Indexer[String]
-	val posIndexer = new Indexer[String]
+	var wordIndexer = new Indexer[String]
+	var posIndexer = new Indexer[String]
 	val idStringMap = new HashMap[Int,String]
 	val df = new DecimalFormat("0.000")
 	val pf = new DecimalFormat("0.0")
@@ -91,9 +91,9 @@ object U {
 	def w2str(w:Int):String = {
 		if(w < G.wordIndexer.size) G.wordIndexer.get(w) else "--UNK--"
 	}
-	def str2w(str:String):Int = {
-		str match {
-			case HasNum(prefix,num,suffix) => G.NUM
+	def str2w(str:String,matchNum:Boolean=true):Int = {
+		(str,matchNum) match {
+			case (HasNum(prefix,num,suffix),true) => G.NUM
 			case _ => 
 				if(O.ignoreCase) {
 					G.wordIndexer.addAndGetIndex(str.toLowerCase)
@@ -102,11 +102,11 @@ object U {
 				}
 		}
 	}
-	def str2wTest(str:String):Int = {
+	def str2wTest(str:String,matchNum:Boolean=true):Int = {
 		assert(G.W == G.wordIndexer.size + 1)
 		assert(G.UNK == G.wordIndexer.size)
-		val w = str match {
-			case HasNum(prefix,num,suffix) => G.NUM
+		val w = (str,matchNum) match {
+			case (HasNum(prefix,num,suffix),true) => G.NUM
 			case _ => 
 				if(O.ignoreCase) {
 					G.wordIndexer.indexOf(str.toLowerCase)
