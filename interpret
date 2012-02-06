@@ -1,0 +1,145 @@
+#!/usr/bin/ruby
+
+require 'execrunner'
+
+# -- DEPENDENCIES --
+JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.7.jar"
+JAR='time'
+
+@timeDistribution = 2
+
+# -- RUN --
+env!( 
+	# Program
+	'java',
+	# Runtime Options
+	o('cp', 
+		"dist/#{JAR}.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:#{JAVANLP}:etc/joda-time.jar:etc/math.jar"),
+	o('Xrunhprof:cpu=samples,depth=16'),
+#	o('Xrunhprof:cpu=samples,heap=sites'),
+	o('server'),
+	o('mx3g'),
+	o('ea'),
+	'time.Entry',
+
+	run(
+		o('runInterpretModel'),
+		o('interpretModel', 'aux/interpret.ser.gz'),
+
+		# -- LEARNING --
+		# <parser>
+		selo(0, 'parser', 
+			'CKYParser', 
+			'SearchParser', 
+			'PrimitivesOnly', 
+			'ItsAlwaysFriday'),
+		selo(3, 'kbestCKYAlgorithm',
+			'0',   #G n^3 k^2 logk          naive
+			'1',   #G n^3 k   logk          better mult
+			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
+			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
+		o('rulePrior', 0.325),
+		o('lexPrior', 0.0025),
+		o('uniformRoot'),
+		selo(4,'ckyCountType',
+			'all',
+			'bestAll',
+			'bestRandom',
+			'shortWithOffsetZero',
+			'leastNilsWithOffsetZero'),
+		selo(3,'CkyCountNormalization',
+			'none',
+			'uniform',
+			'proportional',
+			'distribution'),
+		selo(@timeDistribution,'timeDistribution',
+			'Point',
+			'Multinomial',
+			'Gaussian'),
+		selo(@timeDistribution,'timeDistributionParams',
+			'[]',
+			'[1.0,1.0]',
+			'[0.0,1.0]'),
+		selo(0,'timeDistributionScope', 'Global', 'Local'),
+		selo(0,'lexTagMethod',
+			'PCFG',
+			'GOLD'),
+		selo(0,'initMethod','uniform','random'),
+		o('lexNils'),
+		# <training>
+		o('beam', 1500), #1500 works well
+		o('iters', 15),
+		o('scoreBeam', 3),
+		o('maxSearchTime', 10000),
+		o('babySteps'),
+		#<params>
+		o('useTime'),
+		o('pruneTime', 1000),
+		o('pruneMinIndex',100),
+		o('includeTimeProb'),
+#		o('functionalUnboundedRange'), # BROKEN
+		o('functionalApproximate'),
+#		o('cannonicalShifts'),
+		selo(0,'sortTimeProbInScore','false','true'),
+
+		# -- EVALUATION --
+		o('exactMatchThreshold', 61),        # a second
+		o('scoreGranularity', 60*60*24),    # a day
+		o('c_overconstraining', 1.0),
+		o('c_vagueness', 1.0),
+		o('tempevalHome','aux/tempeval2'),
+
+		# -- DATA --
+#		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
+#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,20]'),   o('dev',   'English[142,162]'),
+#		o('train', 'TOY'),              o('dev', 'TOY'),
+		o('test',  'English[162,182]'), #real test data
+		o('devTest'),                   #uncomment for real test
+
+		o('retokenize'),
+		o('collapseNumbers'),
+		o('bucketNumbers'),
+
+		# -- OLD --
+#		o('ignoreCase'),
+#		o('includeRuleInLexProb'), # err...probably not right
+#		o('allowPartialTime'),
+#		o('hardEM'),
+#		o('freeNils'),
+#		o('guessRange'),
+#		o('instantAsDay'),
+#		o('nilWordPrior', 0.0001),
+
+		# -- DEBUG --
+		#(general)
+#		o('paranoid'),
+		o('useSeed'),
+		o('seed','42'),
+		o('goldTagFile', 'aux/sentences-100-tagged'),
+#		o('badTimexes', 'aux/bad.txt'),
+#		o('printFailures'),
+#		o('cacheTemporalComputations',false),
+#		o('printAllParses'),
+		o('todoHacks'),
+		o('reportK', 5),
+		o('ignoreTimeSequences'),
+		#(debug programs)
+		selo(0,'runDebug',
+			'none',
+			'console',
+			'goldTagRead'),
+		o('numThreads','1'), #BROKEN FOR NOW
+
+		# -- BOOTSTRAPING --
+		#(exec options)
+		o('logDebug'),
+		o('ignoreClasspath', "\"[#{ENV['JAVANLP_HOME']}/.*,etc/scala-.*.jar,etc/postgres.jar,etc/jdom.jar,etc/joda-time.jar]\""),
+		#(logging)
+		o('execDir', 'out'),
+		o('execOutput', "\"psql://research@localhost:#{JAR}<what?why42?\""),
+		#(data)
+		o('execData', '"psql://research@localhost:data<what?why42?"'),
+	nil),
+nil)
