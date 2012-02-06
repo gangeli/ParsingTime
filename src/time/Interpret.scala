@@ -1199,7 +1199,11 @@ class GroundingTask extends TemporalTask {
 				if(correct.length > 0) correct(0).index else -1)
 			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
 			score.store(sent,viterbi.get,gold,bestGuess.exact,grounding)
-			log("" + correct.length + " in beam")
+			if(correct.length == 0){
+				log(RED,"" + correct.length + " in beam")
+			} else {
+				log("" + correct.length + " in beam")
+			}
 		}
 		//--Post-Filter
 		def allOutput:Iterable[GoodOutput] = scores.map{ (elem:ScoreElem) =>
@@ -1220,8 +1224,7 @@ class GroundingTask extends TemporalTask {
 		//(debug)
 		startTrack("Good Output")
 		filtered.foreach{ t => 
-			log(FORCE,
-				"["+t.offset + "] "+t.tree.asParseString(U.w2str(_),Grammar.r2str(_))) 
+			log("["+t.offset+"] "+t.tree.asParseString(U.w2str(_),Grammar.r2str(_))) 
 		}
 		endTrack("Good Output")
 		//(return)
