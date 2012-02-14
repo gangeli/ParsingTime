@@ -690,289 +690,185 @@ object Range {
 	def mkBegin(a:Time,b:Time) = if(a < b) b else a
 	def mkEnd(a:Time,b:Time) = if(a < b) a else b
 
-	case class OverlapState(origin:Long,offset:Long,
-			nextVal:(TraverseFn,GroundedRange),
-			iter:BufferedIterator[(TraverseFn,GroundedRange)]) {
-		def this(iter:BufferedIterator[(TraverseFn,GroundedRange)])
-			= this(0,0,iter.next,iter)
-		def nextRange:GroundedRange = {
-			assert(nextVal != null, "Taking value of empty overlap state")
-			nextVal._2
-		}
-		def increment:OverlapState = {
-			if(iter.hasNext){
-				new OverlapState(origin,offset+1,iter.next,iter)
-			} else {
-				new OverlapState(origin,offset+1,null,iter)
-			}
-		}
-		def markOrigin:OverlapState = new OverlapState(offset,offset,nextVal,iter)
-	}
-		
-	def mknext2iterable( 
-			a:Iterable[(TraverseFn,GroundedRange)], 
-			b:Iterable[(TraverseFn,GroundedRange)],
-			mkNext:(OverlapState,OverlapState)=>
-				((TraverseFn,GroundedRange),OverlapState,OverlapState)
-			):Iterable[((TraverseFn,GroundedRange),Long,Long)] = {
-		
-		new Iterable[((TraverseFn,GroundedRange),Long,Long)]{
-			def iterator:Iterator[((TraverseFn,GroundedRange),Long,Long)] = {
-				new Iterator[((TraverseFn,GroundedRange),Long,Long)]{
-					private val iterA = a.iterator.buffered
-					private val iterB = b.iterator.buffered
-					private var (theNext,leftState,rightState)
-						:((TraverseFn,GroundedRange),OverlapState,OverlapState)
-						= if(iterA.hasNext && iterB.hasNext){
-								mkNext(new OverlapState(iterA), new OverlapState(iterB))
+	def intersectAnalytically(a:RepeatedRange,b:RepeatedRange):Range = {
+		//--Overhead
+		//(assertions)
+		assert(a.delta == Duration.ZERO, "Intersecting range that has a delta")
+		assert(b.delta == Duration.ZERO, "Intersecting range that has a delta")
+		//--Intersect
+		//(create partial)
+		val partial:Partial = b.base.getFieldTypes.foldLeft(a.base){
+					case (p:Partial,field:DateTimeFieldType) =>
+				if(a.base.isSupported(field) && a.base.property(field).get > 1){
+					p
+				} else {
+					try {
+						//((case: can set field))
+						p.`with`(field,b.base.property(field).get)
+					} catch {
+						case (e:IllegalFieldValueException) =>
+							//((case: e.g. February 31st))
+							if(p.isSupported(field)){
+								p.property(field).withMaximumValue
 							} else {
-								(null,null,null)
+								p.`with`(field,1).property(field).withMaximumValue
 							}
-					override def hasNext:Boolean 
-						= theNext != null
-					override def next:((TraverseFn,GroundedRange),Long,Long) = {
-						if(theNext == null){ throw new NoSuchElementException }
-						val rtn=(theNext,leftState.offset,rightState.offset)
-						val (n,lS,rS) = mkNext(leftState,rightState)
-						theNext = n; leftState = lS; rightState = rS;
-						rtn
 					}
 				}
 			}
+		//(create norm)
+		val norm:GroundedDuration = 
+			if(a.norm < b.norm){ a.norm }
+			else{ b.norm }
+		//(create interval)
+		val interv:Duration =
+			if(a.interv > b.interv){ a.interv }
+			else{ b.interv }
+		//(create bound)
+		val bound:SingletonRange = 
+			if(a.bound != null && b.bound != null){
+				(a.bound ^ b.bound) match {
+					case (sr:SingletonRange) => sr
+					case _ => throw fail("Intersect of singleton ranges not singleton")
+				}
+			} else if(a.bound != null){ 
+				a.bound
+			} else if(b.bound != null){ 
+				b.bound
+			} else {
+				null
+			}
+		//(create move offset)
+		val moveOffset:Long =
+			if(a.norm > b.norm){ a.moveOffset }
+			else{ b.moveOffset }
+		//(create repeated range)
+		new RepeatedRange(partial,norm,interv,Duration.ZERO,bound,moveOffset)
+	} 
+	def intersectSearch(rA:Sequence,rB:Sequence):Range = {
+		//--Classes
+		case class RangeTerm(r:GroundedRange,ground:GroundedRange
+				) extends Intersectable{
+			override def begin:Long 
+				= r.begin.base.getMillis-ground.begin.base.getMillis
+			override def end:Long 
+				= r.end.base.getMillis-ground.begin.base.getMillis
+			override def toString:String = r.toString+" {"+begin+","+end+"}"
 		}
-		
-	}
-
-//	def cons(back:Boolean,
-//			a:Iterable[(TraverseFn,GroundedRange)],
-//			b:Iterable[(TraverseFn,GroundedRange)]
-//			):Iterable[((TraverseFn,GroundedRange),Int,Int)] = {
-//		var diff:Duration = Duration.INFINITE
-//		def mkNext(left:OverlapState,right:OverlapState
-//				):((TraverseFn,GroundedRange),OverlapState,OverlapState) = {
-//			val nullVal = (null,null,null)
-//			if(left.nextVal==null || right.nextVal==null){
-//				//(case: an iterator is empty)
-//				nullVal
-//			} else if(right.nextRange.end < left.nextRange.begin){
-//				//(case: B is behind)
-//				//((convergence check))
-//				val lastDiff = diff
-//				diff = (left.nextRange.begin-right.nextRange.end)
-//				if(!(diff < lastDiff)){ nullVal } //case: not converging
-//				//((movement))
-//				else if(!back && right.iter.hasNext)
-//					{ mkNext(left,right.increment.markOrigin) }
-//				else if(back && left.iter.hasNext)
-//					{ mkNext(left.increment.markOrigin,right) }
-//				else { nullVal }
-//			} else {
-//				//(case: overlap)
-//				val (fnLeft,rtnLeft) = left.nextVal
-//				val (fnRight,rtnRight) = right.nextVal
-//				val rtn = (
-//							(fn:TraverseTask) => { 
-//								fnLeft( (term:Temporal,offset:Long,orig:Int) => {
-//									fn(term,offset,if(back){-left.origin}else{left.origin}) })
-//								fnRight( (term:Temporal,offset:Long,orig:Int) => {
-//									fn(term,offset,if(back){-right.origin}else{right.origin}) })
-//							},
-//							new GroundedRange(rtnLeft.begin,rtnRight.end)
-//						)
-//				//(update iterator)
-//				(rtn,left.increment,right)
-//			}
-//		}
-//		mknext2iterable(a,b,mkNext(_,_))
-//	}
-		def intersectAnalytically(a:RepeatedRange,b:RepeatedRange):Range = {
-			//--Overhead
-			//(assertions)
-			assert(a.delta == Duration.ZERO, "Intersecting range that has a delta")
-			assert(b.delta == Duration.ZERO, "Intersecting range that has a delta")
-			//(check) //TODO why was this ever here?
-//			val largestA = a.base.getFieldType(0)
-//			val largestB = b.base.getFieldType(0)
-//			if(largestA == largestB){
-//				if(a.base.getValue(0) != b.base.getValue(0)){
-//					return new NoTime
-//				}
-//			}
-			//--Intersect
-			//(create partial)
-			val partial:Partial = b.base.getFieldTypes.foldLeft(a.base){
-						case (p:Partial,field:DateTimeFieldType) =>
-					if(a.base.isSupported(field) && a.base.property(field).get > 1){
-						p
+		case class RangeSource(r:Range,ground:GroundedRange) 
+				extends ProvidesIntersectables[RangeTerm]{
+			override def has(offset:Long):Boolean = {
+				r.exists(ground,offset)
+			}
+			override def intersectable(offset:Long):RangeTerm = {
+				val (fn,rng):(TraverseFn,GroundedRange) 
+					= r.evaluate(ground,offset)
+				RangeTerm(rng,ground)
+			}
+		}
+		val noTerm:(TraverseFn,GroundedRange,Double,Boolean) = 
+				((fn:TraverseTask) => (term:Temporal,offset:Long,orig:Long)=>{},
+				  new NoTime,
+				  0.0,
+					false
+				)
+		//--Search State
+		val stateMap=new HashMap[GroundedRange,IteratorMap[Intersection]]
+		//--Get Info
+		val info:(GroundedRange,Long)=>(TraverseFn,GroundedRange,Double,Boolean) =
+		(ground:GroundedRange,offset:Long) => {
+			assert(offset < Int.MaxValue && offset > Int.MinValue,
+				"Wildly innapropriate offset. Don't do that.")
+			//(get map)
+			val map = if(stateMap.contains( ground )){
+				stateMap( ground )
+			} else {
+				//(intersect)
+				val sourceA = RangeSource(rA,ground)
+				val sourceB = RangeSource(rB,ground)
+				val iter = new IteratorMap( 
+					Intersect.intersectForward(sourceA,sourceB),
+					Intersect.intersectBackward(sourceA,sourceB)) //<--intersect here!
+				//(save)
+				stateMap( ground ) = iter
+				iter
+			}
+			//(early exit)
+			if(!map.contains(offset.toInt)) { //checked by assert above
+				noTerm
+			} else {
+				//(create info)
+				val intersect:Option[Intersection] = map.get(offset.toInt)
+				intersect match {
+				case Some(intersect) =>
+					val (originA,originB) = intersect.origin
+					if(rA.exists(ground,intersect.a) && rB.exists(ground,intersect.b)){
+						//^TODO this check really shouldn't have to be here
+						//((term A))
+						val movedA = rA move originA
+						val (fnA,grA):(TraverseFn,GroundedRange) =
+							movedA.evaluate(ground,intersect.a-originA)
+						val probA = movedA.prob(ground,intersect.a-originA)
+						//((term B))
+						val movedB = rB move originB
+						val (fnB,grB):(TraverseFn,GroundedRange) =
+							movedB.evaluate(ground,intersect.b-originB)
+						val probB = movedB.prob(ground,intersect.b-originB)
+						//(return)
+						assert(probA >= 0 && probA <= 1, "Not a probability: " + probA)
+						assert(probB >= 0 && probB <= 1, "Not a probability: " + probB)
+						( (fn:TraverseTask) => {
+								fnA( (term:Temporal,offset:Long) => {
+									fn(grA,intersect.a - originA) })
+								fnB( (term:Temporal,offset:Long) => {
+									fn(grB,intersect.b - originB) })
+								
+							}, //<-- traverse function
+							new GroundedRange(
+								Range.mkBegin(grA.begin,grB.begin),
+								Range.mkEnd(grA.end,grB.end)
+							), //<-- temporal
+							probA*probB, //<-- probability
+							true) //<-- exists
 					} else {
-						try {
-							//((case: can set field))
-							p.`with`(field,b.base.property(field).get)
-						} catch {
-							case (e:IllegalFieldValueException) =>
-								//((case: e.g. February 31st))
-								if(p.isSupported(field)){
-									p.property(field).withMaximumValue
-								} else {
-									p.`with`(field,1).property(field).withMaximumValue
-								}
-						}
+						noTerm
 					}
-				}
-			//(create norm)
-			val norm:GroundedDuration = 
-				if(a.norm < b.norm){ a.norm }
-				else{ b.norm }
-			//(create interval)
-			val interv:Duration =
-				if(a.interv > b.interv){ a.interv }
-				else{ b.interv }
-			//(create bound)
-			val bound:SingletonRange = 
-				if(a.bound != null && b.bound != null){
-					(a.bound ^ b.bound) match {
-						case (sr:SingletonRange) => sr
-						case _ => throw fail("Intersect of singleton ranges not singleton")
-					}
-				} else if(a.bound != null){ 
-					a.bound
-				} else if(b.bound != null){ 
-					b.bound
-				} else {
-					null
-				}
-			//(create move offset)
-			val moveOffset:Long =
-				if(a.norm > b.norm){ a.moveOffset }
-				else{ b.moveOffset }
-			//(create repeated range)
-			new RepeatedRange(partial,norm,interv,Duration.ZERO,bound,moveOffset)
-		} 
-		def intersectSearch(rA:Sequence,rB:Sequence):Range = {
-			//--Cache and Pruning
-			//--Classes
-			case class RangeTerm(r:GroundedRange,ground:GroundedRange
-					) extends Intersectable{
-				override def begin:Long 
-					= r.begin.base.getMillis-ground.begin.base.getMillis
-				override def end:Long 
-					= r.end.base.getMillis-ground.begin.base.getMillis
-				override def toString:String = r.toString+" {"+begin+","+end+"}"
-			}
-			case class RangeSource(r:Range,ground:GroundedRange) 
-					extends ProvidesIntersectables[RangeTerm]{
-				override def has(offset:Long):Boolean = {
-					r.exists(ground,offset)
-				}
-				override def intersectable(offset:Long):RangeTerm = {
-					val (fn,rng):(TraverseFn,GroundedRange) 
-						= r.evaluate(ground,offset)
-					RangeTerm(rng,ground)
+				case None => noTerm
 				}
 			}
-			val noTerm:(TraverseFn,GroundedRange,Double,Boolean) = 
-					((fn:TraverseTask) => (term:Temporal,offset:Long,orig:Long)=>{},
-					  new NoTime,
-					  0.0,
-						false
-					)
-			//--Search State
-			val stateMap=new HashMap[GroundedRange,IteratorMap[Intersection]]
-			//--Get Info
-			val info:(GroundedRange,Long)=>(TraverseFn,GroundedRange,Double,Boolean) =
-			(ground:GroundedRange,offset:Long) => {
-				assert(offset < Int.MaxValue && offset > Int.MinValue,
-					"Wildly innapropriate offset. Don't do that.")
-				//(get map)
-				val map = if(stateMap.contains( ground )){
-					stateMap( ground )
-				} else {
-					//(intersect)
-					val sourceA = RangeSource(rA,ground)
-					val sourceB = RangeSource(rB,ground)
-					val iter = new IteratorMap( 
-						Intersect.intersectForward(sourceA,sourceB),
-						Intersect.intersectBackward(sourceA,sourceB)) //<--intersect here!
-					//(save)
-					stateMap( ground ) = iter
-					iter
-				}
-				//(early exit)
-				if(!map.contains(offset.toInt)) { //checked by assert above
-					noTerm
-				} else {
-					//(create info)
-					val intersect:Option[Intersection] = map.get(offset.toInt)
-					intersect match {
-					case Some(intersect) =>
-						val (originA,originB) = intersect.origin
-						if(rA.exists(ground,intersect.a) && rB.exists(ground,intersect.b)){
-							//^TODO this check really shouldn't have to be here
-							//((term A))
-							val movedA = rA move originA
-							val (fnA,grA):(TraverseFn,GroundedRange) =
-								movedA.evaluate(ground,intersect.a-originA)
-							val probA = movedA.prob(ground,intersect.a-originA)
-							//((term B))
-							val movedB = rB move originB
-							val (fnB,grB):(TraverseFn,GroundedRange) =
-								movedB.evaluate(ground,intersect.b-originB)
-							val probB = movedB.prob(ground,intersect.b-originB)
-							//(return)
-							assert(probA >= 0 && probA <= 1, "Not a probability: " + probA)
-							assert(probB >= 0 && probB <= 1, "Not a probability: " + probB)
-							( (fn:TraverseTask) => {
-									fnA( (term:Temporal,offset:Long) => {
-										fn(grA,intersect.a - originA) })
-									fnB( (term:Temporal,offset:Long) => {
-										fn(grB,intersect.b - originB) })
-									
-								}, //<-- traverse function
-								new GroundedRange(
-									Range.mkBegin(grA.begin,grB.begin),
-									Range.mkEnd(grA.end,grB.end)
-								), //<-- temporal
-								probA*probB, //<-- probability
-								true) //<-- exists
-						} else {
-							noTerm
-						}
-					case None => noTerm
-					}
-				}
-			}
-			//--Create Functions
-			//(probability)
-			val probFn:(GroundedRange,Long)=>Double = 
-				(g:GroundedRange,offset:Long) => {
-					val (fn,gr,prob,exists) = info(g,offset)
-					prob
-				}
-			//(exists)
-			val existsFn:(GroundedRange,Long,GroundedRange)=>Boolean = 
-				(g:GroundedRange,offset:Long,bound:GroundedRange) => {
-					val (fn,gr,prob,exists) = info(g,offset)
-					exists && !gr.isInstanceOf[NoTime] &&
-						(gr.begin <= bound.end || gr.end >= bound.begin)
-				}
-			//(apply)
-			val applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange) =
-				(g:GroundedRange,offset:Long) => {
-					val (fn,gr,prob,exists) = info(g,offset)
-					assert(existsFn(g,offset,Lex.ALL_TIME),
-						"Applying when exists is not satisfied")
-					(fn,gr)
-				}
-			//--Create Misc
-			//(norm)
-			val normA = rA.norm
-			val normB = rA.norm
-			val norm = if(normA < normB) normA else normB
-			//(string)
-			val ops = List[String]("("+rA+") ^ ("+rB+")")
-			//--Return
-			new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L,Lex.ALL_TIME)
 		}
+		//--Create Functions
+		//(probability)
+		val probFn:(GroundedRange,Long)=>Double = 
+			(g:GroundedRange,offset:Long) => {
+				val (fn,gr,prob,exists) = info(g,offset)
+				prob
+			}
+		//(exists)
+		val existsFn:(GroundedRange,Long,GroundedRange)=>Boolean = 
+			(g:GroundedRange,offset:Long,bound:GroundedRange) => {
+				val (fn,gr,prob,exists) = info(g,offset)
+				exists && !gr.isInstanceOf[NoTime] &&
+					(gr.begin <= bound.end || gr.end >= bound.begin)
+			}
+		//(apply)
+		val applyFn:(GroundedRange,Long)=>(TraverseFn,GroundedRange) =
+			(g:GroundedRange,offset:Long) => {
+				val (fn,gr,prob,exists) = info(g,offset)
+				assert(existsFn(g,offset,Lex.ALL_TIME),
+					"Applying when exists is not satisfied")
+				(fn,gr)
+			}
+		//--Create Misc
+		//(norm)
+		val normA = rA.norm
+		val normB = rA.norm
+		val norm = if(normA < normB) normA else normB
+		//(string)
+		val ops = List[String]("("+rA+") ^ ("+rB+")")
+		//--Return
+		new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L,Lex.ALL_TIME)
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -1370,16 +1266,21 @@ class RepeatedRange(
 		val delta:Duration, val bound:SingletonRange, val moveOffset:Long
 		) extends Sequence with AnalyticallyIntersectable {
 
-	private def boundedGround(ground:GroundedRange):Time = {
+	private def boundedGround(ground:GroundedRange,move:Boolean=false):Time = {
 		val groundedBound:Option[GroundedRange] = 
 			if(bound != null){ Some(bound.ground(ground)) }
 			else{ None }
-		if(bound != null && ground.end < groundedBound.orNull.begin){ 
+		val movedBegin = if(move){ground.begin + delta} else {ground.begin}
+		val movedEnd = if(move){ground.end + delta} else {ground.end}
+		if(bound != null && movedEnd < groundedBound.orNull.begin){ 
+			//(case: bounded from below)
 			groundedBound.orNull.begin
-		} else if(bound != null && ground.begin > groundedBound.orNull.end){ 
+		} else if(bound != null && movedBegin > groundedBound.orNull.end){ 
+			//(case: grounded from above)
 			groundedBound.orNull.end - norm
 		} else{ 
-			ground.begin 
+			//(case: not bounded)
+			movedBegin
 		}
 	}
 
@@ -1435,8 +1336,8 @@ class RepeatedRange(
 	override def isSparse:Boolean = isSparseVal
 	def dense:RepeatedRange = { this.isSparseVal = false; this }
 	
-	override def diff(ground:GroundedRange,offset:Long):Double={
-		val realGround:Time = boundedGround(ground)
+	override def diff(ground:GroundedRange,offset:Long):Double = {
+		val realGround:Time = boundedGround(ground,true)
 		val location:GroundedRange = doGround(ground,offset)
 		//(distance)
 		val distance = location.begin-realGround
@@ -1472,6 +1373,9 @@ class RepeatedRange(
 	override def exists(ground:GroundedRange,offset:Long):Boolean = {
 		if(bound == null) { 
 			//(if unbounded, infinite sequence)
+			assert(!evaluateTemporal(ground,offset).isInstanceOf[NoTime],
+				"NoTime on unbounded sequence: " + evaluateTemporal(ground,offset)
+				+ " at " + ground + " offset " + offset)
 			true
 		} else {
 			//(if bounded, check bounds)
@@ -1519,7 +1423,7 @@ class RepeatedRange(
 	override def >>(diff:Duration):Range 
 		= new RepeatedRange(base, norm, interv, 
 				delta+diff, bound, moveOffset).name(name + ">>" + diff)
-	override def <<(diff:Duration):Range 
+	override def <<(diff:Duration):Range
 		= new RepeatedRange(base, norm, interv, 
 				delta-diff, bound, moveOffset).name(name + "<<" + diff)
 	override def <|(diff:Duration):Range 

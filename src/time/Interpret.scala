@@ -1176,6 +1176,9 @@ class GroundingTask extends TemporalTask {
 		}.toArray
 		log("" + scores.length + " candidates")
 		//--Score Parses
+		println(""+Thread.currentThread.getId + " waiting for lock")
+		score.lock.acquire
+		println(""+Thread.currentThread.getId + " got lock")
 		if(scores.length == 0){
 			//(case: no scores)
 			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
@@ -1205,6 +1208,8 @@ class GroundingTask extends TemporalTask {
 				log("" + correct.length + " in beam")
 			}
 		}
+		score.lock.release
+		println(""+Thread.currentThread.getId + " released lock")
 		//--Post-Filter
 		def allOutput:Iterable[GoodOutput] = scores.map{ (elem:ScoreElem) =>
 			if(elem.exact){
@@ -1236,6 +1241,7 @@ class GroundingTask extends TemporalTask {
 		forceTrack("Running")
 		//(train)
 		startTrack("Training")
+		log("Threading on " + Execution.numThreads + " threads")
 		val (parser,trainScoresRev):(CKYParser,List[Score]) 
 			= if(O.runInterpretModel){
 				(0 until O.iters).foldLeft( (initialParser,List[Score]()) ){
@@ -1243,19 +1249,28 @@ class GroundingTask extends TemporalTask {
 				forceTrack("Iteration " + iter)
 				//(create score)
 				val score = new Score
-				//(iterate over timexes)
-				val goodParses:Iterable[GoodOutput] 
-						= data.train.eachExample(iter).zipWithIndex.flatMap{
+				var goodParses:List[GoodOutput] = List[GoodOutput]()
+				val parseLock = new scala.concurrent.Lock()
+				//(create tasks)
+				val tasks:java.lang.Iterable[Runnable] = asJavaIterable(
+					data.train.eachExample(iter).zipWithIndex.map{
 							case ((sent:TimeSent,gold:Temporal,ground:Time),i:Int) =>
-					startTrack("[timex " + i + "] " + sent.toString)
-					//((parse))
-					val parses:Array[EvalTree[Any]] = parser.parse(sent,O.beam)
-					//((handle parses))
-					val filteredParses = handleParses(parses, gold, ground, score, sent)
-					//((continue map))
-					endTrack("[timex " + i + "] " + sent.toString)
-					filteredParses
-				}
+					new Runnable{ override def run {
+						startTrack("[timex " + i + "] " + sent.toString)
+						//((parse))
+						val parses:Array[EvalTree[Any]] = parser.parse(sent,O.beam)
+						//((handle parses))
+						val filteredParses = handleParses(parses, gold, ground, score, sent)
+						//((store parses))
+						endTrack("[timex " + i + "] " + sent.toString)
+						parseLock.acquire
+						goodParses = goodParses ::: filteredParses.toList
+						parseLock.release
+					}}
+				})
+				//(run tasks)
+				threadAndRun("Parsing", tasks, Execution.numThreads)
+				//(debug)
 				assert(goodParses.toArray.length == 0 || 
 					goodParses.exists( _.prob > 0.0 ), 
 					"All good parses have zero mass" )
@@ -1492,6 +1507,7 @@ class Score {
 	private var goldMinusGuess = List[(Double,Double)]()
 	private var resultList:List[Result] = List[Result]()
 	private var failedList = List[(TimeSent,Temporal,Time)]()
+	val lock = new scala.concurrent.Lock
 
 	def releaseResults:Unit = { resultList = List[Result]() }
 	def enter(exact:Boolean,diff:(Duration,Duration), position:Int) = {

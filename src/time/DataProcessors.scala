@@ -26,6 +26,7 @@ import edu.stanford.nlp.io.IOUtils
 import edu.stanford.nlp.time.TimeAnnotations._
 import edu.stanford.nlp.time.JodaTimeUtils
 import edu.stanford.nlp.util.logging.Redwood.Util._
+import edu.stanford.nlp.util.logging.StanfordRedwoodConfiguration;
 
 import org.goobs.database._
 import org.goobs.testing.Dataset
@@ -1066,6 +1067,7 @@ object TempEval2Task {
 		val maps:Array[CoreMap] = docs.values.toList.sortBy{ case (map:CoreMap) =>
 			map.get[String,IDAnnotation](classOf[IDAnnotation]).toInt
 		}.toArray
+		prettyLog("CoreMaps", maps)
 		new SerializedCoreMapDataset(datasetName(lang),maps)
 	}
 }
@@ -1106,11 +1108,22 @@ object DataProcessor {
 		}
 	}
 
+	def mkAll(args:Array[String]) = {
+		log("ANNOTATING Everything")
+	}
+
 	def main(args:Array[String]):Unit = {	
+		val props = new Properties();
+		props.setProperty("log.neatExit", "true");
+		props.setProperty("log.console.trackStyle", "BOLD");
+		props.setProperty("log.collapse", "approximate");
+		StanfordRedwoodConfiguration.apply(props);
+
 		DateTimeZone.setDefault(DateTimeZone.UTC);
 		if(args.length < 1){ exit("No dataset given") }
 		args(0).toLowerCase match {
-			case "tempeval2" => mkTempEval(args.slice(1,args.length))
+			case "tempeval2" => TempEval2Dataset(args(1),args(2))
+//			case "tempeval2" => mkTempEval(args.slice(1,args.length))
 			case "gigaword" => Gigaword.process(args.slice(1,args.length))
 			case _ => exit("Invalid dataset: " + args(0))
 		}

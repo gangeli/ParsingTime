@@ -6,7 +6,7 @@ require 'execrunner'
 JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.7.jar"
 JAR='time'
 
-@timeDistribution = 2
+@timeDistribution = 0
 
 # -- RUN --
 env!( 
@@ -18,7 +18,7 @@ env!(
 	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('mx3g'),
+	o('mx6g'),
 	o('ea'),
 	'time.Entry',
 
@@ -130,7 +130,7 @@ env!(
 			'none',
 			'console',
 			'goldTagRead'),
-		o('numThreads','1'), #BROKEN FOR NOW
+		o('numThreads','1'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)
