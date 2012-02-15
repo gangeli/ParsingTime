@@ -681,7 +681,8 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String)
 	}
 }
 object SimpleTimexStore {
-	def apply(train:O.DataInfo,eval:O.DataInfo):Data[(TimeSent,Temporal,Time)] = {
+	def apply(train:O.DataInfo,eval:O.DataInfo
+			):TimeData[(TimeSent,Temporal,Time)] = {
 		log("INPUT: /workspace/time/aux/coremap/tempeval2-english" +
 							{if(O.retokenize) "-retok" else "" } +
 							{if(O.collapseNumbers) "-numbers" else "" })
@@ -712,7 +713,7 @@ object SimpleTimexStore {
 			if(train.source == O.DataSource.Toy || eval.source == O.DataSource.Toy){
 				ToyData.STANDARD
 			} else {
-				Data(
+				TimeData(
 					new SimpleTimexStore(mkDataset(train),false,train.source.toString),
 					new SimpleTimexStore(mkDataset(eval),true,eval.source.toString)
 				)
@@ -1700,12 +1701,12 @@ object ToyData {
 		}
 	}
 
-	def TODAY_ONLY:Data[(TimeSent,Temporal,Time)] = {
-		Data(store(false,today).internWords,store(true,today))
+	def TODAY_ONLY:TimeData[(TimeSent,Temporal,Time)] = {
+		TimeData(store(false,today).internWords,store(true,today))
 	}
 	
-	def STANDARD:Data[(TimeSent,Temporal,Time)] = {
-		Data(
+	def STANDARD:TimeData[(TimeSent,Temporal,Time)] = {
+		TimeData(
 			store(false,
 			//--Train
 				//(durations)

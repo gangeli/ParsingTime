@@ -221,7 +221,7 @@ object U {
 //------------------------------------------------------------------------------
 // DATA
 //------------------------------------------------------------------------------
-case class Data[T](train:DataStore[T],eval:DataStore[T]) {
+case class TimeData[T](train:DataStore[T],eval:DataStore[T]) {
 	def noopLoop:Unit = {
 		train.eachExample( -1 ).foreach{ x =>  }
 		eval.eachExample( -1 ).foreach{ x =>  }

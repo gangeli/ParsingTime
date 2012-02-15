@@ -5,7 +5,7 @@ JAR="time"
 JAVANLP="$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar:etc/models.jar"
 CP="dist/$JAR.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:$JAVANLP:etc/jdom.jar:etc/joda-time.jar"
 	
-java -Xrunhprof:cpu=samples -cp $CP -server -Xmx4000M -ea time.DataProcessor $@
+java -Xrunhprof:cpu=samples -cp $CP -server -Xmx4000M -ea time.Data $@
 
 #if [ "$1" == "tempeval2" ]; then
 #	java -cp $CP -server -Xmx2000M -ea time.TempEval2 $@
