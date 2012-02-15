@@ -828,8 +828,7 @@ object Data {
 	def main(args:Array[String]):Unit = {	
 		val props = new Properties();
 		props.setProperty("log.neatExit", "true");
-		props.setProperty("log.console.trackStyle", "BOLD");
-		props.setProperty("log.collapse", "approximate");
+		props.setProperty("log.collapse", "exact");
 		StanfordRedwoodConfiguration.apply(props);
 
 		DateTimeZone.setDefault(DateTimeZone.UTC);

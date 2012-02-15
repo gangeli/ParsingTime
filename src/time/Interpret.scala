@@ -1177,9 +1177,7 @@ class GroundingTask extends TemporalTask {
 		}.toArray
 		log("" + scores.length + " candidates")
 		//--Score Parses
-		println(""+Thread.currentThread.getId + " waiting for lock")
 		score.lock.acquire
-		println(""+Thread.currentThread.getId + " got lock")
 		if(scores.length == 0){
 			//(case: no scores)
 			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
@@ -1210,7 +1208,6 @@ class GroundingTask extends TemporalTask {
 			}
 		}
 		score.lock.release
-		println(""+Thread.currentThread.getId + " released lock")
 		//--Post-Filter
 		def allOutput:Iterable[GoodOutput] = scores.map{ (elem:ScoreElem) =>
 			if(elem.exact){
