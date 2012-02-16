@@ -1373,10 +1373,12 @@ class RepeatedRange(
 	override def exists(ground:GroundedRange,offset:Long):Boolean = {
 		if(bound == null) { 
 			//(if unbounded, infinite sequence)
-			assert(!evaluateTemporal(ground,offset).isInstanceOf[NoTime],
-				"NoTime on unbounded sequence: " + evaluateTemporal(ground,offset)
-				+ " at " + ground + " offset " + offset)
-			true
+			//TODO this shouldn't be the case
+			return !evaluateTemporal(ground,offset).isInstanceOf[NoTime]
+//			assert(!evaluateTemporal(ground,offset).isInstanceOf[NoTime],
+//				"NoTime on unbounded sequence: " + evaluateTemporal(ground,offset)
+//				+ " at " + ground + " offset " + offset)
+//			true
 		} else {
 			//(if bounded, check bounds)
 			val t:Temporal = evaluateTemporal(ground,offset)

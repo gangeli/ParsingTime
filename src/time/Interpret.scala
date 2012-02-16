@@ -33,13 +33,26 @@ import Lex._
 //------------------------------------------------------------------------------
 // AUXILLIARY
 //------------------------------------------------------------------------------
-case class TimeSent(id:Int,words:Array[Int],pos:Array[Int],
+case class TimeSent(words:Array[Int],pos:Array[Int],
 		nums:Array[Int],ordinality:Array[NumberType.Value])
 		extends Sentence{
 	//<<error checks>>
 	assert(words.zip(nums).forall{ case (w,n) => 
 		(w == G.NUM && n != Int.MinValue) || (w != G.NUM && n == Int.MinValue) },
 		"Words and numbers should match: "+this.toString+" :: "+nums.mkString(","))
+	assert(words.length == pos.length, "word and pos lengths must match")
+	assert(words.length == nums.length, "word and nums lengths must match")
+	assert(words.length == ordinality.length, 
+		"word and num types lengths must match")
+	//<<methods>>
+	def slice(begin:Int,end:Int):TimeSent = {
+		TimeSent(
+			words.slice(begin,end),
+			pos.slice(begin,end),
+			nums.slice(begin,end),
+			ordinality.slice(begin,end)
+		)
+	}
 	//<<required overrides>>
 	override def apply(i:Int):Int = words(i)
 	override def length:Int = words.length
@@ -670,7 +683,6 @@ class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String)
 		override def iterator:Iterator[(TimeSent,Temporal,Time)] 
 			= timexes.iterator.map{ (t:Timex) => 
 				(TimeSent(
-					t.tid,
 					t.words(if(test){ U.str2wTest(_,false) } else {U.str2w(_,false) },G.NUM),
 					t.pos(if(test){ U.str2posTest(_) } else {U.str2pos(_) }),
 					t.nums,
@@ -789,7 +801,6 @@ case class MyTime(
 	private def getTimexAndProb(input:SystemInput):(Option[SystemOutput],Double)={
 		//--Create Sentence
 		val sent = TimeSent(
-			input.timex.tid,
 			input.timex.words(str2w(_),num),
 			input.timex.pos(str2pos(_)),
 			input.timex.nums,
@@ -827,7 +838,7 @@ case class MyTime(
 		p
 	}
 }
-class GroundingTask extends TemporalTask {
+class InterpretationTask extends TemporalTask {
 	//--Initialize JodaTime
 	log("JodaTime settings")
 	DateTimeZone.setDefault(DateTimeZone.UTC);
@@ -1677,7 +1688,6 @@ object ToyData {
 					(U.str2wTest(str),typ,str)
 				}
 				val s = TimeSent(
-					id,
 					words.map{ _._1 }, 
 					words.map{ x => U.str2posTest("UNK") },
 					words.map{ case (w:Int,t:NumberType.Value,str:String) =>

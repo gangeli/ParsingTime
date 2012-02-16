@@ -222,10 +222,11 @@ object U {
 // DATA
 //------------------------------------------------------------------------------
 case class TimeData[T](train:DataStore[T],eval:DataStore[T]) {
-	def noopLoop:Unit = {
-		train.eachExample( -1 ).foreach{ x =>  }
-		eval.eachExample( -1 ).foreach{ x =>  }
+	def noopLoop(fn:T=>Any):Unit = {
+		train.eachExample( -1 ).foreach{ fn(_)  }
+		eval.eachExample( -1 ).foreach{ fn(_)  }
 	}
+	def noopLoop:Unit = noopLoop( (t:T) => {} )
 }
 trait DataStore[T] {
 	def name:String
@@ -243,16 +244,12 @@ object Entry {
 		//--Exec
 		Execution.exec(new Runnable(){
 			override def run:Unit = {
-				O.runDebug.toLowerCase match {
+				O.mode match {
 					//(case: time expression console)
-					case "console" => Temporal.interactive
-					//(case: don't run a debug sequence)
-					case "none" => {
-						(new GroundingTask).run
-					}
-					case _ => {
-						throw fail("invalid runDebug flag")
-					}
+					case O.RunMode.Console => Temporal.interactive
+					//(case: interpret)
+					case O.RunMode.Interpret => (new InterpretationTask).run
+					case O.RunMode.Detect => (new DetectionTask).run
 				}
 			}
 		}, args, new StanfordExecutionLogInterface)

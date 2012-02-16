@@ -92,7 +92,6 @@ def CRF_DATA_NOAMBIGUITY:Array[(TimeSent,Array[Int])] = {
 	}.map{ (arr:Array[(Int,String)]) =>
 		val words = arr.map(_._1)
 		(TimeSent(
-				-1,
 				words, 
 				words.map{(w:Int) => U.str2pos("POS")}, 
 				words.map{w => -1},

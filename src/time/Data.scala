@@ -11,6 +11,7 @@ import scala.collection.JavaConversions._
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.util.logging.StanfordRedwoodConfiguration;
 import edu.stanford.nlp.util.CoreMap
+import edu.stanford.nlp.util.CoreMaps
 import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
 import edu.stanford.nlp.ling.CoreAnnotations._
@@ -38,7 +39,7 @@ object Language extends Enumeration {
 	val english = Value
 }
 object NumberType extends Enumeration {
-	val NONE, ORDINAL, NUMBER, UNIT = Value
+	val NONE, ORDINAL, NUMBER, UNIT, REAL = Value
 }
 
 // -- AUX CLASSES --
@@ -222,18 +223,6 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 		}
 	}
 
-	private def numType(str:String):NumberType.Value = {
-		if(str != null){
-			str match {
-				case "ORDINAL" => NumberType.ORDINAL
-				case "NUMBER" => NumberType.NUMBER
-				case "UNIT" => NumberType.UNIT
-				case _ => NumberType.NONE
-			}
-		} else {
-			NumberType.NONE
-		}
-	}
 
 	def originalType:String = time.get[String,OriginalTimeTypeAnnotation](
 			classOf[OriginalTimeTypeAnnotation])
@@ -353,25 +342,9 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 	}
 
 	def tid:Int = index
-	private def number(lbl:CoreLabel):(NumberType.Value,Int) = {
-		//(get annotation)
-		val numVal = lbl.get[Number,NumericCompositeValueAnnotation](
-			classOf[NumericCompositeValueAnnotation])
-		val t = numType(lbl.get[String,NumericCompositeTypeAnnotation](
-			classOf[NumericCompositeTypeAnnotation]))
-		//(get number)
-		if(t == null || t == NumberType.NONE){
-			(NumberType.NONE,Int.MinValue)
-		} else {
-			assert(numVal != null && numVal != Int.MinValue, "Bad number value")
-			assert(math.floor(numVal.doubleValue) == numVal.doubleValue, 
-				"Number is not an integer: " + numVal)
-			(t,numVal.intValue)
-		}
-	}
 	def words(str2w:String=>Int,numTerm:Int):Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 
-			val (typ,num) = number(lbl)
+			val (typ,num) = DataLib.number(lbl)
 			if(typ != NumberType.NONE){
 				numTerm
 			} else {
@@ -387,13 +360,13 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 	}
 	def nums:Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 
-			val (typ,num) = number(lbl)
+			val (typ,num) = DataLib.number(lbl)
 			num
 		}.toArray
 	}
 	def numTypes:Array[NumberType.Value] = {
 		span.map{ (lbl:CoreLabel) => 
-			val (typ,num) = number(lbl)
+			val (typ,num) = DataLib.number(lbl)
 			typ
 		}.toArray
 	}
@@ -713,7 +686,9 @@ object DataLib {
 	private lazy val tokenFact = 
 		PTBTokenizer.factory(new CoreLabelTokenFactory(),
 			PTBTokenizerAnnotator.DEFAULT_OPTIONS)
-	private def tokenize(str:String,offsetZero:Int):Array[CoreLabel] = {
+
+	private def tokenize(orig:CoreLabel, str:String,offsetZero:Int
+			):Array[CoreLabel] = {
 		val tokIter = tokenFact.getTokenizer(new StringReader(str))
 		var offset = offsetZero
 		tokIter.map{ (label:CoreLabel) =>
@@ -721,8 +696,8 @@ object DataLib {
 				new java.lang.Integer(offset))
 			label.set(classOf[CharacterOffsetEndAnnotation], 
 				new java.lang.Integer(offset+label.originalText.length))
-				offset += label.originalText.length
-			label
+			offset += label.originalText.length
+			CoreMaps.merge(orig,label)
 		}.toArray
 	}
 
@@ -743,30 +718,30 @@ object DataLib {
 							case '-' => (new StringBuilder,
 								if(tok.length > 0){
 									toks :::
-									tokenize(tok.toString,offset).toList :::
-									tokenize("-",offset+tok.length).toList
+									tokenize(word,tok.toString,offset).toList :::
+									tokenize(word,"-",offset+tok.length).toList
 								} else {
-									toks ::: tokenize("-",offset).toList
+									toks ::: tokenize(word,"-",offset).toList
 								},
 								offset+tok.length+1)
 							//(tokenize on /)
 							case '/' => (new StringBuilder,
 								if(tok.length > 0){
 									toks :::
-									tokenize(tok.toString,offset).toList :::
-									tokenize("/",offset+tok.length).toList
+									tokenize(word,tok.toString,offset).toList :::
+									tokenize(word,"/",offset+tok.length).toList
 								} else {
-									toks ::: tokenize("/",offset).toList
+									toks ::: tokenize(word,"/",offset).toList
 								},
 								offset+tok.length+1)
 							//(tokenize on /)
 							case ':' => (new StringBuilder,
 								if(tok.length > 0){
 									toks :::
-									tokenize(tok.toString,offset).toList :::
-									tokenize(":",offset+tok.length).toList
+									tokenize(word,tok.toString,offset).toList :::
+									tokenize(word,":",offset+tok.length).toList
 								} else {
-									toks ::: tokenize(":",offset).toList
+									toks ::: tokenize(word,":",offset).toList
 								},
 								offset+tok.length+1)
 							//(part of a token)
@@ -778,7 +753,7 @@ object DataLib {
 			val newTok
 				= if(lastTerm.length > 0) {
 					otherTerms :::
-					tokenize(lastTerm.toString,finalOffset).toList
+					tokenize(word,lastTerm.toString,finalOffset).toList
 				} else { otherTerms }
 			newTok ::: soFar
 		}
@@ -822,6 +797,34 @@ object DataLib {
 			findNumbers(sent)
 		}
 	}
+	private def numType(str:String):NumberType.Value = {
+		if(str != null){
+			str match {
+				case "ORDINAL" => NumberType.ORDINAL
+				case "NUMBER" => NumberType.NUMBER
+				case "UNIT" => NumberType.UNIT
+				case _ => NumberType.NONE
+			}
+		} else {
+			NumberType.NONE
+		}
+	}
+	def number(lbl:CoreLabel):(NumberType.Value,Int) = {
+		//(get annotation)
+		val numVal = lbl.get[Number,NumericCompositeValueAnnotation](
+			classOf[NumericCompositeValueAnnotation])
+		val t = numType(lbl.get[String,NumericCompositeTypeAnnotation](
+			classOf[NumericCompositeTypeAnnotation]))
+		//(get number)
+		if(t == null || t == NumberType.NONE){
+			(NumberType.NONE,Int.MinValue)
+		} else if(math.floor(numVal.doubleValue) == numVal.doubleValue){
+			(NumberType.REAL,numVal.doubleValue.toInt)
+		} else {
+			assert(numVal != null && numVal != Int.MinValue, "Bad number value")
+			(t,numVal.intValue)
+		}
+	}
 }
 
 object Data {
@@ -835,7 +838,6 @@ object Data {
 		if(args.length < 1){ err("No dataset given"); exit(1) }
 		args(0).toLowerCase match {
 			case "tempeval2" => TempEval2.normalize(args(1),args(2))
-//			case "tempeval2" => mkTempEval(args.slice(1,args.length))
 			case "gigaword" => Gigaword.process(args.slice(1,args.length))
 			case _ => err("Invalid dataset: " + args(0)); exit(1)
 		}

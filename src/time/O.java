@@ -11,6 +11,7 @@ import org.goobs.util.Decodable;
 public class O {
 	public static enum Distribution{ Point, Multinomial, Gaussian }
 	public static enum Scope{ Global, Local }
+	public static enum RunMode{ Interpret, Detect, Console }
 
 	//--Data Info
 	private static Pattern DATA 
@@ -46,6 +47,9 @@ public class O {
 		@Override
 		public String toString(){ return encode(); }
 	}
+	
+	@Option(name="mode", gloss="Mode to run the program in")
+	public static RunMode mode = RunMode.Interpret;
 
 	//--I/O
 	@Option(name="train", gloss="Training range", required=true)
@@ -189,8 +193,6 @@ public class O {
 	public static String goldTagFile = "goldTags";
 	@Option(name="badTimexes", gloss="TIDs of timexes to ignore in training")
 	public static String badTimexes = null;
-	@Option(name="runDebug", gloss="Run a debug program")
-	public static String runDebug = "none";
 	@Option(name="printAllParses", gloss="Print status for all parses")
 	public static boolean printAllParses = false;
 	@Option(name="printFailures", gloss="Print parses which are not in the beam")
