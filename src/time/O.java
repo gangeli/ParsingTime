@@ -111,30 +111,20 @@ public class O {
 	public static Scope timeDistributionScope = Scope.Global;
 
 	//--TRAINING
+	//(interpretation)
 	@Option(name="iters", gloss="Training iterations")
 	public static int iters = 40;
-	@Option(name="babySteps", gloss="Ramp up the length of timexes gradually")
-	public static boolean babySteps = false;
 	@Option(name="parser", gloss="Parser class to use", required=true)
 	public static String parser = "org.goobs.nlp.CKYParser";
 	@Option(name="maxSearchTime", gloss="Max Iterations")
 	public static int maxSearchTime = 1000000;
-	@Option(name="crfTag", gloss="Use a CRF (versus PCFG) tagger")
-	public static boolean crfTag = false;
-	public static enum TagMethod { PCFG, GOLD }
-	@Option(name="lexTagMethod", gloss="Method to tag pre-terminals")
-	public static TagMethod lexTagMethod = TagMethod.PCFG;
 	@Option(name="scoreBeam", gloss="Maximum possible groundings to check")
 	public static int scoreBeam = 1;
-	@Option(name="freeNils", gloss="NIL from a word has probability 1.0 always")
-	public static boolean freeNils = false;
 	@Option(name="lexNils", gloss="NIL is tagged with its source word")
 	public static boolean lexNils = false;
 	@Option(name="includeRuleInLexProb", gloss="Lex prob = P(rule|head)*P(word|rule)")
 	public static boolean includeRuleInLexProb = false;
-	//(crf)
-	@Option(name="crfKBest", gloss="Number of tags to use to approx. word dist.")
-	public static int crfKBest = 1000;
+	//(detection)
 	@Option(name="crfFeatureFactory", gloss="FeatureFactory class for tagging")
 	public static String crfFeatureFactory 
 		= "edu.stanford.nlp.sequences.SuperSimpleFeatureFactory";

@@ -53,6 +53,11 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 			ordinality.slice(begin,end)
 		)
 	}
+	def shape(index:Int):String = {
+		U.w2str(words(index)).toCharArray
+			.map{ (c:Char) => if(c.isUpper) "X" else "x" }
+			.mkString("")
+	}
 	//<<required overrides>>
 	override def apply(i:Int):Int = words(i)
 	override def length:Int = words.length
