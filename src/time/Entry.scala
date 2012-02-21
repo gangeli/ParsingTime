@@ -257,7 +257,7 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 		if(words(i) == G.NUM){
 			assert(nums(i) != Int.MinValue, 
 				"Returning number that was not set: "+U.w2str(words(i))+" "+nums(i))
-			nums(i).toString
+			nums(i).toString + "(" + ordinality(i) + ")"
 		} else {
 			U.w2str(words(i))
 		}

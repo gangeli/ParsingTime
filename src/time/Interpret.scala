@@ -538,8 +538,10 @@ object Grammar {
 				NodeType('Duration)
 				), "n*D")
 			)
-		nums.filter{ (numType:NodeType) => 
-					numType.flag(Symbol(NumberType.NUMBER.toString)) }
+		nums
+				.filter{ (numType:NodeType) => 
+					numType.flag(Symbol(NumberType.NUMBER.toString)) ||
+					numType.flag(Symbol(NumberType.REAL.toString))    }
 				.foreach{ (numType:NodeType) =>
 			rtn = rtn ::: multiplies(numType)
 		}
@@ -1319,7 +1321,7 @@ class InterpretationTask extends TemporalTask {
 				endTrack("Updating Times")
 				//(debug)
 				startTrack("Parameters")
-				debug(newParser.parameters(U.w2str(_),Grammar.r2str(_)))
+				log(newParser.parameters(U.w2str(_),Grammar.r2str(_)))
 				endTrack("Parameters")
 				//(continue loop)
 				log(FORCE,BOLD,YELLOW,""+score)
@@ -1612,6 +1614,7 @@ object ToyData {
 	private val pastMonths2 = ("past 2 months",(REF <| (AMONTH*2)))
 	private val pastYear = ("past year",(REF <| AYEAR))
 	private val weeks2 = ("2 weeks",(AWEEK*2))
+	private val year5 = ("5 years",(AYEAR*5))
 	private val weeksDash2 = ("2 - weeks",(AWEEK*2))
 	private val week2Period = ("2 week period",(AWEEK*2))
 	private val month = ("month",(MONTH))
@@ -1715,29 +1718,29 @@ object ToyData {
 			store(false,
 			//--Train
 				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,
-				//(sequences)
-				week,month,quarter,year,day,theWeek,
-				//(cannonicals -> sequences)
-				thisWeek,thisYear,thisMonth,
-				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
-				//(shifts -- noncannonical)
-				pastWeek,thePastWeek,pastYear,pastMonths2,
-				//(numbers -- basic)
-				y1776,
-				//(sequences)
-				april,
-				//(intersects)
-				april1776,april2,
-				//(days of the week)
-				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-				//(numbers -- complex)
-				y17sp76,
-				//(seasons)
-				spring,summer,fall,winter,
-				//(floor/ceil)
-				quarter, firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
+				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,year5,
+//				//(sequences)
+//				week,month,quarter,year,day,theWeek,
+//				//(cannonicals -> sequences)
+//				thisWeek,thisYear,thisMonth,
+//				//(shifts -- standard)
+//				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+//				//(shifts -- noncannonical)
+//				pastWeek,thePastWeek,pastYear,pastMonths2,
+//				//(numbers -- basic)
+//				y1776,
+//				//(sequences)
+//				april,
+//				//(intersects)
+//				april1776,april2,
+//				//(days of the week)
+//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+//				//(numbers -- complex)
+//				y17sp76,
+//				//(seasons)
+//				spring,summer,fall,winter,
+//				//(floor/ceil)
+//				quarter, firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
 //				//(offset -1)
 //				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
 //				//(hard)
