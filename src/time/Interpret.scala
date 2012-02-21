@@ -31,57 +31,6 @@ import edu.stanford.nlp.io.IOUtils
 import Lex._
 
 //------------------------------------------------------------------------------
-// AUXILLIARY
-//------------------------------------------------------------------------------
-case class TimeSent(words:Array[Int],pos:Array[Int],
-		nums:Array[Int],ordinality:Array[NumberType.Value])
-		extends Sentence{
-	//<<error checks>>
-	assert(words.zip(nums).forall{ case (w,n) => 
-		(w == G.NUM && n != Int.MinValue) || (w != G.NUM && n == Int.MinValue) },
-		"Words and numbers should match: "+this.toString+" :: "+nums.mkString(","))
-	assert(words.length == pos.length, "word and pos lengths must match")
-	assert(words.length == nums.length, "word and nums lengths must match")
-	assert(words.length == ordinality.length, 
-		"word and num types lengths must match")
-	//<<methods>>
-	def slice(begin:Int,end:Int):TimeSent = {
-		TimeSent(
-			words.slice(begin,end),
-			pos.slice(begin,end),
-			nums.slice(begin,end),
-			ordinality.slice(begin,end)
-		)
-	}
-	def shape(index:Int):String = {
-		U.w2str(words(index)).toCharArray
-			.map{ (c:Char) => if(c.isUpper) "X" else "x" }
-			.mkString("")
-	}
-	//<<required overrides>>
-	override def apply(i:Int):Int = words(i)
-	override def length:Int = words.length
-	override def gloss(i:Int):String = {
-		if(words(i) == G.NUM){
-			assert(nums(i) != Int.MinValue, 
-				"Returning number that was not set: "+U.w2str(words(i))+" "+nums(i))
-			nums(i).toString
-		} else {
-			U.w2str(words(i))
-		}
-	}
-	//<<optional overrides>>
-	override def asNumber(i:Int):Int = {
-		assert(nums(i) >= 0 || words(i) != G.NUM, 
-			"Num has no numeric value: " + gloss(i))
-		nums(i)
-	}
-	override def asDouble(i:Int):Double = nums(i).toDouble
-	//<<object overrides>>
-	override def toString:String = words.map{ U.w2str(_) }.mkString(" ")
-}
-
-//------------------------------------------------------------------------------
 // GRAMMAR
 //------------------------------------------------------------------------------
 class TimeUnary(lambda:Option[Any=>Any],_parent:NodeType,_child:NodeType)
@@ -139,6 +88,16 @@ object Grammar {
 		NodeType.make('Sequence)
 		//(some functions)
 		NodeType.make("F_{N0th}2S")
+		//(sequences)
+		NodeType.make("moh(n)")
+		NodeType.make("hod(n)")
+		NodeType.make("dom(n)")
+		NodeType.make("moy(n)")
+		NodeType.make("yoc(n)")
+		NodeType.make("doc(n)")
+		NodeType.make("yod(n)")
+		NodeType.make("year(n)")
+		NodeType.make("century(n)")
 		//(nils)
 		if(O.lexNils){
 			indexer.foreach{ (word:String) =>
@@ -164,6 +123,7 @@ object Grammar {
 					'num, Symbol(orderOfMagnitude.toString), Symbol(numberType.toString))
 			}
 		}
+		assert(!nums.isEmpty, "no number terms!")
 	}
 	def nums:Iterable[NodeType] = NodeType.all.filter{ _.flag('num) }
 	//--Other NodeTypes
@@ -293,13 +253,16 @@ object Grammar {
 		//--Lex
 		//(primitives)
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
-			(new TimeLex((sent:Option[Sentence],i:Int) => r, NodeType('Range_)),s)
+			(new TimeLex((sent:Option[Sentence],i:Int) => r, NodeType('Range_)
+					).restrict( (sent:Sentence,i:Int) => { sent(i) != G.NUM }), s)
 		}
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
-			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Duration_)),s)
+			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Duration_)
+					).restrict( (sent:Sentence,i:Int) => { sent(i) != G.NUM }), s)
 		}
 		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
-			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Sequence_)),s)
+			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Sequence_)
+					).restrict( (sent:Sentence,i:Int) => { sent(i) != G.NUM }), s)
 		}
 		//(nil)
 		rtn = rtn ::: 
@@ -344,44 +307,51 @@ object Grammar {
 					if(num >= min && num < max){ fn(num) }
 					else { new NoTime }
 			}}.asInstanceOf[Any]
-		def indices(numType:NodeType) = List[(GrammarRule,String)](
-			(new TimeUnary(thack((num:Int) =>  MOH(num), 0, 60 ),
-				NodeType('Sequence), numType),
-				"moh(n):S"),
-			(new TimeUnary(thack((num:Int) =>  HOD(num), 0, 24 ),
-				NodeType('Sequence), numType),
-				"hod(n):S"),
-			(new TimeUnary(thack((num:Int) =>  DOM(num), 1, 32 ),
-				NodeType('Sequence), numType),
-				"dom(n):S"),
-			(new TimeUnary(thack((num:Int) =>  MOY(num), 1, 13 ),
-				NodeType('Sequence), numType),
-				"moy(n):S"),
-			(new TimeUnary(thack((num:Int) =>  YOC(num), 0, 100 ),
-				NodeType('Sequence), numType),
-				"yoc(n):S"),
-			(new TimeUnary(thack((num:Int) =>  DOC(num), 0, 10 ),
-				NodeType('Sequence), numType),
-				"doc(n):S"),
-			(new TimeUnary(thack((num:Int) =>  YOD(num), 0, 10 ),
-				NodeType('Sequence), numType),
-				"yod(n):S"),
-			(new TimeUnary(hack((num:Int) =>  THEYEAR(num) ),
-				NodeType('Range), numType),
-				"year(n):R"),
-			(new TimeUnary(thack((num:Int) =>  CENTURY(num), -100, 100),
-				NodeType('Range), numType),
-				"century(n):R")
-			)
+		def indirect(first:Boolean,
+				head:NodeType,child:NodeType,fn:Any=>Any,nm:String) = {
+			List[(GrammarRule,String)](
+				(new TimeUnary(fn,NodeType(nm),child),nm)
+			) ::: {
+				if(first) List[(GrammarRule,String)](
+					(new TimeUnary((x:Any) => x,head,NodeType(nm)),
+						nm + {if(head == NodeType('Sequence)) ":S" else ":R" }))
+				else Nil}
+		}
+		def indices(first:Boolean,numType:NodeType):List[(GrammarRule,String)]
+				= List[List[(GrammarRule,String)]](
+			indirect(first,NodeType('Sequence),numType,
+				thack((num:Int) =>  MOH(num), 0, 60 ),"moh(n)"),
+			indirect(first,NodeType('Sequence), numType,
+				thack((num:Int) =>  HOD(num), 0, 24 ), "hod(n)"),
+			indirect(first,NodeType('Sequence), numType,
+				thack((num:Int) =>  DOM(num), 1, 32 ),"dom(n)"),
+			indirect(first,NodeType('Sequence), numType,
+				thack((num:Int) =>  MOY(num), 1, 13 ),"moy(n)"),
+			indirect(first,NodeType('Sequence), numType,
+				thack((num:Int) =>  YOC(num), 0, 100 ),"yoc(n)"),
+			indirect(first,NodeType('Sequence), numType,
+				thack((num:Int) =>  DOC(num), 0, 10 ),"doc(n)"),
+			indirect(first,NodeType('Sequence), numType,
+				thack((num:Int) =>  YOD(num), 0, 10 ),"yod(n)"),
+			indirect(first,NodeType('Range), numType,
+				hack((num:Int) =>  THEYEAR(num) ), "year(n)"),
+			indirect(first,NodeType('Range), numType,
+				thack((num:Int) =>  CENTURY(num), -100, 100),"century(n)")
+			).flatten
+		var first:Boolean = true
 		nums.foreach{ (numType:NodeType) => {
-			rtn = rtn ::: indices(numType) 
+			rtn = rtn ::: indices(first,numType)
+			first = false
 		}}
 		//--Index
 		//(index function)
 		rtn = rtn ::: indexedSequences.map{ case (fn:Array[Sequence],name:String) =>
 			(new TimeLex( (sent:Option[Sentence],i:Int) => { (n:Int) =>
 					if(n < 0 || n >= fn.length){ new NoTime } else { fn(n) }
-				}, NodeType("F_{N0th}2S_")),
+				}, NodeType("F_{N0th}2S_")
+				).restrict( (sent:Sentence,i:Int) => {
+					sent(i) != G.NUM
+				}),
 				name )
 		}
 		
@@ -432,8 +402,11 @@ object Grammar {
 					case (soFarOuter:List[(GrammarRule,String)],a:Symbol) =>
 				//(create rule)
 				val rule = (new TimeLex(
-						(sent:Option[Sentence],i:Int) => info.fn,
-						NodeType("F_{"+a.name+"}2"+a.name+"_")),
+							(sent:Option[Sentence],i:Int) => info.fn,
+							NodeType("F_{"+a.name+"}2"+a.name+"_")
+						).restrict( (sent:Sentence,i:Int) => {
+							sent(i) != G.NUM
+						}),
 					info.name+"$(-:"+a.name+"):"+a.name+"$")
 				//(append rule)
 				rule :: soFarOuter
@@ -539,7 +512,10 @@ object Grammar {
 					//(create rule)
 					val rule = (new TimeLex(
 							(s:Option[Sentence],i:Int) => info.fn,
-							NodeType("F_{"+a.name+b.name+"}2"+a.name+"_")),
+							NodeType("F_{"+a.name+b.name+"}2"+a.name+"_")
+						).restrict( (sent:Sentence,i:Int) => {
+							sent(i) != G.NUM
+						}),
 						info.name+"$(-:"+a.name+",-:"+b.name+"):"+a.name+"$" )
 					//(append rule)
 					rule :: soFarInner
@@ -1123,13 +1099,6 @@ class InterpretationTask extends TemporalTask {
 			} else {
 				None
 			}
-		log("Guess:  " + viterbi.orNull)
-		log("Tree:   " + {
-			if(parses.length > 0){
-				parses(0).asParseString(U.w2str(_),Grammar.r2str(_)) 
-			} else{ "" } })
-		log("Gold:   " + gold)
-		log("Ground: " + grounding)
 		//--Score Parses
 		val scores:Array[ScoreElem]
 			//(for each parse...)
@@ -1194,11 +1163,12 @@ class InterpretationTask extends TemporalTask {
 		log("" + scores.length + " candidates")
 		//--Score Parses
 		score.lock.acquire
-		if(scores.length == 0){
+		val isCorrect:Boolean = if(scores.length == 0){
 			//(case: no scores)
 			score.enter(false,(Duration.INFINITE,Duration.INFINITE), -1)
 			score.store(sent,viterbi.orNull,gold,false,grounding)
 			score.logFailure(sent,gold,grounding)
+			false
 		} else {
 			//(case: have score)
 			//((get guess))
@@ -1212,17 +1182,34 @@ class InterpretationTask extends TemporalTask {
 					"invalid probability")
 				elem.exact }
 			//((enter score))
-			if(bestGuess.exact){log(GREEN,"CORRECT")} else {log(FORCE,RED,"WRONG")}
+			if(bestGuess.exact){
+				log(GREEN,"CORRECT")
+			} else {
+				log(FORCE,"best guess: " + bestGuess)
+				if(bestGuess.offset != 0){
+					log(FORCE,"then: " + scores(1))
+				}
+				log(FORCE,RED,"WRONG")
+			}
 			score.enter(bestGuess.exact,bestGuess.diff, 
 				if(correct.length > 0) correct(0).index else -1)
 			score.enterK(scores.slice(0,O.reportK).map{ _.exact })
 			score.store(sent,viterbi.get,gold,bestGuess.exact,grounding)
 			if(correct.length == 0){
-				log(RED,"" + correct.length + " in beam")
+				log(FORCE,RED,"" + correct.length + " in beam")
 			} else {
 				log("" + correct.length + " in beam")
 			}
+			bestGuess.exact
 		}
+		//--Log
+		log({if(isCorrect) FORCE else null },"Guess:  " + viterbi.orNull)
+		log({if(isCorrect) FORCE else null },"Tree:   " + {
+			if(parses.length > 0){
+				parses(0).asParseString(U.w2str(_),Grammar.r2str(_)) 
+			} else{ "" } })
+		log({if(isCorrect) FORCE else null },"Gold:   " + gold)
+		log({if(isCorrect) FORCE else null },"Ground: " + grounding)
 		score.lock.release
 		//--Post-Filter
 		def allOutput:Iterable[GoodOutput] = scores.map{ (elem:ScoreElem) =>
@@ -1241,9 +1228,15 @@ class InterpretationTask extends TemporalTask {
 		val filtered = filterCorrect(allOutput.toArray)
 		//--Return
 		//(debug)
-		startTrack("Good Output")
-		filtered.foreach{ t => 
-			log("["+t.offset+"] "+t.tree.asParseString(U.w2str(_),Grammar.r2str(_))) 
+		if(isCorrect){
+			startTrack("Good Output")
+		} else {
+			forceTrack("Good Output")
+		}
+		filtered.foreach{ (t:GoodOutput) => 
+			log("["+t.offset+"] "+
+				"("+G.df.format(t.prob)+")"+
+				t.tree.asParseString(U.w2str(_),Grammar.r2str(_))) 
 		}
 		endTrack("Good Output")
 		//(return)

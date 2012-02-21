@@ -1,4 +1,17 @@
 #!/bin/bash
+#-----
+# Tmp
+#-----
+function diff {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	cat out/$last/train-extent.tab | awk '{ print $1 " " $2 " " $3 }' > tmp/guess.tab
+	cat aux/tempeval2/training/english/data/timex-extents.tab\
+		| awk '{ print $1 " " $2 " " $3 }' > tmp/gold.tab
+	vimdiff tmp/guess.tab tmp/gold.tab
+}
 
 #-----
 # Evaluate
@@ -17,6 +30,17 @@ function score {
 
 function scores {
 	for f in `find out -name "log"`; do egrep -IH "MyTime Train" $f; done | sort -k 8
+}
+
+function detecttrain {
+	extent="$1"
+	attr="$1"
+	aux/tempeval2/scorer/score_entities.py\
+		aux/tempeval2/training/english/data/base-segmentation.tab\
+		aux/tempeval2/training/english/data/timex-extents.tab\
+		$extent \
+		aux/tempeval2/training/english/data/timex-attributes.tab\
+		aux/tempeval2/training/english/data/timex-attributes.tab
 }
 
 function evaltrain {
@@ -57,6 +81,15 @@ function pyscore {
 	fi
 	# -- Run Script
 	evaltrain out/$last/attributes-MyTime-train.tab
+}
+
+function pydetect {
+	# -- Variables
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	detecttrain out/$last/train-extent.tab
 }
 
 #-----
@@ -153,14 +186,14 @@ plot \"/tmp/data\" using 1:2 title 'Training' with linespoints, \\
 # Utilities
 #-----
 function r {
-	make $@ && ./interpret
+	make $@ && ./run
 }
 function rp {
-	make && ./interpret && p
+	make && ./run && p
 }
 function cmd {
 	java -cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes time.Time
 }
-function dumpdata {
-	java -cp bin:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes time.TimeDataset
+function tempeval2 {
+	java -cp bin:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes time.TempEval2
 }

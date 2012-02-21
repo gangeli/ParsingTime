@@ -33,7 +33,15 @@ import org.goobs.exec.Execution
 //------------------------------------------------------------------------------
 // DETECTION SYSTEM
 //------------------------------------------------------------------------------
-case class DetectedTime(begin:Int,end:Int,time:Option[Temporal])
+case class DetectedTime(begin:Int,end:Int,time:Option[Temporal]) {
+	var meta:Option[(String,Int)] = None
+	def tagMetaInfo(doc:String,sentI:Int):DetectedTime
+		= tagMetaInfo( Some((doc,sentI)) )
+	def tagMetaInfo(meta:Option[(String,Int)]):DetectedTime = {
+		this.meta = meta
+		this
+	}
+}
 trait TimeDetector {
 	def findTimes(sent:TimeSent):Array[DetectedTime]
 }
@@ -159,7 +167,7 @@ class CRFDetector(
 			}
 		}
 		//--Return
-		return rtn.toArray
+		return rtn.map{ _.tagMetaInfo(sent.meta) }.reverse.toArray
 	}
 }
 
@@ -188,7 +196,7 @@ object CRFDetector {
 		log(FORCE,"flags.featureFactory: " + flags.featureFactory)
 		flags.backgroundSymbol = NOTM
 		log(FORCE,"flags.backgroundSymbol: " + flags.featureFactory)
-		flags.maxLeft = 1
+		flags.maxLeft = O.maxLength
 		log(FORCE,"flags.maxLeft: " + flags.maxLeft)
 		endTrack("Flags")
 		val classifier = new CRFClassifier[CoreMap](flags)
@@ -230,7 +238,7 @@ object CRFDetector {
 // DETECTION DATA
 //------------------------------------------------------------------------------
 case class DetectionDatum(
-		doc:String,sent:TimeSent,
+		doc:String,sent:TimeSent,sentIndex:Int,
 		spans:Array[(Int,Int)],times:Array[Temporal],dct:Time
 		) extends Iterable[Int] {
 	def getTime(i:Int):Option[Temporal] = {
@@ -240,6 +248,21 @@ case class DetectionDatum(
 			}
 		}
 		return None
+	}
+	var origBegin:Int=>Int = (i:Int) => i
+	def setOrigBegin(orig:Int=>Int):DetectionDatum = {
+		origBegin = orig
+		this
+	}
+	var origEnd:Int=>Int = (i:Int) => i
+	def setOrigEnd(orig:Int=>Int):DetectionDatum = {
+		origEnd = orig
+		this
+	}
+	var tids:Option[Array[String]] = None
+	def setTids(t:Array[String]):DetectionDatum = {
+		tids = Some(t)
+		this
 	}
 	override def iterator:Iterator[Int] = (0 until sent.length).iterator
 	override def toString:String = "[" + times.length + " expr]: "+sent.toString
@@ -260,10 +283,11 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String
 						doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
 						.getTimeInMillis))
 					val docName:String
-						= docs.head.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
+						= doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
 					//--Iterate Sentences
 					doc.get[JList[CoreMap],SentencesAnnotation](SENTENCES)
-						.map{ (sent:CoreMap) =>
+						.zipWithIndex
+						.map{ case (sent:CoreMap,sentI:Int) =>
 							//(sentence)
 							//((get tokens))
 							val tokens:Array[CoreLabel] = 
@@ -290,27 +314,56 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String
 								}
 							}
 							//((create sentence))
-							val timeSent = TimeSent(words,pos,nums.toArray,ordinality.toArray)
+							val timeSent = 
+								TimeSent(words,pos,nums.toArray,ordinality.toArray)
+								.tagMetaInfo(docName,sentI)
 							//(spans/times)
 							val exprs
 								= sent.get[JList[CoreMap],TimeExpressionsAnnotation](
 									classOf[TimeExpressionsAnnotation])
-							val (spans,times) 
+							val (theSpans,theTemporals) 
 								= {if(exprs == null) Nil else asScalaBuffer(exprs)}
 								.map{ (time:CoreMap) =>
+									//((span))
 									val begin:Int 
 										= time.get[java.lang.Integer,BeginIndexAnnotation](
 											classOf[BeginIndexAnnotation])
 									val end:Int 
 										= time.get[java.lang.Integer,EndIndexAnnotation](
 											classOf[EndIndexAnnotation])
+									//((original span))
+									val origBegin:Int 
+										= time.get[java.lang.Integer,OriginalBeginIndexAnnotation](
+											classOf[OriginalBeginIndexAnnotation])
+									val origEnd:Int 
+										= time.get[java.lang.Integer,OriginalEndIndexAnnotation](
+											classOf[OriginalEndIndexAnnotation])
+									//((temporal value))
 									val temporal = DataLib.array2JodaTime(
 										time.get[Array[String],TimeValueAnnotation](
 											classOf[TimeValueAnnotation]))
-									((begin,end),temporal)
-								}.unzip
+									//((tid))
+									val tid = 
+										time.get[String,TimeIdentifierAnnotation](
+											classOf[TimeIdentifierAnnotation])
+									(((begin,end),(origBegin,origEnd)),(temporal,tid))
+								}	.sortBy{ _._2._2.substring(1).toInt } //sort by tid
+									.unzip
+								val (spans,origSpans) = theSpans.unzip
+								val (times,tids) = theTemporals.unzip
 								//(datum)
-								DetectionDatum(docName,timeSent,spans.toArray,times.toArray,dct)
+								DetectionDatum(
+									docName,timeSent,sentI,
+									spans.toArray,times.toArray,dct)
+									.setOrigBegin({ (i:Int) =>
+										tokens(i).get[java.lang.Integer,TokenBeginAnnotation](
+											classOf[TokenBeginAnnotation])
+									})
+									.setOrigEnd({ (i:Int) =>
+										tokens(i).get[java.lang.Integer,TokenEndAnnotation](
+											classOf[TokenEndAnnotation])
+									})
+									.setTids(tids.toArray)
 						}
 				}
 		}
@@ -375,19 +428,26 @@ class DetectionTask extends TemporalTask {
 			val goldMask:Array[Boolean] = new Array[Boolean](datum.sent.length)
 			val guessMask:Array[Boolean] = new Array[Boolean](datum.sent.length)
 			//((fill masks))
-			datum.spans.foreach{ case (begin:Int,end:Int) =>
-				(begin until end).foreach{ (i:Int) => goldMask(i) = true }
-			}
-			guess.foreach{case DetectedTime(begin:Int,end:Int,time:Option[Temporal])=>
+			datum.spans.zipWithIndex.foreach{ case ((begin:Int,end:Int),s:Int) =>
 				(begin until end).foreach{ (i:Int) => 
+					goldMask(i) = true 
+				}
+			}
+			guess.zipWithIndex.foreach{ case (tm:DetectedTime,tmI:Int) =>
+				(tm.begin until tm.end).foreach{ (i:Int) => 
 					guessMask(i) = true 
-					extentFile
-						.append(datum.doc).append("\t")
-						.append(""+datum.sent).append("\t")
-						.append(""+i).append("\t")
-						.append("timex3").append("\t")
-						.append("TODO").append("\t")
-						.append("1").append("\n")
+				}
+				tm.meta.foreach{ case (doc:String,sentI:Int) =>
+					(datum.origBegin(tm.begin) until datum.origEnd(tm.end-1))
+							.foreach{ (i:Int) =>
+						extentFile
+							.append(doc).append("\t")                  //document name
+							.append(""+sentI).append("\t")             //sentence index
+							.append(""+i).append("\t")                 //word index
+							.append("timex3").append("\t")             // <junk>
+							.append("t"+(1000*index+tmI)).append("\t") //unique timex
+							.append("1").append("\n")                  // <junk>
+					}
 				}
 			}
 			//((debug log))
@@ -404,11 +464,15 @@ class DetectionTask extends TemporalTask {
 				log("sentence " + index + " (correct)")
 			}
 			//((get counts))
-			val overlapCount:Int = guessMask.zip(goldMask)
-				.filter{ case (guess:Boolean,gold:Boolean) => guess && gold }.length
-			val guessCount:Int = guessMask.filter{ _ == true }.length
-			val goldCount:Int = goldMask.filter{ _ == true }.length
-			detectCalc.enterRaw(overlapCount,guessCount,goldCount)
+			goldMask.zip(guessMask).foreach{ case (gold,guess) => 
+				if(guess && gold){
+					detectCalc.enterDiscrete(true,true)
+				} else if(gold){
+					detectCalc.recallMiss(true)
+				} else if(guess){
+					detectCalc.precisionMiss(true)
+				}
+			}
 			//(get temporal correctness)
 			//TODO do this
 		}
@@ -434,6 +498,8 @@ class DetectionTask extends TemporalTask {
 		val evalExtent = new PrintWriter(Execution.touch("eval-extent.tab"))
 		val trainScore = evaluate(crf,data.train,trainExtent)
 		val evalScore  = evaluate(crf,data.eval,evalExtent)
+		trainExtent.close
+		evalExtent.close
 		endTrack("Evaluate")
 		//--Score
 		startTrack("Scores")

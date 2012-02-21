@@ -687,25 +687,30 @@ object DataLib {
 		PTBTokenizer.factory(new CoreLabelTokenFactory(),
 			PTBTokenizerAnnotator.DEFAULT_OPTIONS)
 
-	private def tokenize(orig:CoreLabel, str:String,offsetZero:Int
-			):Array[CoreLabel] = {
+	private def tokenize(orig:CoreLabel, str:String,offsetZero:Int,
+			index:Int):Array[CoreLabel] = {
 		val tokIter = tokenFact.getTokenizer(new StringReader(str))
 		var offset = offsetZero
 		tokIter.map{ (label:CoreLabel) =>
+			//(merge labels)
 			label.set(classOf[CharacterOffsetBeginAnnotation], 
 				new java.lang.Integer(offset))
 			label.set(classOf[CharacterOffsetEndAnnotation], 
 				new java.lang.Integer(offset+label.originalText.length))
 			offset += label.originalText.length
-			CoreMaps.merge(orig,label)
+			//(save token offsets)
+			val merged = CoreMaps.merge(orig,label)
+			merged.set(classOf[TokenBeginAnnotation],new java.lang.Integer(index))
+			merged.set(classOf[TokenEndAnnotation],new java.lang.Integer(index+1))
+			merged
 		}.toArray
 	}
 
 	def retokSentence(sent:CoreMap):Unit = {
 		//--Retokenize Sentence
 		val origTokens=sent.get[java.util.List[CoreLabel],TokensAnnotation](TOKENS)
-		val retok = origTokens.foldRight(List[CoreLabel]()){ 
-				(word:CoreLabel,soFar:List[CoreLabel]) =>
+		val retok = origTokens.zipWithIndex.foldRight(List[CoreLabel]()){ 
+				case ((word:CoreLabel,index:Int),soFar:List[CoreLabel]) =>
 			val orig = word.originalText
 			val baseOffset = word.beginPosition
 			val finalOffsetGold = word.endPosition
@@ -718,30 +723,30 @@ object DataLib {
 							case '-' => (new StringBuilder,
 								if(tok.length > 0){
 									toks :::
-									tokenize(word,tok.toString,offset).toList :::
-									tokenize(word,"-",offset+tok.length).toList
+									tokenize(word,tok.toString,offset,index).toList :::
+									tokenize(word,"-",offset+tok.length,index).toList
 								} else {
-									toks ::: tokenize(word,"-",offset).toList
+									toks ::: tokenize(word,"-",offset,index).toList
 								},
 								offset+tok.length+1)
 							//(tokenize on /)
 							case '/' => (new StringBuilder,
 								if(tok.length > 0){
 									toks :::
-									tokenize(word,tok.toString,offset).toList :::
-									tokenize(word,"/",offset+tok.length).toList
+									tokenize(word,tok.toString,offset,index).toList :::
+									tokenize(word,"/",offset+tok.length,index).toList
 								} else {
-									toks ::: tokenize(word,"/",offset).toList
+									toks ::: tokenize(word,"/",offset,index).toList
 								},
 								offset+tok.length+1)
 							//(tokenize on /)
 							case ':' => (new StringBuilder,
 								if(tok.length > 0){
 									toks :::
-									tokenize(word,tok.toString,offset).toList :::
-									tokenize(word,":",offset+tok.length).toList
+									tokenize(word,tok.toString,offset,index).toList :::
+									tokenize(word,":",offset+tok.length,index).toList
 								} else {
-									toks ::: tokenize(word,":",offset).toList
+									toks ::: tokenize(word,":",offset,index).toList
 								},
 								offset+tok.length+1)
 							//(part of a token)
@@ -753,7 +758,7 @@ object DataLib {
 			val newTok
 				= if(lastTerm.length > 0) {
 					otherTerms :::
-					tokenize(word,lastTerm.toString,finalOffset).toList
+					tokenize(word,lastTerm.toString,finalOffset,index).toList
 				} else { otherTerms }
 			newTok ::: soFar
 		}

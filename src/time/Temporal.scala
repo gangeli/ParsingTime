@@ -499,6 +499,10 @@ class CompositeRange(
 
 // ----- GROUNDED RANGE -----
 class GroundedRange(val begin:Time,val end:Time) extends SingletonRange {
+	def contains(other:GroundedRange):Boolean = {
+		other.begin >= begin && other.end <= end
+	}
+
 	override def evaluate[E <: Temporal](ground:GroundedRange,offset:Long):(TraverseFn,E)={
 		if(offset == 0){
 			this match{ 
@@ -1340,7 +1344,9 @@ class RepeatedRange(
 		val realGround:Time = boundedGround(ground,true)
 		val location:GroundedRange = doGround(ground,offset)
 		//(distance)
-		val distance = location.begin-realGround
+		val distance
+			= if(location.contains(ground)){ Duration.ZERO }
+			else { location.begin-realGround }
 		//(checks and return)
 		assert(interv.seconds > 0.0, "Interval is zero or negative: " + interv)
 		distance/interv

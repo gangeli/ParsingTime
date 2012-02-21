@@ -330,6 +330,9 @@ object TempEval2 {
 						val map = new Annotation("") //<--text annotation
 						map.set(classOf[SentencesAnnotation], 
 							new ArrayList[CoreMap]().asInstanceOf[JList[CoreMap]])
+						//((id))
+						map.set(classOf[IDAnnotation], ""+docs.length)
+						//((add))
 						docs = map :: docs
 						map
 					}
@@ -338,8 +341,6 @@ object TempEval2 {
 				dct(sentInfo.doc).toGregorianCalendar.asInstanceOf[Calendar])
 			//(docID)
 			map.set(classOf[DocIDAnnotation],sentInfo.doc)
-			//(ID)
-			map.set(classOf[IDAnnotation], ""+sentI)
 			//(sentences)
 			val sent:CoreMap = {
 				val sentMap = new ArrayCoreMap(3)
@@ -552,7 +553,11 @@ object TempEval2 {
 	}
 	def normalize(dir:String,lang:String):SerializedCoreMapDataset = {
 		val x = normalizeFromInit( apply(dir,lang) )
-		prettyLog(x)
 		x
+	}
+
+	def main(args:Array[String]) {
+		prettyLog(new SerializedCoreMapDataset(
+			"aux/coremap/tempeval2-english-retok-numbers"))
 	}
 }

@@ -217,6 +217,68 @@ object U {
 			
 }
 
+//------------------------------------------------------------------------------
+// AUXILLIARY
+//------------------------------------------------------------------------------
+case class TimeSent(words:Array[Int],pos:Array[Int],
+		nums:Array[Int],ordinality:Array[NumberType.Value])
+		extends Sentence{
+	//<<error checks>>
+	assert(words.zip(nums).forall{ case (w,n) => 
+		(w == G.NUM && n != Int.MinValue) || (w != G.NUM && n == Int.MinValue) },
+		"Words and numbers should match: "+this.toString+" :: "+nums.mkString(","))
+	assert(words.length == pos.length, "word and pos lengths must match")
+	assert(words.length == nums.length, "word and nums lengths must match")
+	assert(words.length == ordinality.length, 
+		"word and num types lengths must match")
+	//<<methods>>
+	var meta:Option[(String,Int)] = None
+	def tagMetaInfo(doc:String,sentI:Int):TimeSent = {
+		this.meta = Some((doc,sentI))
+		this
+	}
+	def slice(begin:Int,end:Int):TimeSent = {
+		TimeSent(
+			words.slice(begin,end),
+			pos.slice(begin,end),
+			nums.slice(begin,end),
+			ordinality.slice(begin,end)
+		)
+	}
+	def shape(index:Int):String = {
+		U.w2str(words(index)).toCharArray
+			.map{ (c:Char) => if(c.isUpper) "X" else "x" }
+			.mkString("")
+	}
+	//<<required overrides>>
+	override def apply(i:Int):Int = words(i)
+	override def length:Int = words.length
+	override def gloss(i:Int):String = {
+		if(words(i) == G.NUM){
+			assert(nums(i) != Int.MinValue, 
+				"Returning number that was not set: "+U.w2str(words(i))+" "+nums(i))
+			nums(i).toString
+		} else {
+			U.w2str(words(i))
+		}
+	}
+	//<<optional overrides>>
+	override def asNumber(i:Int):Int = {
+		assert(nums(i) >= 0 || words(i) != G.NUM, 
+			"Num has no numeric value: " + gloss(i))
+		nums(i)
+	}
+	override def asDouble(i:Int):Double = nums(i).toDouble
+	//<<object overrides>>
+	override def toString:String 
+		= words
+			.zipWithIndex
+			.map{ case (w:Int,i:Int) =>
+				if(w == G.NUM) nums(i) else U.w2str(w) 
+			}.mkString(" ")
+}
+
+
 
 //------------------------------------------------------------------------------
 // DATA
