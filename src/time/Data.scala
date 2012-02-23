@@ -11,6 +11,7 @@ import scala.collection.JavaConversions._
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.util.logging.StanfordRedwoodConfiguration;
 import edu.stanford.nlp.util.CoreMap
+import edu.stanford.nlp.util.ArrayCoreMap
 import edu.stanford.nlp.util.CoreMaps
 import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
@@ -619,69 +620,117 @@ object DataLib {
 				inType + " for timex: " + timeVal.mkString(" "))
 		}
 	}
-
+		
+	def copyTime(lbl:CoreLabel):CoreMap = {
+		val rtn = new ArrayCoreMap(5)
+		//(time)
+		rtn.set(classOf[OriginalTimeMetaAnnotation],
+			lbl.get[TimexMetaInfo,OriginalTimeMetaAnnotation]
+				(classOf[OriginalTimeMetaAnnotation]))
+		rtn.set(classOf[OriginalTimeTypeAnnotation],
+			lbl.get[String,OriginalTimeTypeAnnotation]
+				(classOf[OriginalTimeTypeAnnotation]))
+		rtn.set(classOf[OriginalTimeValueAnnotation],
+			lbl.get[String,OriginalTimeValueAnnotation]
+				(classOf[OriginalTimeValueAnnotation]))
+		rtn.set(classOf[TimeIdentifierAnnotation],
+			lbl.get[String,TimeIdentifierAnnotation]
+				(classOf[TimeIdentifierAnnotation]))
+		rtn.set(classOf[TimeValueAnnotation],
+			lbl.get[Array[String],TimeValueAnnotation]
+				(classOf[TimeValueAnnotation]))
+		rtn.set(classOf[TimeValueAnnotation],
+			lbl.get[Array[String],TimeValueAnnotation]
+				(classOf[TimeValueAnnotation]))
+		//(return)
+		rtn
+	}
+	def isTimex(lbl:CoreLabel):Boolean
+		= lbl.get[String,TimeIdentifierAnnotation](
+				classOf[TimeIdentifierAnnotation]) != null
+	
 	def relinkTimexes(sent:CoreMap):Unit = {
 		//--Variables
-		val origTokens = sent.get[JList[CoreLabel],OriginalTokensAnnotation](
+		val origTokens:Seq[CoreLabel] 
+			= sent.get[JList[CoreLabel],OriginalTokensAnnotation](
 			classOf[OriginalTokensAnnotation])
-		val retok = sent.get[JList[CoreLabel],TokensAnnotation](
+		val tokens:Seq[CoreLabel] 
+			= sent.get[JList[CoreLabel],TokensAnnotation](
 			classOf[TokensAnnotation])
-		val timexes:java.util.List[CoreMap] = 
-			sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
-			classOf[TimeExpressionsAnnotation])
-		//--Retokenize
-		if(timexes != null){
-			timexes.foreach{ (timex:CoreMap) =>
-				//(get offset information)
-				val oldBegin =
-					if(timex.has[java.lang.Integer,OriginalBeginIndexAnnotation](
-							classOf[OriginalBeginIndexAnnotation])){
-						timex.get[java.lang.Integer,OriginalBeginIndexAnnotation](
-							classOf[OriginalBeginIndexAnnotation])
-					} else {
-						timex.get[java.lang.Integer,BeginIndexAnnotation](
-							classOf[BeginIndexAnnotation])
-					}
-				val oldEnd =
-					if(timex.has[java.lang.Integer,OriginalEndIndexAnnotation](
-							classOf[OriginalEndIndexAnnotation])){
-						timex.get[java.lang.Integer,OriginalEndIndexAnnotation](
-							classOf[OriginalEndIndexAnnotation])
-					} else {
-						timex.get[java.lang.Integer,EndIndexAnnotation](
-							classOf[EndIndexAnnotation])
-					}
-				assert(oldBegin != null)
-				assert(oldEnd != null, timex.toString)
-				val beginOffset = origTokens(oldBegin).beginPosition
-				val endOffset = origTokens(oldEnd).beginPosition
-				timex.set(classOf[OriginalBeginIndexAnnotation],oldBegin)
-				timex.set(classOf[OriginalEndIndexAnnotation],oldEnd)
-				//(find new positions)
-				retok.zipWithIndex.foreach{ case (tok:CoreLabel,index:Int) => 
-					val cand = tok.beginPosition
-					if(cand == beginOffset){
-						timex.set(classOf[BeginIndexAnnotation],
-							new java.lang.Integer(index))
-					}
-					if(cand == endOffset){
-						timex.set(classOf[EndIndexAnnotation],
-							new java.lang.Integer(index))
-					}
-				}
-				//(error check)
-				if(timex.get[java.lang.Integer,BeginIndexAnnotation](
-						classOf[BeginIndexAnnotation]) == null){
-					throw new IllegalStateException("No begin index for " + timex)
-				}
-				if(timex.get[java.lang.Integer,EndIndexAnnotation](
-						classOf[EndIndexAnnotation]) == null){
-					throw new IllegalStateException("No end index for " + timex)
-				}
+		//--Functions
+		def copyTime(lbl:CoreLabel,startIndex:Int):CoreMap = {
+			val rtn = DataLib.copyTime(lbl)
+			//(old begin)
+			rtn.set(classOf[OriginalBeginIndexAnnotation],
+				lbl.get[java.lang.Integer,TokenBeginAnnotation]
+					(classOf[TokenBeginAnnotation]))
+			//(new begin)
+			rtn.set(classOf[BeginIndexAnnotation],
+				new java.lang.Integer(startIndex))
+			//(return)
+			rtn
+		}
+		//--Relink
+		val (timexes,endedOnTimex)
+			= tokens.zipWithIndex.foldLeft(List[CoreMap](),false){ 
+				case ((timexes:List[CoreMap],lastTimex:Boolean),
+				      (tok:CoreLabel,index:Int)) =>
+			if(!lastTimex && isTimex(tok)){
+				//(case: start timex)
+				(copyTime(tok,index) :: timexes, true)
+			} else if(lastTimex && isTimex(tok)){
+				//(case: in timex)
+				(timexes, true)
+			} else if(!lastTimex && !isTimex(tok)){
+				//(case: not in timex)
+				(timexes, false)
+			} else if(lastTimex && !isTimex(tok)){
+				//(case: ended timex)
+				timexes.head.set(classOf[EndIndexAnnotation],
+					new java.lang.Integer(index))
+				timexes.head.set(classOf[OriginalEndIndexAnnotation],
+					tokens.get(index-1).get[java.lang.Integer,TokenEndAnnotation]
+						(classOf[TokenEndAnnotation]))
+				(timexes, false)
+			} else {
+				throw new IllegalStateException("impossible")
 			}
 		}
+		//(last timex)
+		if(endedOnTimex){
+			timexes.head.set(classOf[EndIndexAnnotation],
+				new java.lang.Integer(tokens.size))
+		}
+		//--Merge
+		val filtered = (1 until timexes.length).map{ (i:Int) =>
+			val lastTID = timexes(i-1).get[String,TimeIdentifierAnnotation](
+				classOf[TimeIdentifierAnnotation])
+			val thisTID = timexes(i).get[String,TimeIdentifierAnnotation](
+				classOf[TimeIdentifierAnnotation])
+			if(lastTID == thisTID){
+				timexes(i-1).set(classOf[EndIndexAnnotation],
+					timexes(i).get[java.lang.Integer,EndIndexAnnotation]
+						(classOf[EndIndexAnnotation]))
+				timexes(i-1).set(classOf[OriginalEndIndexAnnotation],
+					timexes(i).get[java.lang.Integer,TokenEndAnnotation]
+						(classOf[TokenEndAnnotation]))
+				None
+			} else {
+				Some(timexes(i))
+			}
+		}.filter{_.isDefined}.map{ _.get }.toList
+		//--Set
+		//(error check)
+		val tids = filtered.map{ 
+			_.get[String,TimeIdentifierAnnotation](
+			classOf[TimeIdentifierAnnotation]) }
+		if(tids.length != Set(tids:_*).size){
+			throw new IllegalStateException(""+tids.length + " > " + Set(tids:_*).size)
+		}
+		//(set)
+		sent.set(classOf[TimeExpressionsAnnotation],
+			seqAsJavaList(filtered.reverse))
 	}
-	
 
 	private lazy val tokenFact = 
 		PTBTokenizer.factory(new CoreLabelTokenFactory(),
@@ -702,6 +751,8 @@ object DataLib {
 			val merged = CoreMaps.merge(orig,label)
 			merged.set(classOf[TokenBeginAnnotation],new java.lang.Integer(index))
 			merged.set(classOf[TokenEndAnnotation],new java.lang.Integer(index+1))
+			assert(isTimex(orig) == isTimex(merged),
+				"timex mismatch on tokenization")
 			merged
 		}.toArray
 	}
@@ -773,20 +824,31 @@ object DataLib {
 	def retokenize(doc:CoreMap):Unit = {
 		val sents=doc.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
 		//(for each sentence)
-		sents.foreach{ case (sent:CoreMap) =>
+		sents.zipWithIndex.foreach{ case (sent:CoreMap,i:Int) =>
 			//(retokenize sentence)
 			retokSentence(sent)
 		}
 	}
 	
 	def findNumbers(sent:CoreMap):Unit = {
-		//(set numbers)
+		//--Set Numbers
+		//(find numbers)
 		val nums:JList[CoreMap] = NumberNormalizer.findAndMergeNumbers(sent);
-		val tokens:JList[CoreLabel] = nums.map{ new CoreLabel(_) }.toList
+		//(tweak tokens)
+		val tokens:JList[CoreLabel] = nums.map{ (map:CoreMap) =>
+			val subTokens 
+				= map.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
+			if(subTokens != null && isTimex(subTokens.get(0))) {
+				new CoreLabel(CoreMaps.merge(map,copyTime(subTokens.get(0))))
+			} else {
+				new CoreLabel(map) 
+			}
+		}.toList
+		//(set tokens)
 		sent.set(classOf[TokensAnnotation], tokens )
-		//(relink timexes)
+		//--Relink Timexes
 		DataLib.relinkTimexes(sent)
-		//(set current annotation)
+		//--Set Annotation
 		tokens.foreach{ (num:CoreLabel) =>
 			if(num.originalText == null || num.originalText.equals("")){
 				num.setOriginalText(num.word)
@@ -797,7 +859,7 @@ object DataLib {
 	def normalizeNumbers(doc:CoreMap):Unit = {
 		val sents=doc.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
 		//(for each sentence)
-		sents.foreach{ case (sent:CoreMap) =>
+		sents.zipWithIndex.foreach{ case (sent:CoreMap,i:Int) =>
 			//(normalize numbers)
 			findNumbers(sent)
 		}

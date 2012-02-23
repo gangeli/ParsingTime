@@ -36,10 +36,10 @@ object TempEval2 {
 	//<<regexes>>
 	def mkline(n:Int) = {
 		val b = new StringBuilder
-		b.append("""\s*""")
+		b.append("""^\s*""")
 		(0 until (n-1)).foreach{ (i:Int) => b.append("""([^\s]+)\s+""") }
 		b.append("""([^\s]+)""")
-		b.append("""\s*""")
+		b.append("""\s*$""")
 		b.toString.r
 	}
 	val Dct = mkline(2)
@@ -157,17 +157,15 @@ object TempEval2 {
 		//(variables)
 		val lines = scala.io.Source.fromFile(ext).mkString.split("""\s*\n\s*""")
 		val rtn = new HashMap[TempEval2Word,Option[String]]
+		//(fill blanks)
+		base.keys.foreach{ (word:TempEval2Word) =>
+				rtn(word) = None
+		}
 		//(parse lines)
 		lines.foreach{ case (line:String) =>
 			val Ext(doc,sent,word,timex3,tid,one) = line
 			val teWord = TempEval2Word(doc,sent.toInt,word.toInt)
 			rtn(teWord) = Some(tid)
-		}
-		//(fill blanks)
-		base.keys.foreach{ (word:TempEval2Word) =>
-			if(!rtn.contains(word)){
-				rtn(word) = None
-			}
 		}
 		//(return)
 		rtn
@@ -247,7 +245,7 @@ object TempEval2 {
 		}
 		endTrack("Pass 1 (collect info)")
 		//--Offsets + Expressions
-		forceTrack("Pass 2 (offset + global timexes)")
+		forceTrack("Pass 2 (offsets)")
 		var offset:Int = 0
 		var lastSent:Option[SentenceInfo] = None
 		sentences.foreach{ case (doc:String,sent:Int) =>
@@ -268,49 +266,9 @@ object TempEval2 {
 				wordInfo.set(classOf[CharacterOffsetEndAnnotation],
 					new java.lang.Integer(offset+text.length))
 				offset += (text.length + 1)
-				//((timex))
-				if(wordInfo.get[Array[String],TimeValueAnnotation](
-						classOf[TimeValueAnnotation]) != null){
-					//(((case: in time)))
-					timexStart = timexStart.orElse(Some(wordI))
-					timexMap = timexMap.orElse(Some(wordInfo))
-				} else {
-					//(((case: not in time)))
-					timexStart match {
-						case Some(start) =>
-							val last = timexMap.get
-							//((((copy coremap))))
-							val time = new ArrayCoreMap(7)
-							time.set(classOf[BeginIndexAnnotation],
-								new java.lang.Integer(start))
-							time.set(classOf[EndIndexAnnotation],
-								new java.lang.Integer(wordI))
-							time.set(classOf[OriginalTimeMetaAnnotation],
-								last.get[TimexMetaInfo,OriginalTimeMetaAnnotation]
-									(classOf[OriginalTimeMetaAnnotation]))
-							time.set(classOf[OriginalTimeTypeAnnotation],
-								last.get[String,OriginalTimeTypeAnnotation]
-									(classOf[OriginalTimeTypeAnnotation]))
-							time.set(classOf[OriginalTimeValueAnnotation],
-								last.get[String,OriginalTimeValueAnnotation]
-									(classOf[OriginalTimeValueAnnotation]))
-							time.set(classOf[TimeIdentifierAnnotation],
-								last.get[String,TimeIdentifierAnnotation]
-									(classOf[TimeIdentifierAnnotation]))
-							time.set(classOf[TimeValueAnnotation],
-								last.get[Array[String],TimeValueAnnotation]
-									(classOf[TimeValueAnnotation]))
-							//((((save coremap))))
-							sentInfo.timeExpressions = time :: sentInfo.timeExpressions
-							//((((reset state))))
-							timexStart = None
-							timexMap = None
-						case _ =>
-					}
-				}
 			}
 		}
-		endTrack("Pass 2 (offset + global timexes)")
+		endTrack("Pass 2 (offsets)")
 		//--To CoreMap
 		forceTrack("Pass 3 (make coremaps)")
 		//(variables)
@@ -364,6 +322,15 @@ object TempEval2 {
 			map.set(classOf[IsTestAnnotation],test)
 		}
 		endTrack("Pass 3 (make coremaps)")
+		//--Relink
+		startTrack("Pass 5 (global timexes)")
+		docs.foreach{ (doc:Annotation) =>
+			doc.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
+					.foreach{ (sent:CoreMap) =>
+				DataLib.relinkTimexes(sent)
+			}
+		}
+		endTrack("Pass 5 (global timexes)")
 		//--Pipeline Annotate
 		forceTrack("Pass 4 (pipeline)")
 		//(annotators)
@@ -394,8 +361,7 @@ object TempEval2 {
 				override def run {
 					pos(Thread.currentThread.getId).annotate(doc)
 					lemma(Thread.currentThread.getId).annotate(doc)
-					log("["+Thread.currentThread.getId+"]("+(i+1)+"/"+docs.length
-						+ ") Annotated " 
+					log("("+(i+1)+"/"+docs.length+ ") Annotated " 
 						+ doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation]))
 				}
 			} }
@@ -557,7 +523,22 @@ object TempEval2 {
 	}
 
 	def main(args:Array[String]) {
-		prettyLog(new SerializedCoreMapDataset(
-			"aux/coremap/tempeval2-english-retok-numbers"))
+		if(args.length > 0){
+			if(args(0) == "english"){
+				prettyLog(new SerializedCoreMapDataset(
+					"aux/coremap/tempeval2-english"))
+			}
+			if(args(0) == "retok"){
+				prettyLog(new SerializedCoreMapDataset(
+					"aux/coremap/tempeval2-english-retok"))
+			}
+			if(args(0) == "numbers"){
+				prettyLog(new SerializedCoreMapDataset(
+					"aux/coremap/tempeval2-english-numbers"))
+			}
+		} else {
+			prettyLog(new SerializedCoreMapDataset(
+				"aux/coremap/tempeval2-english-retok-numbers"))
+		}
 	}
 }

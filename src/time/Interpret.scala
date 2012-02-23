@@ -126,6 +126,7 @@ object Grammar {
 		assert(!nums.isEmpty, "no number terms!")
 	}
 	def nums:Iterable[NodeType] = NodeType.all.filter{ _.flag('num) }
+	def nilList:Iterable[NodeType] = NodeType.all.filter{ _.flag('nil) }
 	//--Other NodeTypes
 	import scala.collection.immutable.Set
 	val rangeTypes = List("R","S")
@@ -569,13 +570,6 @@ object Grammar {
 					!x.isPreterminal}
 				.foldLeft(List[(GrammarRule,String)]()){
 					case (soFar:List[(GrammarRule,String)],term:NodeType) => 
-			//(get possible nils)
-			val nilList:List[NodeType] =
-				{if(O.lexNils){
-					G.wordIndexer.map{ (word:String) => NodeType(Symbol("NIL-"+word)) }
-				} else {
-					List[NodeType](NodeType('NIL))
-				}}.toList
 			//(add identities)
 			nilList.foldLeft(List[(GrammarRule,String)]()){ 
 					case (lst:List[(GrammarRule,String)],nil:NodeType) =>
@@ -975,9 +969,9 @@ class InterpretationTask extends TemporalTask {
 				} )
 			val nonNilCount:Int = tags.filter(_.parent.flag('nil)).length
 			val trimmedLength:Int = words.zip(tags)
-				.dropWhile{_._2.parent.flag('nil)}
+				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
 				.reverse
-				.dropWhile{ _._2.parent.flag('nil) }
+				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
 				.map{_._1}
 				.length
 			(trimmedLength,nonNilCount)
@@ -992,9 +986,9 @@ class InterpretationTask extends TemporalTask {
 					words = w :: words 
 				} )
 			words.zip(tags)
-				.dropWhile{_._2.parent.flag('nil)}
+				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
 				.reverse
-				.dropWhile{_._2.parent.flag('nil)}
+				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
 				.map{_._1}
 				.toArray
 		}
@@ -1050,10 +1044,10 @@ class InterpretationTask extends TemporalTask {
 						case ((shortestTrim:Int,leastNils:Int),output:GoodOutput) =>
 					if(hasZeroOffset && output.offset == 0L){
 						val (trim,nilCount) = countNonNils(output.tree,output.sent)
-						if(trim < shortestTrim){
-							(trim,nilCount)
-						} else if(trim == shortestTrim){
+						if(trim == shortestTrim){
 							(trim,math.min(leastNils,nilCount))
+						} else if(trim < shortestTrim){
+							(trim,nilCount)
 						} else {
 							(shortestTrim,leastNils)
 						}
@@ -1615,6 +1609,7 @@ object ToyData {
 	private val pastYear = ("past year",(REF <| AYEAR))
 	private val weeks2 = ("2 weeks",(AWEEK*2))
 	private val year5 = ("5 years",(AYEAR*5))
+	private val year5AndJunk = ("5 years in 2",(AYEAR*5))
 	private val weeksDash2 = ("2 - weeks",(AWEEK*2))
 	private val week2Period = ("2 week period",(AWEEK*2))
 	private val month = ("month",(MONTH))
@@ -1719,6 +1714,7 @@ object ToyData {
 			//--Train
 				//(durations)
 				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,year5,
+					year5AndJunk,
 //				//(sequences)
 //				week,month,quarter,year,day,theWeek,
 //				//(cannonicals -> sequences)
