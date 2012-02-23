@@ -671,7 +671,7 @@ object DataLib {
 			rtn
 		}
 		//--Relink
-		val (timexes,endedOnTimex)
+		val (revTimexes,endedOnTimex)
 			= tokens.zipWithIndex.foldLeft(List[CoreMap](),false){ 
 				case ((timexes:List[CoreMap],lastTimex:Boolean),
 				      (tok:CoreLabel,index:Int)) =>
@@ -698,9 +698,10 @@ object DataLib {
 		}
 		//(last timex)
 		if(endedOnTimex){
-			timexes.head.set(classOf[EndIndexAnnotation],
+			revTimexes.head.set(classOf[EndIndexAnnotation],
 				new java.lang.Integer(tokens.size))
 		}
+		val timexes = revTimexes.reverse
 		//--Merge
 		val filtered = (1 until timexes.length).map{ (i:Int) =>
 			val lastTID = timexes(i-1).get[String,TimeIdentifierAnnotation](
@@ -712,8 +713,8 @@ object DataLib {
 					timexes(i).get[java.lang.Integer,EndIndexAnnotation]
 						(classOf[EndIndexAnnotation]))
 				timexes(i-1).set(classOf[OriginalEndIndexAnnotation],
-					timexes(i).get[java.lang.Integer,TokenEndAnnotation]
-						(classOf[TokenEndAnnotation]))
+					timexes(i).get[java.lang.Integer,OriginalEndIndexAnnotation]
+						(classOf[OriginalEndIndexAnnotation]))
 				None
 			} else {
 				Some(timexes(i))
