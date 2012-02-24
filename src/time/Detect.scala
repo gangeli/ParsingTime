@@ -183,7 +183,7 @@ object CRFDetector {
 		//--Parser
 		startTrack("Parser")
 		log("initializing grammar")
-		Grammar.init(G.wordIndexer)
+		Grammar.init(G.wordIndexer, G.NUM)
 		//TODO actually load a parser
 		val parser:CKYParser = CKYParser(G.W,Grammar.RULES)
 		endTrack("Parser")

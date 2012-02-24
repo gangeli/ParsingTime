@@ -80,7 +80,33 @@ object Grammar {
 		getNumFromOrder(num.toString.length-1,typ)
 	}
 	//--Init Function
-	def init(indexer:Indexer[String]) = {
+	lazy val nums:Seq[NodeType] = {
+		(0 to 5).map{ (orderOfMagnitude:Int) =>
+			NumberType.values.map{ (numberType:NumberType.Value) =>
+				NodeType.makePreterminal(
+					getNumFromOrder(orderOfMagnitude,numberType),
+					'num, Symbol(orderOfMagnitude.toString), Symbol(numberType.toString))
+			}
+		}.flatten
+	}
+	var nils:Seq[NodeType] = List[NodeType]()
+	def mkNils(indexer:Indexer[String], num:Int) {
+		nils = if(O.lexNils){
+			(0 until indexer.size).map{ (w:Int) =>
+				val word:String = indexer.get(w)
+				if(w == num) {
+					nums.map{ (num:NodeType) =>
+						NodeType.make(Symbol("NIL-"+num.toString), 'nil, 'nilnum)
+					}
+				} else {
+					List[NodeType](NodeType.makePreterminal(Symbol("NIL-"+word), 'nil))
+				}
+			}.flatten
+		} else {
+			List[NodeType](NodeType.makePreterminal('NIL, 'nil))
+		}
+	}
+	def init(indexer:Indexer[String], num:Int) = {
 		//--Added Terms
 		//(basic types)
 		NodeType.make('Range)
@@ -99,13 +125,7 @@ object Grammar {
 		NodeType.make("year(n)")
 		NodeType.make("century(n)")
 		//(nils)
-		if(O.lexNils){
-			indexer.foreach{ (word:String) =>
-				NodeType.makePreterminal(Symbol("NIL-"+word), 'nil)
-			}
-		} else {
-			NodeType.makePreterminal('NIL, 'nil)
-		}
+		mkNils(indexer,num)
 		//--Preterminal Equivalents
 		//(ensure lazy vals)
 		fn1; fn2;
@@ -116,17 +136,9 @@ object Grammar {
 			}
 		}
 		//--Numbers
-		(0 to 5).foreach{ (orderOfMagnitude:Int) =>
-			NumberType.values.foreach{ (numberType:NumberType.Value) =>
-				NodeType.makePreterminal(
-					getNumFromOrder(orderOfMagnitude,numberType),
-					'num, Symbol(orderOfMagnitude.toString), Symbol(numberType.toString))
-			}
-		}
+		nums //lazy val
 		assert(!nums.isEmpty, "no number terms!")
 	}
-	def nums:Iterable[NodeType] = NodeType.all.filter{ _.flag('num) }
-	def nilList:Iterable[NodeType] = NodeType.all.filter{ _.flag('nil) }
 	//--Other NodeTypes
 	import scala.collection.immutable.Set
 	val rangeTypes = List("R","S")
@@ -268,13 +280,24 @@ object Grammar {
 		//(nil)
 		rtn = rtn ::: 
 			{if(O.lexNils){
+				//TODO wordIndexer dependent
 				assert(G.wordIndexer.size > 0, "Haven't initialized indexer yet")
-				G.wordIndexer.map{ (word:String) =>
-					val w:Int = G.wordIndexer.indexOf(word)
-					(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
-						NodeType(Symbol("NIL-"+word)))
-							.restrict( (word:Int) => word == w),
-						"nil-"+word)
+				nils.map{ (nil:NodeType) =>
+					if(nil.flag('nilnum)){
+						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
+							nil).restrict{ (sent:Sentence,i:Int) =>
+								val s = sent.asInstanceOf[TimeSent]
+								s.words(i) == G.NUM &&
+									getNum(s.nums(i),s.ordinality(i)).name ==
+										nil.toString.substring(4)
+							},
+							"nil-"+nil.toString.substring(4))
+					} else {
+						val w:Int = U.str2w(nil.toString.substring(4))
+						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
+								nil).restrict( (word:Int) => word == w),
+							"nil-"+nil.toString.substring(4))
+					}
 				}.toList
 			} else {
 				List[(GrammarRule,String)](
@@ -571,7 +594,7 @@ object Grammar {
 				.foldLeft(List[(GrammarRule,String)]()){
 					case (soFar:List[(GrammarRule,String)],term:NodeType) => 
 			//(add identities)
-			nilList.foldLeft(List[(GrammarRule,String)]()){ 
+			nils.foldLeft(List[(GrammarRule,String)]()){ 
 					case (lst:List[(GrammarRule,String)],nil:NodeType) =>
 				(new TimeBinary(
 						hack2( (x:Any,n:NIL) => x ),
@@ -828,7 +851,7 @@ class InterpretationTask extends TemporalTask {
 	//--Create Parser
 	startTrack("Creating Parser")
 	assert(G.W > 0, "Words have not been interned yet!")
-	Grammar.init(G.wordIndexer)
+	Grammar.init(G.wordIndexer, G.NUM)
 	var initialParser = CKYParser(G.W, Grammar.RULES)
 	endTrack("Creating Parser")
 
@@ -969,9 +992,9 @@ class InterpretationTask extends TemporalTask {
 				} )
 			val nonNilCount:Int = tags.filter(_.parent.flag('nil)).length
 			val trimmedLength:Int = words.zip(tags)
-				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
+				.dropWhile{ case (w,t) => t.parent.flag('nil)}
 				.reverse
-				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
+				.dropWhile{ case (w,t) => t.parent.flag('nil)}
 				.map{_._1}
 				.length
 			(trimmedLength,nonNilCount)
@@ -986,9 +1009,9 @@ class InterpretationTask extends TemporalTask {
 					words = w :: words 
 				} )
 			words.zip(tags)
-				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
+				.dropWhile{ case (w,t) => t.parent.flag('nil)}
 				.reverse
-				.dropWhile{ case (w,t) => w != G.NUM && t.parent.flag('nil)}
+				.dropWhile{ case (w,t) => t.parent.flag('nil)}
 				.map{_._1}
 				.toArray
 		}
