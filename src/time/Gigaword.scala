@@ -35,7 +35,6 @@ import org.goobs.database._
 import org.goobs.testing.Dataset
 import org.goobs.testing.Datum
 import org.goobs.stanford.JavaNLP._
-import org.goobs.stanford.Task
 import org.goobs.stanford.CoreMapDatum
 import org.goobs.stanford.SerializedCoreMapDataset
 

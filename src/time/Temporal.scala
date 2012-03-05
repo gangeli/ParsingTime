@@ -400,8 +400,11 @@ class CompositeRange(
 			theNorm:GroundedDuration,
 			ops:List[String],
 			moveOffset:Long,
-			bound:SingletonRange
+			bound:SingletonRange,
+			updater:Option[Sequence.Updater]
 		) extends Sequence with AnalyticallyIntersectable {
+
+	override def getUpdater:Option[Sequence.Updater] = updater
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
 			):(TraverseFn,E)={
@@ -427,7 +430,7 @@ class CompositeRange(
 
 	override def move(offset:Long)
 		= new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,
-			moveOffset+offset,bound)
+			moveOffset+offset,bound,None)
 
 	
 	override def intersectAnalytically(range:SingletonRange):Range = {
@@ -436,7 +439,7 @@ class CompositeRange(
 			new NoTime
 		} else if(this.bound == null){
 			//(case: creating a new bound)
-			new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,moveOffset,bound)
+			new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,moveOffset,bound,None)
 		} else {
 			//(case: refining an existing bound)
 			val newBound = (range ^ bound)
@@ -446,7 +449,7 @@ class CompositeRange(
 				//((new grounded range))
 				case (gr:SingletonRange) =>
 					new CompositeRange(applyFn,probFn,existsFn,theNorm,ops,
-						moveOffset,gr)
+						moveOffset,gr,None)
 				//((impossible))
 				case _ => throw new IllegalStateException("bad intersect: " + newBound)
 			}
@@ -488,7 +491,8 @@ class CompositeRange(
 			newNorm.interval,
 			op :: this.ops,
 			moveOffset,
-			bound
+			bound,
+			None
 		)
 	}
 	
@@ -656,7 +660,8 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 				dur.interval,
 				List[String](this + " ! " + dur),
 				0L,
-				Lex.ALL_TIME
+				Lex.ALL_TIME,
+				None
 			)
 	}
 
@@ -746,8 +751,13 @@ object Range {
 		val moveOffset:Long =
 			if(a.norm > b.norm){ a.moveOffset }
 			else{ b.moveOffset }
+		//(create joint distribution)
+		val distrib = (l:Long,d:Double) => {
+			a.distrib(l,d) * b.distrib(l,d)
+		}
 		//(create repeated range)
-		new RepeatedRange(partial,norm,interv,Duration.ZERO,bound,moveOffset)
+		new RepeatedRange(partial,norm,interv,Duration.ZERO,bound,moveOffset,
+			distrib)
 	} 
 	def intersectSearch(rA:Sequence,rB:Sequence):Range = {
 		//--Classes
@@ -871,7 +881,7 @@ object Range {
 		//(string)
 		val ops = List[String]("("+rA+") ^ ("+rB+")")
 		//--Return
-		new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L,Lex.ALL_TIME)
+		new CompositeRange(applyFn,probFn,existsFn,norm,ops,0L,Lex.ALL_TIME,None)
 	}
 }
 
@@ -1214,61 +1224,57 @@ trait Sequence extends Range with Duration {
 		assert(norm.seconds > 0.0, "Norm is zero or negative: " + norm)
 		distance/norm
 	}
-	def isSparse:Boolean = true
+	def getUpdater:Option[Updater]
 	
 	
 	// -- EM --
-	var updater:Updater = {
-		//(overhead)
-		import O.Distribution._
-		import O.Scope._
-		import Sequence.{pointUpdater,multinomialUpdater,gaussianUpdater}
-		import Sequence.{mkMultinomialUpdater,mkGaussianUpdater}
-		//(routing)
-		O.timeDistribution match {
-			case Point => pointUpdater
-			case Multinomial =>
-				O.timeDistributionScope match {
-					case Global => multinomialUpdater
-					case Local =>if(isSparse) multinomialUpdater else mkMultinomialUpdater
-				}
-			case Gaussian =>
-				O.timeDistributionScope match {
-					case Global => gaussianUpdater
-					case Local => if(isSparse) gaussianUpdater else mkGaussianUpdater
-				}
-		}
-	}
-	protected var distrib:Distribution = null
+	var distrib:Distribution = null
 
 
 	override def updateE(
 			ground:GroundedRange,offset:Long,logprob:Double):Unit={
 		//(variables)
-		val (e,m) = updater
-		val diff:Double = this.diff(ground,offset)
-		val str="E-Step [" + this + "]: offset=["+offset+
-			"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
-		if(O.printAllParses){ log(FORCE,str) } else { log(str) }
-		//(debug)
-		assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
-			"nonzero offset with point distribution")
-		assert(!logprob.isNaN, "NaN probability")
-		//(em)
-		e( offset, diff, logprob )
+		getUpdater.map{ case (e,m) =>
+			val diff:Double = this.diff(ground,offset)
+			val str="E-Step [" + this + "]: offset=["+offset+
+				"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
+			if(O.printAllParses){ log(FORCE,str) } else { log(str) }
+			//(debug)
+			assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
+				"nonzero offset with point distribution")
+			assert(!logprob.isNaN, "NaN probability")
+			//(em)
+			e( offset, diff, logprob )
+		}
 	}
 
 	override def runM:Unit = {
-		val (e,m) = updater
-		this.distrib = m(if(isSparse){"general"}else{this.toString},true)
+		getUpdater.map{ case (e,m) =>
+			this.distrib = m(this.toString,true)
+		}
 	}
 }
 
 // ----- REPEATED RANGE -----
 class RepeatedRange(
 		val base:Partial,val norm:GroundedDuration,val interv:Duration,
-		val delta:Duration, val bound:SingletonRange, val moveOffset:Long
+		val delta:Duration, val bound:SingletonRange, val moveOffset:Long,
+		src:Any //<--source of the distribution; either a distribution or an updater
 		) extends Sequence with AnalyticallyIntersectable {
+		
+	//(ensure updater)
+	if(this.distrib == null){ 
+		this.distrib = src match {
+			case (updater:Sequence.Updater) => updater._2(this.toString,false) 
+			case (dist:Sequence.Distribution) => dist
+			case _ => throw fail("Invalid source: " + src)
+		}
+	}
+
+	override def getUpdater:Option[Sequence.Updater] = src match {
+			case (updater:Sequence.Updater) => Some(updater)
+			case _ => None
+		}
 
 	private def boundedGround(ground:GroundedRange,move:Boolean=false):Time = {
 		val groundedBound:Option[GroundedRange] = 
@@ -1332,14 +1338,10 @@ class RepeatedRange(
 		}
 	}
 
-	def this(base:Partial,norm:Duration,interv:Duration)
-		= this(base,norm.interval,interv,Duration.ZERO,null,0L)
+	def this(base:Partial,norm:Duration,interv:Duration,
+			updater:Sequence.Updater)
+		= this(base,norm.interval,interv,Duration.ZERO,null,0L,updater)
 
-	//isSparse is true if this range is rare and should use the global stats
-	private var isSparseVal = true
-	override def isSparse:Boolean = isSparseVal
-	def dense:RepeatedRange = { this.isSparseVal = false; this }
-	
 	override def diff(ground:GroundedRange,offset:Long):Double = {
 		val realGround:Time = boundedGround(ground,true)
 		val location:GroundedRange = doGround(ground,offset)
@@ -1353,7 +1355,7 @@ class RepeatedRange(
 	}
 
 	override def move(offset:Long):Sequence = {
-		new RepeatedRange(base,norm,interv,delta,bound,moveOffset+offset).name(name)
+		new RepeatedRange(base,norm,interv,delta,bound,moveOffset+offset,distrib).name(name)
 	}
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
@@ -1396,8 +1398,6 @@ class RepeatedRange(
 	}
 
 	override def prob(ground:GroundedRange,offset:Long):Double = {
-		//(ensure updater)
-		if(this.distrib == null){ this.distrib = updater._2(this.toString,false) }
 		val cand:Double = this.distrib( offset, diff(ground,offset) )
 		assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
 		cand
@@ -1411,7 +1411,7 @@ class RepeatedRange(
 			new NoTime
 		} else if(this.bound == null){
 			//(case: creating a new bound)
-			new RepeatedRange(base,norm,interv,delta,range,moveOffset).name(name)
+			new RepeatedRange(base,norm,interv,delta,range,moveOffset,distrib).name(name)
 		} else {
 			//(case: refining an existing bound)
 			val newBound = (range ^ bound)
@@ -1421,7 +1421,7 @@ class RepeatedRange(
 				//((new grounded range))
 				case (gr:SingletonRange) =>
 					new RepeatedRange(base,norm,interv,
-						delta,gr,moveOffset).name(name)
+						delta,gr,moveOffset,distrib).name(name)
 				//((impossible))
 				case _ => throw new IllegalStateException("bad intersect: " + newBound)
 			}
@@ -1430,22 +1430,22 @@ class RepeatedRange(
 
 	override def >>(diff:Duration):Range 
 		= new RepeatedRange(base, norm, interv, 
-				delta+diff, bound, moveOffset).name(name + ">>" + diff)
+				delta+diff, bound, moveOffset,distrib).name(name + ">>" + diff)
 	override def <<(diff:Duration):Range
 		= new RepeatedRange(base, norm, interv, 
-				delta-diff, bound, moveOffset).name(name + "<<" + diff)
+				delta-diff, bound, moveOffset,distrib).name(name + "<<" + diff)
 	override def <|(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				delta-diff, bound, moveOffset).name(name + "<|" + diff)
+				delta-diff, bound, moveOffset,distrib).name(name + "<|" + diff)
 	override def |>(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				norm+delta, bound, moveOffset).name(name + "|>" + diff)
+				norm+delta, bound, moveOffset,distrib).name(name + "|>" + diff)
 	override def |<(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				delta, bound, moveOffset).name(name + "|<" + diff)
+				delta, bound, moveOffset,distrib).name(name + "|<" + diff)
 	override def >|(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				norm+delta-diff, bound, moveOffset).name(name + ">|" + diff)
+				norm+delta-diff, bound, moveOffset,distrib).name(name + ">|" + diff)
 
 	override def !(dur:Duration):Range = this
 	override def interval:GroundedDuration = interv.interval
@@ -1454,13 +1454,13 @@ class RepeatedRange(
 	override def units:Array[DurationUnit.Value] = norm.units
 
 	override def +(diff:Duration):Duration 
-		= new RepeatedRange(base, norm, interv + diff, delta, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv + diff, delta, bound, moveOffset,distrib)
 			.name(name)
 	override def -(diff:Duration):Duration 
-		= new RepeatedRange(base, norm, interv - diff, delta, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv - diff, delta, bound, moveOffset,distrib)
 			.name(name)
 	override def *(n:Long):Duration 
-		= new RepeatedRange(base, norm, interv * n, delta, bound, moveOffset)
+		= new RepeatedRange(base, norm, interv * n, delta, bound, moveOffset,distrib)
 			.name(name)
 	
 	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
@@ -1481,13 +1481,11 @@ class RepeatedRange(
 
 // ----- OBJECT SEQUENCE -----
 object Sequence {
-	def apply(partial:Partial,norm:Duration,interval:Duration)
-		= new RepeatedRange(partial,norm.interval,interval,Duration.ZERO,null,0L)
 	
 	type Distribution = (Long,Double)=>Double
 	type Updater = ((Long,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
 
-	def mkGaussianUpdater:Updater = {
+	def mkGaussianUpdater:Sequence.Updater = {
 		var data:List[(Double,Double)] = List[(Double,Double)]()
 		var dist:Distribution = null
 		var seenE:Boolean = false
@@ -1855,6 +1853,8 @@ class NoTime extends GroundedRange(Time.DAWN_OF,Time.END_OF) with Sequence {
 
 	override def move(offset:Long):Sequence = this
 
+	override def getUpdater:Option[Sequence.Updater] = None
+
 	override def toString = "NOTIME"
 }
 
@@ -1895,17 +1895,46 @@ object DurationUnit extends Enumeration {
 // LEX
 //------------------------------------------------------------------------------
 object Lex {
+	val impl = new Lex
+	val ASEC:Duration = impl.ASEC
+	val AMIN:Duration = impl.AMIN
+	val AHOUR:Duration = impl.AHOUR
+	val ADAY:Duration = impl.ADAY
+	val AWEEK:Duration = impl.AWEEK
+	val AMONTH:Duration = impl.AMONTH
+	val AQUARTER:Duration = impl.AQUARTER
+	val AHALFYEAR:Duration = impl.AHALFYEAR
+	val AYEAR:Duration = impl.AYEAR
+	val ADECADE:Duration = impl.ADECADE
+	val ACENTURY:Duration = impl.ACENTURY
+	val PAST:UngroundedRange = impl.PAST
+	val FUTURE:UngroundedRange = impl.FUTURE
+	val ALL_TIME:GroundedRange = impl.ALL_TIME
+}
+class Lex extends Serializable {
 	import DateTimeFieldType._
 	import edu.stanford.nlp.time.JodaTimeUtils._
-
-	def sequences:Iterable[Sequence] = {
-		val fields = this.getClass.getFields
-		fields.toArray
-			.filter{ x => classOf[Sequence].isAssignableFrom(x.getType) }
-			.map{ _.get().asInstanceOf[Sequence] }
-	}
-	def updaters:scala.collection.immutable.Map[Temporal,Sequence.Updater] = {
-		sequences.map{ s => (s,s.updater) }.toMap
+	
+	def updater:Sequence.Updater = {
+		//(overhead)
+		import O.Distribution._
+		import O.Scope._
+		import Sequence.{pointUpdater,multinomialUpdater,gaussianUpdater}
+		import Sequence.{mkMultinomialUpdater,mkGaussianUpdater}
+		//(routing)
+		O.timeDistribution match {
+			case Point => pointUpdater
+			case Multinomial =>
+				O.timeDistributionScope match {
+					case Global => multinomialUpdater
+					case Local => mkMultinomialUpdater
+				}
+			case Gaussian =>
+				O.timeDistributionScope match {
+					case Global => gaussianUpdater
+					case Local => mkGaussianUpdater
+				}
+		}
 	}
 
 	//--Durations
@@ -1927,21 +1956,21 @@ object Lex {
 				Array[DateTimeFieldType](millisOfSecond),
 				Array[Int](0)),
 			ASEC,
-			ASEC).dense.name("everySecond")
+			ASEC,updater).name("everySecond")
 	val MIN:Sequence 
 		= new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](secondOfMinute,millisOfSecond),
 				Array[Int](0,0)),
 			AMIN,
-			AMIN).dense.name("everyMinute")
+			AMIN,updater).name("everyMinute")
 	val HOUR:Sequence 
 		= new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](0,0,0)),
 			AHOUR,
-			AHOUR).dense.name("everyHour")
+			AHOUR,updater).name("everyHour")
 	val DAY:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -1949,7 +1978,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](0,0,0,0)),
 			ADAY,
-			ADAY).dense.name("everyDay")
+			ADAY,updater).name("everyDay")
 	val WEEK:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -1957,7 +1986,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,0,0,0,0)),
 			AWEEK,
-			AWEEK).dense.name("everyWeek")
+			AWEEK,updater).name("everyWeek")
 	val MONTH:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -1965,7 +1994,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,0,0,0,0)),
 			AMONTH,
-			AMONTH).dense.name("everyMonth")
+			AMONTH,updater).name("everyMonth")
 	val QUARTER:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -1973,7 +2002,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AMONTH*3,
-			AMONTH*3).dense.name("everyQuarter") 
+			AMONTH*3,updater).name("everyQuarter") 
 	val HALFYEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -1981,7 +2010,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AMONTH*6,
-			AMONTH*6).dense.name("everyQuarter") 
+			AMONTH*6,updater).name("everyQuarter") 
 	val YEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -1989,7 +2018,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AYEAR,
-			AYEAR).dense.name("everyYear")
+			AYEAR,updater).name("everyYear")
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
@@ -2001,7 +2030,7 @@ object Lex {
 				Array[DateTimeFieldType](dayOfWeek,millisOfDay),
 				Array[Int](i,0)),
 			ADAY,
-			AWEEK).dense
+			AWEEK,updater)
 	val MON:Sequence = mkDOW(1)
 	val TUE:Sequence = mkDOW(2)
 	val WED:Sequence = mkDOW(3)
@@ -2015,28 +2044,28 @@ object Lex {
 				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,0)),
 			AMIN,
-			AHOUR).name("MOH("+i+")") }.toArray
+			AHOUR,updater).name("MOH("+i+")") }.toArray
 	val HOD = (0 until 24).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](hourOfDay,minuteOfHour,secondOfMinute,
 					millisOfSecond),
 				Array[Int](i,0,0,0)),
 			AHOUR,
-			ADAY).name("HOD("+i+")") }.toArray
+			ADAY,updater).name("HOD("+i+")") }.toArray
 	val TOD = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](4+i*4,0,0,0)),
 			AHOUR*4,
-			ADAY).name("TOD("+i+")") }.toList).toArray
+			ADAY,updater).name("TOD("+i+")") }.toList).toArray
 	val DOW = (List(new NoTime) ::: (1 to 7).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfWeek,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,0,0,0)),
 			ADAY,
-			AWEEK).name("DOW("+i+")") }.toList).toArray
+			AWEEK,updater).name("DOW("+i+")") }.toList).toArray
 	val DOWOM:Array[Array[Sequence]] = 
 		//(dow(0) is invalid)
 		(List[Array[Sequence]](
@@ -2053,7 +2082,7 @@ object Lex {
 						hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 					Array[Int](wom,dow,0,0,0,0)),
 				AWEEK,
-				AMONTH).name("DOW("+dow+")WOM("+wom+")") }.toList).toArray
+				AMONTH,updater).name("DOW("+dow+")WOM("+wom+")") }.toList).toArray
 		}.toList).toArray
 	val DOM = (List(new NoTime) ::: (1 to 31).map{ i => new RepeatedRange(
 			new Partial(
@@ -2061,49 +2090,49 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,0,0,0)),
 			ADAY,
-			AMONTH).name("DOM("+i+")") }.toList).toArray
+			AMONTH,updater).name("DOM("+i+")") }.toList).toArray
 	val WOY = (List(new NoTime) ::: (1 to 53).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](weekOfWeekyear,dayOfWeek,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,0,0,0,0)),
 			AWEEK,
-			AYEAR).name("WOY("+i+")") }.toList).toArray
+			AYEAR,updater).name("WOY("+i+")") }.toList).toArray
 	val WOM = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](WeekOfMonth,dayOfWeek,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,0,0,0,0)),
 			AWEEK,
-			AMONTH).name("WOY("+i+")") }.toList).toArray
+			AMONTH,updater).name("WOY("+i+")") }.toList).toArray
 	val MOY = (List(new NoTime) ::: (1 to 12).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](monthOfYear,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,0,0,0,0)),
 			AMONTH,
-			AYEAR).name("MOY("+i+")") }.toList).toArray
+			AYEAR,updater).name("MOY("+i+")") }.toList).toArray
 	val QOY = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AMONTH*3,
-			AYEAR).name("QOY("+i+")") }.toList).toArray
+			AYEAR,updater).name("QOY("+i+")") }.toList).toArray
 	val HOY = (List(new NoTime) ::: (1 to 2).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](HalfYearOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AMONTH*6,
-			AYEAR).name("HOY("+i+")") }.toList).toArray
+			AYEAR,updater).name("HOY("+i+")") }.toList).toArray
 	val SEASON = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,3,1,0,0,0,0)),
 			AMONTH*3,
-			AYEAR).name("SEASON("+i+")") }.toList).toArray
+			AYEAR,updater).name("SEASON("+i+")") }.toList).toArray
 	val YOC = (0 until 100).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](yearOfCentury,
@@ -2111,7 +2140,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AYEAR,
-			AYEAR*100).name("YOC("+i+")") }.toArray
+			AYEAR*100,updater).name("YOC("+i+")") }.toArray
 	val DOC = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](DecadeOfCentury,YearOfDecade,
@@ -2119,7 +2148,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,1,1,0,0,0,0)),
 			AYEAR*10,
-			AYEAR*100).name("DOC("+i+")") }.toArray
+			AYEAR*100,updater).name("DOC("+i+")") }.toArray
 	val YOD = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](YearOfDecade,
@@ -2127,7 +2156,7 @@ object Lex {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AYEAR,
-			AYEAR*10).name("YOD("+i+")") }.toArray
+			AYEAR*10,updater).name("YOD("+i+")") }.toArray
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))

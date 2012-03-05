@@ -1,12 +1,14 @@
 package time
 
-import java.util.Calendar
+import java.lang.{Integer => JInt}
 import java.util.{List => JList}
+import java.util.Calendar
 import java.util.Properties;
 import java.io.StringReader;
 
 import scala.util.Sorting.quickSort
 import scala.collection.JavaConversions._
+import scala.collection.mutable.Buffer
 
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.util.logging.StanfordRedwoodConfiguration;
@@ -20,7 +22,7 @@ import edu.stanford.nlp.time.JodaTimeUtils
 import edu.stanford.nlp.ie.NumberNormalizer
 import edu.stanford.nlp.process.PTBTokenizer
 import edu.stanford.nlp.process.CoreLabelTokenFactory
-import edu.stanford.nlp.pipeline.PTBTokenizerAnnotator
+import edu.stanford.nlp.pipeline._
 
 import org.joda.time.DateTime
 import org.joda.time.Period
@@ -87,18 +89,7 @@ class OriginalEndIndexAnnotation
 //------------------------------------------------------------------------------
 // DATA
 //------------------------------------------------------------------------------
-object TimeDataset {
-	def main(args:Array[String]) = {
-		new TimeDataset(new SerializedCoreMapDataset(
-			System.getenv("HOME") + 
-				"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
-			)
-		).timexes.zipWithIndex.foreach{ case (t:Timex,i:Int) =>
-			println(i + ",\"" + t.gloss + "\"")
-		}
-	}
-}
-class TimeDataset(data:Dataset[CoreMapDatum]) {
+class TimeDataset(val data:Dataset[CoreMapDatum]) {
 	def slice(minInclusive:Int,maxExclusive:Int):TimeDataset
 		= new TimeDataset(data.slice(minInclusive,maxExclusive))
 
@@ -136,71 +127,48 @@ class TimeDataset(data:Dataset[CoreMapDatum]) {
 	def train:TimeDataset = slice(false)
 	def test:TimeDataset = slice(true)
 
-	def timexes:Array[Timex] = {
-		forceTrack("Reading Timexes")
-		var index = 0
-		//(variables)
-		var rtn:List[Timex] = List[Timex]()
-		//(get timexes)
-		data.iterator.foreach{ (doc:CoreMapDatum) => //for each doc
-			val (timex,i) = Timex(doc,index)
-			index = i
-			rtn = rtn ::: timex
-		}
-		endTrack("Reading Timexes")
-		//(return)
-		rtn.toArray
+	private def tokens(docI:Int,sentI:Int):Buffer[CoreLabel] = {
+		data
+			.get(docI)
+			.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+				.get(sentI)
+			.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
 	}
-}
 
-object Timex {
-	var index:Int = 0
-	def apply(doc:CoreMap,i:Int):(List[Timex],Int) = {
-		var index = i
-		var rtn:List[Timex] = List[Timex]()
-		//(pub time)
-		val pubTime = Time(new DateTime(
-			doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
-			.getTimeInMillis))
-		//(is test)
-		val isTest = 
-			doc.get[Boolean,IsTestAnnotation](classOf[IsTestAnnotation])
-		//(sentences)
-		val sents = 
-			doc.get[JList[CoreMap],SentencesAnnotation](
-			classOf[SentencesAnnotation])
-		sents.foreach{ (sent:CoreMap) => //for each sentence
-			//(get tokens)
-			val tokens:JList[CoreLabel] =
-				sent.get[JList[CoreLabel],TokensAnnotation](
-				classOf[TokensAnnotation])
-			val origTokens:JList[CoreLabel] =
-				sent.get[JList[CoreLabel],OriginalTokensAnnotation](
-				classOf[OriginalTokensAnnotation])
-			assert(tokens != null, "No tokens for " + sent)
-			val tokenList:List[CoreLabel] = tokens.map{ x => x }.toList
-			val origTokenList:List[CoreLabel] = origTokens.map{ x => x }.toList
-			//(get timexes)
-			val timexes:JList[CoreMap] = 
-				sent.get[java.util.List[CoreMap],TimeExpressionsAnnotation](
-				classOf[TimeExpressionsAnnotation])
-			//(store timexes)
-			if(timexes != null){
-				timexes.foreach{ (timex:CoreMap) =>  //for each timex
-					val tmx = 
-						new Timex(index,timex,origTokenList,tokenList,pubTime,isTest)
-					rtn = tmx :: rtn
-					index += 1
-					log(tmx)
+	def goldTimes:Iterable[(Int,Int,CoreMap)] = {
+		var lst = List[(Int,Int,CoreMap)]()
+		//--Each Document
+		data.zipWithIndex.foreach{ case (datum:CoreMapDatum,docI:Int) => 
+			//--Each Sentence
+			datum.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+					.zipWithIndex
+					.foreach{ case (sent:CoreMap,sentI:Int) =>
+				//--Each Time Expression
+				sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
+						.foreach{ (exp:CoreMap) =>
+					lst = (docI,sentI,exp) :: lst
 				}
 			}
 		}
-		(rtn.reverse,index)
+		lst
 	}
-	def apply(doc:CoreMap):List[Timex] = {
-		val (rtn,rtnI) = apply(doc,index)
-		index = rtnI
-		rtn
+	
+	def goldSpans(train:Boolean,index:Indexing=Indexing()
+			):Array[(TimeSent,Temporal,Time)] = {
+		goldTimes.map{ case (docI:Int,sentI:Int,expr:CoreMap) =>
+			//(get terms)
+			val gold = 
+				DataLib.array2JodaTime(
+					expr.get[Array[String],TimeValueAnnotation](classOf[TimeValueAnnotation])
+				)
+			val ground = new Time(new DateTime(
+				data
+					.get(docI)
+					.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+					.getTimeInMillis ))
+			//(create sentence)
+			(	DataLib.mkTimeSent(expr,tokens(docI,sentI),index,train), gold, ground)
+		}.toArray
 	}
 }
 
@@ -211,6 +179,7 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 							classOf[BeginIndexAnnotation])
 		val end = time.get[java.lang.Integer,EndIndexAnnotation](
 							classOf[EndIndexAnnotation])
+		sent.slice(begin,end)
 		val origBegin = time.get[java.lang.Integer,OriginalBeginIndexAnnotation](
 							classOf[OriginalBeginIndexAnnotation])
 		val origEnd = time.get[java.lang.Integer,OriginalEndIndexAnnotation](
@@ -343,39 +312,6 @@ case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
 	}
 
 	def tid:Int = index
-	def words(str2w:String=>Int,numTerm:Int):Array[Int] = { 
-		span.map{ (lbl:CoreLabel) => 
-			val (typ,num) = DataLib.number(lbl)
-			if(typ != NumberType.NONE){
-				numTerm
-			} else {
-				str2w(lbl.word)
-			}
-		}.toArray
-	}
-	def gloss:String = {
-		span.map{ (lbl:CoreLabel) => lbl.word }.mkString(" ")
-	}
-	def pos(pos2w:String=>Int):Array[Int] = { 
-		span.map{ (lbl:CoreLabel) => pos2w(lbl.tag) }.toArray
-	}
-	def nums:Array[Int] = { 
-		span.map{ (lbl:CoreLabel) => 
-			val (typ,num) = DataLib.number(lbl)
-			num
-		}.toArray
-	}
-	def numTypes:Array[NumberType.Value] = {
-		span.map{ (lbl:CoreLabel) => 
-			val (typ,num) = DataLib.number(lbl)
-			typ
-		}.toArray
-	}
-	def gold:Temporal
-		= DataLib.array2JodaTime(
-			time.get[Array[String],TimeValueAnnotation](classOf[TimeValueAnnotation]))
-	
-	def grounding:Time = pubTime
 
 	override def toString:String = "timex["+tid+"] "
 }
@@ -700,9 +636,13 @@ object DataLib {
 		if(endedOnTimex){
 			revTimexes.head.set(classOf[EndIndexAnnotation],
 				new java.lang.Integer(tokens.size))
+			revTimexes.head.set(classOf[OriginalEndIndexAnnotation],
+				tokens.get(tokens.length-1).get[java.lang.Integer,TokenEndAnnotation]
+					(classOf[TokenEndAnnotation]))
 		}
 		val timexes = revTimexes.reverse
 		//--Merge
+		//(collapse timexes with gaps in them)
 		val filtered = (1 until timexes.length).map{ (i:Int) =>
 			val lastTID = timexes(i-1).get[String,TimeIdentifierAnnotation](
 				classOf[TimeIdentifierAnnotation])
@@ -715,14 +655,17 @@ object DataLib {
 				timexes(i-1).set(classOf[OriginalEndIndexAnnotation],
 					timexes(i).get[java.lang.Integer,OriginalEndIndexAnnotation]
 						(classOf[OriginalEndIndexAnnotation]))
+				log("collapsed a timex")
 				None
 			} else {
 				Some(timexes(i))
 			}
 		}.filter{_.isDefined}.map{ _.get }.toList
+		//(append first timex)
+		val rtn = if(timexes.length < 2){ timexes } else { timexes(0) :: filtered }
 		//--Set
 		//(error check)
-		val tids = filtered.map{ 
+		val tids = rtn.map{ 
 			_.get[String,TimeIdentifierAnnotation](
 			classOf[TimeIdentifierAnnotation]) }
 		if(tids.length != Set(tids:_*).size){
@@ -730,7 +673,7 @@ object DataLib {
 		}
 		//(set)
 		sent.set(classOf[TimeExpressionsAnnotation],
-			seqAsJavaList(filtered.reverse))
+			seqAsJavaList(rtn))
 	}
 
 	private lazy val tokenFact = 
@@ -893,6 +836,58 @@ object DataLib {
 			(t,numVal.intValue)
 		}
 	}
+	
+	private def words(span:Buffer[CoreLabel],index:Indexing,train:Boolean):Array[Int] = { 
+		span.map{ (lbl:CoreLabel) => 
+			val (typ,num) = DataLib.number(lbl)
+			if(typ != NumberType.NONE){
+				index.NUM
+			} else {
+				if(train){
+					index.str2w(lbl.word,false)
+				} else {
+					index.str2wTest(lbl.word,false)
+				}
+			}
+		}.toArray
+	}
+	private def pos(span:Buffer[CoreLabel], index:Indexing,train:Boolean):Array[Int] = { 
+		span.map{ (lbl:CoreLabel) => 
+			if(train){
+				index.str2pos(lbl.tag) 
+			} else {
+				index.str2posTest(lbl.tag) 
+			}
+		}.toArray
+	}
+	private def nums(span:Buffer[CoreLabel]):Array[Int] = { 
+		span.map{ (lbl:CoreLabel) => 
+			val (typ,num) = DataLib.number(lbl)
+			num
+		}.toArray
+	}
+	private def numTypes(span:Buffer[CoreLabel]):Array[NumberType.Value] = {
+		span.map{ (lbl:CoreLabel) => 
+			val (typ,num) = DataLib.number(lbl)
+			typ
+		}.toArray
+	}
+
+	def mkTimeSent(expr:CoreMap,tokens:Buffer[CoreLabel],index:Indexing,train:Boolean
+			):TimeSent = {
+		//(get span)
+		val beginIndex:Int = expr.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
+		val endIndex:Int = expr.get[JInt,EndIndexAnnotation](classOf[EndIndexAnnotation])
+		val span = tokens.slice(beginIndex,endIndex)
+		//(make datum)
+		 TimeSent(
+			words(span,index,train),
+			pos(span,index,train),
+			nums(span),
+			numTypes(span),
+			index)
+	}
+
 }
 
 object Data {

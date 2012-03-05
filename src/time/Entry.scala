@@ -1,8 +1,13 @@
 package time
 
 //(scala)
+import scala.collection.mutable.Buffer
 import scala.collection.mutable.HashMap
+import scala.collection.JavaConversions._
+import scala.sys.process._
 //(java)
+import java.util.{List => JList}
+import java.lang.{Integer => JInt}
 import java.text.DecimalFormat
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -10,11 +15,21 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.BufferedOutputStream
 import java.io.ObjectOutputStream
+import java.io.FileWriter
 //(jodatime)
 import org.joda.time.DateTimeZone
 //(stanford)
+import edu.stanford.nlp.pipeline._
+import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.io.IOUtils
+import edu.stanford.nlp.time.{Timex => StanfordTimex}
+import edu.stanford.nlp.time.GUTimeAnnotator
+import edu.stanford.nlp.time.HeidelTimeAnnotator
+import edu.stanford.nlp.time.TimeAnnotator
+import edu.stanford.nlp.time.TimeAnnotations._
+import edu.stanford.nlp.ling.CoreAnnotations._
+import edu.stanford.nlp.ling.CoreLabel
 //(lib)
 import org.goobs.exec.Execution
 import org.goobs.util.Indexer
@@ -32,40 +47,89 @@ import org.goobs.nlp._
 //------------------------------------------------------------------------------
 // GLOBAL UTILITIES
 //------------------------------------------------------------------------------
+object Indexing {
+	def apply():Indexing = new Indexing(new Indexer[String],new Indexer[String], "--NUM--")
+}
+case class Indexing(
+		wordIndexer:Indexer[String],
+		posIndexer:Indexer[String],
+		numString:String
+		) {
+	private val HasNum = """^(.*?)([0-9]+)(.*?)$""".r
+	private var frozen = false
+	
+	val NUM:Int = wordIndexer.addAndGetIndex("--NUM--")
+
+	def W:Int = wordIndexer.size+1
+	def P:Int = posIndexer.size+1
+	def UNK:Int = W-1
+	def PUNK:Int = P-1
+	
+
+	def getInt(str:String):Int = {
+		str match {
+			case HasNum(prefix,num,suffix) => num.toInt
+		}
+	}
+	def w2str(w:Int):String = {
+		if(w < wordIndexer.size) wordIndexer.get(w) else "--UNK--"
+	}
+	def str2w(str:String,matchNum:Boolean=true):Int = {
+		if(frozen){ throw fail("Indexer is now immutable") }
+		(str,matchNum) match {
+			case (HasNum(prefix,num,suffix),true) => NUM
+			case _ => 
+				if(O.ignoreCase) {
+					wordIndexer.addAndGetIndex(str.toLowerCase)
+				} else {
+					wordIndexer.addAndGetIndex(str)
+				}
+		}
+	}
+	def str2wTest(str:String,matchNum:Boolean=true):Int = {
+		assert(W == wordIndexer.size + 1)
+		assert(UNK == wordIndexer.size)
+		val w = (str,matchNum) match {
+			case (HasNum(prefix,num,suffix),true) => NUM
+			case _ => 
+				if(O.ignoreCase) {
+					wordIndexer.indexOf(str.toLowerCase)
+				} else {
+					wordIndexer.indexOf(str)
+				}
+			}
+			assert(w < wordIndexer.size, "Invalid word returned")
+			if(w < 0) UNK else w
+	}
+	
+	def pos2str(pos:Int):String = 
+		if(pos < P) posIndexer.get(pos) else "--UNK--"
+	def str2pos(str:String):Int = {
+		if(frozen){ throw fail("Indexer is now immutable") }
+		posIndexer.addAndGetIndex(str)
+	}
+	def str2posTest(str:String):Int = {
+		val p:Int = posIndexer.indexOf(str)
+		if(p < 0) PUNK else p
+	}
+	def sent2str(sent:Array[Int]) = sent.map(w2str(_)) mkString " "
+
+	def freeze {
+		frozen = true;
+	}
+}
+
 /**
 	Globally accessible values
 */
 object G {
-	var wordIndexer = new Indexer[String]
-	var posIndexer = new Indexer[String]
 	val idStringMap = new HashMap[Int,String]
 	val df = new DecimalFormat("0.000")
 	val pf = new DecimalFormat("0.0")
-	val F_R = new Def[Range=>Range]
 	val random:scala.util.Random =
 		if(O.useSeed) new scala.util.Random(O.seed) else new scala.util.Random 
-	lazy val W:Int = wordIndexer.size+1
-	def P:Int = posIndexer.size
-	lazy val UNK:Int = W-1
-	val NUM:Int = wordIndexer.addAndGetIndex("--NUM--")
-	def PUNK:Int = P
-	def NUM(digits:Int,numType:NumberType.Value,test:Boolean) = {
-		val suffix:String = numType match {
-			case NumberType.NONE => "<<?>>"
-			case NumberType.UNIT => "u"
-			case NumberType.NUMBER => ""
-			case NumberType.ORDINAL => "nd"
-		}
-		if(test){
-			val w = wordIndexer.indexOf("--NUM("+digits+")"+suffix+"--")
-			if(w < 0){ wordIndexer.indexOf("--NUM--") } else { w }
-		} else {
-			wordIndexer.addAndGetIndex("--NUM("+digits+")"+suffix+"--")
-		}
-	}
-	val IsInt = """^(\-?[0-9]+)$""".r
+	
 	val CanInt = """^\-?[0-9]+(\.0+)?(E[0-9]+)?$""".r
-
 }
 
 /**
@@ -80,51 +144,6 @@ object U {
 		})
 		lst.reverse
 	}
-	
-	private val HasNum = """^(.*?)([0-9]+)(.*?)$""".r
-
-	def getInt(str:String):Int = {
-		str match {
-			case HasNum(prefix,num,suffix) => num.toInt
-		}
-	}
-	def w2str(w:Int):String = {
-		if(w < G.wordIndexer.size) G.wordIndexer.get(w) else "--UNK--"
-	}
-	def str2w(str:String,matchNum:Boolean=true):Int = {
-		(str,matchNum) match {
-			case (HasNum(prefix,num,suffix),true) => G.NUM
-			case _ => 
-				if(O.ignoreCase) {
-					G.wordIndexer.addAndGetIndex(str.toLowerCase)
-				} else {
-					G.wordIndexer.addAndGetIndex(str)
-				}
-		}
-	}
-	def str2wTest(str:String,matchNum:Boolean=true):Int = {
-		assert(G.W == G.wordIndexer.size + 1)
-		assert(G.UNK == G.wordIndexer.size)
-		val w = (str,matchNum) match {
-			case (HasNum(prefix,num,suffix),true) => G.NUM
-			case _ => 
-				if(O.ignoreCase) {
-					G.wordIndexer.indexOf(str.toLowerCase)
-				} else {
-					G.wordIndexer.indexOf(str)
-				}
-			}
-			assert(w < G.wordIndexer.size, "Invalid word returned")
-			if(w < 0) G.UNK else w
-	}
-	def pos2str(pos:Int):String = 
-		if(pos < G.P) G.posIndexer.get(pos) else "--UNK--"
-	def str2pos(str:String):Int = G.posIndexer.addAndGetIndex(str)
-	def str2posTest(str:String):Int = {
-		val p:Int = G.posIndexer.indexOf(str)
-		if(p < 0) G.PUNK else p
-	}
-	def sent2str(sent:Array[Int]) = sent.map(w2str(_)) mkString " "
 
 	def sumDiff(diff:(Duration,Duration)):Int = {
 		val secA:Long = diff._1.seconds.abs
@@ -221,11 +240,12 @@ object U {
 // AUXILLIARY
 //------------------------------------------------------------------------------
 case class TimeSent(words:Array[Int],pos:Array[Int],
-		nums:Array[Int],ordinality:Array[NumberType.Value])
+		nums:Array[Int],ordinality:Array[NumberType.Value],
+		index:Indexing)
 		extends Sentence{
 	//<<error checks>>
 	assert(words.zip(nums).forall{ case (w,n) => 
-		(w == G.NUM && n != Int.MinValue) || (w != G.NUM && n == Int.MinValue) },
+		(w == index.NUM && n != Int.MinValue) || (w != index.NUM && n == Int.MinValue) },
 		"Words and numbers should match: "+this.toString+" :: "+nums.mkString(","))
 	assert(words.length == pos.length, "word and pos lengths must match")
 	assert(words.length == nums.length, "word and nums lengths must match")
@@ -242,11 +262,12 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 			words.slice(begin,end),
 			pos.slice(begin,end),
 			nums.slice(begin,end),
-			ordinality.slice(begin,end)
+			ordinality.slice(begin,end),
+			index
 		)
 	}
 	def shape(index:Int):String = {
-		U.w2str(words(index)).toCharArray
+		this.index.w2str(words(index)).toCharArray
 			.map{ (c:Char) => if(c.isUpper) "X" else "x" }
 			.mkString("")
 	}
@@ -254,17 +275,17 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 	override def apply(i:Int):Int = words(i)
 	override def length:Int = words.length
 	override def gloss(i:Int):String = {
-		if(words(i) == G.NUM){
+		if(words(i) == index.NUM){
 			assert(nums(i) != Int.MinValue, 
-				"Returning number that was not set: "+U.w2str(words(i))+" "+nums(i))
+				"Returning number that was not set: "+index.w2str(words(i))+" "+nums(i))
 			nums(i).toString + "(" + ordinality(i) + ")"
 		} else {
-			U.w2str(words(i))
+			index.w2str(words(i))
 		}
 	}
 	//<<optional overrides>>
 	override def asNumber(i:Int):Int = {
-		assert(nums(i) >= 0 || words(i) != G.NUM, 
+		assert(nums(i) >= 0 || words(i) != index.NUM, 
 			"Num has no numeric value: " + gloss(i))
 		nums(i)
 	}
@@ -274,7 +295,7 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 		= words
 			.zipWithIndex
 			.map{ case (w:Int,i:Int) =>
-				if(w == G.NUM) nums(i) else U.w2str(w) 
+				if(w == index.NUM) nums(i) else index.w2str(w) 
 			}.mkString(" ")
 }
 
@@ -299,9 +320,177 @@ trait DataStore[T] {
 //------------------------------------------------------------------------------
 // ENTRY
 //------------------------------------------------------------------------------
+case class OfficialScore(typeAccuracy:Double,valueAccuracy:Double){
+	override def toString:String =
+		"type=" + G.df.format(typeAccuracy) + " value="+G.df.format(valueAccuracy)
+}
+
 class Entry {}
 object Entry {
 	import edu.stanford.nlp.util.logging._
+
+	def officialScript(
+			train:Boolean,
+			tempevalHome:File,
+			guessExtentsRaw:Option[File],
+			guessAttributesRaw:Option[File]
+			):OfficialScore = {
+		//--Setup
+		//(get other paths)
+		val base:String =
+			if(!train){
+				tempevalHome.getPath+"/test/english/key"
+			} else {
+				tempevalHome.getPath+"/training/english/data"
+			}
+		val scorer:String = tempevalHome.getPath+"/scorer/score_entities.py"
+		val segments:String = base + "/base-segmentation.tab"
+		val goldExtents:String = base + "/timex-extents.tab"
+		val goldAttributes:String = base + "/timex-attributes.tab"
+		//(get input paths)
+		val guessExtents = guessExtentsRaw.getOrElse(new File(goldExtents)).getPath
+		val guessAttributes = guessAttributesRaw.getOrElse(new File(goldAttributes)).getPath
+		//--Run
+		//(run script)
+		val scriptOutput:String = {
+			val cmd = 
+				(new StringBuilder).append("python").append(" ")
+					.append(scorer).append(" ")
+					.append(segments).append(" ")
+					.append(goldExtents).append(" ")
+					.append(guessExtents).append(" ")
+					.append(goldAttributes).append(" ")
+					.append(guessAttributes).append(" ")
+					.toString
+			try {
+				cmd !!;
+			} catch {
+				case (e:RuntimeException) => {
+					err("SCRIPT FAILED: " + e.getMessage);
+					err(cmd);
+					"""
+					NO GUESSES
+					attribute type       1.0
+					attribute value      1.0
+					"""
+				}
+				case _ => throw new IllegalStateException("???")
+			}
+		}
+		//--Create Score
+		//(print output)
+		startTrack("Script Output")
+		if(train){ log(scriptOutput) }
+		endTrack("Script Output")
+		//(get scores)
+		val Type =  """(?ms).*attribute type       ([0-9\.]+).*""".r
+		val Value = """(?ms).*attribute value      ([0-9\.]+).*""".r
+		val Type(typAccr) = scriptOutput
+		val Value(valAccr) = scriptOutput
+		//(return score
+		OfficialScore(typAccr.toDouble,valAccr.toDouble)
+	}
+
+
+	def officialEval(sys:Annotator,data:Iterable[Annotation],train:Boolean,
+			tempevalHome:File, 
+			attributeFile:File=File.createTempFile("attr",".tab"),
+			extentsFile:File=File.createTempFile("ext",".tab")
+			):OfficialScore = {
+		//--Setup
+		if(!attributeFile.exists){ attributeFile.createNewFile }
+		val attrs = new StringBuilder
+		val extents = new StringBuilder
+		//--Annotate
+		data.foreach{ (doc:Annotation) =>
+			val docID = doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
+			var tidNum = 0
+			sys.annotate(doc)
+			//--Collect Timexes
+			//(utility)
+			def isTimex(lbl:CoreLabel):Boolean 
+				= lbl.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation]) != null
+			case class TimexSpan(timex:StanfordTimex,begin:Int){ var end:Int = begin+1 }
+			//(for each sentence)
+			doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+					.zipWithIndex.foreach{ case (sent:CoreMap,sentI:Int) =>
+				//((get tokens))
+				val tokens:Buffer[CoreLabel] 
+					= sent.get[JList[CoreLabel],TokensAnnotation](
+					classOf[TokensAnnotation])
+				//((cycle over tokens))
+				val (revTimexes,endedOnTimex)
+					= tokens.zipWithIndex.foldLeft(List[TimexSpan](),false){ 
+						case ((timexes:List[TimexSpan],lastTimex:Boolean),
+						      (tok:CoreLabel,index:Int)) =>
+					if(!lastTimex && isTimex(tok)){
+						//(case: start timex)
+						val timex = tok.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
+						var begin = tok.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
+						if(begin == null){ begin = index }
+						(TimexSpan(timex,begin) :: timexes, true)
+					} else if(lastTimex && isTimex(tok)){
+						//(case: in timex)
+						(timexes, true)
+					} else if(!lastTimex && !isTimex(tok)){
+						//(case: not in timex)
+						(timexes, false)
+					} else if(lastTimex && !isTimex(tok)){
+						//(case: ended timex)
+						var end = tokens.get(index-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+						if(end == null){ end = index }
+						timexes.head.end = end
+						(timexes, false)
+					} else {
+						throw new IllegalStateException("impossible")
+					}
+				}
+				//(last timex)
+				if(endedOnTimex){
+					var end = tokens.get(tokens.length-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+					if(end == null){ end = tokens.length }
+					revTimexes.head.end = end
+				}
+				//--Append
+				revTimexes.reverse.foreach{ case (span:TimexSpan) =>
+					//(variables)
+					tidNum += 1
+					def base(b:StringBuilder,tok:Int) = b.append("\n")
+						.append(docID).append("\t")
+						.append(sentI).append("\t")
+						.append(tok).append("\t")
+						.append("timex3").append("\t")
+						.append("t").append(tidNum).append("\t")
+						.append("1").append("\t")
+					//(value)
+					base(attrs,span.begin)
+						.append("type").append("\t")
+						.append(span.timex.timexType)
+					base(attrs,span.begin)
+						.append("value").append("\t")
+						.append(span.timex.value)
+					//(extent)
+					(span.begin until span.end).foreach{ (tokI:Int) =>
+						base(extents,tokI)
+					}
+				}
+			}
+		}
+		//--Write
+		//(attributes)
+		val fw = new FileWriter(attributeFile)
+		fw.write(attrs.substring(1))
+		fw.close()
+		//(extents)
+		val fw2 = new FileWriter(extentsFile)
+		fw2.write(extents.substring(1))
+		fw2.close()
+		//--Score
+		officialScript(train,tempevalHome,None,Some(attributeFile))
+	}
+
+
+
 	def main(args:Array[String]):Unit = {
 		//--Exec
 		Execution.exec(new Runnable(){
@@ -312,6 +501,7 @@ object Entry {
 					//(case: interpret)
 					case O.RunMode.Interpret => (new InterpretationTask).run
 					case O.RunMode.Detect => (new DetectionTask).run
+					case O.RunMode.System => throw fail("NOT IMPLEMENTED")
 				}
 			}
 		}, args, new StanfordExecutionLogInterface)

@@ -12,6 +12,7 @@ import scala.collection.mutable.HashSet
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.util.PaddedList
+import edu.stanford.nlp.io.IOUtils
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.ling.CoreAnnotation
 import edu.stanford.nlp.ling.CoreLabel
@@ -49,7 +50,7 @@ trait TimeDetector {
 //------------------------------------------------------------------------------
 // FEATURES
 //------------------------------------------------------------------------------
-class TRIPSFeatures extends FeatureFactory[CoreMap] {
+class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	import CRFDetector.InputAnnotation
 	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Int)] = {
 		val x = info.get(pos).get[(TimeSent,Int),InputAnnotation](
@@ -62,13 +63,13 @@ class TRIPSFeatures extends FeatureFactory[CoreMap] {
 	}
 	def word(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => U.w2str(s.words(i))
+			case Some((s:TimeSent,i:Int)) => index.w2str(s.words(i))
 			case None => "✇"
 		}
 	}
 	def pos(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => U.pos2str(s.pos(i))
+			case Some((s:TimeSent,i:Int)) => index.pos2str(s.pos(i))
 			case None => "✇"
 		}
 	}
@@ -179,13 +180,14 @@ object CRFDetector {
 		def getType:Class[(TimeSent,Int)] = classOf[(TimeSent,Int)]
 	}
 
-	def apply(data:DataStore[DetectionDatum]):CRFDetector = {
+	def apply(data:DataStore[DetectionDatum],index:Indexing):CRFDetector = {
 		//--Parser
 		startTrack("Parser")
-		log("initializing grammar")
-		Grammar.init(G.wordIndexer, G.NUM)
-		//TODO actually load a parser
-		val parser:CKYParser = CKYParser(G.W,Grammar.RULES)
+		log("loading TreeTime")
+		val treeTime:TreeTime = IOUtils.readObjectFromFileNoExceptions(O.interpretModel)
+		val parser:CKYParser = treeTime.parser
+		val interpretIndexer = treeTime.index
+		val lex:Lex = treeTime.lex
 		endTrack("Parser")
 
 		//--Create Flags
@@ -270,7 +272,7 @@ case class DetectionDatum(
 	
 trait DetectionData extends DataStore[DetectionDatum]
 
-class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String
+class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 		) extends DetectionData {
 	override def name:String = theName+{if(test){"-eval"}else{"-train"}}
 	override def eachExample(iter:Int):Iterable[DetectionDatum] = {
@@ -296,7 +298,7 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String
 								.toArray.map{ _.asInstanceOf[CoreLabel] }
 							//((get POS))
 							val pos = tokens.map{ (lbl:CoreLabel) => 
-									if(test) U.str2posTest(lbl.tag) else U.str2pos(lbl.tag) 
+									if(test) index.str2posTest(lbl.tag) else index.str2pos(lbl.tag) 
 								}
 							//((get numbers))
 							val (ordinality,nums) = tokens.map{ DataLib.number(_) }.unzip
@@ -304,18 +306,18 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String
 							val words = tokens.zip(ordinality).map{ 
 									case (lbl:CoreLabel,numType:NumberType.Value) =>
 								if(numType != NumberType.NONE){ 
-									G.NUM 
+									index.NUM 
 								} else { 
 									if(test){
-										U.str2wTest(lbl.word,false) 
+										index.str2wTest(lbl.word,false) 
 									} else {
-										U.str2w(lbl.word,false) 
+										index.str2w(lbl.word,false) 
 									}
 								}
 							}
 							//((create sentence))
 							val timeSent = 
-								TimeSent(words,pos,nums.toArray,ordinality.toArray)
+								TimeSent(words,pos,nums.toArray,ordinality.toArray,index)
 								.tagMetaInfo(docName,sentI)
 							//(spans/times)
 							val exprs
@@ -380,7 +382,7 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String
 }
 
 object CoreMapDetectionStore {
-	def apply(train:O.DataInfo,eval:O.DataInfo
+	def apply(train:O.DataInfo,eval:O.DataInfo,index:Indexing
 			):TimeData[DetectionDatum] = {
 		//--Data Source
 		val file:String = 
@@ -393,9 +395,9 @@ object CoreMapDetectionStore {
 		val data = new SerializedCoreMapDataset(file)
 		val rtn = TimeData(
 			new CoreMapDetectionStore(data.slice(train.begin,train.end),
-				train.source.toString),
+				train.source.toString,index),
 			new CoreMapDetectionStore(data.slice(eval.begin,eval.end),
-				eval.source.toString))
+				eval.source.toString,index))
 		//--NOOP Loop
 		startTrack("NOOP loop")
 		rtn.noopLoop{ log(_) }
@@ -486,11 +488,12 @@ class DetectionTask extends TemporalTask {
 		DateTimeZone.setDefault(DateTimeZone.UTC);
 		//--Create Data
 		forceTrack("loading dataset")
-		val data = CoreMapDetectionStore(O.train,if(O.devTest) O.dev else O.test)
+		val index = Indexing()
+		val data = CoreMapDetectionStore(O.train,if(O.devTest) O.dev else O.test,index)
 		endTrack("loading dataset")
 		//--Train CRF
 		startTrack("Training")
-		val crf:CRFDetector = CRFDetector(data.train)
+		val crf:CRFDetector = CRFDetector(data.train,index)
 		endTrack("Training")
 		//--Evaluate
 		startTrack("Evaluate")

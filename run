@@ -29,6 +29,8 @@ env!(
 		selo(1, 'mode', 
 			'detect',
 			'interpret',
+			'system',
+			'console',
 			nil),
 
 		# -- LEARNING --
@@ -70,7 +72,7 @@ env!(
 		o('lexNils'),
 		# <training>
 		o('beam', 1500), #1500 works well
-		o('iters', 15),
+		o('iters', 3),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
@@ -97,7 +99,7 @@ env!(
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
 		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
-#		o('train', 'English[0,20]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,2]'),   o('dev',   'English[142,143]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test

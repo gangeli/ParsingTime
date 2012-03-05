@@ -1,5 +1,9 @@
 package time
 
+//(java)
+import java.util.{List => JList}
+import java.lang.{Integer => JInt}
+import java.util.Calendar
 //(scala)
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashSet
@@ -7,6 +11,7 @@ import scala.collection.mutable.HashMap
 import scala.collection.immutable.Map
 //(jodatime)
 import org.joda.time.DateTimeZone
+import org.joda.time.DateTime
 //(lib)
 import org.goobs.exec.Execution
 import org.goobs.stanford.JavaNLP._
@@ -20,15 +25,16 @@ import org.goobs.util.Static._
 import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.ie.crf.CRFClassifier
 import edu.stanford.nlp.pipeline.Annotation
-import edu.stanford.nlp.ling.CoreAnnotations.CalendarAnnotation
-import edu.stanford.nlp.ling.CoreAnnotations.DocDateAnnotation
+import edu.stanford.nlp.pipeline.Annotator
+import edu.stanford.nlp.ling.CoreLabel
+import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.sequences.SeqClassifierFlags
 import edu.stanford.nlp.sequences.FeatureFactory
 import edu.stanford.nlp.time.JodaTimeUtils
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.io.IOUtils
-//(local)
-import Lex._
+import edu.stanford.nlp.time.TimeAnnotations._
+import edu.stanford.nlp.time.{Timex => StanfordTimex}
 
 //------------------------------------------------------------------------------
 // GRAMMAR
@@ -68,7 +74,8 @@ class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType)
 	override def hashCode:Int = System.identityHashCode(this)
 }
 
-object Grammar {
+class Grammar(index:Indexing,lex:Lex) extends Serializable {
+	import lex._
 	case class NIL()
 	//----------
 	// NODE TYPES
@@ -80,7 +87,7 @@ object Grammar {
 		getNumFromOrder(num.toString.length-1,typ)
 	}
 	//--Init Function
-	lazy val nums:Seq[NodeType] = {
+	val nums:Seq[NodeType] = {
 		(0 to 5).map{ (orderOfMagnitude:Int) =>
 			NumberType.values.map{ (numberType:NumberType.Value) =>
 				NodeType.makePreterminal(
@@ -106,46 +113,36 @@ object Grammar {
 			List[NodeType](NodeType.makePreterminal('NIL, 'nil))
 		}
 	}
-	def init(indexer:Indexer[String], num:Int) = {
-		//--Added Terms
-		//(basic types)
-		NodeType.make('Range)
-		NodeType.make('Duration)
-		NodeType.make('Sequence)
-		//(some functions)
-		NodeType.make("F_{N0th}2S")
-		//(sequences)
-		NodeType.make("moh(n)")
-		NodeType.make("hod(n)")
-		NodeType.make("dom(n)")
-		NodeType.make("moy(n)")
-		NodeType.make("yoc(n)")
-		NodeType.make("doc(n)")
-		NodeType.make("yod(n)")
-		NodeType.make("year(n)")
-		NodeType.make("century(n)")
-		//(nils)
-		mkNils(indexer,num)
-		//--Preterminal Equivalents
-		//(ensure lazy vals)
-		fn1; fn2;
-		//(add lex entries)
-		NodeType.all.foreach{ (nt:NodeType) =>
-			if(!nt.isPreterminal && !nt.flag('nil)){
-				NodeType.makePreterminal(nt.toString + "_")
-			}
-		}
-		//--Numbers
-		nums //lazy val
-		assert(!nums.isEmpty, "no number terms!")
-	}
+	
+	//--Added Terms
+	//(basic types)
+	NodeType.make('Range)
+	NodeType.make('Duration)
+	NodeType.make('Sequence)
+	//(some functions)
+	NodeType.make("F_{N0th}2S")
+	//(sequences)
+	NodeType.make("moh(n)")
+	NodeType.make("hod(n)")
+	NodeType.make("dom(n)")
+	NodeType.make("moy(n)")
+	NodeType.make("yoc(n)")
+	NodeType.make("doc(n)")
+	NodeType.make("yod(n)")
+	NodeType.make("year(n)")
+	NodeType.make("century(n)")
+	//(nils)
+	mkNils(index.wordIndexer,index.NUM)
+	//--Numbers
+	assert(!nums.isEmpty, "no number terms!")
+	
 	//--Other NodeTypes
 	import scala.collection.immutable.Set
 	val rangeTypes = List("R","S")
 	val durationTypes = List("D","S")
 	//(arity-2 functions)
 	//((like rd2r))
-	lazy val fn2 = {rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
+	val fn2 = {rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
 			case (soFar:List[(NodeType,Symbol,Symbol)],r:String) =>
 		durationTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
 				case (soFar:List[(NodeType,Symbol,Symbol)],d:String) =>
@@ -164,7 +161,7 @@ object Grammar {
 	}}.toList
 	//(arity-1 functions)
 	//((like r2r))
-	lazy val fn1 = {rangeTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
+	val fn1 = {rangeTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
 			case (soFar:List[((NodeType,Symbol),Symbol)],r:String) =>
 		((NodeType.make(Symbol("F_{"+r+"}2"+r)),Symbol(r)),Symbol(r)) :: soFar
 	}.toSet ++
@@ -177,6 +174,14 @@ object Grammar {
 			case (soFar:List[((NodeType,Symbol),Symbol)],d:String) =>
 		((NodeType.make(Symbol("F_{"+d+"}2"+d)),Symbol(d)),Symbol(d)) :: soFar
 	}}.toList
+	
+	//--Preterminal Equivalents
+	//(add lex entries)
+	NodeType.all.foreach{ (nt:NodeType) =>
+		if(!nt.isPreterminal && !nt.flag('nil)){
+			NodeType.makePreterminal(nt.toString + "_")
+		}
+	}
 	
 	//--From Short Version
 	def fromShort(short:String):NodeType = fromShort(Symbol(short))
@@ -227,15 +232,15 @@ object Grammar {
 	//(sequences)
 	val sequences = 
 		(1 to 7).map(i=>(DOW(i).asInstanceOf[RepeatedRange]
-			.dense.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
+			.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
 		(1 to 12).map(i=>(MOY(i).asInstanceOf[RepeatedRange]
-			.dense.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
+			.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
 //		(1 to 4).map(i=>(QOY(i).asInstanceOf[RepeatedRange]
 //			.dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
 		(1 to 4).map(i=>(SEASON(i).asInstanceOf[RepeatedRange]
-			.dense.name(SEASON_STR(i-1)),SEASON_STR(i-1)) ).toList ::: 
+			.name(SEASON_STR(i-1)),SEASON_STR(i-1)) ).toList ::: 
 		(1 to 4).map(i=>(TOD(i).asInstanceOf[RepeatedRange]
-			.dense.name(TOD_STR(i-1)),TOD_STR(i-1)) ).toList ::: 
+			.name(TOD_STR(i-1)),TOD_STR(i-1)) ).toList ::: 
 		{if(O.useTime && !O.ignoreTimeSequences) List[(Sequence,String)](
 			(SEC,"Sec:S"),(MIN,"Min:S"),
 			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
@@ -258,7 +263,7 @@ object Grammar {
 	//----------
 	// RULES
 	//----------
-	private lazy val NAMED_RULES:Array[(GrammarRule,String)] = {
+	private val NAMED_RULES:Array[(GrammarRule,String)] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
 			= fn.asInstanceOf[(Any,Any)=>Any]
@@ -267,33 +272,32 @@ object Grammar {
 		//(primitives)
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
 			(new TimeLex((sent:Option[Sentence],i:Int) => r, NodeType('Range_)
-					).restrict( (sent:Sentence,i:Int) => { sent(i) != G.NUM }), s)
+					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
 		}
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
 			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Duration_)
-					).restrict( (sent:Sentence,i:Int) => { sent(i) != G.NUM }), s)
+					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
 		}
 		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
 			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Sequence_)
-					).restrict( (sent:Sentence,i:Int) => { sent(i) != G.NUM }), s)
+					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
 		}
 		//(nil)
 		rtn = rtn ::: 
 			{if(O.lexNils){
-				//TODO wordIndexer dependent
-				assert(G.wordIndexer.size > 0, "Haven't initialized indexer yet")
+				assert(index.wordIndexer.size > 0, "Haven't initialized indexer yet")
 				nils.map{ (nil:NodeType) =>
 					if(nil.flag('nilnum)){
 						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
 							nil).restrict{ (sent:Sentence,i:Int) =>
 								val s = sent.asInstanceOf[TimeSent]
-								s.words(i) == G.NUM &&
+								s.words(i) == index.NUM &&
 									getNum(s.nums(i),s.ordinality(i)).name ==
 										nil.toString.substring(4)
 							},
 							"nil-"+nil.toString.substring(4))
 					} else {
-						val w:Int = U.str2w(nil.toString.substring(4))
+						val w:Int = index.str2w(nil.toString.substring(4))
 						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
 								nil).restrict( (word:Int) => word == w),
 							"nil-"+nil.toString.substring(4))
@@ -312,7 +316,7 @@ object Grammar {
 				).restrict( (sent:Sentence,i:Int) => {
 					val valid = 
 						//((is a number))
-						sent(i) == G.NUM && 
+						sent(i) == index.NUM && 
 						//((and is of the right ordinality))
 						{sent match {
 							case (s:TimeSent) =>
@@ -374,7 +378,7 @@ object Grammar {
 					if(n < 0 || n >= fn.length){ new NoTime } else { fn(n) }
 				}, NodeType("F_{N0th}2S_")
 				).restrict( (sent:Sentence,i:Int) => {
-					sent(i) != G.NUM
+					sent(i) != index.NUM
 				}),
 				name )
 		}
@@ -429,7 +433,7 @@ object Grammar {
 							(sent:Option[Sentence],i:Int) => info.fn,
 							NodeType("F_{"+a.name+"}2"+a.name+"_")
 						).restrict( (sent:Sentence,i:Int) => {
-							sent(i) != G.NUM
+							sent(i) != index.NUM
 						}),
 					info.name+"$(-:"+a.name+"):"+a.name+"$")
 				//(append rule)
@@ -538,7 +542,7 @@ object Grammar {
 							(s:Option[Sentence],i:Int) => info.fn,
 							NodeType("F_{"+a.name+b.name+"}2"+a.name+"_")
 						).restrict( (sent:Sentence,i:Int) => {
-							sent(i) != G.NUM
+							sent(i) != index.NUM
 						}),
 						info.name+"$(-:"+a.name+",-:"+b.name+"):"+a.name+"$" )
 					//(append rule)
@@ -616,7 +620,7 @@ object Grammar {
 		rtn.toArray
 	}
 	
-	lazy val RULES:Array[GrammarRule] = {
+	val RULES:Array[GrammarRule] = {
 		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
 		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
 			= fn.asInstanceOf[(Any,Any)=>Any]
@@ -652,7 +656,7 @@ object Grammar {
 		rtn.toArray
 	}
 	
-	lazy val RULES_STR:Array[String] = {
+	val RULES_STR:Array[String] = {
 		val rtn = RULES.map{ _.parent.toString }
 		for(i <- 0 until NAMED_RULES.length){
 			assert(RULES(i) == NAMED_RULES(i)._1, "name mismatch")
@@ -673,71 +677,13 @@ object Grammar {
 //------------------------------------------------------------------------------
 // GROUNDING DATA
 //------------------------------------------------------------------------------
-trait GroundingData extends DataStore[(TimeSent,Temporal,Time)]
-
-class SimpleTimexStore(timexes:Array[Timex],test:Boolean,theName:String) 
-		extends GroundingData {
-	override def name:String = theName+{if(test){"-eval"}else{"-train"}}
-	override def eachExample(iter:Int):Iterable[(TimeSent,Temporal,Time)] = {
-		new Iterable[(TimeSent,Temporal,Time)] {
-		override def iterator:Iterator[(TimeSent,Temporal,Time)] 
-			= timexes.iterator.map{ (t:Timex) => 
-				(TimeSent(
-					t.words(if(test){ U.str2wTest(_,false) } else {U.str2w(_,false) },G.NUM),
-					t.pos(if(test){ U.str2posTest(_) } else {U.str2pos(_) }),
-					t.nums,
-					t.numTypes), 
-					t.gold, t.grounding)
-			}
-		}
-	}
-}
-object SimpleTimexStore {
-	def apply(train:O.DataInfo,eval:O.DataInfo
-			):TimeData[(TimeSent,Temporal,Time)] = {
-		log("INPUT: /workspace/time/aux/coremap/tempeval2-english" +
-							{if(O.retokenize) "-retok" else "" } +
-							{if(O.collapseNumbers) "-numbers" else "" })
-		def mkDataset(info:O.DataInfo):Array[Timex] = {
-			info.source match {
-				case O.DataSource.English => new TimeDataset(
-					new SerializedCoreMapDataset(
-						System.getenv("HOME") + 
-							"/workspace/time/aux/coremap/tempeval2-english" +
-							{if(O.retokenize) "-retok" else "" } +
-							{if(O.collapseNumbers) "-numbers" else "" }
-					).slice(info.begin,info.end)).timexes
-				case O.DataSource.NYT => new TimeDataset(
-					new SerializedCoreMapDataset(
-						System.getenv("HOME") + 
-							"/workspace/time/aux/processedNYT/"
-					).slice(info.begin,info.end)).timexes
-				case _ => throw fail("Unknown dataset")
-			}
-		}
-		startTrack("Loading Timexes")
-		//(log)
-		log(FORCE,"train: " + train)
-		log(FORCE,{if(O.devTest){ "dev:   " } else{ "test:  " }} + eval )
-		//(make data)
-		log("creating data")
-		val data = 
-			if(train.source == O.DataSource.Toy || eval.source == O.DataSource.Toy){
-				ToyData.STANDARD
-			} else {
-				TimeData(
-					new SimpleTimexStore(mkDataset(train),false,train.source.toString),
-					new SimpleTimexStore(mkDataset(eval),true,eval.source.toString)
-				)
-			}
-		//(loop over data to read everything)
-		startTrack("NOOP loop")
-		data.noopLoop
-		endTrack("NOOP loop")
-		//(return)
-		endTrack("Loading Timexes")
-		data
-	}
+class GroundingData(impl:TimeDataset,train:Boolean,index:Indexing
+		) extends DataStore[(TimeSent,Temporal,Time)] with Iterable[Annotation] {
+	def name:String = "Grounding-"+{if(train) "train" else "eval"}
+	def eachExample(i:Int):Iterable[(TimeSent,Temporal,Time)] 
+		= impl.goldSpans(train,index)
+	def iterator:Iterator[Annotation] 
+		= impl.data.iterator.map{ _.impl.asInstanceOf[Annotation] }
 }
 
 //------------------------------------------------------------------------------
@@ -746,114 +692,107 @@ object SimpleTimexStore {
 trait TemporalTask {
 	def run:Unit
 }
-case class MyTime(
+case class TreeTime(
 		parser:CKYParser,
-		wordIndexer:Indexer[String],
-		posIndexer:Indexer[String],
-		unk:Int,
-		num:Int,
-		timeDist:Map[Temporal,Sequence.Updater]) extends OtherSystem {
-	//<<Error checks>>
-	assert(unk < parser.numWords, "UNK is out of bounds: " 
-		+ unk + " " + parser.numWords)
-	assert(num < parser.numWords, "NUM is out of bounds: "
-		+ num + " " + parser.numWords)
+		index:Indexing,
+		lex:Lex) extends Annotator {
 
-	//<<Initialization>>
-	def updateState:MyTime = {
-		//(indexers)
-		G.wordIndexer = wordIndexer
-		G.posIndexer = posIndexer
-		assert(G.W == wordIndexer.size+1)
-		assert(G.UNK == wordIndexer.size)
-		//(temporal distribution)
-		Lex.sequences.foreach{ x => x.updater = timeDist(x) }
-		//(return)
-		this
-	}
-		
-	//<<other sytem overrides>>
-	override def getTimex(input:SystemInput,minProb:Double):Option[SystemOutput]={
-		//(parse)
-		val (output,lprob) = getTimexAndProb(input)
-		//(get probability)
-		val numRules:Int = 2*input.timex.words(str2w(_),num).length-1
-		val aveRuleProb:Double = math.exp(lprob*(1.0/numRules.asInstanceOf[Double]))
-		//(return)
-		if(aveRuleProb >= minProb){
-			output
-		} else {
-			None
+	private def annotateKnownSpan(tokens:JList[CoreLabel], expr:CoreMap,
+			ground:Time) = {
+		//--Parse
+		//(create sentence)
+		val sent = DataLib.mkTimeSent(expr,tokens,index,false)
+		//(run parser)
+		var time:Temporal = new NoTime
+		var beam:Int = 1
+		while(time.isInstanceOf[NoTime] && beam <= 32){
+			//((parse))
+  		val parses:Array[EvalTree[Any]] = parser.parse(sent,beam)
+			//((get candidate))
+			time = parses.slice(beam/2-1,beam)
+					.foldLeft((new NoTime).asInstanceOf[Temporal]){ 
+					case (soFar:Temporal,parse:EvalTree[Any]) =>
+				if(soFar.isInstanceOf[NoTime]){
+					parse.evaluate.asInstanceOf[Temporal](ground)
+				} else {
+					soFar
+				}
+			}
+		}
+		//--Annotate
+		//(get timex data)
+		import JodaTimeUtils._
+		val (typ,value) = time match {
+			case (n:NoTime) => ("MISS","?")
+			case (gr:GroundedRange) => ("DATE",timexDateValue(gr.begin.base,gr.end.base))
+			case (d:GroundedDuration) => ("DURATION",timexDurationValue(d.base,false))
+			case (d:FuzzyDuration) => ("DURATION",timexDurationValue(d.interval.base,true))
+			case (t:Time) => ("TIME",timexTimeValue(t.base))
+			case _ => throw new IllegalStateException("Unknown time: " + time.getClass)
+		}
+		//(create timex)
+		val timex = new StanfordTimex(typ,value)
+		//(get span)
+		val begin:Int = expr.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
+		val end:Int = expr.get[JInt,EndIndexAnnotation](classOf[EndIndexAnnotation])
+		//(annotate)
+		(begin until end).foreach{ (i:Int) =>
+			tokens.get(i).set(classOf[TimexAnnotation], timex)
 		}
 	}
-	override def name:String = "MyTime"
-	//<<other utils>>
-	def toInfo(data:Array[SystemInput]):MySystemInfo = {
-		val valueMap = new HashMap[Int,(Option[SystemOutput],Int,Double)]
-		data.foreach{ (in:SystemInput) =>
-			val	key:Int = in.timex.index
-			val	(out,lprob):(Option[SystemOutput],Double) = getTimexAndProb(in)
-			val	len:Int = in.timex.words(str2w(_),num).length
-			valueMap(key) = (out,len,lprob)
-		}
-		MySystemInfo(valueMap)
-	}
-	private def getTimexAndProb(input:SystemInput):(Option[SystemOutput],Double)={
-		//--Create Sentence
-		val sent = TimeSent(
-			input.timex.words(str2w(_),num),
-			input.timex.pos(str2pos(_)),
-			input.timex.nums,
-			input.timex.numTypes)
-		//--Run Parser
-		O.beam = 10
-		val parses = parser.parse(sent,10)
-		//--Digest Result
-		val parsesWithTime:Array[EvalTree[Any]] 
-			= parses.dropWhile{ (p:EvalTree[Any]) => p.evaluate.isInstanceOf[NoTime] }
-		if(parsesWithTime.length == 0) {
-			(None,Double.NegativeInfinity)
-		} else {
-			val (typ,value) 
-				= parsesWithTime(0).evaluate
-					.asInstanceOf[Temporal].asTimex(new Time(input.ground))
-			(Some(SystemOutput(typ,value)),parsesWithTime(0).logProb)
+	
+	//<<annotator overrides>>
+	override def annotate(ann:Annotation){
+		val ground = new Time(new DateTime(ann
+				.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+				.getTimeInMillis ))
+		ann
+				.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+				.foreach{ (sent:CoreMap) =>
+			val tokens = sent
+					.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
+			//--Annotate Gold Spans
+			sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
+					.foreach{ (expr:CoreMap) =>
+				annotateKnownSpan(tokens,expr,ground)
+			}
 		}
 	}
-	private def str2w(str:String):Int = {
-		val w = if(O.ignoreCase) {
-			wordIndexer.indexOf(str.toLowerCase)
-		} else {
-			wordIndexer.indexOf(str)
-		}
-		if(w < 0) unk else w
-	}
-	private def str2pos(str:String):Int = {
-		val p = if(O.ignoreCase) {
-			posIndexer.indexOf(str.toLowerCase)
-		} else {
-			posIndexer.indexOf(str)
-		}
-		assert(p >= 0, "Unknown POS: " + str)
-		p
-	}
+
 }
 class InterpretationTask extends TemporalTask {
 	//--Initialize JodaTime
 	log("JodaTime settings")
 	DateTimeZone.setDefault(DateTimeZone.UTC);
 	//--Create Data
-	//(dataset)
 	forceTrack("loading dataset")
-	//(timexes)
-	val data = SimpleTimexStore(O.train,if(O.devTest) O.dev else O.test)
+	val index = Indexing()
+	val data = {
+		//(raw dataset)
+		val rawDataset = new TimeDataset(new SerializedCoreMapDataset(
+			System.getenv("HOME") + 
+				"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
+			))
+		val eval = if(O.devTest) O.dev else O.test
+		//(create data)
+		if(O.train.source == O.DataSource.Toy || eval.source == O.DataSource.Toy){
+		  ToyData.STANDARD
+		} else {
+		  TimeData(
+				new GroundingData( rawDataset.slice(O.train.begin,O.train.end),
+					true, index),
+				new GroundingData( rawDataset.slice(eval.begin,eval.end),
+					false, index)
+			)
+		}
+	}
 	endTrack("loading dataset")
 	//--Create Parser
-	startTrack("Creating Parser")
-	assert(G.W > 0, "Words have not been interned yet!")
-	Grammar.init(G.wordIndexer, G.NUM)
-	var initialParser = CKYParser(G.W, Grammar.RULES)
-	endTrack("Creating Parser")
+	startTrack("Creating Grammar")
+	val lex = new Lex
+	import lex._
+	val grammar = new Grammar(index,lex)
+	endTrack("Creating Grammar")
 
 	//<<scoring>>
 	case class GoodOutput(tree:EvalTree[Any],value:Temporal,
@@ -876,7 +815,6 @@ class InterpretationTask extends TemporalTask {
 	
 	def compare(guess:Temporal, gold:Temporal,ground:GroundedRange
 			):Iterator[CompareElem] = {
-		import Lex._
 		val INF = (Duration.INFINITE,Duration.INFINITE)
 		def diff(gold:Temporal,guess:Temporal,second:Boolean):(Duration,Duration) 
 				= (gold,guess) match {
@@ -1225,7 +1163,7 @@ class InterpretationTask extends TemporalTask {
 		log({if(isCorrect) FORCE else null },"Guess:  " + viterbi.orNull)
 		log({if(isCorrect) FORCE else null },"Tree:   " + {
 			if(parses.length > 0){
-				parses(0).asParseString(U.w2str(_),Grammar.r2str(_)) 
+				parses(0).asParseString(index.w2str(_),grammar.r2str(_)) 
 			} else{ "" } })
 		log({if(isCorrect) FORCE else null },"Gold:   " + gold)
 		log({if(isCorrect) FORCE else null },"Ground: " + grounding)
@@ -1255,7 +1193,7 @@ class InterpretationTask extends TemporalTask {
 		filtered.foreach{ (t:GoodOutput) => 
 			log("["+t.offset+"] "+
 				"("+G.df.format(t.prob)+")"+
-				t.tree.asParseString(U.w2str(_),Grammar.r2str(_))) 
+				t.tree.asParseString(index.w2str(_),grammar.r2str(_))) 
 		}
 		endTrack("Good Output")
 		//(return)
@@ -1267,6 +1205,10 @@ class InterpretationTask extends TemporalTask {
 		forceTrack("Running")
 		//(train)
 		startTrack("Training")
+		forceTrack("Creating Parser")
+		data.noopLoop
+		val initialParser = CKYParser(index.W,grammar.RULES)
+		endTrack("Creating Parser")
 		log("Threading on " + Execution.numThreads + " threads")
 		val (parser,trainScoresRev):(CKYParser,List[Score]) 
 			= if(O.runInterpretModel){
@@ -1332,13 +1274,13 @@ class InterpretationTask extends TemporalTask {
 					value.traverse(gr,offset,
 						(term:Temporal,trueOffset:Long) => term.runM)
 				}
-				Grammar.ranges.foreach{ _._1.runM }
-				Grammar.durations.foreach{ _._1.runM }
-				Grammar.sequences.foreach{ _._1.runM }
+				grammar.ranges.foreach{ _._1.runM }
+				grammar.durations.foreach{ _._1.runM }
+				grammar.sequences.foreach{ _._1.runM }
 				endTrack("Updating Times")
 				//(debug)
 				startTrack("Parameters")
-				log(newParser.parameters(U.w2str(_),Grammar.r2str(_)))
+				log(newParser.parameters(index.w2str(_),grammar.r2str(_)))
 				endTrack("Parameters")
 				//(continue loop)
 				log(FORCE,BOLD,YELLOW,""+score)
@@ -1351,8 +1293,7 @@ class InterpretationTask extends TemporalTask {
 				try {
 					log("Loading parser at: " + O.interpretModel)
 					edu.stanford.nlp.io.IOUtils.readObjectFromFile(O.interpretModel)
-					.asInstanceOf[MyTime]
-					.updateState
+					.asInstanceOf[TreeTime]
 					.parser
 				} catch {
 					case (e:Throwable) => throw new RuntimeException(e)
@@ -1380,56 +1321,44 @@ class InterpretationTask extends TemporalTask {
 		endTrack("Running")
 		//--Score
 		startTrack(FORCE,BOLD,"Results")
-		reportScores(parser,trainScoresRev.reverse.toArray,testScore)
+		val sys = TreeTime(parser,index,lex)
+		reportScores(sys,trainScoresRev.reverse.toArray,testScore)
 		endTrack("Results")
 		//--Save Model
 		if(O.interpretModel != null){
 			try {
-				val sys=
-					MyTime(parser,G.wordIndexer,G.posIndexer,G.UNK,G.NUM,Lex.updaters)
-				edu.stanford.nlp.io.IOUtils.writeObjectToFile(sys,O.interpretModel)
-				edu.stanford.nlp.io.IOUtils.writeObjectToFile(sys,
-					Execution.touch("interpretModel.ser.gz"))
+				import org.goobs.util.TrackedObjectOutputStream
+				import java.io.FileOutputStream
+				new TrackedObjectOutputStream(new FileOutputStream(O.interpretModel)
+					).writeObject(sys)
+				new TrackedObjectOutputStream(new FileOutputStream(
+						Execution.touch("interpretModel.ser.gz")
+					)).writeObject(sys)
 			} catch {
 				case (e:Throwable) => throw new RuntimeException(e)
 			}
 		}
 	}
 
-	def reportScores(parser:CKYParser,trainScores:Array[Score],testScore:Score) {
+	def reportScores(sys:TreeTime,trainScores:Array[Score],testScore:Score) {
 		val logger = Execution.getLogger();
 		//--External Score
 		if(O.train.source == O.DataSource.English) {
 			startTrack("TempEval")
-			//(variables)
-			Comparisons.inputDir = O.tempevalHome
-			Comparisons.outputDir = Execution.touch("")
-			Comparisons.lang = O.train.language
 			//(run)
-			val timexSys 
-				= MyTime(parser,G.wordIndexer,G.posIndexer,G.UNK,G.NUM,Lex.updaters)
-			val (trn,tst) = Comparisons.runSystem(sys=timexSys,quiet=true)
+			val trn = Entry.officialEval(sys,data.train.asInstanceOf[Iterable[Annotation]],
+				true,O.tempevalHome,Execution.touch("attr-train.tab"))
+			val tst = Entry.officialEval(sys,data.eval.asInstanceOf[Iterable[Annotation]],
+				false,O.tempevalHome,Execution.touch("attr-test.tab"))
+			//(print)
 			startTrack("Eval Results")
-			log(FORCE,BOLD,GREEN,"MyTime Train:     " + trn)
+			log(FORCE,BOLD,GREEN,"TreeTime Train:     " + trn)
 			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
 			logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
-			if(!O.devTest){
-				log(FORCE,BOLD,GREEN,"MyTime Test:      " + tst)
-				logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
-				logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
-			}
+			log(FORCE,BOLD,GREEN,"TreeTime Eval:      " + tst)
+			logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
+			logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
 			endTrack("Eval Results")
-			//(save info)
-			startTrack("Save Output")
-			val savData = timexSys.toInfo( Comparisons.dataset2inputs(
-				new TimeDataset(new SerializedCoreMapDataset(
-					System.getenv("HOME") + 
-						"/workspace/time/aux/coremap/tempeval2-english-retok-numbers"
-					)))
-			)
-			val outputFile = Execution.touch("tempeval2-output.ser")
-			IOUtils.writeObjectToFileNoExceptions(savData,outputFile.getPath)
-			endTrack("Save Output")
 			endTrack("TempEval")
 		}
 		//--Process
@@ -1608,7 +1537,10 @@ class Score {
 // TOY DATA(S)
 //------------------------------------------------------------------------------
 object ToyData {
-	import Lex._
+	val lex = new Lex
+	val index = Indexing()
+	import lex._
+
 	private val toys = new HashMap[String,Int]
 
 	private val NONE = ToyStore(Array[(String,Temporal)](),false)
@@ -1704,15 +1636,16 @@ object ToyData {
 						} else {
 							(raw, NumberType.NONE)
 						}
-					(U.str2wTest(str),typ,str)
+					(index.str2wTest(str),typ,str)
 				}
 				val s = TimeSent(
 					words.map{ _._1 }, 
-					words.map{ x => U.str2posTest("UNK") },
+					words.map{ x => index.str2posTest("UNK") },
 					words.map{ case (w:Int,t:NumberType.Value,str:String) =>
 						if(t != NumberType.NONE){ str.toInt } else { Int.MinValue }
 					},
-					words.map{ _._2 }
+					words.map{ _._2 },
+					index
 					)
 				(s,gold(todaysDate,0),todaysDate)
 			}
@@ -1720,7 +1653,7 @@ object ToyData {
 		def internWords:ToyStore = {
 			gold.foreach{ case (sent:String,gold:Temporal) =>
 				sent.split(" ").foreach{ (str:String) => 
-					U.str2w(str)
+					index.str2w(str)
 				}
 			}
 			this

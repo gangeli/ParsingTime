@@ -323,50 +323,34 @@ object TempEval2 {
 		}
 		endTrack("Pass 3 (make coremaps)")
 		//--Relink
-		startTrack("Pass 5 (global timexes)")
+		forceTrack("Pass 4 (global timexes)")
 		docs.foreach{ (doc:Annotation) =>
 			doc.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
 					.foreach{ (sent:CoreMap) =>
 				DataLib.relinkTimexes(sent)
 			}
 		}
-		endTrack("Pass 5 (global timexes)")
+		endTrack("Pass 4 (global timexes)")
 		//--Pipeline Annotate
-		forceTrack("Pass 4 (pipeline)")
+		forceTrack("Pass 5 (pipeline)")
 		//(annotators)
-		val lemma:Long=>MorphaAnnotator = {
-			val cache = HashMap[Long,MorphaAnnotator]()
-			(thread:Long) => {
-				if(!cache.contains(thread)){
-					cache(thread) = new MorphaAnnotator(false)
-				}
-				cache(thread)
-			}
-		}
-		val pos:Long=>POSTaggerAnnotator = {
-			val cache = HashMap[Long,POSTaggerAnnotator]()
-			(thread:Long) => {
-				if(!cache.contains(thread)){
-					cache(thread) = new POSTaggerAnnotator(
-						System.getenv("HOME") +
-							"/lib/data/bidirectional-distsim-wsj-0-18.tagger", //TODO hard coded
-						false)
-				}
-				cache(thread)
-			}
-		}
+		val lemma = new MorphaAnnotator(false)
+		val pos = new POSTaggerAnnotator(
+				System.getenv("HOME") +
+					"/lib/data/bidirectional-distsim-wsj-0-18.tagger", //TODO hard coded
+				false)
 		//(run pipeline)
 		threadAndRun( 
 			docs.zipWithIndex.map{ case (doc:Annotation,i:Int) => new Runnable{ 
 				override def run {
-					pos(Thread.currentThread.getId).annotate(doc)
-					lemma(Thread.currentThread.getId).annotate(doc)
+					pos.annotate(doc)
+					lemma.annotate(doc)
 					log("("+(i+1)+"/"+docs.length+ ") Annotated " 
 						+ doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation]))
 				}
 			} }
 		)
-		endTrack("Pass 4 (pipeline)")
+		endTrack("Pass 5 (pipeline)")
 		//--Return
 		endTrack("Making CoreMaps")
 		docs.reverse.toArray
@@ -393,8 +377,8 @@ object TempEval2 {
 			assert(word.equals(check), "Word '" + word + "' maps to '" + check + "'")
 		}
 	}
-	class TempEval2RetokTask extends Task[CoreMapDatum] {
-		override def perform(d:Dataset[CoreMapDatum]):Unit = {
+	class TempEval2RetokTask {
+		def perform(d:Dataset[CoreMapDatum]):Unit = {
 			forceTrack("Retokenizing")
 			//(for each document)
 			(0 until d.numExamples).foreach{ case (docIndex:Int) =>
@@ -413,12 +397,10 @@ object TempEval2 {
 			}
 			endTrack("Retokenizing")
 		}
-		override def dependencies = Array[Class[_ <: Task[_]]]()
-		override def name = "retok"
 	}
 	
-	class TempEval2NumberNormalizeTask extends Task[CoreMapDatum] {
-		override def perform(d:Dataset[CoreMapDatum]):Unit = {
+	class TempEval2NumberNormalizeTask {
+		def perform(d:Dataset[CoreMapDatum]):Unit = {
 			forceTrack("Normalizing Numbers")
 			//(for each document)
 			(0 until d.numExamples).foreach{ case (docIndex:Int) =>
@@ -432,8 +414,6 @@ object TempEval2 {
 			}
 			endTrack("Normalizing Numbers")
 		}
-		override def dependencies = Array[Class[_ <: Task[_]]]()
-		override def name = "numbers"
 	}
 	
 	
@@ -477,14 +457,17 @@ object TempEval2 {
 		val extTrain  = train+"/timex-extents.tab"
 		val extTest   = test+"/timex-extents.tab"
 		//--Data
+		val trainDat = mkData(lang,false,baseTrain,dctTrain,attrTrain,extTrain)
+		log(FORCE, "Train Timexes: " + 
+			(new TimeDataset(new SerializedCoreMapDataset("/tmp/a.ser.gz",trainDat))
+				.goldSpans(true)).length)
+		val testDat  = mkData(lang,true,baseTest,dctTest,attrTest,extTest)
+		log(FORCE, "Test Timexes: " + 
+			(new TimeDataset(new SerializedCoreMapDataset("/tmp/b.ser.gz",testDat))
+				.goldSpans(false)).length)
+		//--Combine
 		val rtn = new SerializedCoreMapDataset(
-			"aux/coremap/tempeval2-"+lang,
-			Array.concat(
-				mkData(lang,false,baseTrain,dctTrain,attrTrain,extTrain) ++ 
-				mkData(lang,true,baseTest,dctTest,attrTest,extTest)
-			)
-		)
-//		prettyLog(rtn)
+			"aux/coremap/tempeval2-"+lang, Array.concat(trainDat, testDat))
 		//--Return
 		endTrack("Making TempEval2")
 		rtn
@@ -493,7 +476,10 @@ object TempEval2 {
 	//<<retok>>
 	def retokFromInit(init:SerializedCoreMapDataset
 			):SerializedCoreMapDataset = {
-		init.runAndRegisterTask( new TempEval2RetokTask )
+		init.saveAs("aux/coremap/tempeval2-english-retok")
+		(new TempEval2RetokTask).perform(init)
+		init.save
+		init
 	}
 	def retokFromInit(source:String):SerializedCoreMapDataset = {
 		retokFromInit( new SerializedCoreMapDataset(source) )
@@ -505,7 +491,10 @@ object TempEval2 {
 	//<<normalize>>
 	def normalizeFromRetok(retok:SerializedCoreMapDataset
 			):SerializedCoreMapDataset = {
-		retok.runAndRegisterTask( new TempEval2NumberNormalizeTask )
+		retok.saveAs("aux/coremap/tempeval2-english-retok-numbers")
+		(new TempEval2NumberNormalizeTask).perform(retok)
+		retok.save
+		retok
 	}
 	def normalizeFromRetok(source:String):SerializedCoreMapDataset = {
 		normalizeFromRetok( new SerializedCoreMapDataset(source) )

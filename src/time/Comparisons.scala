@@ -50,6 +50,8 @@ case class AttributeScore(
 	}
 }
 
+
+
 trait OtherSystem {
 	def getTimex(input:SystemInput,minProb:Double):Option[SystemOutput]
 	def name:String
@@ -347,19 +349,20 @@ object Comparisons {
 			= new File(dir + "/pr-"+{if(isTest) "test" else "train"}+".dat")
 	
 	def dataset2inputs(raw:TimeDataset):Array[SystemInput] = {
-		val dataLst
-			= raw.timexes.foldLeft((List[SystemInput]())){
-				case ((data:List[SystemInput]),timex:Timex) =>
-			SystemInput(	
-				timex.gloss,
-				timex.originalType,
-				timex.originalValue,
-				timex.grounding.base,
-				timex.isTest,
-				timex,
-				timex.tempevalAttribute(_,_,timex.grounding.base,true)) :: data
-		}
-		dataLst.reverse.toArray
+		null //TODO implement me
+//		val dataLst
+//			= raw.timexes.foldLeft((List[SystemInput]())){
+//				case ((data:List[SystemInput]),timex:Timex) =>
+//			SystemInput(	
+//				timex.gloss,
+//				timex.originalType,
+//				timex.originalValue,
+//				timex.grounding.base,
+//				timex.isTest,
+//				timex,
+//				timex.tempevalAttribute(_,_,timex.grounding.base,true)) :: data
+//		}
+//		dataLst.reverse.toArray
 	}
 
 	def runSystem(sys:OtherSystem,quiet:Boolean=false
