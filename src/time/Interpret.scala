@@ -695,31 +695,42 @@ trait TemporalTask {
 case class TreeTime(
 		parser:CKYParser,
 		index:Indexing,
-		lex:Lex) extends Annotator {
+		lex:Lex,
+		crf:Option[CRFDetector],
+		crfIndex:Option[Indexing]
+		) extends Annotator {
+	
+	def this(parser:CKYParser,index:Indexing,lex:Lex)
+		= this(parser,index,lex,None,None)
 
-	private def annotateKnownSpan(tokens:JList[CoreLabel], expr:CoreMap,
-			ground:Time) = {
-		//--Parse
-		//(create sentence)
-		val sent = DataLib.mkTimeSent(expr,tokens,index,false)
+	private def parse(sent:TimeSent,ground:Time):(Temporal,Double) = {
 		//(run parser)
 		var time:Temporal = new NoTime
+		var logProb:Double = Double.NegativeInfinity
 		var beam:Int = 1
 		while(time.isInstanceOf[NoTime] && beam <= 32){
 			//((parse))
   		val parses:Array[EvalTree[Any]] = parser.parse(sent,beam)
 			//((get candidate))
-			time = parses.slice(beam/2-1,beam)
-					.foldLeft((new NoTime).asInstanceOf[Temporal]){ 
-					case (soFar:Temporal,parse:EvalTree[Any]) =>
+			val (t,lP) = parses.slice(beam/2-1,beam)
+					.foldLeft(((new NoTime).asInstanceOf[Temporal],Double.NegativeInfinity)){ 
+					case ((soFar:Temporal,lProb:Double),parse:EvalTree[Any]) =>
 				if(soFar.isInstanceOf[NoTime]){
-					parse.evaluate.asInstanceOf[Temporal](ground)
+					(parse.evaluate.asInstanceOf[Temporal](ground), parse.logProb)
 				} else {
-					soFar
+					(soFar,lProb)
 				}
 			}
+			//((set variables))
+			time = t
+			logProb = lP
+			//((increment beam))
+			beam *= 2
 		}
-		//--Annotate
+		(time,logProb)
+	}
+
+	private def toStanfordTimex(time:Temporal):StanfordTimex = {
 		//(get timex data)
 		import JodaTimeUtils._
 		val (typ,value) = time match {
@@ -731,7 +742,19 @@ case class TreeTime(
 			case _ => throw new IllegalStateException("Unknown time: " + time.getClass)
 		}
 		//(create timex)
-		val timex = new StanfordTimex(typ,value)
+		new StanfordTimex(typ,value)
+	}
+
+	private def annotateKnownSpan(tokens:JList[CoreLabel], expr:CoreMap,
+			ground:Time) = {
+		//--Parse
+		//(create sentence)
+		val sent = DataLib.mkTimeSent(expr,tokens,index,false)
+		//(parse)
+		val (time,logProb) = parse(sent,ground)
+		//--Annotate
+		val timex = toStanfordTimex(time)
+		log("annotated "+sent+" as "+timex)
 		//(get span)
 		val begin:Int = expr.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
 		val end:Int = expr.get[JInt,EndIndexAnnotation](classOf[EndIndexAnnotation])
@@ -741,20 +764,48 @@ case class TreeTime(
 		}
 	}
 	
+	private def annotateSentence(tokens:JList[CoreLabel], ground:Time) = {
+		//--Run CRF
+		val sent = DataLib.mkTimeSent(tokens,crfIndex.get,false)
+		val times:Array[DetectedTime] = crf.get.findTimes(sent,
+			(s:TimeSent) => {
+				Some(parse(s.reIndex(index),ground))
+			})
+		//--Annotate
+		times.foreach{ case DetectedTime(begin,end,timeInfo) =>
+			val (time,logProb) = timeInfo.get
+			val timex = toStanfordTimex(time)
+			(begin until end).foreach{ (i:Int) =>
+				tokens.get(i).set(classOf[TimexAnnotation], timex)
+			}
+		}
+	}
+	
 	//<<annotator overrides>>
 	override def annotate(ann:Annotation){
+		//--Variables
 		val ground = new Time(new DateTime(ann
 				.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
 				.getTimeInMillis ))
+		//--Cycle Sentences
 		ann
 				.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
 				.foreach{ (sent:CoreMap) =>
+			//(variables)
 			val tokens = sent
 					.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
-			//--Annotate Gold Spans
-			sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
-					.foreach{ (expr:CoreMap) =>
-				annotateKnownSpan(tokens,expr,ground)
+			//(annotate sentence)
+			if(crf.isDefined){
+				assert(crfIndex.isDefined, "CRF but no CRF Index found!")
+				annotateSentence(tokens,ground)
+			}
+			//(annotate gold spans)
+			val knownSpans = 
+				sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
+			if(knownSpans != null){
+				knownSpans.foreach{ (expr:CoreMap) =>
+					annotateKnownSpan(tokens,expr,ground)
+				}
 			}
 		}
 	}
@@ -766,8 +817,7 @@ class InterpretationTask extends TemporalTask {
 	DateTimeZone.setDefault(DateTimeZone.UTC);
 	//--Create Data
 	forceTrack("loading dataset")
-	val index = Indexing()
-	val data = {
+	val (data,index) = {
 		//(raw dataset)
 		val rawDataset = new TimeDataset(new SerializedCoreMapDataset(
 			System.getenv("HOME") + 
@@ -776,14 +826,16 @@ class InterpretationTask extends TemporalTask {
 		val eval = if(O.devTest) O.dev else O.test
 		//(create data)
 		if(O.train.source == O.DataSource.Toy || eval.source == O.DataSource.Toy){
-		  ToyData.STANDARD
+		  (ToyData.STANDARD,ToyData.index)
 		} else {
-		  TimeData(
+			val index = Indexing()
+		  (TimeData(
 				new GroundingData( rawDataset.slice(O.train.begin,O.train.end),
 					true, index),
 				new GroundingData( rawDataset.slice(eval.begin,eval.end),
 					false, index)
-			)
+			),
+			index)
 		}
 	}
 	endTrack("loading dataset")
@@ -996,32 +1048,32 @@ class InterpretationTask extends TemporalTask {
 				val total:Double = matching.map{_.prob}.sum
 				matching.map{ _.normalize(total,matching.length) }
 			}
-			case O.CkyCountType.leastNilsWithOffsetZero => {
+			case O.CkyCountType.mostNilsWithOffsetZero => {
 				//((has an offset zero term?))
 				val hasZeroOffset:Boolean = correct.exists{ _.offset == 0L }
 				//((get shortest length))
 				val shortest:(Int,Int) = correct
 						.foldLeft( (Int.MaxValue,Int.MaxValue) ){
-						case ((shortestTrim:Int,leastNils:Int),output:GoodOutput) =>
+						case ((shortestTrim:Int,nonNils:Int),output:GoodOutput) =>
 					if(hasZeroOffset && output.offset == 0L){
-						val (trim,nilCount) = countNonNils(output.tree,output.sent)
+						val (trim,nonNilCount) = countNonNils(output.tree,output.sent)
 						if(trim == shortestTrim){
-							(trim,math.min(leastNils,nilCount))
+							(trim,math.min(nonNils,nonNilCount))
 						} else if(trim < shortestTrim){
-							(trim,nilCount)
+							(trim,nonNilCount)
 						} else {
-							(shortestTrim,leastNils)
+							(shortestTrim,nonNils)
 						}
 					} else {
-						(shortestTrim,leastNils)
+						(shortestTrim,nonNils)
 					}
 				}
 				//((get matching trees))
-				val (shortestTrim,leastNils) = shortest
+				val (shortestTrim,nonNils) = shortest
 				val matching:Array[GoodOutput] = correct.filter{
 						(output:GoodOutput) =>
-					val (trim,nilCount) = countNonNils(output.tree,output.sent)
-					trim <= shortestTrim && nilCount <= leastNils &&
+					val (trim,nonNilCount) = countNonNils(output.tree,output.sent)
+					trim <= shortestTrim && nonNilCount <= nonNils &&
 						(!hasZeroOffset || output.offset == 0)
 				}
 				//((create list))
@@ -1057,7 +1109,7 @@ class InterpretationTask extends TemporalTask {
 				None
 			}
 		//--Score Parses
-		val scores:Array[ScoreElem]
+		val scoresUnsorted:Array[ScoreElem]
 			//(for each parse...)
 			= parses.zipWithIndex.foldLeft((List[ScoreElem](),false)){ 
 					case ((soFar:List[ScoreElem],isPruned:Boolean),
@@ -1071,6 +1123,8 @@ class InterpretationTask extends TemporalTask {
 					//(timing)
 					val parseWatch:Stopwatch = new Stopwatch
 					parseWatch.start
+					//(debug variables)
+					var lastProb = Double.PositiveInfinity
 					//(get guess temporal)
 					val guess:Temporal = parse.evaluate match {
 						case (t:Temporal) => t
@@ -1079,6 +1133,9 @@ class InterpretationTask extends TemporalTask {
 					//(for each offset of parse...)
 					val rtn = soFar ::: compare(guess,gold,ground).slice(0,O.scoreBeam)
 						.map{ (elem:CompareElem) =>
+							//(debug)
+							assert(elem.prob <= lastProb, "Times are not monotonically decreasing")
+							lastProb = elem.prob
 							//(create parse)
 							val resultLogProb = 
 								if(O.includeTimeProb){ parse.logProb+math.log(elem.prob) }
@@ -1096,27 +1153,24 @@ class InterpretationTask extends TemporalTask {
 				} else {
 					(soFar,isPruned)
 				}
-		}._1.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
+		}._1.toArray
+		val scores = 
 			if(O.sortTimeProbInScore){
-				//(case: order by P(parse)*P(time))
-				if( (b.logProb - a.logProb).abs < 1e-6 ){
-					if(a.index == b.index){
-						b.offset.abs > a.offset.abs
+				scoresUnsorted.sortWith{ case (a:ScoreElem,b:ScoreElem) => 
+					//(case: order by P(parse)*P(time))
+					if( (b.logProb - a.logProb).abs < 1e-6 ){
+						if(a.index == b.index){
+							b.offset.abs > a.offset.abs
+						} else {
+							b.index > a.index
+						}
 					} else {
-						b.index > a.index
+						b.logProb < a.logProb 
 					}
-				} else {
-					b.logProb < a.logProb 
 				}
 			} else {
-				//(case: order by P(parse) breaking ties with P(time))
-				if(a.index == b.index){
-					b.logProb < a.logProb
-				} else {
-					b.index > a.index
-				}
+				scoresUnsorted
 			}
-		}.toArray
 		log("" + scores.length + " candidates")
 		//--Score Parses
 		score.lock.acquire
@@ -1280,7 +1334,8 @@ class InterpretationTask extends TemporalTask {
 				endTrack("Updating Times")
 				//(debug)
 				startTrack("Parameters")
-				log(newParser.parameters(index.w2str(_),grammar.r2str(_)))
+				Execution.touchAndWrite("params-"+iter, 
+					newParser.parameters(index.w2str(_),grammar.r2str(_)) )
 				endTrack("Parameters")
 				//(continue loop)
 				log(FORCE,BOLD,YELLOW,""+score)
@@ -1321,7 +1376,7 @@ class InterpretationTask extends TemporalTask {
 		endTrack("Running")
 		//--Score
 		startTrack(FORCE,BOLD,"Results")
-		val sys = TreeTime(parser,index,lex)
+		val sys = new TreeTime(parser,index,lex)
 		reportScores(sys,trainScoresRev.reverse.toArray,testScore)
 		endTrack("Results")
 		//--Save Model
@@ -1346,10 +1401,14 @@ class InterpretationTask extends TemporalTask {
 		if(O.train.source == O.DataSource.English) {
 			startTrack("TempEval")
 			//(run)
+			startTrack("Train")
 			val trn = Entry.officialEval(sys,data.train.asInstanceOf[Iterable[Annotation]],
 				true,O.tempevalHome,Execution.touch("attr-train.tab"))
+			endTrack("Train")
+			startTrack("Eval")
 			val tst = Entry.officialEval(sys,data.eval.asInstanceOf[Iterable[Annotation]],
 				false,O.tempevalHome,Execution.touch("attr-test.tab"))
+			endTrack("Eval")
 			//(print)
 			startTrack("Eval Results")
 			log(FORCE,BOLD,GREEN,"TreeTime Train:     " + trn)
@@ -1563,6 +1622,9 @@ object ToyData {
 	private val pastMonths2 = ("past 2 months",(REF <| (AMONTH*2)))
 	private val pastYear = ("past year",(REF <| AYEAR))
 	private val weeks2 = ("2 weeks",(AWEEK*2))
+	private val months2 = ("2 months",(AMONTH*2))
+	private val monthsdash2 = ("2 - month",(AMONTH*2))
+	private val years2 = ("2 years",(AYEAR*2))
 	private val year5 = ("5 years",(AYEAR*5))
 	private val year5AndJunk = ("5 years in 2",(AYEAR*5))
 	private val weeksDash2 = ("2 - weeks",(AWEEK*2))
@@ -1586,9 +1648,6 @@ object ToyData {
 	private val fourthQuarter = ("4st quarter",(QOY(4)))
 	private val y1776 = ("1776",(THEYEAR(1776)))
 	private val y17sp76 = ("17 76",(THEYEAR(1776)))
-	private val months2 = ("2 months",(AMONTH*2))
-	private val monthsdash2 = ("2 - month",(AMONTH*2))
-	private val years2 = ("2 years",(AYEAR*2))
 	private val april = ("april",(MOY(4)))
 	private val april1776 = ("april 1776",(MOY(4) ^ THEYEAR(1776)))
 	private val april2 = ("april 2",(MOY(4) ^ DOM(2)))
@@ -1669,30 +1728,30 @@ object ToyData {
 			store(false,
 			//--Train
 				//(durations)
-				aWeek,aMonth,aQuarter,ayear,weeks2,weeksDash2,week2Period,year5,
+				aWeek,aMonth,aQuarter,ayear,weeks2,months2,weeksDash2,week2Period,year5,
 					year5AndJunk,
-//				//(sequences)
-//				week,month,quarter,year,day,theWeek,
-//				//(cannonicals -> sequences)
-//				thisWeek,thisYear,thisMonth,
-//				//(shifts -- standard)
-//				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
-//				//(shifts -- noncannonical)
-//				pastWeek,thePastWeek,pastYear,pastMonths2,
-//				//(numbers -- basic)
-//				y1776,
-//				//(sequences)
-//				april,
-//				//(intersects)
-//				april1776,april2,
-//				//(days of the week)
-//				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
-//				//(numbers -- complex)
-//				y17sp76,
-//				//(seasons)
-//				spring,summer,fall,winter,
-//				//(floor/ceil)
-//				quarter, firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
+				//(sequences)
+				week,month,quarter,year,day,theWeek,
+				//(cannonicals -> sequences)
+				thisWeek,thisYear,thisMonth,
+				//(shifts -- standard)
+				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+				//(shifts -- noncannonical)
+				pastWeek,thePastWeek,pastYear,pastMonths2,
+				//(numbers -- basic)
+				y1776,
+				//(sequences)
+				april,
+				//(intersects)
+				april1776,april2,
+				//(days of the week)
+				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
+				//(numbers -- complex)
+				y17sp76,
+				//(seasons)
+				spring,summer,fall,winter,
+				//(floor/ceil)
+				quarter, firstQuarter, secondQuarter, thirdQuarter,fourthQuarter,
 //				//(offset -1)
 //				monday_neg1,tuesday_neg1,wednesday_neg1,thursday_neg1,friday_neg1,saturday_neg1,sunday_neg1,
 //				//(hard)

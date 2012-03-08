@@ -48,12 +48,12 @@ env!(
 		o('rulePrior', 0.325),
 		o('lexPrior', 0.0025),
 		o('uniformRoot'),
-		selo(4,'ckyCountType',
+		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
 			'shortWithOffsetZero',
-			'leastNilsWithOffsetZero'),
+			'mostNilsWithOffsetZero'),
 		selo(3,'CkyCountNormalization',
 			'none',
 			'uniform',
@@ -67,12 +67,12 @@ env!(
 			'[]',
 			'[1.0,1.0]',
 			'[0.0,1.0]'),
-		selo(0,'timeDistributionScope', 'Global', 'Local'),
+		selo(1,'timeDistributionScope', 'Global', 'Local'),
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
 		# <training>
 		o('beam', 1500), #1500 works well
-		o('iters', 3),
+		o('iters', 5),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
@@ -98,9 +98,9 @@ env!(
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,2]'),   o('dev',   'English[142,143]'),
-#		o('train', 'TOY'),              o('dev', 'TOY'),
+		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
 

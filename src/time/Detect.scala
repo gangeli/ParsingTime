@@ -34,7 +34,7 @@ import org.goobs.exec.Execution
 //------------------------------------------------------------------------------
 // DETECTION SYSTEM
 //------------------------------------------------------------------------------
-case class DetectedTime(begin:Int,end:Int,time:Option[Temporal]) {
+case class DetectedTime(begin:Int,end:Int,time:Option[(Temporal,Double)]) {
 	var meta:Option[(String,Int)] = None
 	def tagMetaInfo(doc:String,sentI:Int):DetectedTime
 		= tagMetaInfo( Some((doc,sentI)) )
@@ -101,30 +101,32 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 //------------------------------------------------------------------------------
 // CRF
 //------------------------------------------------------------------------------
-class CRFDetector(
-		impl:CRFClassifier[CoreMap],
-		parser:CKYParser
-		) extends TimeDetector {
+case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
 	import CRFDetector._
 
 	def getTemporal(sent:TimeSent):Option[Temporal] = {
-		(0 to 5).foreach{ (beamPow:Int) =>
-			//(parse)
-			val beam = math.pow(2,beamPow).toInt
-			val parses = parser.parse(sent,beam)
-			//(find correct)
-			val evaluated:Array[Any] = parses
-				.map{ _.evaluate }
-				.dropWhile{ _.isInstanceOf[NoTime] }
-			//(return)
-			if(evaluated.length > 0){
-				return Some(evaluated(0).asInstanceOf[Temporal])
-			}
-		}
-		return None
+		None
+//		(0 to 5).foreach{ (beamPow:Int) =>
+//			//(parse)
+//			val beam = math.pow(2,beamPow).toInt
+//			val parses = parser.parse(sent,beam)
+//			//(find correct)
+//			val evaluated:Array[Any] = parses
+//				.map{ _.evaluate }
+//				.dropWhile{ _.isInstanceOf[NoTime] }
+//			//(return)
+//			if(evaluated.length > 0){
+//				return Some(evaluated(0).asInstanceOf[Temporal])
+//			}
+//		}
+//		return None
 	}
 
-	override def findTimes(sent:TimeSent):Array[DetectedTime] = {
+	override def findTimes(sent:TimeSent):Array[DetectedTime] 
+		= findTimes(sent, (t:TimeSent) => None)
+
+	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Double)]
+			):Array[DetectedTime] = {
 		//--Make Input
 		val input:JList[CoreMap] = (0 until sent.length).map{ (i:Int) =>
 			//(make word)
@@ -160,8 +162,7 @@ class CRFDetector(
 				(lst,-1)
 			} else if(!isTime) {
 				//(case: left a time)
-				val bound = (last,index)
-				val temporal = None //TODO getTemporal(sent.slice(last,index))
+				val temporal =  parse(sent.slice(last,index))
 				(DetectedTime(last,index,temporal) :: lst, -1)
 			} else {
 				throw new IllegalStateException("Impossible case")
@@ -232,7 +233,7 @@ object CRFDetector {
 		endTrack("CRF")
 
 		//--Return
-		new CRFDetector(classifier,parser)
+		new CRFDetector(classifier)
 	}
 }
 

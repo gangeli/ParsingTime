@@ -252,6 +252,14 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 	assert(words.length == ordinality.length, 
 		"word and num types lengths must match")
 	//<<methods>>
+	def reIndex(newIndex:Indexing):TimeSent = {
+		TimeSent(
+			words.map{ (w:Int) => newIndex.str2wTest(index.w2str(w))   },
+			pos.map{ (p:Int) => newIndex.str2posTest(index.pos2str(p)) },
+			nums, ordinality, newIndex
+		)
+	}
+
 	var meta:Option[(String,Int)] = None
 	def tagMetaInfo(doc:String,sentI:Int):TimeSent = {
 		this.meta = Some((doc,sentI))

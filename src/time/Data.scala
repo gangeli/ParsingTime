@@ -879,12 +879,14 @@ object DataLib {
 		val beginIndex:Int = expr.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
 		val endIndex:Int = expr.get[JInt,EndIndexAnnotation](classOf[EndIndexAnnotation])
 		val span = tokens.slice(beginIndex,endIndex)
-		//(make datum)
-		 TimeSent(
-			words(span,index,train),
-			pos(span,index,train),
-			nums(span),
-			numTypes(span),
+		mkTimeSent(span,index,train)
+	}
+	def mkTimeSent(tokens:Buffer[CoreLabel],index:Indexing,train:Boolean):TimeSent = {
+		TimeSent(
+			words(tokens,index,train),
+			pos(tokens,index,train),
+			nums(tokens),
+			numTypes(tokens),
 			index)
 	}
 
