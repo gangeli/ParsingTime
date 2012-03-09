@@ -4,6 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Map
 import scala.collection.mutable.ListMap
 import scala.collection.mutable.HashMap
+import scala.collection.mutable.PriorityQueue
 
 import java.util.IdentityHashMap
 
@@ -87,45 +88,74 @@ trait Temporal extends Serializable {
 	}
 	final def distribution(ground:GroundedRange
 			):Iterator[(Temporal,Double,Long)] = {
-		var leftPointer = -1;
-		var rightPointer = 0;
-		new Iterator[(Temporal,Double,Long)]{
-			def hasNext:Boolean
-				= Temporal.this.exists(ground,leftPointer) || 
-				  Temporal.this.exists(ground,rightPointer)
-			def next:(Temporal,Double,Long) = {
-				assert(hasNext, "Calling next when there is no next")
-				val pLeft = prob(ground,leftPointer)
-				val pRight = prob(ground,rightPointer)
-				if( pRight > 0.0 &&
-				    Temporal.this.exists(ground,rightPointer) && 
-				    (pRight >= pLeft || !Temporal.this.exists(ground,leftPointer))) {
-					//(case: have times on the right)
-					assert(Temporal.this.exists(ground,rightPointer),"invalid if cond")
-					val rtn:Temporal = Temporal.this.evaluateTemporal(ground,rightPointer)
-					assert(!rtn.isInstanceOf[NoTime], 
-						"NoTime in distribution (hasNext: "+hasNext+"): " + 
-							Temporal.this + " at " + rightPointer)
-					rightPointer += 1
-					(rtn,pRight,rightPointer-1)
-				} else if(pLeft > 0.0 && Temporal.this.exists(ground,leftPointer)) {
-					//(case: have times on the left)
-					assert(Temporal.this.exists(ground,leftPointer),"invalid if cond")
-					val rtn:Temporal = Temporal.this.evaluateTemporal(ground,leftPointer)
-					assert(!rtn.isInstanceOf[NoTime], 
-						"NoTime in distribution (hasNext: "+hasNext+"): " + 
-							Temporal.this + " at " + leftPointer)
-					leftPointer -= 1
-					(rtn,pLeft,leftPointer+1)
-				} else if(pLeft == 0.0 || pRight == 0.0){
-					//(case: every time has zero probability)
-						rightPointer += 1
-					(new NoTime,0.0,rightPointer-1)
-				} else {
-					//(case: error)
-					assert(!hasNext, "Inconsistent iterator")
-					throw new NoSuchElementException()
+		//--Util
+		//(candidate)
+		case class Candidate(t:Temporal,prob:Double,offset:Long) 
+				extends Ordered[Candidate] {
+			override def compare(c:Candidate) = {
+				val cmp = this.prob - c.prob
+				if(cmp < 0){ 
+					-1 
+				} else if(cmp > 0){ 
+					1 
+				} else if(offset.abs > c.offset.abs){ 
+					-1 
+				} else if(offset < c.offset){ 
+					1 
+				} else{
+					0
 				}
+			}
+		}
+		//(query)
+		def query(pq:PriorityQueue[Candidate],offset:Long) = {
+			if(exists(ground,offset)){
+				val p = prob(ground,offset)
+				if(p > 0.0){
+					val t:Temporal = evaluateTemporal(ground,offset)
+					pq += Candidate(t,p,offset)
+				}
+			}
+		}
+		//(queue)
+		val pq = new PriorityQueue[Candidate]
+		var leftPointer:Long = -1;
+		var rightPointer:Long = 1;
+		//--Find Maximum
+		query(pq,0)
+		query(pq,1)
+		query(pq,-1)
+		while(!pq.isEmpty && pq.head.offset == rightPointer){
+			rightPointer += 1
+			query(pq, rightPointer)
+		}
+		while(!pq.isEmpty && pq.head.offset == leftPointer){
+			leftPointer -= 1
+			query(pq,leftPointer)
+		}
+		//--Distribution
+		var seenTerm = false
+		new Iterator[(Temporal,Double,Long)]{
+			def hasNext:Boolean = {
+				if(pq.isEmpty){
+					false
+				} else if(O.timeDistribution == O.Distribution.Point){
+					!seenTerm
+				} else {
+					true
+				}
+			}
+			def next:(Temporal,Double,Long) = {
+				val Candidate(t,prob,offset) = pq.dequeue
+				if(offset > 0){ 
+					rightPointer += 1 
+					query(pq, rightPointer)
+				} else { 
+					leftPointer -= 1
+					query(pq, leftPointer)
+				}
+				seenTerm = true
+				(t,prob,offset)
 			}
 		}
 	}
@@ -250,11 +280,12 @@ object Temporal {
 			interpreter = new IMain(settings)
 			//(initialize)
 			interpreter.interpret("import time._")
-			interpreter.interpret("import time.Lex._")
 			interpreter.interpret("import org.joda.time._")
 			interpreter.interpret("import org.joda.time.DateTimeFieldType._")
 			interpreter.interpret("import org.joda.time.DurationFieldType._")
 			interpreter.interpret("import edu.stanford.nlp.time.JodaTimeUtils._")
+			interpreter.interpret("val l = new Lex")
+			interpreter.interpret("import l._")
 			interpreter.interpret("val ground = Time(2011,4,26)")
 			interpreter.interpret(
 				"org.joda.time.DateTimeZone.setDefault(org.joda.time.DateTimeZone.UTC);"
@@ -420,8 +451,8 @@ class CompositeRange(
 		}
 	}
 	override def prob(ground:GroundedRange,rawOffset:Long):Double = {
-		val offset = rawOffset //keep old prob
-		super.prob(ground,offset) * probFn(ground,offset)
+		val offset = rawOffset //keep old prob (moves don't affect the probability)
+		probFn(ground,offset)
 	}
 	override def exists(ground:GroundedRange,rawOffset:Long):Boolean = {
 		val offset = rawOffset + moveOffset //new exists though
@@ -819,18 +850,37 @@ object Range {
 					if(rA.exists(ground,intersect.a) && rB.exists(ground,intersect.b)){
 						//^TODO this check really shouldn't have to be here
 						//((term A))
+						val newOffsetA = intersect.a - originA
 						val movedA = rA move originA
+						val normA = movedA.norm
 						val (fnA,grA):(TraverseFn,GroundedRange) =
-							movedA.evaluate(ground,intersect.a-originA)
-						val probA = movedA.prob(ground,intersect.a-originA)
+							movedA.evaluate(ground,newOffsetA)
 						//((term B))
+						val newOffsetB = intersect.b - originB
 						val movedB = rB move originB
+						val normB = movedB.norm
 						val (fnB,grB):(TraverseFn,GroundedRange) =
-							movedB.evaluate(ground,intersect.b-originB)
-						val probB = movedB.prob(ground,intersect.b-originB)
+							movedB.evaluate(ground,newOffsetB)
+						//((probs))
+						val prob =
+							if(newOffsetA == 0 && newOffsetB == 0){
+								if(intersect.a.abs < intersect.b.abs){
+									rA.prob(ground,intersect.a) * movedB.prob(ground,newOffsetB)
+								} else {
+									rB.prob(ground,intersect.b) * movedA.prob(ground,newOffsetA)
+								}
+							} else if(newOffsetA == 0){
+								rA.prob(ground,intersect.a) * movedB.prob(ground,newOffsetB)
+							} else if(newOffsetB == 0){
+								rB.prob(ground,intersect.b) * movedA.prob(ground,newOffsetA)
+							} else {
+//								assert(false,  //TODO enable me
+//									"Origin not at zero for either time " +
+//									newOffsetA + " " + newOffsetB)
+								0.0
+							}
 						//(return)
-						assert(probA >= 0 && probA <= 1, "Not a probability: " + probA)
-						assert(probB >= 0 && probB <= 1, "Not a probability: " + probB)
+						assert(prob >= 0 && prob <= 1, "Not a probability: " + prob)
 						( (fn:TraverseTask) => {
 								fnA( (term:Temporal,offset:Long) => {
 									fn(grA,intersect.a - originA) })
@@ -842,12 +892,13 @@ object Range {
 								Range.mkBegin(grA.begin,grB.begin),
 								Range.mkEnd(grA.end,grB.end)
 							), //<-- temporal
-							probA*probB, //<-- probability
+							prob, //<-- probability
 							true) //<-- exists
 					} else {
 						noTerm
 					}
-				case None => noTerm
+				case None =>
+					noTerm
 				}
 			}
 		}
@@ -1251,6 +1302,7 @@ trait Sequence extends Range with Duration {
 	override def runM:Unit = {
 		getUpdater.map{ case (e,m) =>
 			this.distrib = m(this.toString,true)
+			log(FORCE,"M-Step ["+this+"]: " + this.distrib)
 		}
 	}
 }
@@ -1910,6 +1962,8 @@ object Lex {
 	val PAST:UngroundedRange = impl.PAST
 	val FUTURE:UngroundedRange = impl.FUTURE
 	val ALL_TIME:GroundedRange = impl.ALL_TIME
+
+	def todaysDate = impl.todaysDate
 }
 class Lex extends Serializable {
 	import DateTimeFieldType._

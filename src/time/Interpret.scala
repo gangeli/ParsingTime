@@ -865,7 +865,7 @@ class InterpretationTask extends TemporalTask {
 		def exact:Boolean = { U.sumDiff(diff) <= O.exactMatchThreshold }
 	}
 	
-	def compare(guess:Temporal, gold:Temporal,ground:GroundedRange
+	def compare(guessRaw:Temporal, gold:Temporal,ground:GroundedRange
 			):Iterator[CompareElem] = {
 		val INF = (Duration.INFINITE,Duration.INFINITE)
 		def diff(gold:Temporal,guess:Temporal,second:Boolean):(Duration,Duration) 
@@ -928,7 +928,7 @@ class InterpretationTask extends TemporalTask {
 			case _ => throw fail("Unk (invalid?) case: gold "+gold+" guess "+guess)
 		}
 		//--Map Iterator
-		guess.distribution(ground).map{
+		val rtn = guessRaw.distribution(ground).map{
 				case (guess:Temporal,prob:Double,offset:Long) =>
 			//(get diff)
 			val d = diff(gold,guess,false)
@@ -959,14 +959,15 @@ class InterpretationTask extends TemporalTask {
 				}
 			}
 			//(debug)
-			assert(O.timeDistribution != O.Distribution.Point ||
-				offset == 0L ||
-				prob == 0.0,
-				"Time returned distribution when it shouldn't have: " 
-					+ guess + " (offset=" + offset + ") [prob=" + prob + "]")
+//			assert(O.timeDistribution != O.Distribution.Point || //TODO enable me
+//				offset == 0L ||
+//				prob == 0.0,
+//				"Time returned distribution when it shouldn't have: " 
+//					+ guessRaw + " (offset=" + offset + ") [prob=" + prob + "]")
 			//(return)
 			CompareElem(offset.toInt,d,prob)
 		}
+		rtn
 	}
 
 	def filterCorrect(correct:Array[GoodOutput]):Iterable[GoodOutput] = {
@@ -1131,17 +1132,21 @@ class InterpretationTask extends TemporalTask {
 						case _ => throw new IllegalStateException("Not a temporal: "+parse)
 					}
 					//(for each offset of parse...)
-					val rtn = soFar ::: compare(guess,gold,ground).slice(0,O.scoreBeam)
-						.map{ (elem:CompareElem) =>
+					val compareRes = compare(guess,gold,ground).slice(0,O.scoreBeam).toList
+					val totalProb:Double = compareRes.foldLeft(0.0){ _ + _.prob }
+					val rtn = soFar ::: compareRes.map{ (elem:CompareElem) =>
+							val prob = elem.prob / totalProb
 							//(debug)
-							assert(elem.prob <= lastProb, "Times are not monotonically decreasing")
-							lastProb = elem.prob
+//							assert(prob <= lastProb,  //TODO enable me
+//								"Times are not monotonically decreasing: "+lastProb+"->"+
+//									prob+" from " + guess)
+							lastProb = prob
 							//(create parse)
 							val resultLogProb = 
-								if(O.includeTimeProb){ parse.logProb+math.log(elem.prob) }
+								if(O.includeTimeProb){ parse.logProb+math.log(prob) }
 								else{ parse.logProb }
 							ScoreElem(i,elem.offset,elem.diff,resultLogProb,guess)
-						}.toList
+						}
 					//(timing & return)
 					val lapTime = parseWatch.lap
 					if(lapTime > O.pruneTime && i > O.pruneMinIndex){
