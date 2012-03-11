@@ -76,7 +76,7 @@ public class O {
 	public static Dirichlet<scala.Int> rulePrior = Dirichlet.ZERO();
 	@Option(name="lexPrior", gloss="Dirichlet prior for CKY lexical terms")
 	public static Dirichlet<scala.Int> lexPrior = Dirichlet.ZERO();
-	@Option(name="nilWordPrior", gloss="Dirichlet prior for CKY lexical terms")
+	@Option(name="nilWordPrior", gloss="Dirichlet prior for CKY NIL")
 	public static Dirichlet<scala.Int> nilWordPrior = Dirichlet.ZERO();
 	@Option(name="uniformRoot", gloss="Uniform probability distribution on ROOT")
 	public static boolean uniformRoot = false;

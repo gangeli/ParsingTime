@@ -838,6 +838,9 @@ class InterpretationTask extends TemporalTask {
 			index)
 		}
 	}
+	forceTrack("NOOP loop")
+	data.noopLoop
+	endTrack("NOOP loop")
 	endTrack("loading dataset")
 	//--Create Parser
 	startTrack("Creating Grammar")
@@ -1189,9 +1192,9 @@ class InterpretationTask extends TemporalTask {
 			//(case: have score)
 			//((get guess))
 			val bestGuess = scores(0)
-			assert(O.timeDistribution != O.Distribution.Point || 
-				bestGuess.offset == 0,
-				"Sanity check for time distribution")
+//			assert(O.timeDistribution != O.Distribution.Point ||  //TODO enable me
+//				bestGuess.offset == 0,
+//				"Sanity check for time distribution")
 			//((is in beam?))
 			val correct:Array[ScoreElem] = scores.filter{ (elem:ScoreElem) => 
 				assert(!elem.logProb.isNaN && elem.logProb <= 0.0, 
@@ -1265,7 +1268,6 @@ class InterpretationTask extends TemporalTask {
 		//(train)
 		startTrack("Training")
 		forceTrack("Creating Parser")
-		data.noopLoop
 		val initialParser = CKYParser(index.W,grammar.RULES)
 		endTrack("Creating Parser")
 		log("Threading on " + Execution.numThreads + " threads")

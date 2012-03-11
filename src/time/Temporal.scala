@@ -1302,7 +1302,10 @@ trait Sequence extends Range with Duration {
 	override def runM:Unit = {
 		getUpdater.map{ case (e,m) =>
 			this.distrib = m(this.toString,true)
-			log(FORCE,"M-Step ["+this+"]: " + this.distrib)
+//			log(FORCE,"M-Step ["+this+"]: {"+
+//				"-1->"+G.df.format(this.distrib(-1,-1.0))+" "+
+//				 "0->"+G.df.format(this.distrib( 0, 0.0))+" "+
+//				 "1->"+G.df.format(this.distrib( 1, 1.0))+"}")
 		}
 	}
 }
