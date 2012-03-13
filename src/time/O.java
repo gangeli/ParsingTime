@@ -6,11 +6,12 @@ import java.io.File;
 
 import org.goobs.exec.Option;
 import org.goobs.stats.Dirichlet;
+import org.goobs.stats.Gaussian;
 import org.goobs.util.Decodable;
 
 public class O {
 	public static enum Distribution{ Point, Multinomial, Gaussian }
-	public static enum Scope{ Global, Local }
+	public static enum Scope{ Global, Hybrid, Local }
 	public static enum RunMode{ Interpret, Detect, Console, System }
 
 	//--Data Info
@@ -110,9 +111,9 @@ public class O {
 	@Option(name="timeDistributionScope", gloss="Fix distribution params")
 	public static Scope timeDistributionScope = Scope.Global;
 	@Option(name="gaussianSigma", gloss="Fixed sigma for the temporal gaussian")
-	public static double gaussianSigma = 1.0;
+	public static double gaussianSigma = -1.0;
 	@Option(name="gaussianMuPrior", gloss="Prior for the Gaussian mean")
-	public static Double[] gaussianMuPrior = new Double[]{ 0.0, 5.0 };
+	public static Gaussian gaussianMuPrior = new Gaussian(0.0, 100.0);
 
 	//--TRAINING
 	//(interpretation)

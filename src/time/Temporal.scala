@@ -16,9 +16,8 @@ import edu.stanford.nlp.stats.Counters
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.time.JodaTimeUtils
 
-import org.apache.commons.math.distribution.NormalDistributionImpl
-
 import org.goobs.nlp._
+import org.goobs.stats._
 import org.goobs.util._
 
 import Temporal.{TraverseFn,TraverseTask}
@@ -347,47 +346,63 @@ trait Range extends Temporal {
 //	}
 
 	def ^(other:Range):Range = {
-		val rtn:Range = (this, other) match {
-			case (a:Range,b:NoTime) => new NoTime
-			case (a:SingletonRange,b:SingletonRange) => 
+		val rtn:Range = {
+			if(other.isInstanceOf[NoTime]){ new NoTime }
+			else if(this.isInstanceOf[SingletonRange] && 
+					other.isInstanceOf[SingletonRange]){
 				//(case: two singletons)
 				def groundedUngrounded(gr:GroundedRange,ur:UngroundedRange
 						):SingletonRange = {
 					//TODO DEADLINE HACK
 					ur
 				}
-				(a,b) match {
-					case (a:GroundedRange,b:GroundedRange) =>
-						val cand = new GroundedRange(
-							Range.mkBegin(a.begin,b.begin),
-							Range.mkEnd(a.end,b.end)
-						)
-						if(cand.end < cand.begin){ new NoTime }
-						else{ cand }
-					case (a:GroundedRange,b:UngroundedRange) => groundedUngrounded(a,b)
-					case (a:UngroundedRange,b:GroundedRange) => groundedUngrounded(b,a)
-					case (a:UngroundedRange,b:UngroundedRange) => {
-						val begin:Duration = Duration.max(a.begin,b.begin)
-						val end:Duration = Duration.min(a.end,b.end)
-						val norm:Duration = end-begin
-						if(norm < 0){ 
-							new NoTime
-						} else if(begin == Duration.NEG_INFINITE 
-								&& end == Duration.NEG_INFINITE){ 
-							new NoTime
-						} else if(begin == Duration.NEG_INFINITE){ 
-							new UngroundedRange(-norm,end) 
-						} else {
-							new UngroundedRange(norm,begin) 
-						}
+				if(this.isInstanceOf[GroundedRange] && other.isInstanceOf[GroundedRange]){
+					val a = this.asInstanceOf[GroundedRange]
+					val b = other.asInstanceOf[GroundedRange]
+					val cand = new GroundedRange(
+						Range.mkBegin(a.begin,b.begin),
+						Range.mkEnd(a.end,b.end)
+					)
+					if(cand.end < cand.begin){ new NoTime }
+					else{ cand }
+				} else if(this.isInstanceOf[GroundedRange] &&
+						other.isInstanceOf[UngroundedRange]){
+					groundedUngrounded(this.asInstanceOf[GroundedRange],other.asInstanceOf[UngroundedRange])
+				} else if(this.isInstanceOf[UngroundedRange] &&
+						other.isInstanceOf[GroundedRange]){
+					groundedUngrounded(other.asInstanceOf[GroundedRange],this.asInstanceOf[UngroundedRange])
+				} else if(this.isInstanceOf[UngroundedRange] &&
+						other.isInstanceOf[UngroundedRange]){
+					val a = this.asInstanceOf[UngroundedRange]
+					val b = other.asInstanceOf[UngroundedRange]
+					val begin:Duration = Duration.max(a.begin,b.begin)
+					val end:Duration = Duration.min(a.end,b.end)
+					val norm:Duration = end-begin
+					if(norm < 0){ 
+						new NoTime
+					} else if(begin == Duration.NEG_INFINITE 
+							&& end == Duration.NEG_INFINITE){ 
+						new NoTime
+					} else if(begin == Duration.NEG_INFINITE){ 
+						new UngroundedRange(-norm,end) 
+					} else {
+						new UngroundedRange(norm,begin) 
 					}
-					case _ => throw fail("No such case in theory (new SingletonRange?)")
+				} else {
+					throw fail("Bad case")
 				}
-			case (a:SingletonRange,b:AnalyticallyIntersectable) => 
-				b.intersectAnalytically(a) //shortcut
-			case (a:AnalyticallyIntersectable,b:SingletonRange) => 
-				a.intersectAnalytically(b) //^
-			case (a:RepeatedRange,b:RepeatedRange) => 
+			} else if(this.isInstanceOf[SingletonRange] && 
+					other.isInstanceOf[AnalyticallyIntersectable]){
+				other.asInstanceOf[AnalyticallyIntersectable]
+					.intersectAnalytically(this.asInstanceOf[SingletonRange]) //shortcut
+			} else if(this.isInstanceOf[AnalyticallyIntersectable] && 
+					other.isInstanceOf[SingletonRange]){
+				this.asInstanceOf[AnalyticallyIntersectable]
+					.intersectAnalytically(other.asInstanceOf[SingletonRange]) //^
+			} else if(this.isInstanceOf[RepeatedRange] && 
+					other.isInstanceOf[RepeatedRange]){
+				val a:RepeatedRange = this.asInstanceOf[RepeatedRange]
+				val b:RepeatedRange = other.asInstanceOf[RepeatedRange]
 				if( a.delta == Duration.ZERO && b.delta == Duration.ZERO &&
 				    (a.interv == b.norm || b.interv == a.norm)  ){
 					//no weird offsets, and one doesn't occur multiple times in the other
@@ -397,12 +412,20 @@ trait Range extends Temporal {
 				} else {
 					Range.intersectSearch(b,a)
 				}
-			case (a:RepeatedRange,b:CompositeRange) => Range.intersectSearch(a,b)
-			case (a:CompositeRange,b:RepeatedRange) => Range.intersectSearch(a,b)
-			case (a:CompositeRange,b:CompositeRange) => Range.intersectSearch(a,b)
-			case _ => throw fail("Cannot intersect: " + this + " with " + other +
-				" types: " + this.getClass + " " + other.getClass + "  : "+
-				(this.isInstanceOf[Sequence] && other.isInstanceOf[Sequence]))
+			} else if(this.isInstanceOf[RepeatedRange] &&
+					other.isInstanceOf[CompositeRange]){
+				Range.intersectSearch(this.asInstanceOf[Sequence],other.asInstanceOf[Sequence])
+			} else if(this.isInstanceOf[CompositeRange] &&
+					other.isInstanceOf[RepeatedRange]){
+				Range.intersectSearch(this.asInstanceOf[Sequence],other.asInstanceOf[Sequence])
+			} else if(this.isInstanceOf[CompositeRange] &&
+					other.isInstanceOf[CompositeRange]){
+				Range.intersectSearch(this.asInstanceOf[Sequence],other.asInstanceOf[Sequence])
+			} else {
+				throw fail("Cannot intersect: " + this + " with " + other +
+					" types: " + this.getClass + " " + other.getClass + "  : "+
+					(this.isInstanceOf[Sequence] && other.isInstanceOf[Sequence]))
+			}
 		}
 		rtn
 	}
@@ -1453,7 +1476,17 @@ class RepeatedRange(
 	}
 
 	override def prob(ground:GroundedRange,offset:Long):Double = {
-		val cand:Double = this.distrib( offset, diff(ground,offset) )
+		val cand:Double = 
+			if(bound != null){
+				val groundedBound = bound.ground(ground)
+				if(groundedBound.contains( doGround(ground,offset) )){
+					math.min(1.0, this.interv / bound.ground(ground).norm)
+				} else {
+					0.0
+				}
+			} else {
+				this.distrib( offset, diff(ground,offset) )
+			}
 		assert(cand >= 0.0 && cand <= 1.0, "Invalid probability: " + cand)
 		cand
 	}
@@ -1541,66 +1574,31 @@ object Sequence {
 	type Updater = ((Long,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
 
 	def mkGaussianUpdater:Sequence.Updater = {
-		var data:List[(Double,Double)] = List[(Double,Double)]()
-		var dist:Distribution = null
+		//--Variables
+		//(initial distribution)
+		assert(O.timeDistributionParams.length == 2, "Bad gaussian params")
+		val muInit:Double = O.timeDistributionParams(0)
+		val sigmaInit:Double = O.timeDistributionParams(1)
+		var gauss = new Gaussian(muInit,sigmaInit)
+		//(em overhead)
+		var ess = gauss.newStatistics(O.gaussianMuPrior,O.gaussianSigma)
 		var seenE:Boolean = false
-		//(updateE)
+		//--E-Updater
 		val e = (o:Long,x:Double,logprob:Double) => { 
-			assert(logprob <= 0.0, "Invalid log probability: " + logprob)
-			data = (x,logprob) :: data 
+			ess.updateEStep(x,math.exp(logprob))
 			seenE = true
 		}
-		//(runM)
+		//--M-Step
 		val m = (tag:String,update:Boolean) => {
-			if((update && seenE) || dist == null){
-				//(parameters)
-				assert(O.timeDistributionParams.length == 2, "Bad gaussian params")
-				val muPrior:Double = O.timeDistributionParams(0)
-				val sigmaPrior:Double = O.timeDistributionParams(1)
-				//((mu))
-				val (muNumer,muDenom) = data.foldLeft((muPrior,0.0)){ 
-					case ((numer:Double,denom:Double),(x:Double,logprob:Double)) =>
-						val prob = math.exp(logprob)
-						val count = if(O.hardEM){ x } else { x*prob }
-						(numer+count, denom+{if(O.hardEM){ 1.0 } else { prob }})
-					}
-				val mu:Double = if(muDenom == 0){ muPrior } else { muNumer / muDenom }
-				//((sigma))
-				val (sigmaNumer,sigmaDenom)=data.foldLeft((sigmaPrior*sigmaPrior,0.0)){ 
-					case ((numer:Double,denom:Double),(x:Double,logprob:Double)) =>
-						val prob = math.exp(logprob)
-						val count = if(O.hardEM){ 1.0 } else { prob }
-						(numer+count*(x-mu)*(x-mu), 
-							denom+{if(O.hardEM){ 1.0 } else { prob }})
-					}
-				val sigmasq:Double
-					= if(sigmaDenom == 0){ sigmaPrior*sigmaPrior } 
-					  else { sigmaNumer / sigmaDenom }
-				//(debug)
-				assert(sigmasq > 0.0, "Sigma^2 is zero: " + sigmasq)
-				assert(!sigmasq.isNaN, "Sigma^2 is NaN: " + sigmasq)
-				assert(!mu.isNaN, "mu is NaN: " + mu)
-				if(dist != null){
-					val str = "Normalize ["+tag+"] ("+mu+","+math.sqrt(sigmasq)+")"
-					if(O.printAllParses){ log(FORCE,str) } else { log(str) }
-				}
-				//(clear data)
-				data = List[(Double,Double)]()
-				//(distribution)
-//				dist = (offset:Long,x:Double) => {
-//					1.0 / math.sqrt(2.0*math.Pi*sigmasq) * 
-//						math.exp( -1.0*(x-mu)*(x-mu) / (2.0*sigmasq) ) //<--value
-//				}
-				val distribImpl = new NormalDistributionImpl(mu,math.sqrt(sigmasq))
-				dist = (offset:Long,x:Double) => {
-					distribImpl.cumulativeProbability(x+0.5)-
-					distribImpl.cumulativeProbability(x-0.5)               //<--CDF
-				}
+			if(update && seenE){
+				gauss = ess.runMStep
+				log(FORCE,"m-update["+tag+"]: " + gauss)
+				ess.clear
+				seenE = false
 			}
-			seenE = false
-			dist
+			(offset:Long,x:Double) => gauss.cdf(x-0.5, x+0.5)
 		}
-		//(return)
+		//--Return
 		(e,m)
 	}
 	lazy val gaussianUpdater:Updater = mkGaussianUpdater
@@ -1972,23 +1970,34 @@ class Lex extends Serializable {
 	import DateTimeFieldType._
 	import edu.stanford.nlp.time.JodaTimeUtils._
 	
-	def updater:Sequence.Updater = {
+	def updater(typ:Symbol):Sequence.Updater = {
 		//(overhead)
 		import O.Distribution._
 		import O.Scope._
 		import Sequence.{pointUpdater,multinomialUpdater,gaussianUpdater}
 		import Sequence.{mkMultinomialUpdater,mkGaussianUpdater}
 		//(routing)
+		val updaters = new HashMap[Symbol,Sequence.Updater]
 		O.timeDistribution match {
 			case Point => pointUpdater
 			case Multinomial =>
 				O.timeDistributionScope match {
 					case Global => multinomialUpdater
+					case Hybrid => 
+						if(!updaters.contains(typ)){
+							updaters(typ) = mkMultinomialUpdater
+						}
+						updaters(typ)
 					case Local => mkMultinomialUpdater
 				}
 			case Gaussian =>
 				O.timeDistributionScope match {
 					case Global => gaussianUpdater
+					case Hybrid => 
+						if(!updaters.contains(typ)){
+							updaters(typ) = mkGaussianUpdater
+						}
+						updaters(typ)
 					case Local => mkGaussianUpdater
 				}
 		}
@@ -2013,21 +2022,21 @@ class Lex extends Serializable {
 				Array[DateTimeFieldType](millisOfSecond),
 				Array[Int](0)),
 			ASEC,
-			ASEC,updater).name("everySecond")
+			ASEC,updater('time)).name("everySecond")
 	val MIN:Sequence 
 		= new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](secondOfMinute,millisOfSecond),
 				Array[Int](0,0)),
 			AMIN,
-			AMIN,updater).name("everyMinute")
+			AMIN,updater('time)).name("everyMinute")
 	val HOUR:Sequence 
 		= new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](0,0,0)),
 			AHOUR,
-			AHOUR,updater).name("everyHour")
+			AHOUR,updater('time)).name("everyHour")
 	val DAY:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2035,7 +2044,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](0,0,0,0)),
 			ADAY,
-			ADAY,updater).name("everyDay")
+			ADAY,updater('day)).name("everyDay")
 	val WEEK:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2043,7 +2052,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,0,0,0,0)),
 			AWEEK,
-			AWEEK,updater).name("everyWeek")
+			AWEEK,updater('week)).name("everyWeek")
 	val MONTH:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2051,7 +2060,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,0,0,0,0)),
 			AMONTH,
-			AMONTH,updater).name("everyMonth")
+			AMONTH,updater('month)).name("everyMonth")
 	val QUARTER:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2059,7 +2068,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AMONTH*3,
-			AMONTH*3,updater).name("everyQuarter") 
+			AMONTH*3,updater('month)).name("everyQuarter") 
 	val HALFYEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2067,7 +2076,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AMONTH*6,
-			AMONTH*6,updater).name("everyQuarter") 
+			AMONTH*6,updater('month)).name("everyQuarter") 
 	val YEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2075,7 +2084,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AYEAR,
-			AYEAR,updater).name("everyYear")
+			AYEAR,updater('year)).name("everyYear")
 	//--Misc
 	val TODAY:Range = Range(DAY)
 	val REF:Range = Range(Duration.ZERO)
@@ -2087,7 +2096,7 @@ class Lex extends Serializable {
 				Array[DateTimeFieldType](dayOfWeek,millisOfDay),
 				Array[Int](i,0)),
 			ADAY,
-			AWEEK,updater)
+			AWEEK,updater('week))
 	val MON:Sequence = mkDOW(1)
 	val TUE:Sequence = mkDOW(2)
 	val WED:Sequence = mkDOW(3)
@@ -2101,28 +2110,28 @@ class Lex extends Serializable {
 				Array[DateTimeFieldType](minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,0)),
 			AMIN,
-			AHOUR,updater).name("MOH("+i+")") }.toArray
+			AHOUR,updater('time)).name("MOH("+i+")") }.toArray
 	val HOD = (0 until 24).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](hourOfDay,minuteOfHour,secondOfMinute,
 					millisOfSecond),
 				Array[Int](i,0,0,0)),
 			AHOUR,
-			ADAY,updater).name("HOD("+i+")") }.toArray
+			ADAY,updater('time)).name("HOD("+i+")") }.toArray
 	val TOD = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](4+i*4,0,0,0)),
 			AHOUR*4,
-			ADAY,updater).name("TOD("+i+")") }.toList).toArray
+			ADAY,updater('time)).name("TOD("+i+")") }.toList).toArray
 	val DOW = (List(new NoTime) ::: (1 to 7).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](dayOfWeek,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,0,0,0)),
 			ADAY,
-			AWEEK,updater).name("DOW("+i+")") }.toList).toArray
+			AWEEK,updater('week)).name("DOW("+i+")") }.toList).toArray
 	val DOWOM:Array[Array[Sequence]] = 
 		//(dow(0) is invalid)
 		(List[Array[Sequence]](
@@ -2139,7 +2148,7 @@ class Lex extends Serializable {
 						hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 					Array[Int](wom,dow,0,0,0,0)),
 				AWEEK,
-				AMONTH,updater).name("DOW("+dow+")WOM("+wom+")") }.toList).toArray
+				AMONTH,updater('month)).name("DOW("+dow+")WOM("+wom+")") }.toList).toArray
 		}.toList).toArray
 	val DOM = (List(new NoTime) ::: (1 to 31).map{ i => new RepeatedRange(
 			new Partial(
@@ -2147,49 +2156,49 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,0,0,0)),
 			ADAY,
-			AMONTH,updater).name("DOM("+i+")") }.toList).toArray
+			AMONTH,updater('month)).name("DOM("+i+")") }.toList).toArray
 	val WOY = (List(new NoTime) ::: (1 to 53).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](weekOfWeekyear,dayOfWeek,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,0,0,0,0)),
 			AWEEK,
-			AYEAR,updater).name("WOY("+i+")") }.toList).toArray
+			AYEAR,updater('year)).name("WOY("+i+")") }.toList).toArray
 	val WOM = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](WeekOfMonth,dayOfWeek,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,0,0,0,0)),
 			AWEEK,
-			AMONTH,updater).name("WOY("+i+")") }.toList).toArray
+			AMONTH,updater('month)).name("WOY("+i+")") }.toList).toArray
 	val MOY = (List(new NoTime) ::: (1 to 12).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](monthOfYear,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,0,0,0,0)),
 			AMONTH,
-			AYEAR,updater).name("MOY("+i+")") }.toList).toArray
+			AYEAR,updater('month)).name("MOY("+i+")") }.toList).toArray
 	val QOY = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AMONTH*3,
-			AYEAR,updater).name("QOY("+i+")") }.toList).toArray
+			AYEAR,updater('month)).name("QOY("+i+")") }.toList).toArray
 	val HOY = (List(new NoTime) ::: (1 to 2).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](HalfYearOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AMONTH*6,
-			AYEAR,updater).name("HOY("+i+")") }.toList).toArray
+			AYEAR,updater('year)).name("HOY("+i+")") }.toList).toArray
 	val SEASON = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,3,1,0,0,0,0)),
 			AMONTH*3,
-			AYEAR,updater).name("SEASON("+i+")") }.toList).toArray
+			AYEAR,updater('month)).name("SEASON("+i+")") }.toList).toArray
 	val YOC = (0 until 100).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](yearOfCentury,
@@ -2197,7 +2206,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AYEAR,
-			AYEAR*100,updater).name("YOC("+i+")") }.toArray
+			AYEAR*100,updater('year)).name("YOC("+i+")") }.toArray
 	val DOC = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](DecadeOfCentury,YearOfDecade,
@@ -2205,7 +2214,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,1,1,0,0,0,0)),
 			AYEAR*10,
-			AYEAR*100,updater).name("DOC("+i+")") }.toArray
+			AYEAR*100,updater('year)).name("DOC("+i+")") }.toArray
 	val YOD = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](YearOfDecade,
@@ -2213,7 +2222,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AYEAR,
-			AYEAR*10,updater).name("YOD("+i+")") }.toArray
+			AYEAR*10,updater('year)).name("YOD("+i+")") }.toArray
 	def THEYEAR(i:Int) = Range(Time(i),Time(i+1))
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
