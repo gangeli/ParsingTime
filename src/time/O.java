@@ -109,6 +109,10 @@ public class O {
 	public static Double[] timeDistributionParams = null;
 	@Option(name="timeDistributionScope", gloss="Fix distribution params")
 	public static Scope timeDistributionScope = Scope.Global;
+	@Option(name="gaussianSigma", gloss="Fixed sigma for the temporal gaussian")
+	public static double gaussianSigma = 1.0;
+	@Option(name="gaussianMuPrior", gloss="Prior for the Gaussian mean")
+	public static Double[] gaussianMuPrior = new Double[]{ 0.0, 5.0 };
 
 	//--TRAINING
 	//(interpretation)

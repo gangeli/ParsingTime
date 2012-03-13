@@ -67,12 +67,14 @@ env!(
 			'[]',
 			'[1.0,1.0]',
 			'[0.0,1.0]'),
+		o('gaussianSigma', 1.0),
+		o('gaussianMuPrior', '[0.0,2.0]'),
 		selo(1,'timeDistributionScope', 'Global', 'Local'),
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
 		# <training>
 		o('beam', 1500), #1500 works well
-		o('iters', 5),
+		o('iters', 15),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
@@ -89,7 +91,7 @@ env!(
 		selo(0,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
-		o('exactMatchThreshold', 61),        # a second
+		o('exactMatchThreshold', 1),        # exact
 		o('scoreGranularity', 60*60*24),    # a day
 		o('c_overconstraining', 1.0),
 		o('c_vagueness', 1.0),
@@ -98,8 +100,8 @@ env!(
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
-		o('train', 'English[0,2]'),   o('dev',   'English[142,143]'),
+		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,2]'),   o('dev',   'English[142,143]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test

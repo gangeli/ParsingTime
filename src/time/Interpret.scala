@@ -97,15 +97,15 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 		}.flatten
 	}
 	var nils:Seq[NodeType] = List[NodeType]()
-	def mkNils(indexer:Indexer[String], num:Int) {
+	def mkNils(index:Indexing, num:Int) {
 		nils = if(O.lexNils){
-			(0 until indexer.size).map{ (w:Int) =>
-				val word:String = indexer.get(w)
-				if(w == num) {
+			(0 until index.W).map{ (w:Int) =>
+				if(w == index.NUM) {
 					nums.map{ (num:NodeType) =>
 						NodeType.make(Symbol("NIL-"+num.toString), 'nil, 'nilnum)
 					}
 				} else {
+					val word:String = index.w2str(w)
 					List[NodeType](NodeType.makePreterminal(Symbol("NIL-"+word), 'nil))
 				}
 			}.flatten
@@ -132,7 +132,7 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 	NodeType.make("year(n)")
 	NodeType.make("century(n)")
 	//(nils)
-	mkNils(index.wordIndexer,index.NUM)
+	mkNils(index,index.NUM)
 	//--Numbers
 	assert(!nums.isEmpty, "no number terms!")
 	
@@ -809,8 +809,10 @@ case class TreeTime(
 			}
 		}
 	}
-
 }
+
+
+
 class InterpretationTask extends TemporalTask {
 	//--Initialize JodaTime
 	log("JodaTime settings")
@@ -865,7 +867,7 @@ class InterpretationTask extends TemporalTask {
 	case class CompareElem(offset:Int,diff:(Duration,Duration),prob:Double)
 	case class ScoreElem(index:Int,offset:Int,diff:(Duration,Duration),
 			logProb:Double, temporal:Temporal){
-		def exact:Boolean = { U.sumDiff(diff) <= O.exactMatchThreshold }
+		def exact:Boolean = { U.sumDiff(diff) < O.exactMatchThreshold }
 	}
 	
 	def compare(guessRaw:Temporal, gold:Temporal,ground:GroundedRange
@@ -1223,11 +1225,11 @@ class InterpretationTask extends TemporalTask {
 		}
 		//--Log
 		log({if(isCorrect) FORCE else null },"Guess:  " + viterbi.orNull)
+		log({if(isCorrect) FORCE else null },"Gold:   " + gold)
 		log({if(isCorrect) FORCE else null },"Tree:   " + {
 			if(parses.length > 0){
 				parses(0).asParseString(index.w2str(_),grammar.r2str(_)) 
 			} else{ "" } })
-		log({if(isCorrect) FORCE else null },"Gold:   " + gold)
 		log({if(isCorrect) FORCE else null },"Ground: " + grounding)
 		score.lock.release
 		//--Post-Filter
@@ -1354,7 +1356,7 @@ class InterpretationTask extends TemporalTask {
 			val parser:CKYParser = 
 				try {
 					log("Loading parser at: " + O.interpretModel)
-					edu.stanford.nlp.io.IOUtils.readObjectFromFile(O.interpretModel)
+					IOUtils.readObjectFromFile(O.interpretModel)
 					.asInstanceOf[TreeTime]
 					.parser
 				} catch {
@@ -1391,11 +1393,8 @@ class InterpretationTask extends TemporalTask {
 			try {
 				import org.goobs.util.TrackedObjectOutputStream
 				import java.io.FileOutputStream
-				new TrackedObjectOutputStream(new FileOutputStream(O.interpretModel)
-					).writeObject(sys)
-				new TrackedObjectOutputStream(new FileOutputStream(
-						Execution.touch("interpretModel.ser.gz")
-					)).writeObject(sys)
+				IOUtils.writeObjectToFile(sys,O.interpretModel)
+				IOUtils.writeObjectToFile(sys,Execution.touch("interpretModel.ser.gz"))
 			} catch {
 				case (e:Throwable) => throw new RuntimeException(e)
 			}
@@ -1771,4 +1770,5 @@ object ToyData {
 			store(true,lastMonth))
 	}
 }
+
 

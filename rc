@@ -2,15 +2,74 @@
 #-----
 # Tmp
 #-----
+function adiff {
+	cat $1 | grep -v "type" | awk '{ print $1 " " $2 " " $3 " " $8 }' > tmp/guess.tab
+	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep -v "type"\
+		| awk '{ print $1 " " $2 " " $3 " " $8 }' > tmp/gold.tab
+	vimdiff tmp/guess.tab tmp/gold.tab
+}
+function ediff {
+	cat $1 | awk '{ print $1 " " $2 " " $3 }' > tmp/guess.tab
+	cat aux/tempeval2/training/english/data/timex-extents.tab\
+		| awk '{ print $1 " " $2 " " $3 }' > tmp/gold.tab
+	vimdiff tmp/guess.tab tmp/gold.tab
+}
 function diff {
 	last=`ls out | sort -nr | head -n 1`
 	if [ "$1" != "" ]; then
 		last="$1.exec"
 	fi
-	cat out/$last/train-extent.tab | awk '{ print $1 " " $2 " " $3 }' > tmp/guess.tab
-	cat aux/tempeval2/training/english/data/timex-extents.tab\
-		| awk '{ print $1 " " $2 " " $3 }' > tmp/gold.tab
-	vimdiff tmp/guess.tab tmp/gold.tab
+	ediff out/$last/train-extent.tab
+}
+
+#-----
+# Entries
+#-----
+
+function interpret {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	java\
+		-mx2g\
+		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
+		time.Interpret\
+			tempeval\
+			"out/$last/interpretModel.ser.gz"\
+			aux/coremap/tempeval2-english-retok-numbers\
+			aux/tempeval2
+}
+
+function sutimeInterpret {
+	java\
+		-mx2g\
+		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
+		time.Interpret\
+			tempeval\
+			"edu.stanford.nlp.time.TimeAnnotator"\
+			aux/coremap/tempeval2-english\
+			aux/tempeval2
+}
+function heideltimeInterpret {
+	java\
+		-mx2g\
+		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
+		time.Interpret\
+			tempeval\
+			"edu.stanford.nlp.time.HeidelTimeAnnotator"\
+			aux/coremap/tempeval2-english\
+			aux/tempeval2
+}
+function gutimeInterpret {
+	java\
+		-mx2g\
+		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
+		time.Interpret\
+			tempeval\
+			"edu.stanford.nlp.time.GUTimeAnnotator"\
+			aux/coremap/tempeval2-english\
+			aux/tempeval2
 }
 
 #-----

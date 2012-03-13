@@ -830,10 +830,10 @@ object DataLib {
 		if(t == null || t == NumberType.NONE){
 			(NumberType.NONE,Int.MinValue)
 		} else if(math.floor(numVal.doubleValue) == numVal.doubleValue){
-			(NumberType.REAL,numVal.doubleValue.toInt)
+			(t,numVal.doubleValue.toInt)
 		} else {
-			assert(numVal != null && numVal != Int.MinValue, "Bad number value")
-			(t,numVal.intValue)
+			assert(numVal != null && numVal != null, "Bad number value")
+			(NumberType.REAL,numVal.intValue)
 		}
 	}
 	
