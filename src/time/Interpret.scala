@@ -119,8 +119,6 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 	NodeType.make('Range)
 	NodeType.make('Duration)
 	NodeType.make('Sequence)
-	//(some functions)
-	NodeType.make("F_{N0th}2S")
 	//(sequences)
 	NodeType.make("moh(n)")
 	NodeType.make("hod(n)")
@@ -146,7 +144,7 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 			case (soFar:List[(NodeType,Symbol,Symbol)],r:String) =>
 		durationTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
 				case (soFar:List[(NodeType,Symbol,Symbol)],d:String) =>
-			( NodeType.make(Symbol("F_{"+r+d+"}2"+r)),Symbol(r),Symbol(d)
+			( NodeType.make(Symbol("F_{"+r+d+"}2"+r),'fn),Symbol(r),Symbol(d)
 				) :: soFar
 		} ::: soFar
 	}.toSet ++
@@ -155,7 +153,7 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 			case (soFar:List[(NodeType,Symbol,Symbol)],r1:String) =>
 		rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
 				case (soFar:List[(NodeType,Symbol,Symbol)],r2:String) =>
-			(NodeType.make(Symbol("F_{"+r1+r2+"}2"+r1)),
+			(NodeType.make(Symbol("F_{"+r1+r2+"}2"+r1),'fn),
 				Symbol(r1),Symbol(r2)) :: soFar
 		} ::: soFar
 	}}.toList
@@ -163,21 +161,21 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 	//((like r2r))
 	val fn1 = {rangeTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
 			case (soFar:List[((NodeType,Symbol),Symbol)],r:String) =>
-		((NodeType.make(Symbol("F_{"+r+"}2"+r)),Symbol(r)),Symbol(r)) :: soFar
+		((NodeType.make(Symbol("F_{"+r+"}2"+r),'fn),Symbol(r)),Symbol(r)) :: soFar
 	}.toSet ++
 	//((n2r))
 	List[((NodeType,Symbol),Symbol)](
-		((NodeType(Symbol("F_{N0th}2S")),'S), 'N0th)
+		((NodeType.make(Symbol("F_{N0th}2S"),'fn),'S), 'N0th)
 	) ++
 	//((like d2d))
 	durationTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
 			case (soFar:List[((NodeType,Symbol),Symbol)],d:String) =>
-		((NodeType.make(Symbol("F_{"+d+"}2"+d)),Symbol(d)),Symbol(d)) :: soFar
+		((NodeType.make(Symbol("F_{"+d+"}2"+d),'fn),Symbol(d)),Symbol(d)) :: soFar
 	}}.toList
 	
 	//--Preterminal Equivalents
 	//(add lex entries)
-	NodeType.all.foreach{ (nt:NodeType) =>
+	NodeType.all.filter{ _.flag('fn) }.foreach{ (nt:NodeType) =>
 		if(!nt.isPreterminal && !nt.flag('nil)){
 			NodeType.makePreterminal(nt.toString + "_")
 		}
@@ -259,6 +257,16 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 		) :::
 		(1 to 7).map{(i:Int) => (DOWOM(i), DOW_STR(i-1)+"$(n)$")}.toList :::
 		Nil
+	//(associated node types)
+	ranges.foreach{ case (r:Range,s:String) =>
+		NodeType.makePreterminal(s+"_",'Range)
+	}
+	sequences.foreach{ case (r:Sequence,s:String) =>
+		NodeType.makePreterminal(s+"_",'Sequence)
+	}
+	durations.foreach{ case (d:Duration,s:String) =>
+		NodeType.makePreterminal(s+"_",'Duration)
+	}
 	
 	//----------
 	// RULES
@@ -271,15 +279,18 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 		//--Lex
 		//(primitives)
 		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
-			(new TimeLex((sent:Option[Sentence],i:Int) => r, NodeType('Range_)
+			val sym = Symbol(s+"_")
+			(new TimeLex((sent:Option[Sentence],i:Int) => r, NodeType(sym)
 					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
 		}
 		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
-			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Duration_)
+			val sym = Symbol(s+"_")
+			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType(sym)
 					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
 		}
 		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
-			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType('Sequence_)
+			val sym = Symbol(s+"_")
+			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType(sym)
 					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
 		}
 		//(nil)
@@ -643,15 +654,36 @@ class Grammar(index:Indexing,lex:Lex) extends Serializable {
 									new TimeUnary(hack((fn:Range=>Range) => fn),
 										NodeType.ROOT, NodeType('F_R2R)) )
 							else List[TimeUnary]() }
+		
 		//--Preterminal Identities
 		rtn = rtn ::: NodeType.all
-				.filter{ (nt:NodeType) => 
-					val cand = nt.toString+"_"
-					!nt.isPreterminal && NodeType.exists(cand) }
-				.map{ (nonPreterminal:NodeType) =>
-					val preterminal:NodeType = NodeType(nonPreterminal.toString+"_")
-					new TimeUnary((x:Any) => x,nonPreterminal,preterminal) }
-				.toList
+				.filter{ (nt:NodeType) =>
+					nt.isPreterminal
+				}.map{ (pt:NodeType) =>
+					if(pt.flag('Sequence)){
+						Some(new TimeUnary((x:Any) => x,NodeType('Sequence),pt))
+					} else if(pt.flag('Range)){
+						Some(new TimeUnary((x:Any) => x,NodeType('Range),pt))
+					} else if(pt.flag('Duration)){
+						Some(new TimeUnary((x:Any) => x,NodeType('Duration),pt))
+					} else {
+						val proposedParent:String
+							= pt.toString.substring(0,pt.toString.length-1)
+						if(pt.toString.endsWith("_") && NodeType.exists(proposedParent)){
+							Some(new TimeUnary((x:Any) => x,NodeType(proposedParent),pt))
+						} else {
+							None
+						}
+					}
+				}.filter{_.isDefined}.map{ _.get }.toList
+//		rtn = rtn ::: NodeType.all
+//				.filter{ (nt:NodeType) => 
+//					val cand = nt.toString+"_"
+//					!nt.isPreterminal && NodeType.exists(cand) }
+//				.map{ (nonPreterminal:NodeType) =>
+//					val preterminal:NodeType = NodeType(nonPreterminal.toString+"_")
+//					new TimeUnary((x:Any) => x,nonPreterminal,preterminal) }
+//				.toList
 		//--Return
 		rtn.toArray
 	}
@@ -1324,11 +1356,14 @@ class InterpretationTask extends TemporalTask {
 						case GoodOutput(tree,value,offset,prob,ground,s) =>
 					val gr:GroundedRange = Range(ground,ground)
 					assert(prob > 0.0 && prob <= 1.0, "Bad time probability: " + prob)
+//					forceTrack(tree.asParseString(index.w2str(_),grammar.r2str(_)))
 					value.traverse(gr,offset,
 						(term:Temporal,trueOffset:Long) => {
+//							log(FORCE,"Touching " + term + " " + term.getClass)
 							term.updateE(gr,trueOffset,if(O.hardEM) 0 else U.safeLn(prob))
 						}
 					)
+//					endTrack(tree.asParseString(index.w2str(_),grammar.r2str(_)))
 				}
 				//((M-step))
 				nonZeroGoodParses.foreach{ 
@@ -1622,6 +1657,7 @@ object ToyData {
 	private val lastWeekToday = ("last week today",(WEEK move -1))
 	private val lastWeekNow = ("last week now",(WEEK move -1))
 	private val lastWeek = ("last week",(WEEK move -1))
+	private val aWeekAgo = ("a week ago",(Range(todaysDate,todaysDate) << AWEEK))
 	private val weekLast = ("week last",(WEEK move -1))
 	private val pastWeek = ("past week",(REF <| AWEEK))
 	private val thePastWeek = ("the past week",(REF <| AWEEK))
@@ -1741,7 +1777,7 @@ object ToyData {
 				//(cannonicals -> sequences)
 				thisWeek,thisYear,thisMonth,
 				//(shifts -- standard)
-				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,
+				lastWeek,lastYear,lastQuarter,nextMonth,weekLast,aWeekAgo,
 				//(shifts -- noncannonical)
 				pastWeek,thePastWeek,pastYear,pastMonths2,
 				//(numbers -- basic)

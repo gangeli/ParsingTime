@@ -38,8 +38,8 @@ trait Temporal extends Serializable {
 	
 	final def traverse(ground:GroundedRange,offset:Long,	
 			fn:TraverseTask):Unit = {
-		assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
-			"nonzero offset with point distribution")
+//		assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
+//			"nonzero offset with point distribution")
 		val (feedback,rtn):(TraverseFn,Temporal) = evaluate(ground,offset)
 		feedback(fn)
 	}
@@ -811,7 +811,7 @@ object Range {
 		}
 		//(create repeated range)
 		new RepeatedRange(partial,norm,interv,Duration.ZERO,bound,moveOffset,
-			distrib)
+			None,Some(distrib))
 	} 
 	def intersectSearch(rA:Sequence,rB:Sequence):Range = {
 		//--Classes
@@ -904,12 +904,11 @@ object Range {
 							}
 						//(return)
 						assert(prob >= 0 && prob <= 1, "Not a probability: " + prob)
-						( (fn:TraverseTask) => {
+						( (task:TraverseTask) => {
 								fnA( (term:Temporal,offset:Long) => {
-									fn(grA,intersect.a - originA) })
+									task(movedA,newOffsetA) })
 								fnB( (term:Temporal,offset:Long) => {
-									fn(grB,intersect.b - originB) })
-								
+									task(movedB,newOffsetB) })
 							}, //<-- traverse function
 							new GroundedRange(
 								Range.mkBegin(grA.begin,grB.begin),
@@ -1312,10 +1311,10 @@ trait Sequence extends Range with Duration {
 			val diff:Double = this.diff(ground,offset)
 			val str="E-Step [" + this + "]: offset=["+offset+
 				"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
-			if(O.printAllParses){ log(FORCE,str) } else { log(str) }
+			if(O.printAllParses){ log(FORCE,str) } else { log(FORCE,str) }
 			//(debug)
-			assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
-				"nonzero offset with point distribution")
+//			assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
+//				"nonzero offset with point distribution")
 			assert(!logprob.isNaN, "NaN probability")
 			//(em)
 			e( offset, diff, logprob )
@@ -1337,22 +1336,15 @@ trait Sequence extends Range with Duration {
 class RepeatedRange(
 		val base:Partial,val norm:GroundedDuration,val interv:Duration,
 		val delta:Duration, val bound:SingletonRange, val moveOffset:Long,
-		src:Any //<--source of the distribution; either a distribution or an updater
+		updater:Option[Sequence.Updater], dist:Option[Sequence.Distribution]
 		) extends Sequence with AnalyticallyIntersectable {
 		
 	//(ensure updater)
 	if(this.distrib == null){ 
-		this.distrib = src match {
-			case (updater:Sequence.Updater) => updater._2(this.toString,false) 
-			case (dist:Sequence.Distribution) => dist
-			case _ => throw fail("Invalid source: " + src)
-		}
+		this.distrib = dist.getOrElse(updater.get._2(this.toString,false))
 	}
 
-	override def getUpdater:Option[Sequence.Updater] = src match {
-			case (updater:Sequence.Updater) => Some(updater)
-			case _ => None
-		}
+	override def getUpdater:Option[Sequence.Updater] = updater
 
 	private def boundedGround(ground:GroundedRange,move:Boolean=false):Time = {
 		val groundedBound:Option[GroundedRange] = 
@@ -1418,7 +1410,7 @@ class RepeatedRange(
 
 	def this(base:Partial,norm:Duration,interv:Duration,
 			updater:Sequence.Updater)
-		= this(base,norm.interval,interv,Duration.ZERO,null,0L,updater)
+		= this(base,norm.interval,interv,Duration.ZERO,null,0L,Some(updater),None)
 
 	override def diff(ground:GroundedRange,offset:Long):Double = {
 		val realGround:Time = boundedGround(ground,true)
@@ -1427,13 +1419,15 @@ class RepeatedRange(
 		val distance
 			= if(location.contains(ground)){ Duration.ZERO }
 			else { location.begin-realGround }
+//			= location.begin - realGround
 		//(checks and return)
 		assert(interv.seconds > 0.0, "Interval is zero or negative: " + interv)
 		distance/interv
 	}
 
 	override def move(offset:Long):Sequence = {
-		new RepeatedRange(base,norm,interv,delta,bound,moveOffset+offset,distrib).name(name)
+		new RepeatedRange(base,norm,interv,delta,bound,moveOffset+offset,
+			updater,Some(distrib)).name(name)
 	}
 	
 	override def evaluate[E <: Temporal](ground:GroundedRange,rawOffset:Long
@@ -1499,7 +1493,8 @@ class RepeatedRange(
 			new NoTime
 		} else if(this.bound == null){
 			//(case: creating a new bound)
-			new RepeatedRange(base,norm,interv,delta,range,moveOffset,distrib).name(name)
+			new RepeatedRange(base,norm,interv,delta,range,moveOffset,
+				None,Some(distrib)).name(name)
 		} else {
 			//(case: refining an existing bound)
 			val newBound = (range ^ bound)
@@ -1509,7 +1504,7 @@ class RepeatedRange(
 				//((new grounded range))
 				case (gr:SingletonRange) =>
 					new RepeatedRange(base,norm,interv,
-						delta,gr,moveOffset,distrib).name(name)
+						delta,gr,moveOffset,None,Some(distrib)).name(name)
 				//((impossible))
 				case _ => throw new IllegalStateException("bad intersect: " + newBound)
 			}
@@ -1518,22 +1513,22 @@ class RepeatedRange(
 
 	override def >>(diff:Duration):Range 
 		= new RepeatedRange(base, norm, interv, 
-				delta+diff, bound, moveOffset,distrib).name(name + ">>" + diff)
+				delta+diff, bound, moveOffset,updater,Some(distrib)).name(name + ">>" + diff)
 	override def <<(diff:Duration):Range
 		= new RepeatedRange(base, norm, interv, 
-				delta-diff, bound, moveOffset,distrib).name(name + "<<" + diff)
+				delta-diff, bound, moveOffset,updater,Some(distrib)).name(name + "<<" + diff)
 	override def <|(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				delta-diff, bound, moveOffset,distrib).name(name + "<|" + diff)
+				delta-diff, bound, moveOffset,updater,Some(distrib)).name(name + "<|" + diff)
 	override def |>(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				norm+delta, bound, moveOffset,distrib).name(name + "|>" + diff)
+				norm+delta, bound, moveOffset,updater,Some(distrib)).name(name + "|>" + diff)
 	override def |<(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				delta, bound, moveOffset,distrib).name(name + "|<" + diff)
+				delta, bound, moveOffset,updater,Some(distrib)).name(name + "|<" + diff)
 	override def >|(diff:Duration):Range 
 		= new RepeatedRange(base, diff.interval, interv, 
-				norm+delta-diff, bound, moveOffset,distrib).name(name + ">|" + diff)
+				norm+delta-diff, bound, moveOffset,updater,Some(distrib)).name(name + ">|" + diff)
 
 	override def !(dur:Duration):Range = this
 	override def interval:GroundedDuration = interv.interval
@@ -1542,13 +1537,16 @@ class RepeatedRange(
 	override def units:Array[DurationUnit.Value] = norm.units
 
 	override def +(diff:Duration):Duration 
-		= new RepeatedRange(base, norm, interv + diff, delta, bound, moveOffset,distrib)
+		= new RepeatedRange(base, norm, interv + diff, delta, bound, moveOffset,
+			updater,Some(distrib))
 			.name(name)
 	override def -(diff:Duration):Duration 
-		= new RepeatedRange(base, norm, interv - diff, delta, bound, moveOffset,distrib)
+		= new RepeatedRange(base, norm, interv - diff, delta, bound, moveOffset,
+			updater,Some(distrib))
 			.name(name)
 	override def *(n:Long):Duration 
-		= new RepeatedRange(base, norm, interv * n, delta, bound, moveOffset,distrib)
+		= new RepeatedRange(base, norm, interv * n, delta, bound, moveOffset,
+			updater,Some(distrib))
 			.name(name)
 	
 	override def equals(o:Any):Boolean = { this eq o.asInstanceOf[AnyRef] }
@@ -1970,6 +1968,7 @@ class Lex extends Serializable {
 	import DateTimeFieldType._
 	import edu.stanford.nlp.time.JodaTimeUtils._
 	
+	private val updaters = new HashMap[Symbol,Sequence.Updater]
 	def updater(typ:Symbol):Sequence.Updater = {
 		//(overhead)
 		import O.Distribution._
@@ -1977,7 +1976,6 @@ class Lex extends Serializable {
 		import Sequence.{pointUpdater,multinomialUpdater,gaussianUpdater}
 		import Sequence.{mkMultinomialUpdater,mkGaussianUpdater}
 		//(routing)
-		val updaters = new HashMap[Symbol,Sequence.Updater]
 		O.timeDistribution match {
 			case Point => pointUpdater
 			case Multinomial =>
@@ -2177,14 +2175,14 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,0,0,0,0)),
 			AMONTH,
-			AYEAR,updater('month)).name("MOY("+i+")") }.toList).toArray
+			AYEAR,updater('year)).name("MOY("+i+")") }.toList).toArray
 	val QOY = (List(new NoTime) ::: (1 to 4).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](QuarterOfYear,MonthOfQuarter,dayOfMonth,
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AMONTH*3,
-			AYEAR,updater('month)).name("QOY("+i+")") }.toList).toArray
+			AYEAR,updater('year)).name("QOY("+i+")") }.toList).toArray
 	val HOY = (List(new NoTime) ::: (1 to 2).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](HalfYearOfYear,MonthOfQuarter,dayOfMonth,
@@ -2198,7 +2196,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,3,1,0,0,0,0)),
 			AMONTH*3,
-			AYEAR,updater('month)).name("SEASON("+i+")") }.toList).toArray
+			AYEAR,updater('year)).name("SEASON("+i+")") }.toList).toArray
 	val YOC = (0 until 100).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](yearOfCentury,
