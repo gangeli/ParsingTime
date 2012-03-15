@@ -331,6 +331,7 @@ trait DataStore[T] {
 // OTHER ENTRIES
 //------------------------------------------------------------------------------
 object Interpret {
+	DateTimeZone.setDefault(DateTimeZone.UTC);
 	def main(args:Array[String]) {
 		//--Redwood
 		val props = new Properties();
@@ -464,8 +465,8 @@ object Entry {
 
 	def officialEval(sys:Annotator,data:Iterable[Annotation],train:Boolean,
 			tempevalHome:File, 
-			attributeFile:File=File.createTempFile("attr",".tab"),
-//			attributeFile:File=new File("tmp/attr.tab"),
+//			attributeFile:File=File.createTempFile("attr",".tab"),
+			attributeFile:File=new File("tmp/attr.tab"),
 			extentsFile:File=File.createTempFile("ext",".tab")
 			):OfficialScore = {
 		startTrack("Evaluating " + sys.getClass + " on " + {if(train) "train" else "test" })

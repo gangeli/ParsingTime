@@ -19,7 +19,7 @@ function diff {
 	if [ "$1" != "" ]; then
 		last="$1.exec"
 	fi
-	ediff out/$last/train-extent.tab
+	adiff out/$last/attr-train.tab
 }
 
 #-----
@@ -36,8 +36,8 @@ function interpret {
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\
-			"out/$last/interpretModel.ser.gz"\
-			aux/coremap/tempeval2-english-retok-numbers\
+			"out/$last/interpretModel.ser.gz" \
+			aux/coremap/tempeval2-english-retok-numbers \
 			aux/tempeval2
 }
 

@@ -558,7 +558,7 @@ object DataLib {
 	}
 		
 	def copyTime(lbl:CoreLabel):CoreMap = {
-		val rtn = new ArrayCoreMap(5)
+		val rtn = new ArrayCoreMap(6)
 		//(time)
 		rtn.set(classOf[OriginalTimeMetaAnnotation],
 			lbl.get[TimexMetaInfo,OriginalTimeMetaAnnotation]
@@ -693,8 +693,22 @@ object DataLib {
 			offset += label.originalText.length
 			//(save token offsets)
 			val merged = CoreMaps.merge(orig,label)
-			merged.set(classOf[TokenBeginAnnotation],new java.lang.Integer(index))
-			merged.set(classOf[TokenEndAnnotation],new java.lang.Integer(index+1))
+			val begin:Int = {
+				if(label.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation]) != null){
+					label.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
+				} else {
+					index
+				}
+			}
+			val end:Int = {
+				if(label.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation]) != null){
+					label.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+				} else {
+					index+1
+				}
+			}
+			merged.set(classOf[TokenBeginAnnotation],new java.lang.Integer(begin))
+			merged.set(classOf[TokenEndAnnotation],new java.lang.Integer(end))
 			assert(isTimex(orig) == isTimex(merged),
 				"timex mismatch on tokenization")
 			merged
@@ -704,6 +718,7 @@ object DataLib {
 	def retokSentence(sent:CoreMap):Unit = {
 		//--Retokenize Sentence
 		val origTokens=sent.get[java.util.List[CoreLabel],TokensAnnotation](TOKENS)
+		val origLength = origTokens.size
 		val retok = origTokens.zipWithIndex.foldRight(List[CoreLabel]()){ 
 				case ((word:CoreLabel,index:Int),soFar:List[CoreLabel]) =>
 			val orig = word.originalText
@@ -734,7 +749,7 @@ object DataLib {
 									toks ::: tokenize(word,"/",offset,index).toList
 								},
 								offset+tok.length+1)
-							//(tokenize on /)
+							//(tokenize on :)
 							case ':' => (new StringBuilder,
 								if(tok.length > 0){
 									toks :::
@@ -761,6 +776,15 @@ object DataLib {
 		sent.set(classOf[OriginalTokensAnnotation],origTokens)
 		val jRetok:java.util.List[CoreLabel] = retok
 		sent.set(classOf[TokensAnnotation],jRetok)
+		//(error check)
+		assert(retok(retok.length-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+					== origLength, "Lengths changed!")
+		retok.foldLeft(0){ case (last:Int,tok:CoreLabel) =>
+			val curr:Int = tok.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation]) 
+			assert(curr == last || curr == last+1,
+				"Token offsets jump is fishy: " + last + " -> " + curr)
+			curr
+		}
 		//--Re-Link Timexes
 		DataLib.relinkTimexes(sent)
 	}
@@ -778,6 +802,13 @@ object DataLib {
 		//--Set Numbers
 		//(find numbers)
 		val nums:JList[CoreMap] = NumberNormalizer.findAndMergeNumbers(sent);
+		//(error check)
+		nums.foldLeft(-1){ case (lastEnd:Int,map:CoreMap) =>
+			val begin = map.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
+			val end = map.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+			assert(lastEnd < 0 || begin <= lastEnd, "invalid jump: " + lastEnd + " to " + begin)
+			end
+		}
 		//(tweak tokens)
 		val tokens:JList[CoreLabel] = nums.map{ (map:CoreMap) =>
 			val subTokens 

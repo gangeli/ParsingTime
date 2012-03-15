@@ -74,7 +74,7 @@ class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType)
 	override def hashCode:Int = System.identityHashCode(this)
 }
 
-class Grammar(index:Indexing,lex:Lex) extends Serializable {
+class Grammar(index:Indexing,lex:Lex,NodeType:NodeTypeFactory) extends Serializable {
 	import lex._
 	case class NIL()
 	//----------
@@ -880,7 +880,7 @@ class InterpretationTask extends TemporalTask {
 	startTrack("Creating Grammar")
 	val lex = new Lex
 	import lex._
-	val grammar = new Grammar(index,lex)
+	val grammar = new Grammar(index,lex,NodeType.defaultFactory)
 	endTrack("Creating Grammar")
 
 	//<<scoring>>

@@ -266,6 +266,11 @@ object TempEval2 {
 				wordInfo.set(classOf[CharacterOffsetEndAnnotation],
 					new java.lang.Integer(offset+text.length))
 				offset += (text.length + 1)
+				//((token offsets))
+				wordInfo.set(classOf[TokenBeginAnnotation],
+					new java.lang.Integer(wordI))
+				wordInfo.set(classOf[TokenEndAnnotation],
+					new java.lang.Integer(wordI+1))
 			}
 		}
 		endTrack("Pass 2 (offsets)")
@@ -507,7 +512,8 @@ object TempEval2 {
 		normalizeFromRetok( retokFromInit(init) )
 	}
 	def normalize(dir:String,lang:String):SerializedCoreMapDataset = {
-		val x = normalizeFromInit( apply(dir,lang) )
+//		val x = normalizeFromInit( apply(dir,lang) )
+		val x = normalizeFromInit( apply("aux/coremap/tempeval2-english") )
 		x
 	}
 
@@ -516,14 +522,14 @@ object TempEval2 {
 			if(args(0) == "english"){
 				prettyLog(new SerializedCoreMapDataset(
 					"aux/coremap/tempeval2-english"))
-			}
-			if(args(0) == "retok"){
+			} else if(args(0) == "retok"){
 				prettyLog(new SerializedCoreMapDataset(
 					"aux/coremap/tempeval2-english-retok"))
-			}
-			if(args(0) == "numbers"){
+			} else if(args(0) == "numbers"){
 				prettyLog(new SerializedCoreMapDataset(
-					"aux/coremap/tempeval2-english-numbers"))
+					"aux/coremap/tempeval2-english-retok-numbers"))
+			} else {
+				throw new IllegalArgumentException("Bad argument: " + args(0))
 			}
 		} else {
 			prettyLog(new SerializedCoreMapDataset(
