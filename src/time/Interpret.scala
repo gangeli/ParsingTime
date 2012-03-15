@@ -762,12 +762,17 @@ case class TreeTime(
 		(time,logProb)
 	}
 
-	private def toStanfordTimex(time:Temporal):StanfordTimex = {
+	private def toStanfordTimex(time:Temporal,ground:Time):StanfordTimex = {
 		//(get timex data)
 		import JodaTimeUtils._
 		val (typ,value) = time match {
 			case (n:NoTime) => ("MISS","?")
-			case (gr:GroundedRange) => ("DATE",timexDateValue(gr.begin.base,gr.end.base))
+			case (gr:GroundedRange) => 
+				if(gr.begin == ground && gr.end == ground) { 
+					("DATE","PRESENT_REF")
+				} else {
+					("DATE",timexDateValue(gr.begin.base,gr.end.base))
+				}
 			case (d:GroundedDuration) => ("DURATION",timexDurationValue(d.base,false))
 			case (d:FuzzyDuration) => ("DURATION",timexDurationValue(d.interval.base,true))
 			case (t:Time) => ("TIME",timexTimeValue(t.base))
@@ -785,7 +790,7 @@ case class TreeTime(
 		//(parse)
 		val (time,logProb) = parse(sent,ground)
 		//--Annotate
-		val timex = toStanfordTimex(time)
+		val timex = toStanfordTimex(time,ground)
 		log("annotated "+sent+" as "+timex)
 		//(get span)
 		val begin:Int = expr.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
@@ -806,7 +811,7 @@ case class TreeTime(
 		//--Annotate
 		times.foreach{ case DetectedTime(begin,end,timeInfo) =>
 			val (time,logProb) = timeInfo.get
-			val timex = toStanfordTimex(time)
+			val timex = toStanfordTimex(time,ground)
 			(begin until end).foreach{ (i:Int) =>
 				tokens.get(i).set(classOf[TimexAnnotation], timex)
 			}
