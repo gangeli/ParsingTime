@@ -202,36 +202,6 @@ trait Temporal extends Serializable {
 	}
 	final def evaluateTemporal[E <: Temporal](ground:GroundedRange,offset:Long):E 
 		= evaluate(ground,offset)._2
-
-	final def asTimex(ground:Time):(Option[String],Option[String]) = {
-		if(this.isInstanceOf[NoTime]){
-			return (None,None)
-		} else {
-			val grounded = this.apply(ground)
-			grounded match {
-				case (gr:GroundedRange) =>
-					if(gr.begin.equals(gr.end) && gr.begin.base.equals(ground.base)){
-						//((case: reference)
-						(Some("DATE"),Some("PRESENT_REF"))
-					} else {
-						//((case: grounded range))
-							(Some("DATE"),
-							 Some(JodaTimeUtils.timexDateValue(
-								gr.begin.base,gr.end.base,true)))
-					}
-				case (d:GroundedDuration) =>
-					//((case: duration))
-						(Some("DURATION"),
-						 Some(JodaTimeUtils.timexDurationValue(d.base,false)))
-				case (d:FuzzyDuration) =>
-					//((case: approx. duration))
-						(Some("DURATION"),
-						 Some(JodaTimeUtils.timexDurationValue(d.interval.base,true)))
-				case _ =>
-					throw new IllegalStateException("Unknown type: "+grounded)
-			}
-		}
-	}
 }
 
 object Temporal {
@@ -722,6 +692,8 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	def begin:Duration = Duration.min(beginOffset,beginOffset+normVal)
 	def end:Duration = Duration.max(beginOffset,beginOffset+normVal)
 	
+	def isRef:Boolean = normVal == Duration.ZERO && beginOffset == Duration.ZERO
+	
 	override def equals(o:Any):Boolean = o match {
 		case (ur:UngroundedRange) => 
 			ur.normVal.equals(this.normVal) && ur.beginOffset.equals(this.beginOffset)
@@ -1006,6 +978,25 @@ trait Duration extends Temporal {
 	def largestUnit:DurationUnit.Value = {
 		val arr:Array[DurationUnit.Value] = units
 		if(arr.length == 0){ DurationUnit.ZERO } else { arr(0) }
+	}
+	def timexUnits:Array[String] = {
+		units.map{ (unit:DurationUnit.Value) =>
+			unit match {
+				case DurationUnit.MILLENIUM => Some("L") 
+				case DurationUnit.CENTURY =>   Some("C")
+				case DurationUnit.DECADE =>    Some("E")
+				case DurationUnit.YEAR =>      Some("Y")
+				case DurationUnit.QUARTER =>   Some("Q")
+				case DurationUnit.MONTH =>     Some("M")
+				case DurationUnit.WEEK =>      Some("W")
+				case DurationUnit.DAY =>       Some("D")
+				case DurationUnit.HOUR =>      Some("H")
+				case DurationUnit.MINUTE =>    Some("m")
+				case DurationUnit.SECOND =>    Some("S")
+				case DurationUnit.MILLIS => None
+				case DurationUnit.ZERO => None
+			}
+		}.filter{ _.isDefined }.map{ _.get }
 	}
 	def unary_~ : Duration = new FuzzyDuration(this)
 
@@ -1311,7 +1302,7 @@ trait Sequence extends Range with Duration {
 			val diff:Double = this.diff(ground,offset)
 			val str="E-Step [" + this + "]: offset=["+offset+
 				"] diff="+G.df.format(diff)+" prob="+G.df.format(math.exp(logprob))+")"
-			if(O.printAllParses){ log(FORCE,str) } else { log(FORCE,str) }
+			if(O.printAllParses){ log(FORCE,str) } else { log(str) }
 			//(debug)
 //			assert(O.timeDistribution != O.Distribution.Point || offset == 0L,
 //				"nonzero offset with point distribution")
@@ -1590,7 +1581,7 @@ object Sequence {
 		val m = (tag:String,update:Boolean) => {
 			if(update && seenE){
 				gauss = ess.runMStep
-				log(FORCE,"m-update["+tag+"]: " + gauss)
+				log("m-update["+tag+"]: " + gauss)
 				ess.clear
 				seenE = false
 			}

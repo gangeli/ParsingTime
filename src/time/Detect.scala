@@ -34,7 +34,7 @@ import org.goobs.exec.Execution
 //------------------------------------------------------------------------------
 // DETECTION SYSTEM
 //------------------------------------------------------------------------------
-case class DetectedTime(begin:Int,end:Int,time:Option[(Temporal,Double)]) {
+case class DetectedTime(begin:Int,end:Int,time:Option[(Temporal,Temporal,Double)]) {
 	var meta:Option[(String,Int)] = None
 	def tagMetaInfo(doc:String,sentI:Int):DetectedTime
 		= tagMetaInfo( Some((doc,sentI)) )
@@ -50,6 +50,7 @@ trait TimeDetector {
 //------------------------------------------------------------------------------
 // FEATURES
 //------------------------------------------------------------------------------
+@SerialVersionUID(1L)
 class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	import CRFDetector.InputAnnotation
 	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Int)] = {
@@ -73,10 +74,20 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 			case None => "✇"
 		}
 	}
-	
 	def shape(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
 			case Some((s:TimeSent,i:Int)) => s.shape(i)
+			case None => "✇"
+		}
+	}
+	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):String = {
+		sent(info,pos) match {
+			case Some((s:TimeSent,i:Int)) =>
+				if(s(i) == index.NUM){
+					s.nums(i)+"["+s.ordinality(i)+"]"
+				} else {
+					"not_number"
+				}
 			case None => "✇"
 		}
 	}
@@ -89,10 +100,17 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 			val absolutePos = position+relativePos
 			//(word)
 			feats.add("word@"+relativePos+"="+word(info,absolutePos))
+			//(bigrams)
+			feats.add("word@"+(relativePos-1)+","+relativePos+"="+
+				word(info,absolutePos-1)+","+word(info,absolutePos))
+			feats.add("word@"+relativePos+","+(relativePos+1)+"="+
+				word(info,absolutePos)+","+word(info,absolutePos+1))
 			//(pos)
 			feats.add("pos@"+relativePos+"="+pos(info,absolutePos))
 			//(shape)
 			feats.add("shape@"+relativePos+"="+shape(info,absolutePos))
+			//(num)
+			feats.add("number@"+relativePos+"="+characterizeNumber(info,absolutePos))
 		}
 		return feats
 	}
@@ -101,6 +119,7 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 //------------------------------------------------------------------------------
 // CRF
 //------------------------------------------------------------------------------
+@SerialVersionUID(1L)
 case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
 	import CRFDetector._
 
@@ -125,7 +144,7 @@ case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
 	override def findTimes(sent:TimeSent):Array[DetectedTime] 
 		= findTimes(sent, (t:TimeSent) => None)
 
-	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Double)]
+	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)]
 			):Array[DetectedTime] = {
 		//--Make Input
 		val input:JList[CoreMap] = (0 until sent.length).map{ (i:Int) =>
@@ -181,11 +200,10 @@ object CRFDetector {
 		def getType:Class[(TimeSent,Int)] = classOf[(TimeSent,Int)]
 	}
 
-	def apply(data:DataStore[DetectionDatum],index:Indexing):CRFDetector = {
+	def apply(data:DataStore[DetectionDatum],index:Indexing,treeTime:TreeTime):CRFDetector = {
 		//--Parser
 		startTrack("Parser")
 		log("loading TreeTime")
-		val treeTime:TreeTime = IOUtils.readObjectFromFileNoExceptions(O.interpretModel)
 		val parser:CKYParser = treeTime.parser
 		val interpretIndexer = treeTime.index
 		val lex:Lex = treeTime.lex
@@ -197,6 +215,9 @@ object CRFDetector {
 		val flags = new SeqClassifierFlags
 		flags.featureFactory = O.crfFeatureFactory
 		log(FORCE,"flags.featureFactory: " + flags.featureFactory)
+		flags.featureFactoryArgs = Array[java.lang.Object](index)
+		log(FORCE,"flags.featureFactoryArgs: " + 
+			"Object["+flags.featureFactoryArgs.length+"]")
 		flags.backgroundSymbol = NOTM
 		log(FORCE,"flags.backgroundSymbol: " + flags.featureFactory)
 		flags.maxLeft = O.maxLength
@@ -488,13 +509,27 @@ class DetectionTask extends TemporalTask {
 		log("JodaTime settings")
 		DateTimeZone.setDefault(DateTimeZone.UTC);
 		//--Create Data
-		forceTrack("loading dataset")
+		forceTrack("Loading dataset")
 		val index = Indexing()
 		val data = CoreMapDetectionStore(O.train,if(O.devTest) O.dev else O.test,index)
-		endTrack("loading dataset")
+		endTrack("Loading dataset")
+		forceTrack("Training Interpretation Model") //TODO logic here
+		val sys:TreeTime = if(O.runInterpretModel){
+			(new InterpretationTask).run
+			IOUtils.readObjectFromFileNoExceptions(Execution.touch("interpretModel.ser.gz"))
+		} else {
+			IOUtils.readObjectFromFileNoExceptions(O.interpretModel)
+		}
+		endTrack("Training Interpretation Model")
 		//--Train CRF
 		startTrack("Training")
-		val crf:CRFDetector = CRFDetector(data.train,index)
+		val crf:CRFDetector = CRFDetector(data.train,index,sys)
+		log("augmenting TreeTime")
+		val detectSys:TreeTime = sys.addDetector(crf,index)
+		log("saving interpretation model")
+		IOUtils.writeObjectToFile(sys,Execution.touch("interpretModel.ser.gz"))
+		log("saving detection model")
+		IOUtils.writeObjectToFile(detectSys,Execution.touch("treeTime.ser.gz"))
 		endTrack("Training")
 		//--Evaluate
 		startTrack("Evaluate")

@@ -6,13 +6,13 @@ function adiff {
 	cat $1 | grep -v "type" | awk '{ print $1 " " $2 " " $3 " " $8 }' > tmp/guess.tab
 	cat aux/tempeval2/training/english/data/timex-attributes.tab | grep -v "type"\
 		| awk '{ print $1 " " $2 " " $3 " " $8 }' > tmp/gold.tab
-	vimdiff tmp/guess.tab tmp/gold.tab
+	gvimdiff tmp/guess.tab tmp/gold.tab &
 }
 function ediff {
 	cat $1 | awk '{ print $1 " " $2 " " $3 }' > tmp/guess.tab
 	cat aux/tempeval2/training/english/data/timex-extents.tab\
 		| awk '{ print $1 " " $2 " " $3 }' > tmp/gold.tab
-	vimdiff tmp/guess.tab tmp/gold.tab
+	gvimdiff tmp/guess.tab tmp/gold.tab & 
 }
 function diff {
 	last=`ls out | sort -nr | head -n 1`
@@ -26,13 +26,28 @@ function diff {
 # Entries
 #-----
 
+function detect {
+	last=`ls out | sort -nr | head -n 1`
+	if [ "$1" != "" ]; then
+		last="$1.exec"
+	fi
+	java\
+		-mx2g -ea\
+		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
+		time.Interpret\
+			tempeval\
+			"out/$last/treeTime.ser.gz" \
+			aux/coremap/tempeval2-english-retok-numbers \
+			aux/tempeval2
+}
+
 function interpret {
 	last=`ls out | sort -nr | head -n 1`
 	if [ "$1" != "" ]; then
 		last="$1.exec"
 	fi
 	java\
-		-mx2g\
+		-mx2g -ea\
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\
@@ -43,7 +58,7 @@ function interpret {
 
 function sutimeInterpret {
 	java\
-		-mx2g\
+		-mx2g -ea\
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\
@@ -53,7 +68,7 @@ function sutimeInterpret {
 }
 function heideltimeInterpret {
 	java\
-		-mx2g\
+		-mx2g -ea\
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\
@@ -63,7 +78,7 @@ function heideltimeInterpret {
 }
 function gutimeInterpret {
 	java\
-		-mx2g\
+		-mx2g -ea\
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\

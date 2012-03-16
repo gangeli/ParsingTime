@@ -12,6 +12,7 @@ import java.text.DecimalFormat
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.Properties
+import java.util.Calendar
 import java.io.File
 import java.io.FileOutputStream
 import java.io.BufferedOutputStream
@@ -19,6 +20,7 @@ import java.io.ObjectOutputStream
 import java.io.FileWriter
 //(jodatime)
 import org.joda.time.DateTimeZone
+import org.joda.time.DateTime
 //(stanford)
 import edu.stanford.nlp.pipeline._
 import edu.stanford.nlp.util.CoreMap
@@ -105,7 +107,7 @@ case class Indexing(
 	}
 	
 	def pos2str(pos:Int):String = 
-		if(pos < P) posIndexer.get(pos) else "--UNK--"
+		if(pos < posIndexer.size) posIndexer.get(pos) else "--UNK--"
 	def str2pos(str:String):Int = {
 		if(frozen){ throw fail("Indexer is now immutable") }
 		posIndexer.addAndGetIndex(str)
@@ -256,7 +258,16 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 	//<<methods>>
 	def reIndex(newIndex:Indexing):TimeSent = {
 		TimeSent(
-			words.map{ (w:Int) => newIndex.str2wTest(index.w2str(w))   },
+			words.zipWithIndex.map{ case (w:Int,i:Int) => 
+				if(w == index.NUM){
+					assert(this.nums(i) != Int.MinValue, "Pushing inconsistent number!")
+					newIndex.NUM
+				} else {
+					val cand = newIndex.str2wTest(index.w2str(w), false)   
+					assert(cand != newIndex.NUM, "Created number that shouldn't be there!")
+					cand
+				}
+			},
 			pos.map{ (p:Int) => newIndex.str2posTest(index.pos2str(p)) },
 			nums, ordinality, newIndex
 		)
@@ -288,7 +299,7 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 		if(words(i) == index.NUM){
 			assert(nums(i) != Int.MinValue, 
 				"Returning number that was not set: "+index.w2str(words(i))+" "+nums(i))
-			nums(i).toString + "(" + ordinality(i) + ")"
+			nums(i).toString + "[" + ordinality(i) + "]"
 		} else {
 			index.w2str(words(i))
 		}
@@ -333,10 +344,12 @@ trait DataStore[T] {
 object Interpret {
 	DateTimeZone.setDefault(DateTimeZone.UTC);
 	def main(args:Array[String]) {
+		System.setProperty("gutime","aux/gutime")
 		//--Redwood
 		val props = new Properties();
 		props.setProperty("log.neatExit", "true");
 		props.setProperty("log.collapse", "approximate");
+		props.setProperty("log.toStderr", "false");
 		StanfordRedwoodConfiguration.apply(props);
 		//--Variables
 		if(args.length != 4){
@@ -451,7 +464,7 @@ object Entry {
 		//--Create Score
 		//(print output)
 		startTrack("Script Output")
-		if(train){ log(scriptOutput) }
+		log(scriptOutput)
 		endTrack("Script Output")
 		//(get scores)
 		val Type =  """(?ms).*attribute type       ([0-9\.]+).*""".r
@@ -477,6 +490,9 @@ object Entry {
 		//--Annotate
 		data.foreach{ (doc:Annotation) =>
 			val docID = doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
+			val ground = new DateTime(
+					doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+					.getTimeInMillis )
 			var tidNum = 0
 			startTrack("Document " + docID)
 			sys.annotate(doc)
@@ -500,7 +516,6 @@ object Entry {
 						val timex = expr.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
 						val begin = expr.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
 						val end = expr.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
-							log("timex @ " + begin)
 						val span = TimexSpan(timex,begin,sentI)
 						span.end = end
 						span
@@ -517,7 +532,6 @@ object Entry {
 							case ((timexes:List[TimexSpan],lastTimex:Boolean),
 							      (tok:CoreLabel,index:Int)) =>
 						if(!lastTimex && isTimex(tok)){
-							log("timex @ " + index + ": " + tok.word)
 							//(case: start timex)
 							val timex = tok.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
 							var begin = tok.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
@@ -560,12 +574,19 @@ object Entry {
 					.append("t").append(tidNum).append("\t")
 					.append("1").append("\t")
 				//(value)
-				base(attrs,span.begin)
-					.append("type").append("\t")
-					.append(span.timex.timexType)
-				base(attrs,span.begin)
-					.append("value").append("\t")
-					.append(span.timex.value)
+				if(span.timex.timexType != null){
+					base(attrs,span.begin)
+						.append("type").append("\t")
+						.append(span.timex.timexType)
+				}
+				if(span.timex.value != null){
+					base(attrs,span.begin)
+						.append("value").append("\t")
+						.append(DataLib.patchAttribute(
+							span.timex.timexType,
+							span.timex.value,
+							ground))
+				}
 				//(extent)
 				(span.begin until span.end).foreach{ (tokI:Int) =>
 					base(extents,tokI)
@@ -583,7 +604,7 @@ object Entry {
 		fw2.write(extents.substring(1))
 		fw2.close()
 		//--Score
-		val rtn = officialScript(train,tempevalHome,None,Some(attributeFile))
+		val rtn = officialScript(train,tempevalHome,Some(extentsFile),Some(attributeFile))
 		endTrack("Evaluating " + sys.getClass + " on " + {if(train) "train" else "test" })
 		rtn
 	}

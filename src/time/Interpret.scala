@@ -74,6 +74,7 @@ class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType)
 	override def hashCode:Int = System.identityHashCode(this)
 }
 
+@SerialVersionUID(1L)
 class Grammar(index:Indexing,lex:Lex,NodeType:NodeTypeFactory) extends Serializable {
 	import lex._
 	case class NIL()
@@ -88,13 +89,13 @@ class Grammar(index:Indexing,lex:Lex,NodeType:NodeTypeFactory) extends Serializa
 	}
 	//--Init Function
 	val nums:Seq[NodeType] = {
-		(0 to 5).map{ (orderOfMagnitude:Int) =>
+		(0 to 10).map{ (orderOfMagnitude:Int) =>
 			NumberType.values.map{ (numberType:NumberType.Value) =>
 				NodeType.makePreterminal(
 					getNumFromOrder(orderOfMagnitude,numberType),
 					'num, Symbol(orderOfMagnitude.toString), Symbol(numberType.toString))
 			}
-		}.flatten
+		}.flatten.toList
 	}
 	var nils:Seq[NodeType] = List[NodeType]()
 	def mkNils(index:Indexing, num:Int) {
@@ -333,7 +334,8 @@ class Grammar(index:Indexing,lex:Lex,NodeType:NodeTypeFactory) extends Serializa
 							case (s:TimeSent) =>
 								val len:Int = s.asNumber(i).toString.length-1
 								val typ:String = s.ordinality(i).toString
-								parent.flag(Symbol(len.toString)) && parent.flag(Symbol(typ))
+								(parent.flag(Symbol(len.toString)) && parent.flag(Symbol(typ)) ) ||
+									parent.flag('largenum)
 							case _ => throw new IllegalStateException("Bad sentence")
 						}}
 					valid
@@ -724,6 +726,7 @@ class GroundingData(impl:TimeDataset,train:Boolean,index:Indexing
 trait TemporalTask {
 	def run:Unit
 }
+@SerialVersionUID(1L)
 case class TreeTime(
 		parser:CKYParser,
 		index:Indexing,
@@ -731,50 +734,80 @@ case class TreeTime(
 		crf:Option[CRFDetector],
 		crfIndex:Option[Indexing]
 		) extends Annotator {
-	
+
 	def this(parser:CKYParser,index:Indexing,lex:Lex)
 		= this(parser,index,lex,None,None)
 
-	private def parse(sent:TimeSent,ground:Time):(Temporal,Double) = {
+	def addDetector(detector:CRFDetector,detectorIndex:Indexing):TreeTime = {
+		new TreeTime(parser,index,lex,Some(detector),Some(detectorIndex))
+	}
+
+	private def parse(sent:TimeSent,ground:Time):(Temporal,Temporal,Double) = {
 		//(run parser)
 		var time:Temporal = new NoTime
+		var originalTime:Temporal = new NoTime
 		var logProb:Double = Double.NegativeInfinity
 		var beam:Int = 1
-		while(time.isInstanceOf[NoTime] && beam <= 32){
+		while(time.isInstanceOf[NoTime] && beam <= 128){
 			//((parse))
-  		val parses:Array[EvalTree[Any]] = parser.parse(sent,beam)
+  		val parses:Array[EvalTree[Any]] = parser.parse(sent.reIndex(index),beam)
 			//((get candidate))
-			val (t,lP) = parses.slice(beam/2-1,beam)
-					.foldLeft(((new NoTime).asInstanceOf[Temporal],Double.NegativeInfinity)){ 
-					case ((soFar:Temporal,lProb:Double),parse:EvalTree[Any]) =>
+			val (t,ot,lP) = parses.slice(beam/2-1,beam)
+					.foldLeft((
+						(new NoTime).asInstanceOf[Temporal],
+						(new NoTime).asInstanceOf[Temporal],
+						Double.NegativeInfinity)){ 
+					case ((soFar:Temporal,orig:Temporal,lProb:Double),parse:EvalTree[Any]) =>
 				if(soFar.isInstanceOf[NoTime]){
-					(parse.evaluate.asInstanceOf[Temporal](ground), parse.logProb)
+					val rawTime = parse.evaluate.asInstanceOf[Temporal]
+					val timeDist = rawTime.distribution(Range(ground,ground))
+					if(timeDist.hasNext){
+						val (evaluated,timeProb,offset) = timeDist.next
+						(evaluated, rawTime, parse.logProb + math.log(timeProb)) //<--found a parse
+					} else {
+						(soFar,orig,lProb) //<--evaluated to NoTime
+					}
 				} else {
-					(soFar,lProb)
+					(soFar,orig,lProb) //<--early exit
 				}
 			}
 			//((set variables))
 			time = t
+			originalTime = ot
 			logProb = lP
 			//((increment beam))
 			beam *= 2
 		}
-		(time,logProb)
+		(time,originalTime,logProb)
 	}
 
-	private def toStanfordTimex(time:Temporal,ground:Time):StanfordTimex = {
+	private def toStanfordTimex(time:Temporal,original:Temporal):StanfordTimex = {
 		//(get timex data)
 		import JodaTimeUtils._
 		val (typ,value) = time match {
-			case (n:NoTime) => ("MISS","?")
+			case (n:NoTime) => 
+				("MISS","?")
 			case (gr:GroundedRange) => 
-				if(gr.begin == ground && gr.end == ground) { 
+				if(original.isInstanceOf[UngroundedRange] &&
+						original.asInstanceOf[UngroundedRange].isRef){
 					("DATE","PRESENT_REF")
 				} else {
-					("DATE",timexDateValue(gr.begin.base,gr.end.base))
+					val opts = new JodaTimeUtils.ConversionOptions
+					opts.forceDate = false
+					("DATE",timexDateValue(gr.begin.base,gr.end.base,opts))
 				}
-			case (d:GroundedDuration) => ("DURATION",timexDurationValue(d.base,false))
-			case (d:FuzzyDuration) => ("DURATION",timexDurationValue(d.interval.base,true))
+			case (d:GroundedDuration) => 
+				val opts = new JodaTimeUtils.ConversionOptions
+				opts.approximate = false
+//				opts.forceUnits = d.timexUnits
+				opts.forceUnits = Array[String]("L","C","Y","M")
+				("DURATION",timexDurationValue(d.base,opts))
+			case (d:FuzzyDuration) => 
+				val opts = new JodaTimeUtils.ConversionOptions
+//				opts.forceUnits = d.timexUnits
+				opts.forceUnits = Array[String]("L","C","Y","M")
+				opts.approximate = true
+				("DURATION",timexDurationValue(d.interval.base,opts))
 			case (t:Time) => ("TIME",timexTimeValue(t.base))
 			case _ => throw new IllegalStateException("Unknown time: " + time.getClass)
 		}
@@ -788,9 +821,9 @@ case class TreeTime(
 		//(create sentence)
 		val sent = DataLib.mkTimeSent(expr,tokens,index,false)
 		//(parse)
-		val (time,logProb) = parse(sent,ground)
+		val (time,original,logProb) = parse(sent,ground)
 		//--Annotate
-		val timex = toStanfordTimex(time,ground)
+		val timex = toStanfordTimex(time,original)
 		log("annotated "+sent+" as "+timex)
 		//(get span)
 		val begin:Int = expr.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
@@ -806,12 +839,17 @@ case class TreeTime(
 		val sent = DataLib.mkTimeSent(tokens,crfIndex.get,false)
 		val times:Array[DetectedTime] = crf.get.findTimes(sent,
 			(s:TimeSent) => {
-				Some(parse(s.reIndex(index),ground))
+				crfIndex.map{ (crfInd:Indexing) =>
+					parse(s.reIndex(crfInd),ground)
+				}
 			})
 		//--Annotate
 		times.foreach{ case DetectedTime(begin,end,timeInfo) =>
-			val (time,logProb) = timeInfo.get
-			val timex = toStanfordTimex(time,ground)
+			val (time,original,logProb) = timeInfo.get
+			val timex = toStanfordTimex(time,original)
+			log("detected " + 
+				tokens.slice(begin,end).map{ _.word }.mkString(" ") + 
+				" as " + timex)
 			(begin until end).foreach{ (i:Int) =>
 				tokens.get(i).set(classOf[TimexAnnotation], timex)
 			}
@@ -831,18 +869,23 @@ case class TreeTime(
 			//(variables)
 			val tokens = sent
 					.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
-			//(annotate sentence)
 			if(crf.isDefined){
+				//(annotate sentence)
 				assert(crfIndex.isDefined, "CRF but no CRF Index found!")
 				annotateSentence(tokens,ground)
-			}
-			//(annotate gold spans)
-			val knownSpans = 
-				sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
-			if(knownSpans != null){
-				knownSpans.foreach{ (expr:CoreMap) =>
-					annotateKnownSpan(tokens,expr,ground)
+			} else if(sent.containsKey[JList[CoreMap],TimeExpressionsAnnotation](
+					classOf[TimeExpressionsAnnotation])){
+				//(annotate gold spans)
+				val knownSpans = 
+					sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
+				if(knownSpans != null){
+					knownSpans.foreach{ (expr:CoreMap) =>
+						annotateKnownSpan(tokens,expr,ground)
+					}
 				}
+			} else {
+				//(nothing to annotate)
+				throw new IllegalStateException("Cannot annotate without CRF detector")
 			}
 		}
 	}
@@ -974,33 +1017,33 @@ class InterpretationTask extends TemporalTask {
 				case (guess:Temporal,prob:Double,offset:Long) =>
 			//(get diff)
 			val d = diff(gold,guess,false)
-			//(check timex consistency)
-			if(U.sumDiff(d) > O.exactMatchThreshold){
-				import edu.stanford.nlp.time.JodaTimeUtils._
-				val (tGold, tGuess) = (gold,guess) match {
-					case (a:UnkTime, b:Temporal) => {("not", "equal")}
-					case (a:Temporal, b:NoTime) => {("not", "equal")}
-					case (a:GroundedRange,b:GroundedRange) => {
-						(timexDateValue(a.begin.base, a.end.base),
-							timexDateValue(b.begin.base,b.end.base))
-					}
-					case (a:FuzzyDuration,b:FuzzyDuration) => {
-						(timexDurationValue(a.interval.base,true),
-							timexDurationValue(b.interval.base,true))
-					}
-					case (a:GroundedDuration,b:GroundedDuration) => {
-						(timexDurationValue(a.interval.base),
-								timexDurationValue(b.interval.base))
-					}
-					case _ => ("not","equal")
-				}
-				if(tGold.equals(tGuess)){
-					log("Timexes match but " +
-						"difference is nonzero: gold="+tGold+" guess="+tGuess+
-						"  myGuess="+guess+"  inferredGold="+gold+" (diff="+d+") :: ")
-				}
-			}
-			//(debug)
+//			//(check timex consistency)
+//			if(U.sumDiff(d) > O.exactMatchThreshold){
+//				import edu.stanford.nlp.time.JodaTimeUtils._
+//				val (tGold, tGuess) = (gold,guess) match {
+//					case (a:UnkTime, b:Temporal) => {("not", "equal")}
+//					case (a:Temporal, b:NoTime) => {("not", "equal")}
+//					case (a:GroundedRange,b:GroundedRange) => {
+//						(timexDateValue(a.begin.base, a.end.base),
+//							timexDateValue(b.begin.base,b.end.base))
+//					}
+//					case (a:FuzzyDuration,b:FuzzyDuration) => {
+//						(timexDurationValue(a.interval.base,true),
+//							timexDurationValue(b.interval.base,true))
+//					}
+//					case (a:GroundedDuration,b:GroundedDuration) => {
+//						(timexDurationValue(a.interval.base),
+//								timexDurationValue(b.interval.base))
+//					}
+//					case _ => ("not","equal")
+//				}
+//				if(tGold.equals(tGuess)){
+//					log("Timexes match but " +
+//						"difference is nonzero: gold="+tGold+" guess="+tGuess+
+//						"  myGuess="+guess+"  inferredGold="+gold+" (diff="+d+") :: ")
+//				}
+//			}
+//			//(debug)
 //			assert(O.timeDistribution != O.Distribution.Point || //TODO enable me
 //				offset == 0L ||
 //				prob == 0.0,
@@ -1433,7 +1476,6 @@ class InterpretationTask extends TemporalTask {
 			try {
 				import org.goobs.util.TrackedObjectOutputStream
 				import java.io.FileOutputStream
-				IOUtils.writeObjectToFile(sys,O.interpretModel)
 				IOUtils.writeObjectToFile(sys,Execution.touch("interpretModel.ser.gz"))
 			} catch {
 				case (e:Throwable) => throw new RuntimeException(e)

@@ -172,150 +172,6 @@ class TimeDataset(val data:Dataset[CoreMapDatum]) {
 	}
 }
 
-case class Timex(index:Int,time:CoreMap,origSent:List[CoreLabel],
-		sent:List[CoreLabel],pubTime:Time,isTest:Boolean) {
-	private val span:List[CoreLabel] = {
-		val begin = time.get[java.lang.Integer,BeginIndexAnnotation](
-							classOf[BeginIndexAnnotation])
-		val end = time.get[java.lang.Integer,EndIndexAnnotation](
-							classOf[EndIndexAnnotation])
-		sent.slice(begin,end)
-		val origBegin = time.get[java.lang.Integer,OriginalBeginIndexAnnotation](
-							classOf[OriginalBeginIndexAnnotation])
-		val origEnd = time.get[java.lang.Integer,OriginalEndIndexAnnotation](
-							classOf[OriginalEndIndexAnnotation])
-		if(end <= begin){
-			warn("Retokenized range is invalid: " + begin + " to " + end)
-			assert(origBegin < origEnd, "Range is invalid: " + time)
-			origSent.slice(origBegin,origEnd)
-		} else {
-			sent.slice(begin,end)
-		}
-	}
-
-
-	def originalType:String = time.get[String,OriginalTimeTypeAnnotation](
-			classOf[OriginalTimeTypeAnnotation])
-	def originalValue:String = time.get[String,OriginalTimeValueAnnotation](
-			classOf[OriginalTimeValueAnnotation])
-	
-	def filterFromExtent(lines:List[String]):List[String] = {
-		//(get extent pattern)
-		val meta:TimexMetaInfo = time.get[TimexMetaInfo,OriginalTimeMetaAnnotation](
-			classOf[OriginalTimeMetaAnnotation])
-		val Regexp = ("""^.*("""+meta.doc+""").*("""+meta.tid+""").*$""").r
-		//(filter)
-		lines.filter{ (line:String) =>
-			line match {
-				case Regexp(doc,tid) => false
-				case _ => true
-			}
-		}
-	}
-
-	def tempevalAttribute(typ:Option[String],value:Option[String],ground:DateTime,
-			padMisses:Boolean):String = {
-		val meta:TimexMetaInfo = time.get[TimexMetaInfo,OriginalTimeMetaAnnotation](
-			classOf[OriginalTimeMetaAnnotation])
-		//(common header)
-		def header:StringBuilder = 
-			(new StringBuilder)
-				.append(meta.doc).append("\t")
-				.append(meta.sentence).append("\t")
-				.append(meta.word).append("\t")
-				.append("timex3").append("\t")
-				.append(meta.tid).append("\t")
-				.append("1").append("\t")
-		//(variables)
-		var s:String = ""
-		var hasType:Boolean = false
-		//(type)
-		typ match {
-			case Some(typ) => 
-				hasType = true
-				s += (new StringBuilder)
-					.append(header).append("type").append("\t").append(typ).toString
-			case None => 
-				if(padMisses){
-					hasType = true
-					s += (new StringBuilder)
-						.append(header).append("type").append("\t").append("MISS").toString
-				}
-		}
-		//(value)
-		value match {
-			case Some(value) => 
-				if(hasType){ s += "\n" }
-				s += (new StringBuilder)
-					.append(header).append("value").append("\t")
-					.append(patchAttribute(typ.orNull,value,ground)).toString
-			case None => 
-				if(padMisses){
-					if(hasType){ s += "\n" }
-					s += (new StringBuilder)
-						.append(header).append("value").append("\t").append("MISS").toString
-				}
-		}
-		//(return)
-		s
-	}
-
-	private def patchAttribute(typ:String,value:String,ground:DateTime):String = {
-		def zeroPad(i:Int,padding:Int):String 
-			= "0"*(padding-i.toString.length)+i.toString
-		typ match {
-			case "TIME" =>
-				if(value.matches("T\\d{4}")){ 
-					"T" + value.substring(1,3) + ":" + value.substring(3,5) 
-				} else if(value.matches("T[0-9]+:[0-9]+")) {
-					"" + ground.getYear + "-" +
-						zeroPad(ground.getMonthOfYear,2) + "-" +
-						zeroPad(ground.getDayOfMonth,2) + value
-				} else if(value.matches("T[0-9]+")) {
-					"" + ground.getYear + "-" +
-						zeroPad(ground.getMonthOfYear,2) + "-" +
-						zeroPad(ground.getDayOfMonth,2) + "T" +
-						value.substring(1) + ":00"
-				} else if(value.equals("T00:00")){
-					"" + ground.getYear + "-" +
-						zeroPad(ground.getMonthOfYear,2) + "-" +
-						zeroPad(ground.getDayOfMonth,2) + "T24"
-				} else {
-					value
-				}
-			case "DATE" =>
-				if (value.matches("\\d{8}T.*")) {
-					value.substring(0,4) + "-"  +
-						value.substring(4,6) + "-"  +
-						value.substring(6);
-				} else if (value.matches("\\d{8}")) {
-					value.substring(0,4) + "-"  +
-						value.substring(4,6) + "-"  +
-						value.substring(6,8);
-				} else if (value.matches("\\d\\d\\d\\d..")) {
-					value.substring(0,4) + "-"  +
-						value.substring(4,6);
-				} else if (value.matches("[0-9X]{4}W[0-9X ]{1,2}-?[^-]*")) {
-					val Form = """([0-9X]{4})W([0-9X ]{1,2})(-?)([^-]*)""".r
-					val Form(year,week,dash,rest) = value
-					year + "-W" + 
-						{if(week.matches("X+")) week else zeroPad(week.trim.toInt,2)} +
-						{if(rest.length > 0){ "-" + rest } else { "" }}
-				} else if(value.matches("\\d\\d\\dX")){
-					value.substring(0,3)
-				} else {
-					value
-				}
-			case "DURATION" => value
-			case _ => value
-		}
-	}
-
-	def tid:Int = index
-
-	override def toString:String = "timex["+tid+"] "
-}
-
 //------------------------------------------------------------------------------
 // DATA Processing
 //------------------------------------------------------------------------------
@@ -467,18 +323,14 @@ object DataLib {
 	def jodaTime2Array(time:Any,timex:String):Array[String] = {
 		time match {
 			case (begin:DateTime,end:DateTime) =>
-				val check = JodaTimeUtils.timexDateValue(begin,end)
-				if(!check.equals(timex) && !timex.equals("PRESENT_REF")){ 
-					err("BAD TRANSlATION: " + timex + "->" + check + "   " + time) 
-				}
 				Array[String]("RANGE",begin.toString,end.toString)
 			case (begin:String,end:DateTime) =>
 				Array[String]("RANGE",begin,end.toString)
 			case (begin:DateTime,end:String) =>
 				Array[String]("RANGE",begin.toString,end)
 			case (begin:Period,fuzzy:Boolean) =>
-				val check = JodaTimeUtils.timexDurationValue(begin,fuzzy)
-				if(!check.equals(timex)){ err("BAD TRANSLATION: " + timex + "->" + check + "   " + time) }
+				val opts = new JodaTimeUtils.ConversionOptions
+				opts.approximate = true
 				def mkVal(i:Int) = if(fuzzy && i != 0) "x" else ""+i
 				Array[String]("PERIOD",
 					mkVal(begin.getYears),
@@ -919,6 +771,57 @@ object DataLib {
 			nums(tokens),
 			numTypes(tokens),
 			index)
+	}
+	
+	def patchAttribute(typ:String,value:String,ground:DateTime):String = {
+		def zeroPad(i:Int,padding:Int):String 
+			= "0"*(padding-i.toString.length)+i.toString
+		typ match {
+			case "TIME" =>
+				if(value.matches("T\\d{4}")){ 
+					"T" + value.substring(1,3) + ":" + value.substring(3,5) 
+				} else if(value.matches("T[0-9]+:[0-9]+")) {
+					"" + ground.getYear + "-" +
+						zeroPad(ground.getMonthOfYear,2) + "-" +
+						zeroPad(ground.getDayOfMonth,2) + value
+				} else if(value.matches("T[0-9]+")) {
+					"" + ground.getYear + "-" +
+						zeroPad(ground.getMonthOfYear,2) + "-" +
+						zeroPad(ground.getDayOfMonth,2) + "T" +
+						value.substring(1) + ":00"
+				} else if(value.equals("T00:00")){
+					"" + ground.getYear + "-" +
+						zeroPad(ground.getMonthOfYear,2) + "-" +
+						zeroPad(ground.getDayOfMonth,2) + "T24"
+				} else {
+					value
+				}
+			case "DATE" =>
+				if (value.matches("\\d{8}T.*")) {
+					value.substring(0,4) + "-"  +
+						value.substring(4,6) + "-"  +
+						value.substring(6);
+				} else if (value.matches("\\d{8}")) {
+					value.substring(0,4) + "-"  +
+						value.substring(4,6) + "-"  +
+						value.substring(6,8);
+				} else if (value.matches("\\d\\d\\d\\d..")) {
+					value.substring(0,4) + "-"  +
+						value.substring(4,6);
+				} else if (value.matches("[0-9X]{4}W[0-9X ]{1,2}-?[^-]*")) {
+					val Form = """([0-9X]{4})W([0-9X ]{1,2})(-?)([^-]*)""".r
+					val Form(year,week,dash,rest) = value
+					year + "-W" + 
+						{if(week.matches("X+")) week else zeroPad(week.trim.toInt,2)} +
+						{if(rest.length > 0){ "-" + rest } else { "" }}
+				} else if(value.matches("\\d\\d\\dX")){
+					value.substring(0,3)
+				} else {
+					value
+				}
+			case "DURATION" => value
+			case _ => value
+		}
 	}
 
 }

@@ -1,5 +1,6 @@
 package time
 
+import java.lang.{Integer => JInt}
 import java.util.{List => JList}
 import java.util.ArrayList
 import java.util.Calendar;
@@ -253,7 +254,7 @@ object TempEval2 {
 			val sentInfo = maps((doc,sent))
 			var timexStart:Option[Int] = None
 			var timexMap:Option[CoreMap] = None
-			if(true || lastSent.isDefined && lastSent.get.doc != sentInfo.doc){
+			if(lastSent.isDefined && lastSent.get.doc != sentInfo.doc){
 				offset = 0
 			}
 			//(cycle words)
@@ -272,6 +273,7 @@ object TempEval2 {
 				wordInfo.set(classOf[TokenEndAnnotation],
 					new java.lang.Integer(wordI+1))
 			}
+			lastSent = Some(sentInfo)
 		}
 		endTrack("Pass 2 (offsets)")
 		//--To CoreMap
@@ -306,10 +308,16 @@ object TempEval2 {
 			map.set(classOf[DocIDAnnotation],sentInfo.doc)
 			//(sentences)
 			val sent:CoreMap = {
-				val sentMap = new ArrayCoreMap(3)
+				val sentMap = new ArrayCoreMap(5)
 				sentMap.set(classOf[TextAnnotation], sentInfo.mkGloss)
 				sentMap.set(classOf[TokensAnnotation], sentInfo.mkTokens)
 				sentMap.set(classOf[TimeExpressionsAnnotation], sentInfo.mkTimes)
+				sentMap.set(classOf[CharacterOffsetBeginAnnotation], 
+					sentInfo.tokens(0).get[JInt,CharacterOffsetBeginAnnotation](
+						classOf[CharacterOffsetBeginAnnotation]))
+				sentMap.set(classOf[CharacterOffsetEndAnnotation], 
+					sentInfo.tokens(sentInfo.tokens.keySet.size-1).get[JInt,CharacterOffsetEndAnnotation](
+						classOf[CharacterOffsetEndAnnotation]))
 				sentMap
 			}
 			assertValidSentence(sent)
@@ -319,10 +327,10 @@ object TempEval2 {
 			sentences.add(sent)
 			//(text)
 			val text:String = map.get[String,TextAnnotation](classOf[TextAnnotation])
-			if(!text.endsWith(sentInfo.mkGloss)){
+//			if(!text.endsWith(sentInfo.mkGloss)){
 				map.set(classOf[TextAnnotation],
 					{if(text != "") text+"\n" else "" } + sentInfo.mkGloss)
-			}
+//			}
 			//(isText)
 			map.set(classOf[IsTestAnnotation],test)
 		}
@@ -512,8 +520,7 @@ object TempEval2 {
 		normalizeFromRetok( retokFromInit(init) )
 	}
 	def normalize(dir:String,lang:String):SerializedCoreMapDataset = {
-//		val x = normalizeFromInit( apply(dir,lang) )
-		val x = normalizeFromInit( apply("aux/coremap/tempeval2-english") )
+		val x = normalizeFromInit( apply(dir,lang) )
 		x
 	}
 
