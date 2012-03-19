@@ -49,7 +49,7 @@ class TimeUnary(lambda:Option[Any=>Any],_parent:NodeType,_child:NodeType)
 		case (a:AnyRef) => this eq a
 		case _ => false
 	}
-	override def hashCode:Int = System.identityHashCode(this)
+//	override def hashCode:Int = System.identityHashCode(this)
 }
 class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
 		_leftChild:NodeType,_rightChild:NodeType) 
@@ -63,7 +63,7 @@ class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
 		case (a:AnyRef) => this eq a
 		case _ => false
 	}
-	override def hashCode:Int = System.identityHashCode(this)
+//	override def hashCode:Int = System.identityHashCode(this)
 }
 class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType) 
 		extends CKYLex(lambda,parent) {
@@ -71,7 +71,7 @@ class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType)
 		case (a:AnyRef) => this eq a
 		case _ => false
 	}
-	override def hashCode:Int = System.identityHashCode(this)
+//	override def hashCode:Int = System.identityHashCode(this)
 }
 
 @SerialVersionUID(1L)
