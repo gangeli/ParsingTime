@@ -289,7 +289,12 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 	}
 	def shape(index:Int):String = {
 		this.index.w2str(words(index)).toCharArray
-			.map{ (c:Char) => if(c.isUpper) "X" else "x" }
+			.map{ (c:Char) => 
+				if(c.isUpper) "A" 
+				else if(c.isDigit) "#"
+				else if(c.isLower) "a" 
+				else "." 
+			}
 			.mkString("")
 	}
 	//<<required overrides>>
@@ -371,16 +376,16 @@ object Interpret {
 				}
 			}
 			//(data)
-			val (trainData,testData) = model match {
-				case (tt:TreeTime) =>
-					val rawData = new TimeDataset(new SerializedCoreMapDataset(dataStr))
-		  		val data = TimeData(
-						new GroundingData( rawData.train, true, tt.index),
-						new GroundingData( rawData.test, false, tt.index))
-					val trainData = data.train.asInstanceOf[Iterable[Annotation]]
-					val testData = data.eval.asInstanceOf[Iterable[Annotation]]
-					(trainData,testData)
-				case _ =>
+			val (trainData,testData) = /*model match*/ {
+//				case (tt:TreeTime) =>
+//					val rawData = new TimeDataset(new SerializedCoreMapDataset(dataStr))
+//		  		val data = TimeData(
+//						new GroundingData( rawData.train, true, tt.index),
+//						new GroundingData( rawData.test, false, tt.index))
+//					val trainData = data.train.asInstanceOf[Iterable[Annotation]]
+//					val testData = data.eval.asInstanceOf[Iterable[Annotation]]
+//					(trainData,testData)
+//				case _ =>
 					val rawData = new TimeDataset(new SerializedCoreMapDataset(dataStr))
 					val trainData = rawData.train.data.map{ (datum:CoreMapDatum) =>
 							datum.impl.asInstanceOf[Annotation]
