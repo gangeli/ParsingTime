@@ -22,7 +22,7 @@ ${BUILD}/time/JITime.class: src/time/JITime.java ${BUILD}/time/Entry.class
 	javac -d $(BUILD) -cp $(CP) src/time/O.java
 
 ${BUILD}/time/Entry.class: ${BUILD}/time/O.class $(wildcard src/time/*.scala)
-	etc/scalac -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
+	etc/fsc -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
 
 
 ${BUILD}/time/O.class: src/time/O.java

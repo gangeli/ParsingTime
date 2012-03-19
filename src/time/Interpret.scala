@@ -39,6 +39,7 @@ import edu.stanford.nlp.time.{Timex => StanfordTimex}
 //------------------------------------------------------------------------------
 // GRAMMAR
 //------------------------------------------------------------------------------
+@SerialVersionUID(1L)
 class TimeUnary(lambda:Option[Any=>Any],_parent:NodeType,_child:NodeType)
 		extends CKYUnary(lambda,_parent,_child) {
 	def this(lambda:Any=>Any,_parent:NodeType,_child:NodeType) 
@@ -51,6 +52,7 @@ class TimeUnary(lambda:Option[Any=>Any],_parent:NodeType,_child:NodeType)
 	}
 //	override def hashCode:Int = System.identityHashCode(this)
 }
+@SerialVersionUID(1L)
 class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
 		_leftChild:NodeType,_rightChild:NodeType) 
 		extends CKYBinary(lambda,_parent,_leftChild,_rightChild) {
@@ -65,6 +67,7 @@ class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
 	}
 //	override def hashCode:Int = System.identityHashCode(this)
 }
+@SerialVersionUID(1L)
 class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType) 
 		extends CKYLex(lambda,parent) {
 	override def equals(o:Any) = o match {
@@ -1590,6 +1593,7 @@ object Score {
 	}
 }
 
+@SerialVersionUID(1L)
 class Score {
 	case class Result(sent:TimeSent,guess:Temporal,gold:Temporal,exact:Boolean,
 			ground:Time) {
