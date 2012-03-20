@@ -53,8 +53,8 @@ trait TimeDetector {
 @SerialVersionUID(1L)
 class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	import CRFDetector.InputAnnotation
-	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Int)] = {
-		val x = info.get(pos).get[(TimeSent,Int),InputAnnotation](
+	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Array[String],Int)] = {
+		val x = info.get(pos).get[(TimeSent,Array[String],Int),InputAnnotation](
 			classOf[InputAnnotation])
 		if(x == null) {
 			None
@@ -64,39 +64,45 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	}
 	def word(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => index.w2str(s.words(i))
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => gloss(i)
 			case None => "✇"
 		}
 	}
 	def pos(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => index.pos2str(s.pos(i))
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => index.pos2str(s.pos(i))
 			case None => "✇"
 		}
 	}
 	def shape(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => s.shape(i)
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+				gloss(i).toCharArray.map{ (c:Char) => 
+					if(c.isUpper) "A" 
+					else if(c.isDigit) "#"
+					else if(c.isLower) "a" 
+					else "." 
+				}.mkString("")
 			case None => "✇"
 		}
 	}
-	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):(String,String,String) = {
+	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):(Int,String,String) = {
 		//returns: number, ordinality, magnitude
 		sent(info,pos) match {
-			case Some((s:TimeSent,i:Int)) =>
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) =>
 				if(s(i) == index.NUM){
-					( s.nums(i).toString, 
+					( s.nums(i), 
 					  s.ordinality(i).toString, 
 						s.nums(i).toString.length.toString)
 				} else {
 					throw new IllegalArgumentException("Not a number: " + s.gloss(i))
 				}
-			case None => ("✇","✇","✇")
+			case None => (-1,"✇","✇")
 		}
 	}
 	def isNumber(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match {
-			case Some((s:TimeSent,i:Int)) =>
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) =>
 				if(s(i) == index.NUM){
 					"true"
 				} else {
@@ -106,29 +112,49 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 		}
 	}
 
+
 	override def getCliqueFeatures(
 			info:PaddedList[CoreMap],position:Int,clique:Clique
 			):java.util.Collection[String] = {
 		val feats = new HashSet[String]
-		(clique.maxLeft to clique.maxRight).foreach{ (relativePos:Int) =>
+		//--Helpers
+		def localFeatures(relativePos:Int){
 			val absolutePos = position+relativePos
+			//--Lexical
 			//(word)
 			feats.add("word@"+relativePos+"="+word(info,absolutePos))
-			//(bigrams)
-			feats.add("word@"+(relativePos-1)+","+relativePos+"="+
-				word(info,absolutePos-1)+","+word(info,absolutePos))
 			//(pos)
 			feats.add("pos@"+relativePos+"="+pos(info,absolutePos))
-//			//(shape)
-//			feats.add("shape@"+relativePos+"="+shape(info,absolutePos))
+		}
+		//--Features
+		if(clique == FeatureFactory.cliqueC){
+			//(general surrounding features)
+			localFeatures(0)
 			//(isNum)
-			feats.add("isnumber@"+relativePos+"="+isNumber(info,absolutePos))
-			//(num)
-			if(isNumber(info,absolutePos) == "true"){
-				val (num,numType,numMag) = characterizeNumber(info,absolutePos)
-//				feats.add("numberType@"+relativePos+"="+numType)
-//				feats.add("numberMagnitude@"+relativePos+"="+numMag)
-//				feats.add("number@"+relativePos+"="+numType+"*10^"+numMag)
+			feats.add("isnumber="+isNumber(info,position))
+			//(capitalized)
+			feats.add("capitalized@"+0+"="+shape(info,position).startsWith("A"))
+			//(bigram)
+			feats.add("word@"+(-1)+",0="+
+				word(info,position-1)+","+word(info,position))
+//			//(trigram)
+//			feats.add("word@"+(-2)+","+(-1)+",0="+
+//				word(info,position-2)+","+
+//				word(info,position-1)+","+
+//				word(info,position))
+			//(surrounding number stuff)
+			if(isNumber(info,position) == "true"){
+				val (num,numType,numMag) = characterizeNumber(info,position)
+				feats.add("wordBeforeNum="+word(info,position-1))
+				feats.add("wordAfterNum="+word(info,position+1))
+				feats.add("numberValue="+num)
+				feats.add("numberType@"+0+"="+numType)
+				feats.add("numberMagnitude@"+0+"="+numMag)
+				feats.add("number@"+0+"=|"+numType+"|*10^"+numMag)
+			}
+		} else {
+			(clique.maxLeft to clique.maxRight).foreach{ (i:Int) =>
+				localFeatures(i)
 			}
 		}
 		return feats
@@ -142,39 +168,24 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
 	import CRFDetector._
 
-	def getTemporal(sent:TimeSent):Option[Temporal] = {
-		None
-//		(0 to 5).foreach{ (beamPow:Int) =>
-//			//(parse)
-//			val beam = math.pow(2,beamPow).toInt
-//			val parses = parser.parse(sent,beam)
-//			//(find correct)
-//			val evaluated:Array[Any] = parses
-//				.map{ _.evaluate }
-//				.dropWhile{ _.isInstanceOf[NoTime] }
-//			//(return)
-//			if(evaluated.length > 0){
-//				return Some(evaluated(0).asInstanceOf[Temporal])
-//			}
-//		}
-//		return None
-	}
-
 	override def findTimes(sent:TimeSent):Array[DetectedTime] 
-		= findTimes(sent, (t:TimeSent) => None)
+		= findTimes(sent, (t:TimeSent) => None, sent.toGlossArray)
 
-	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)]
-			):Array[DetectedTime] = {
+	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)],
+			gloss:Array[String]
+				):Array[DetectedTime] = {
+		log(FORCE,parse(sent))
 		//--Make Input
 		val input:JList[CoreMap] = (0 until sent.length).map{ (i:Int) =>
 			//(make word)
 			val word = new CoreLabel(1)
 			//(set input)
-			word.set(classOf[InputAnnotation], (sent,i))
+			word.set(classOf[InputAnnotation], (sent,gloss,i))
 			//(return)
 			word
 		}
 		//--Classify
+		CRFDetector.parser = Some(parse) //TODO thread safety here
 		val output = impl.classify(input) //output eq input
 		//--Convert Output
 		//(get annotations)
@@ -212,11 +223,14 @@ case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
 }
 
 object CRFDetector {
-	def TIME:String = "X"
-	def NOTM:String = "-"
+	val TIME:String = "X"
+	val NOTM:String = "-"
+	
+	var parser:Option[TimeSent=>Option[(Temporal,Temporal,Double)]] = None
 
-	class InputAnnotation extends CoreAnnotation[(TimeSent,Int)]{
-		def getType:Class[(TimeSent,Int)] = classOf[(TimeSent,Int)]
+	class InputAnnotation extends CoreAnnotation[(TimeSent,Array[String],Int)]{
+		def getType:Class[(TimeSent,Array[String],Int)] 
+			= classOf[(TimeSent,Array[String],Int)]
 	}
 
 	def apply(data:DataStore[DetectionDatum],index:Indexing,treeTime:TreeTime):CRFDetector = {
@@ -239,8 +253,10 @@ object CRFDetector {
 			"Object["+flags.featureFactoryArgs.length+"]")
 		flags.backgroundSymbol = NOTM
 		log(FORCE,"flags.backgroundSymbol: " + flags.featureFactory)
-		flags.maxLeft = O.maxLength
+		flags.maxLeft = O.maxLookaround
 		log(FORCE,"flags.maxLeft: " + flags.maxLeft)
+		flags.maxRight = O.maxLookaround
+		log(FORCE,"flags.maxRight: " + flags.maxRight)
 		endTrack("Flags")
 		val classifier = new CRFClassifier[CoreMap](flags)
 		//--Create Data
@@ -253,7 +269,7 @@ object CRFDetector {
 					//(make word)
 					val word = new CoreLabel(2)
 					//(set input)
-					word.set(classOf[InputAnnotation], (datum.sent,i))
+					word.set(classOf[InputAnnotation], (datum.sent,datum.sent.toGlossArray,i))
 					//(set output)
 					word.set(classOf[AnswerAnnotation],datum.getTime(i) match {
 						case Some(temporal) => b.append(TIME); TIME
@@ -560,18 +576,27 @@ class DetectionTask extends TemporalTask {
 		evalExtent.close
 		endTrack("Evaluate")
 		//--Score
+		val logger = Execution.getLogger();
 		startTrack("Scores")
 		startTrack("Train")
 		log("Precision: " + trainScore.detect.precision)
 		log("Recall:    " + trainScore.detect.recall)
-		log("F1:        " + trainScore.detect.F1)
+		log(YELLOW,"F1:        " + trainScore.detect.F1)
 		log("Accuracy   " + trainScore.accuracy)
+		logger.setGlobalResult("detect.train.precision", trainScore.detect.precision)
+		logger.setGlobalResult("detect.train.recall",    trainScore.detect.recall)
+		logger.setGlobalResult("detect.train.f1",        trainScore.detect.F1)
+		logger.setGlobalResult("detect.train.accuracy",  trainScore.accuracy)
 		endTrack("Train")
 		startTrack("Test")
 		log("Precision: " + evalScore.detect.precision)
 		log("Recall:    " + evalScore.detect.recall)
-		log("F1:        " + evalScore.detect.F1)
+		log(YELLOW,"F1:        " + evalScore.detect.F1)
 		log("Accuracy   " + evalScore.accuracy)
+		logger.setGlobalResult("detect.eval.precision", evalScore.detect.precision)
+		logger.setGlobalResult("detect.eval.recall",    evalScore.detect.recall)
+		logger.setGlobalResult("detect.eval.f1",        evalScore.detect.F1)
+		logger.setGlobalResult("detect.eval.accuracy",  evalScore.accuracy)
 		endTrack("Test")
 		endTrack("Scores")
 	}

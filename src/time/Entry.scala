@@ -299,6 +299,9 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 			}
 			.mkString("")
 	}
+	def toGlossArray:Array[String] = {
+		(0 until length).map{ gloss(_) }.toArray
+	}
 	//<<required overrides>>
 	override def apply(i:Int):Int = words(i)
 	override def length:Int = words.length

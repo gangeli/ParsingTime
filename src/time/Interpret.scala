@@ -840,12 +840,13 @@ case class TreeTime(
 	private def annotateSentence(tokens:JList[CoreLabel], ground:Time) = {
 		//--Run CRF
 		val sent = DataLib.mkTimeSent(tokens,crfIndex.get,false)
+		val gloss:Array[String] = tokens.map{ _.word }.toArray
 		val times:Array[DetectedTime] = crf.get.findTimes(sent,
 			(s:TimeSent) => {
 				crfIndex.map{ (crfInd:Indexing) =>
 					parse(s.reIndex(crfInd),ground)
 				}
-			})
+			}, gloss)
 		//--Annotate
 		times.foreach{ case DetectedTime(begin,end,timeInfo) =>
 			val (time,original,logProb) = timeInfo.get
@@ -1475,14 +1476,12 @@ class InterpretationTask extends TemporalTask {
 		reportScores(sys,trainScoresRev.reverse.toArray,testScore)
 		endTrack("Results")
 		//--Save Model
-		if(O.interpretModel != null){
-			try {
-				import org.goobs.util.TrackedObjectOutputStream
-				import java.io.FileOutputStream
-				IOUtils.writeObjectToFile(sys,Execution.touch("interpretModel.ser.gz"))
-			} catch {
-				case (e:Throwable) => throw new RuntimeException(e)
-			}
+		try {
+			import org.goobs.util.TrackedObjectOutputStream
+			import java.io.FileOutputStream
+			IOUtils.writeObjectToFile(sys,Execution.touch("interpretModel.ser.gz"))
+		} catch {
+			case (e:Throwable) => throw new RuntimeException(e)
 		}
 	}
 
@@ -1503,11 +1502,11 @@ class InterpretationTask extends TemporalTask {
 			//(print)
 			startTrack("Eval Results")
 			log(FORCE,BOLD,GREEN,"TreeTime Train:     " + trn)
-			logger.setGlobalResult("train.tempeval.type", trn.typeAccuracy)
-			logger.setGlobalResult("train.tempeval.value", trn.valueAccuracy)
+			logger.setGlobalResult("interpret.train.tempeval.type", trn.typeAccuracy)
+			logger.setGlobalResult("interpret.train.tempeval.value", trn.valueAccuracy)
 			log(FORCE,BOLD,GREEN,"TreeTime Eval:      " + tst)
-			logger.setGlobalResult("test.tempeval.type", tst.typeAccuracy)
-			logger.setGlobalResult("test.tempeval.value", tst.valueAccuracy)
+			logger.setGlobalResult("interpret.eval.tempeval.type", tst.typeAccuracy)
+			logger.setGlobalResult("interpret.eval.tempeval.value", tst.valueAccuracy)
 			endTrack("Eval Results")
 			endTrack("TempEval")
 		}
@@ -1515,13 +1514,13 @@ class InterpretationTask extends TemporalTask {
 		//(train)
 		if(trainScores.length > 0){
 			startTrack(BOLD,"train")
-			logger.setGlobalResult("train.accuracy",
+			logger.setGlobalResult("interpret.train.accuracy",
 				trainScores(trainScores.length-1).accuracy)
-			logger.setGlobalResult("train.averank",
+			logger.setGlobalResult("interpret.train.averank",
 				trainScores(trainScores.length-1).avePos)
-			logger.setGlobalResult("train.inbeam",
+			logger.setGlobalResult("interpret.train.inbeam",
 				trainScores(trainScores.length-1).percentParsable)
-			logger.setGlobalResult("train.score",
+			logger.setGlobalResult("interpret.train.score",
 				trainScores(trainScores.length-1).aveScore())
 			log(FORCE,BOLD,YELLOW,"train.accuracy: " + 
 				trainScores(trainScores.length-1).accuracy)
@@ -1536,10 +1535,10 @@ class InterpretationTask extends TemporalTask {
 		//(test)
 		val s = if(O.devTest) "dev" else "test"
 		startTrack(BOLD,s)
-		logger.setGlobalResult(s+".accuracy", testScore.accuracy)
-		logger.setGlobalResult(s+".averank", testScore.avePos)
-		logger.setGlobalResult(s+".inbeam", testScore.percentParsable)
-		logger.setGlobalResult(s+".score", testScore.aveScore())
+		logger.setGlobalResult("interpret."+s+".accuracy", testScore.accuracy)
+		logger.setGlobalResult("interpret."+s+".averank", testScore.avePos)
+		logger.setGlobalResult("interpret."+s+".inbeam", testScore.percentParsable)
+		logger.setGlobalResult("interpret."+s+".score", testScore.aveScore())
 		log(FORCE,BOLD,YELLOW,s+".accuracy: "+ testScore.accuracy)
 		log(FORCE,YELLOW,s+".averank: "+ testScore.avePos)
 		log(FORCE,YELLOW,s+".inbeam: "+ testScore.percentParsable)

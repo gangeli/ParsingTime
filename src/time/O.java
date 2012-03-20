@@ -133,8 +133,8 @@ public class O {
 	@Option(name="crfFeatureFactory", gloss="FeatureFactory class for tagging")
 	public static String crfFeatureFactory 
 		= "edu.stanford.nlp.sequences.SuperSimpleFeatureFactory";
-	@Option(name="maxLength", gloss="Clique size for CRF")
-	public static int maxLength = 2;
+	@Option(name="maxLookaround", gloss="Clique size for CRF")
+	public static int maxLookaround = 0;
 	//--TESTING
 	@Option(name="exactmatchThreshold", 	
 		gloss="Max difference to consider exact match")
