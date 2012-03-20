@@ -712,8 +712,13 @@ class Grammar(index:Indexing,lex:Lex,val NodeType:NodeTypeFactory) extends Seria
 
 	def lexPrior:NodeType=>Prior[Int,Multinomial[Int]] 
 		= (parent:NodeType) => {
-			if(parent.flag('nil) && O.freeNils){
-				O.lexPrior //TODO fix me
+			if(parent.flag('nil) && !parent.flag('nilnum) && O.freeNils){
+				val w = index.str2wTest(parent.toString.substring(4))
+				assert(w != index.UNK)
+				Dirichlet.fromMap(
+					Map( w -> 1.0 )
+						.map{ case (x,y) => (x, y.asInstanceOf[java.lang.Double]) }
+					)
 			} else {
 				O.lexPrior
 			}
