@@ -78,7 +78,7 @@ class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType)
 }
 
 @SerialVersionUID(1L)
-class Grammar(index:Indexing,lex:Lex,NodeType:NodeTypeFactory) extends Serializable {
+class Grammar(index:Indexing,lex:Lex,val NodeType:NodeTypeFactory) extends Serializable {
 	import lex._
 	case class NIL()
 	//----------
@@ -709,6 +709,18 @@ class Grammar(index:Indexing,lex:Lex,NodeType:NodeTypeFactory) extends Serializa
 			case None => r.parent.toString
 		}
 	}
+
+	def lexPrior:NodeType=>Prior[Int,Multinomial[Int]] 
+		= (parent:NodeType) => {
+			if(parent.flag('nil) && O.freeNils){
+				O.lexPrior //TODO fix me
+			} else {
+				O.lexPrior
+			}
+		}
+	
+	def rulePrior:NodeType=>Prior[Int,Multinomial[Int]] 
+		= (parent:NodeType) => O.rulePrior
 }
 
 //------------------------------------------------------------------------------
@@ -1354,7 +1366,12 @@ class InterpretationTask extends TemporalTask {
 		//(train)
 		startTrack("Training")
 		forceTrack("Creating Parser")
-		val initialParser = CKYParser(index.W,grammar.RULES)
+		val initialParser = CKYParser(
+			index.W,
+			grammar.RULES.map{ (_,1.0) },
+			grammar.NodeType,
+			grammar.lexPrior,
+			grammar.rulePrior )
 		endTrack("Creating Parser")
 		log("Threading on " + Execution.numThreads + " threads")
 		val (parser,trainScoresRev):(CKYParser,List[Score]) 
@@ -1398,7 +1415,9 @@ class InterpretationTask extends TemporalTask {
 					nonZeroGoodParses
 						.map{ (o:GoodOutput) => 
 							new ReweightedParseTree(o.tree,o.logProb) 
-						}
+						},
+					grammar.lexPrior,
+					grammar.rulePrior
 					)
 				log("updated parser")
 				//(update time)

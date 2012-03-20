@@ -79,8 +79,8 @@ public class O {
 	public static Dirichlet<scala.Int> lexPrior = Dirichlet.ZERO();
 	@Option(name="nilWordPrior", gloss="Dirichlet prior for CKY NIL")
 	public static Dirichlet<scala.Int> nilWordPrior = Dirichlet.ZERO();
-	@Option(name="uniformRoot", gloss="Uniform probability distribution on ROOT")
-	public static boolean uniformRoot = false;
+	@Option(name="freeNils", gloss="Enforce P(w | NIL-w) = 1.0")
+	public static boolean freeNils = false;
 	@Option(name="useTime", gloss="Parse date and time both in grammar")
 	public static boolean useTime = false;
 	@Option(name="hardEM", gloss="Use hard rather than soft EM updates")

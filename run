@@ -24,9 +24,9 @@ env!(
 
 	run(
 		# -- RUN MODE --
-#		o('runInterpretModel'),
+		o('runInterpretModel'),
 		o('interpretModel', 'out/3673.exec/interpretModel.ser.gz'),
-		selo(0, 'mode', 
+		selo(1, 'mode', 
 			'detect',
 			'interpret',
 			'system',
@@ -45,9 +45,11 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		o('rulePrior', 0.325),
-		o('lexPrior', 0.0025),
-		o('uniformRoot'),
+#		o('rulePrior', 0.325),
+#		o('lexPrior', 0.0025),
+		o('rulePrior', 0.001),
+		o('lexPrior', 0.001),
+		o('freeNils'),
 		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
@@ -99,9 +101,9 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-		o('train', 'English[20,162]'),   o('dev',   'English[0,20]'),
+#		o('train', 'English[20,162]'),   o('dev',   'English[0,20]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
@@ -115,7 +117,6 @@ env!(
 #		o('includeRuleInLexProb'), # err...probably not right
 #		o('allowPartialTime'),
 #		o('hardEM'),
-#		o('freeNils'),
 #		o('guessRange'),
 #		o('instantAsDay'),
 #		o('nilWordPrior', 0.0001),
