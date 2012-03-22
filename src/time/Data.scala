@@ -191,6 +191,15 @@ object DataLib {
 	val periodPattern = java.util.regex.Pattern.compile(
 		"""([0-9]*|X)(D|W|M|Q|Y|E|C|L|H|S|T)""")
 	val Unk = """^(.*X.*)$""".r
+
+	class IsTokenized extends CoreAnnotation[Boolean]{
+		def getType:Class[Boolean] = classOf[Boolean]
+	}
+	class IsNumbered extends CoreAnnotation[Boolean]{
+		def getType:Class[Boolean] = classOf[Boolean]
+	}
+
+
 	
 	def timex2JodaTime(timex:String,ground:DateTime):Any = {
 		val str = timex.trim.replaceAll("""\s+""","")
@@ -642,12 +651,16 @@ object DataLib {
 	}
 
 	def retokenize(doc:CoreMap):Unit = {
+		if(doc.containsKey[Boolean,IsTokenized](classOf[IsTokenized])){
+			return
+		}
 		val sents=doc.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
 		//(for each sentence)
 		sents.zipWithIndex.foreach{ case (sent:CoreMap,i:Int) =>
 			//(retokenize sentence)
 			retokSentence(sent)
 		}
+		doc.set(classOf[IsTokenized], true)
 	}
 	
 	def findNumbers(sent:CoreMap):Unit = {
@@ -684,12 +697,16 @@ object DataLib {
 	}
 			
 	def normalizeNumbers(doc:CoreMap):Unit = {
+		if(doc.containsKey[Boolean,IsNumbered](classOf[IsNumbered])){
+			return
+		}
 		val sents=doc.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
 		//(for each sentence)
 		sents.zipWithIndex.foreach{ case (sent:CoreMap,i:Int) =>
 			//(normalize numbers)
 			findNumbers(sent)
 		}
+		doc.set(classOf[IsNumbered], true)
 	}
 	private def numType(str:String):NumberType.Value = {
 		if(str != null){

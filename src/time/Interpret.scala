@@ -754,6 +754,9 @@ case class TreeTime(
 		crf:Option[CRFDetector],
 		crfIndex:Option[Indexing]
 		) extends Annotator {
+	assert(!crf.isDefined || crfIndex.isDefined, "CRF without index")
+	assert(!crfIndex.isDefined || crf.isDefined, "CRF index without CRF")
+	assert(!crf.isDefined || crf.get.index == crfIndex.get, "Indices mismatch")
 
 	def this(parser:CKYParser,index:Indexing,lex:Lex)
 		= this(parser,index,lex,None,None)
@@ -856,8 +859,10 @@ case class TreeTime(
 	
 	private def annotateSentence(tokens:JList[CoreLabel], ground:Time) = {
 		//--Run CRF
-		val sent = DataLib.mkTimeSent(tokens,crfIndex.get,false)
+		val tokensArray:Array[CoreLabel] = tokens.map{ x => x }.toArray
+		val sent = crf.get.corelabels2timeSent(tokensArray)
 		val gloss:Array[String] = tokens.map{ _.word }.toArray
+		assert(gloss.length == sent.length, "gloss mismatch")
 		val times:Array[DetectedTime] = crf.get.findTimes(sent,
 			(s:TimeSent) => {
 				crfIndex.map{ (crfInd:Indexing) =>
@@ -868,7 +873,7 @@ case class TreeTime(
 		times.foreach{ case DetectedTime(begin,end,timeInfo) =>
 			val (time,original,logProb) = timeInfo.get
 			val timex = toStanfordTimex(time,original)
-			log("detected " + 
+			log("detected ["+begin+"-"+end+") " + 
 				tokens.slice(begin,end).map{ _.word }.mkString(" ") + 
 				" as " + timex)
 			(begin until end).foreach{ (i:Int) =>
@@ -878,11 +883,15 @@ case class TreeTime(
 	}
 	
 	//<<annotator overrides>>
-	override def annotate(ann:Annotation){
-		//--Variables
+	override def annotate(ann:Annotation){ //DESTRUCTIVE! (todo prolly shouldn't be)
+		//--Overhead
+		//(ground)
 		val ground = new Time(new DateTime(ann
 				.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
 				.getTimeInMillis ))
+		//(annotate)
+		DataLib.retokenize(ann)
+		DataLib.normalizeNumbers(ann)
 		//--Cycle Sentences
 		ann
 				.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
@@ -1516,21 +1525,25 @@ class InterpretationTask extends TemporalTask {
 			startTrack("TempEval")
 			//(run)
 			startTrack("Train")
-			val trn = Entry.officialEval(sys,data.train.asInstanceOf[Iterable[Annotation]],
+			val (trnOfficial,trnAngel) 
+				= Entry.officialEval(sys,data.train.asInstanceOf[Iterable[Annotation]],
 				true,O.tempevalHome,Execution.touch("attr-train.tab"))
 			endTrack("Train")
 			startTrack("Eval")
-			val tst = Entry.officialEval(sys,data.eval.asInstanceOf[Iterable[Annotation]],
+			val (tstOfficial,tstAngel) 
+				= Entry.officialEval(sys,data.eval.asInstanceOf[Iterable[Annotation]],
 				false,O.tempevalHome,Execution.touch("attr-test.tab"))
 			endTrack("Eval")
 			//(print)
 			startTrack("Eval Results")
-			log(FORCE,BOLD,GREEN,"TreeTime Train:     " + trn)
-			logger.setGlobalResult("interpret.train.tempeval.type", trn.typeAccuracy)
-			logger.setGlobalResult("interpret.train.tempeval.value", trn.valueAccuracy)
-			log(FORCE,BOLD,GREEN,"TreeTime Eval:      " + tst)
-			logger.setGlobalResult("interpret.eval.tempeval.type", tst.typeAccuracy)
-			logger.setGlobalResult("interpret.eval.tempeval.value", tst.valueAccuracy)
+			log(FORCE,BOLD,GREEN,"TreeTime Train:         " + trnOfficial)
+			logger.setGlobalResult("interpret.train.tempeval.type", trnOfficial.typeAccuracy)
+			logger.setGlobalResult("interpret.train.tempeval.value", trnOfficial.valueAccuracy)
+			log(FORCE,BOLD,GREEN,"TreeTime Train (Angel): " + trnAngel)
+			log(FORCE,BOLD,GREEN,"TreeTime Eval:         " + tstOfficial)
+			logger.setGlobalResult("interpret.eval.tempeval.type", tstOfficial.typeAccuracy)
+			logger.setGlobalResult("interpret.eval.tempeval.value", tstOfficial.valueAccuracy)
+			log(FORCE,BOLD,GREEN,"TreeTime Eval (Angel): " + tstAngel)
 			endTrack("Eval Results")
 			endTrack("TempEval")
 		}

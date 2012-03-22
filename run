@@ -24,9 +24,9 @@ env!(
 
 	run(
 		# -- RUN MODE --
-		o('runInterpretModel'),
-		o('interpretModel', 'out/3673.exec/interpretModel.ser.gz'),
-		selo(1, 'mode', 
+#		o('runInterpretModel'),
+		o('interpretModel', 'aux/interpret.ser.gz'),
+		selo(0, 'mode', 
 			'detect',
 			'interpret',
 			'system',
@@ -81,7 +81,6 @@ env!(
 		o('maxSearchTime', 10000),
 		#<detection>
 		o('crfFeatureFactory','time.TRIPSFeatures'),
-		o('maxLookaround', 1),
 		#<params>
 		o('useTime'),
 		o('pruneTime', 1000),

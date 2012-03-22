@@ -141,6 +141,33 @@ object G {
 	Global utility functions
 */
 object U {
+	def shape(str:String):String = {
+		//(compress character)
+		def toChar(c:Char):Char = {
+			if(c.isUpper) 'A' 
+			else if(c.isDigit) '#'
+			else if(c.isLower) 'a' 
+			else '.' 
+		}
+		val chars = str.toCharArray
+		if(chars.length < 4){
+			//(case: short string)
+			chars.map{ toChar(_) }.mkString("")
+		} else {
+			//(case: long string)
+			val prefix = chars.slice(0,2).map{toChar(_)}.mkString("")
+			val infix = chars.slice(2,chars.length-2).foldLeft(""){ case (soFar:String,c:Char) =>
+				val compressed = toChar(c)
+				if(soFar.length > 0 && soFar(0) == compressed){
+					soFar
+				} else {
+					compressed + soFar
+				}
+			}.reverse
+			val suffix = chars.slice(chars.length-2,chars.length).map{toChar(_)}.mkString("")
+			prefix + infix + suffix
+		}
+	}
 	def accum[E](fn:(E=>Unit)=>Unit,aux:E=>Unit = (e:E)=>{}):List[E] = {
 		var lst:List[E] = List[E]()
 		fn( (e:E) => {
@@ -290,14 +317,7 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 		)
 	}
 	def shape(index:Int):String = {
-		this.index.w2str(words(index)).toCharArray
-			.map{ (c:Char) => 
-				if(c.isUpper) "A" 
-				else if(c.isDigit) "#"
-				else if(c.isLower) "a" 
-				else "." 
-			}
-			.mkString("")
+		U.shape(this.index.w2str(words(index)))
 	}
 	def toGlossArray:Array[String] = {
 		(0 until length).map{ gloss(_) }.toArray
@@ -309,7 +329,7 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 		if(words(i) == index.NUM){
 			assert(nums(i) != Int.MinValue, 
 				"Returning number that was not set: "+index.w2str(words(i))+" "+nums(i))
-			nums(i).toString + "[" + ordinality(i) + "]"
+			nums(i).toString
 		} else {
 			index.w2str(words(i))
 		}
@@ -375,8 +395,10 @@ object Interpret {
 			//(model)
 			val model:Annotator = {
 				if(new File(modelStr).exists){
+					log(FORCE,"Reading model from " + modelStr)
 					edu.stanford.nlp.io.IOUtils.readObjectFromFile(modelStr)
 				} else {
+					log(FORCE,"Creating new " + modelStr)
 					new MetaClass(modelStr).createInstance()
 				}
 			}
@@ -401,9 +423,10 @@ object Interpret {
 					(trainData,testData)
 			}
 			//(script)
-			val trainScore 
+			val (trainOfficial,trainAngel)
 				= Entry.officialEval(model,trainData,true,new File(tempevalHome))
-			log(GREEN,FORCE,"TRAIN: " + trainScore)
+			log(GREEN,FORCE,"TRAIN official: " + trainOfficial)
+			log(GREEN,FORCE,"TRAIN angel:    " + trainAngel)
 //			val testScore 
 //				= Entry.officialEval(model,testData,false,new File(tempevalHome))
 //			log(GREEN,FORCE,"TEST: " + testScore)
@@ -414,14 +437,112 @@ object Interpret {
 //------------------------------------------------------------------------------
 // ENTRY
 //------------------------------------------------------------------------------
-case class OfficialScore(typeAccuracy:Double,valueAccuracy:Double){
+case class OfficialScore(
+		detectPrecision:Double,
+		detectRecall:Double,
+		typeAccuracy:Double,
+		valueAccuracy:Double){
+	def detectF1:Double = {
+		2.0*detectPrecision*detectRecall / (detectPrecision + detectRecall)
+	}
 	override def toString:String =
-		"type=" + G.df.format(typeAccuracy) + " value="+G.df.format(valueAccuracy)
+		"detect=[P:"+G.df.format(detectPrecision)+" R:"+G.df.format(detectRecall)+" F1:"+
+			G.df.format(detectF1)+"] interprt=[typ:" + G.df.format(typeAccuracy) + 
+			" val:"+G.df.format(valueAccuracy)+"]"
 }
+
+case class AngelScore(
+		typePrecision:Double,
+		typeRecall:Double,
+		valuePrecision:Double,
+		valueRecall:Double){
+	
+	def typeF1:Double = 2.0*typePrecision*typeRecall / (typePrecision + typeRecall)
+	def valueF1:Double = 2.0*valuePrecision*valueRecall / (valuePrecision + valueRecall)
+	
+	override def toString:String =
+		"type=[P:"+G.df.format(typePrecision)+" R:"+G.df.format(typeRecall)+" F1:"+
+			G.df.format(typeF1)+"] value=[P:" + G.df.format(valuePrecision) + 
+			" R:"+G.df.format(valueRecall)+" F1:" + G.df.format(valueF1) + "]"
+}
+
 
 class Entry {}
 object Entry {
 	import edu.stanford.nlp.util.logging._
+	
+	def angelScript(
+			train:Boolean,
+			tempevalHome:File,
+			guessExtentsRaw:Option[File],
+			guessAttributesRaw:Option[File]
+			):AngelScore = {
+		//--Setup
+		//(get other paths)
+		val base:String =
+			if(!train){
+				tempevalHome.getPath+"/test/english/key"
+			} else {
+				tempevalHome.getPath+"/training/english/data"
+			}
+		val scorer:String = tempevalHome.getPath+"/scorer/score_entities_angel.py"
+		val segments:String = base + "/base-segmentation.tab"
+		val goldExtents:String = base + "/timex-extents.tab"
+		val goldAttributes:String = base + "/timex-attributes.tab"
+		//(get input paths)
+		val guessExtents = guessExtentsRaw.getOrElse(new File(goldExtents)).getPath
+		val guessAttributes = guessAttributesRaw.getOrElse(new File(goldAttributes)).getPath
+		//--Run
+		//(run script)
+		val scriptOutput:String = {
+			val cmd = 
+				(new StringBuilder).append("python").append(" ")
+					.append(scorer).append(" ")
+					.append(segments).append(" ")
+					.append(goldExtents).append(" ")
+					.append(guessExtents).append(" ")
+					.append(goldAttributes).append(" ")
+					.append(guessAttributes).append(" ")
+					.toString
+			try {
+				cmd !!;
+			} catch {
+				case (e:RuntimeException) => {
+					err("SCRIPT FAILED: " + e.getMessage);
+					err(cmd);
+					"""
+					NO GUESSES
+					precision   1.0
+					recall      0.0
+					attribute type       precision   1.0
+					attribute type       recall      0.0
+					attribute value      precision   1.0
+					attribute value      recall      0.0
+					"""
+				}
+				case _ => throw new IllegalStateException("???")
+			}
+		}
+		//--Create Score
+		//(print output)
+		startTrack("Script Output")
+		log(scriptOutput)
+		endTrack("Script Output")
+		//(get scores)
+		val Prec      = """(?ms).*precision   ([0-9\.]+).*""".r
+		val Recall    = """(?ms).*recall      ([0-9\.]+).*""".r
+		val TypePrec  =  """(?ms).*attribute type       precision   ([0-9\.]+).*""".r
+		val TypeRec   =  """(?ms).*attribute type       recall      ([0-9\.]+).*""".r
+		val ValuePrec = """(?ms).*attribute value      precision   ([0-9\.]+).*""".r
+		val ValueRec  = """(?ms).*attribute value      recall      ([0-9\.]+).*""".r
+		val TypePrec(typePrec) = scriptOutput
+		val TypeRec(typeRec) = scriptOutput
+		val ValuePrec(valuePrec) = scriptOutput
+		val ValueRec(valueRec) = scriptOutput
+		//(return score
+		AngelScore(typePrec.toDouble, typeRec.toDouble, 
+			valueRec.toDouble,valuePrec.toDouble)
+	}
 
 	def officialScript(
 			train:Boolean,
@@ -464,6 +585,8 @@ object Entry {
 					err(cmd);
 					"""
 					NO GUESSES
+					precision   1.0
+					recall      0.0
 					attribute type       1.0
 					attribute value      1.0
 					"""
@@ -477,45 +600,31 @@ object Entry {
 		log(scriptOutput)
 		endTrack("Script Output")
 		//(get scores)
+		val Prec   = """(?ms).*precision   ([0-9\.]+).*""".r
+		val Recall = """(?ms).*recall      ([0-9\.]+).*""".r
 		val Type =  """(?ms).*attribute type       ([0-9\.]+).*""".r
 		val Value = """(?ms).*attribute value      ([0-9\.]+).*""".r
+		val Prec(detectPrec) = scriptOutput
+		val Recall(detectRec) = scriptOutput
 		val Type(typAccr) = scriptOutput
 		val Value(valAccr) = scriptOutput
 		//(return score
-		OfficialScore(typAccr.toDouble,valAccr.toDouble)
+		OfficialScore(detectPrec.toDouble, detectRec.toDouble, 
+			typAccr.toDouble,valAccr.toDouble)
+	}
+			
+	private case class TimexSpan(timex:StanfordTimex,begin:Int,sentI:Int){ 
+		var end:Int = begin+1 
 	}
 
-
-	def officialEval(sys:Annotator,data:Iterable[Annotation],train:Boolean,
-			tempevalHome:File, 
-//			attributeFile:File=File.createTempFile("attr",".tab"),
-			attributeFile:File=new File("tmp/attr.tab"),
-			extentsFile:File=File.createTempFile("ext",".tab")
-			):OfficialScore = {
-		startTrack("Evaluating " + sys.getClass + " on " + {if(train) "train" else "test" })
-		//--Setup
-		if(!attributeFile.exists){ attributeFile.createNewFile }
-		val attrs = new StringBuilder
-		val extents = new StringBuilder
-		//--Annotate
-		data.foreach{ (doc:Annotation) =>
-			val docID = doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
-			val ground = new DateTime(
-					doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
-					.getTimeInMillis )
-			var tidNum = 0
-			startTrack("Document " + docID)
+	private def annotateSpans(sys:Annotator,doc:Annotation):Buffer[TimexSpan] = {
 			sys.annotate(doc)
 			//--Collect Timexes
 			//(utility)
 			def isTimex(lbl:CoreLabel):Boolean 
 				= lbl.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation]) != null
-			case class TimexSpan(timex:StanfordTimex,begin:Int,sentI:Int){ 
-				var end:Int = begin+1 
-			}
 			//(for each sentence)
-			val spans
-				= doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+			doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
 					.zipWithIndex.flatMap{ case (sent:CoreMap,sentI:Int) =>
 				if(sent.get[JList[CoreMap],TimexAnnotations](classOf[TimexAnnotations])
 						!= null){
@@ -573,7 +682,31 @@ object Entry {
 					revTimexes.reverse
 				}
 			}
-			spans.foreach{ (span:TimexSpan) =>
+		
+	}
+
+
+	def officialEval(sys:Annotator,data:Iterable[Annotation],train:Boolean,
+			tempevalHome:File, 
+			attributeFile:File=File.createTempFile("attr",".tab"),
+			extentsFile:File=File.createTempFile("ext",".tab")
+			):(OfficialScore,AngelScore) = {
+		startTrack("Evaluating " + sys.getClass + " on " + {if(train) "train" else "test" })
+		//--Setup
+		if(!attributeFile.exists){ attributeFile.createNewFile }
+		val attrs = new StringBuilder
+		val extents = new StringBuilder
+		//--Annotate
+		data.foreach{ (doc:Annotation) =>
+			//--Variables
+			val docID = doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
+			var tidNum = 0
+			val ground = new DateTime(
+					doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+					.getTimeInMillis )
+			startTrack("Document " + docID)
+			//--Process Spans
+			annotateSpans(sys,doc).foreach{ (span:TimexSpan) =>
 				//(variables)
 				tidNum += 1
 				def base(b:StringBuilder,tok:Int) = b.append("\n")
@@ -607,16 +740,17 @@ object Entry {
 		//--Write
 		//(attributes)
 		val fw = new FileWriter(attributeFile)
-		fw.write(attrs.substring(1))
+		fw.write(if(attrs.length == 0) "" else attrs.substring(1))
 		fw.close()
 		//(extents)
 		val fw2 = new FileWriter(extentsFile)
-		fw2.write(extents.substring(1))
+		fw2.write(if(extents.length == 0) "" else extents.substring(1))
 		fw2.close()
 		//--Score
-		val rtn = officialScript(train,tempevalHome,Some(extentsFile),Some(attributeFile))
+		val official = officialScript(train,tempevalHome,Some(extentsFile),Some(attributeFile))
+		val angel = angelScript(train,tempevalHome,Some(extentsFile),Some(attributeFile))
 		endTrack("Evaluating " + sys.getClass + " on " + {if(train) "train" else "test" })
-		rtn
+		(official,angel)
 	}
 
 

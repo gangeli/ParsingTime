@@ -44,7 +44,11 @@ case class DetectedTime(begin:Int,end:Int,time:Option[(Temporal,Temporal,Double)
 	}
 }
 trait TimeDetector {
-	def findTimes(sent:TimeSent):Array[DetectedTime]
+	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)],
+			gloss:Array[String]):Array[DetectedTime]
+	
+	def findTimes(sent:TimeSent):Array[DetectedTime] 
+		= findTimes(sent, (t:TimeSent) => None, sent.toGlossArray)
 }
 
 //------------------------------------------------------------------------------
@@ -64,7 +68,12 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	}
 	def word(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,gloss:Array[String],i:Int)) => gloss(i)
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+				if(s(i) == index.NUM){
+					s.nums(i).toString
+				} else {
+					gloss(i)
+				}
 			case None => "✇"
 		}
 	}
@@ -77,12 +86,7 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	def shape(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
 			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
-				gloss(i).toCharArray.map{ (c:Char) => 
-					if(c.isUpper) "A" 
-					else if(c.isDigit) "#"
-					else if(c.isLower) "a" 
-					else "." 
-				}.mkString("")
+				U.shape(gloss(i))
 			case None => "✇"
 		}
 	}
@@ -118,43 +122,74 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 			):java.util.Collection[String] = {
 		val feats = new HashSet[String]
 		//--Helpers
+		def addFeature(str:String){
+			feats.add(str)
+		}
 		def localFeatures(relativePos:Int){
 			val absolutePos = position+relativePos
-			//--Lexical
-			//(word)
-			feats.add("word@"+relativePos+"="+word(info,absolutePos))
-			//(pos)
-			feats.add("pos@"+relativePos+"="+pos(info,absolutePos))
+			val dir:String = {
+				if(relativePos < 0){ "neg" }
+				else if(relativePos == 0){ "0" }
+				else{ "pos" }
+			}
+			addFeature("word@"+dir+"="+word(info,absolutePos))
+		}
+		def characterNgrams(word:String,n:Int,relativePosition:Int){
+			val chars = word.toCharArray
+			(1 to n).foreach{ (len:Int) =>
+				((-len+1) until chars.length).foreach{ (start:Int) =>
+					//(get n-gram)
+					val gram = (start until (start+len)).foldLeft(""){ case (soFar:String,i:Int) =>
+						if(i < 0 || i >= chars.length){
+							soFar + "✇"
+						} else {
+							soFar + chars(i)
+						}
+					}
+					//(add feature)
+					addFeature("ngram@"+relativePosition+"="+gram)
+				}
+			}
+		}
+		def prefix(n:Int) = word(info,position).slice(0,n)
+		def suffix(n:Int) = {
+			val str = word(info,position)
+			str.slice(math.max(0,str.length-n),str.length)
 		}
 		//--Features
 		if(clique == FeatureFactory.cliqueC){
 			//(general surrounding features)
-			localFeatures(0)
-			//(isNum)
-			feats.add("isnumber="+isNumber(info,position))
-			//(capitalized)
-			feats.add("capitalized@"+0+"="+shape(info,position).startsWith("A"))
-			//(bigram)
-			feats.add("word@"+(-1)+",0="+
-				word(info,position-1)+","+word(info,position))
-//			//(trigram)
-//			feats.add("word@"+(-2)+","+(-1)+",0="+
-//				word(info,position-2)+","+
-//				word(info,position-1)+","+
-//				word(info,position))
+			(-O.maxLookaround to O.maxLookaround).foreach{ (position:Int) =>
+				localFeatures(position)
+			}
+			//(affixes)
+			(1 to 5).foreach{ (i:Int) =>
+				addFeature("prefix("+i+")@"+0+"="+prefix(i))
+				addFeature("suffix("+i+")@"+0+"="+suffix(i))
+			}
+			//(affix shapes)
+			(1 to 5).foreach{ (i:Int) =>
+				addFeature("prefixShape(i)@"+0+"="+U.shape(prefix(i)))
+				addFeature("suffixShape(i)@"+0+"="+U.shape(suffix(i)))
+			}
+			//(pos)
+			addFeature("POS@"+0+"="+pos(info,position))
+			//(shape)
+			addFeature("shape@"+0+"="+shape(info,position))
+			//(isnumber)
+			addFeature("isnumber@"+0+"="+isNumber(info,position))
 			//(surrounding number stuff)
 			if(isNumber(info,position) == "true"){
 				val (num,numType,numMag) = characterizeNumber(info,position)
-				feats.add("wordBeforeNum="+word(info,position-1))
-				feats.add("wordAfterNum="+word(info,position+1))
-				feats.add("numberValue="+num)
-				feats.add("numberType@"+0+"="+numType)
-				feats.add("numberMagnitude@"+0+"="+numMag)
-				feats.add("number@"+0+"=|"+numType+"|*10^"+numMag)
+				addFeature("wordBeforeNum="+word(info,position-1))
+				addFeature("wordAfterNum="+word(info,position+1))
+				addFeature("numberType@"+0+"="+numType)
+				addFeature("numberMagnitude@"+0+"="+numMag)
+				addFeature("number@"+0+"=|"+numType+"|*10^"+numMag)
 			}
 		} else {
-			(clique.maxLeft to clique.maxRight).foreach{ (i:Int) =>
-				localFeatures(i)
+			(-O.maxLookaround to O.maxLookaround).foreach{ (position:Int) =>
+				localFeatures(position)
 			}
 		}
 		return feats
@@ -165,16 +200,14 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 // CRF
 //------------------------------------------------------------------------------
 @SerialVersionUID(1L)
-case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
+case class CRFDetector(impl:CRFClassifier[CoreMap],index:Indexing
+		) extends TimeDetector {
 	import CRFDetector._
 
-	override def findTimes(sent:TimeSent):Array[DetectedTime] 
-		= findTimes(sent, (t:TimeSent) => None, sent.toGlossArray)
 
 	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)],
 			gloss:Array[String]
 				):Array[DetectedTime] = {
-		log(FORCE,parse(sent))
 		//--Make Input
 		val input:JList[CoreMap] = (0 until sent.length).map{ (i:Int) =>
 			//(make word)
@@ -220,6 +253,25 @@ case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
 		//--Return
 		return rtn.map{ _.tagMetaInfo(sent.meta) }.reverse.toArray
 	}
+	
+	def corelabels2timeSent(tokens:Array[CoreLabel]):TimeSent = {
+		//(get POS)
+		val pos = tokens.map{ (lbl:CoreLabel) => index.str2posTest(lbl.tag) }
+		//(get numbers)
+		val (ordinality,nums) = tokens.map{ DataLib.number(_) }.unzip
+		//(get words)
+		val words = tokens.zip(ordinality).map{ 
+				case (lbl:CoreLabel,numType:NumberType.Value) =>
+			if(numType != NumberType.NONE){ 
+				index.NUM 
+			} else { 
+					index.str2wTest(lbl.word,false) 
+			}
+		}
+		//(create sentence)
+		TimeSent(words,pos,nums.toArray,ordinality.toArray,index)
+	}
+
 }
 
 object CRFDetector {
@@ -253,9 +305,9 @@ object CRFDetector {
 			"Object["+flags.featureFactoryArgs.length+"]")
 		flags.backgroundSymbol = NOTM
 		log(FORCE,"flags.backgroundSymbol: " + flags.featureFactory)
-		flags.maxLeft = O.maxLookaround
+		flags.maxLeft = 1
 		log(FORCE,"flags.maxLeft: " + flags.maxLeft)
-		flags.maxRight = O.maxLookaround
+		flags.maxRight = 0
 		log(FORCE,"flags.maxRight: " + flags.maxRight)
 		endTrack("Flags")
 		val classifier = new CRFClassifier[CoreMap](flags)
@@ -289,8 +341,9 @@ object CRFDetector {
 		endTrack("CRF")
 
 		//--Return
-		new CRFDetector(classifier)
+		new CRFDetector(classifier,index)
 	}
+
 }
 
 //------------------------------------------------------------------------------
@@ -298,8 +351,11 @@ object CRFDetector {
 //------------------------------------------------------------------------------
 case class DetectionDatum(
 		doc:String,sent:TimeSent,sentIndex:Int,
-		spans:Array[(Int,Int)],times:Array[Temporal],dct:Time
+		spans:Array[(Int,Int)],times:Array[Temporal],dct:Time,
+		gloss:Array[String]
 		) extends Iterable[Int] {
+	assert(gloss.length == sent.length, "Gloss length mismatch")
+
 	def getTime(i:Int):Option[Temporal] = {
 		spans.zipWithIndex.foreach{ case ((begin:Int,end:Int),index:Int) =>
 			if(i >= begin && i < end){
@@ -337,6 +393,9 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 		new Iterable[DetectionDatum] {
 			override def iterator:Iterator[DetectionDatum]
 				= docs.iterator.flatMap{ (doc:CoreMap) =>
+					//--Process Document
+					DataLib.retokenize(doc)
+					DataLib.normalizeNumbers(doc)
 					//--Variables
 					val dct:Time = Time(new DateTime(
 						doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
@@ -372,6 +431,8 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 									}
 								}
 							}
+							//((get gloss))
+							val gloss = tokens.map{ _.word }
 							//((create sentence))
 							val timeSent = 
 								TimeSent(words,pos,nums.toArray,ordinality.toArray,index)
@@ -413,7 +474,9 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 								//(datum)
 								DetectionDatum(
 									docName,timeSent,sentI,
-									spans.toArray,times.toArray,dct)
+									spans.toArray,times.toArray,dct,
+									gloss
+									)
 									.setOrigBegin({ (i:Int) =>
 										tokens(i).get[java.lang.Integer,TokenBeginAnnotation](
 											classOf[TokenBeginAnnotation])
@@ -444,9 +507,9 @@ object CoreMapDetectionStore {
 		//--Data Source
 		val file:String = 
 			System.getenv("HOME") + 
-			"/workspace/time/aux/coremap/tempeval2-english" +
-			{if(O.retokenize) "-retok" else "" } +
-			{if(O.collapseNumbers) "-numbers" else "" }
+			"/workspace/time/aux/coremap/tempeval2-english"
+//			{if(O.retokenize) "-retok" else "" } +
+//			{if(O.collapseNumbers) "-numbers" else "" }
 		log(FORCE,"INPUT: "+file)
 		//--Create Data
 		val data = new SerializedCoreMapDataset(file)
@@ -481,7 +544,8 @@ class DetectionTask extends TemporalTask {
 		data.eachExample(Int.MaxValue).zipWithIndex.foreach{ 
 				case (datum:DetectionDatum,index:Int) =>
 			//(make prediction)
-			val guess:Array[DetectedTime] = sys.findTimes(datum.sent)
+			val guess:Array[DetectedTime] 
+				= sys.findTimes(datum.sent,(t:TimeSent)=>None,datum.gloss)
 			//(get span overlap)
 			//((variables))
 			val goldMask:Array[Boolean] = new Array[Boolean](datum.sent.length)
@@ -548,7 +612,7 @@ class DetectionTask extends TemporalTask {
 		val index = Indexing()
 		val data = CoreMapDetectionStore(O.train,if(O.devTest) O.dev else O.test,index)
 		endTrack("Loading dataset")
-		forceTrack("Training Interpretation Model") //TODO logic here
+		forceTrack("Training Interpretation Model")
 		val sys:TreeTime = if(O.runInterpretModel){
 			(new InterpretationTask).run
 			IOUtils.readObjectFromFileNoExceptions(Execution.touch("interpretModel.ser.gz"))
