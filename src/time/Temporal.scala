@@ -1581,7 +1581,7 @@ object Sequence {
 		val m = (tag:String,update:Boolean) => {
 			if(update && seenE){
 				gauss = ess.runMStep
-				log("m-update["+tag+"]: " + gauss)
+				log(FORCE,"m-update["+tag+"]: " + gauss)
 				ess.clear
 				seenE = false
 			}

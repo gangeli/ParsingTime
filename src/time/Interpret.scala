@@ -50,7 +50,6 @@ class TimeUnary(lambda:Option[Any=>Any],_parent:NodeType,_child:NodeType)
 		case (a:AnyRef) => this eq a
 		case _ => false
 	}
-//	override def hashCode:Int = System.identityHashCode(this)
 }
 @SerialVersionUID(1L)
 class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
@@ -65,7 +64,6 @@ class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
 		case (a:AnyRef) => this eq a
 		case _ => false
 	}
-//	override def hashCode:Int = System.identityHashCode(this)
 }
 @SerialVersionUID(1L)
 class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType) 
@@ -74,645 +72,235 @@ class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType)
 		case (a:AnyRef) => this eq a
 		case _ => false
 	}
-//	override def hashCode:Int = System.identityHashCode(this)
 }
 
 @SerialVersionUID(1L)
-class Grammar(index:Indexing,lex:Lex,val NodeType:NodeTypeFactory) extends Serializable {
-	import lex._
-	case class NIL()
-	//----------
-	// NODE TYPES
-	//----------
-	def getNumFromOrder(order:Int,typ:NumberType.Value):Symbol = {
-		Symbol("NUM*$10^"+order+"$:"+typ.toString)
-	}
-	def getNum(num:Int,typ:NumberType.Value):Symbol = {
-		getNumFromOrder(num.toString.length-1,typ)
-	}
-	//--Init Function
-	val nums:Seq[NodeType] = {
-		(0 to 10).map{ (orderOfMagnitude:Int) =>
-			NumberType.values.map{ (numberType:NumberType.Value) =>
-				NodeType.makePreterminal(
-					getNumFromOrder(orderOfMagnitude,numberType),
-					'num, Symbol(orderOfMagnitude.toString), Symbol(numberType.toString))
-			}
-		}.flatten.toList
-	}
-	var nils:Seq[NodeType] = List[NodeType]()
-	def mkNils(index:Indexing, num:Int) {
-		nils = if(O.lexNils){
-			(0 until index.W).map{ (w:Int) =>
-				if(w == index.NUM) {
-					nums.map{ (num:NodeType) =>
-						NodeType.make(Symbol("NIL-"+num.toString), 'nil, 'nilnum)
-					}
-				} else {
-					val word:String = index.w2str(w)
-					List[NodeType](NodeType.makePreterminal(Symbol("NIL-"+word), 'nil))
-				}
-			}.flatten
-		} else {
-			List[NodeType](NodeType.makePreterminal('NIL, 'nil))
-		}
-	}
-	
-	//--Added Terms
-	//(basic types)
-	NodeType.make('Range)
-	NodeType.make('Duration)
-	NodeType.make('Sequence)
-	//(sequences)
-	NodeType.make("moh(n)")
-	NodeType.make("hod(n)")
-	NodeType.make("dom(n)")
-	NodeType.make("moy(n)")
-	NodeType.make("yoc(n)")
-	NodeType.make("doc(n)")
-	NodeType.make("yod(n)")
-	NodeType.make("year(n)")
-	NodeType.make("century(n)")
-	//(nils)
-	mkNils(index,index.NUM)
-	//--Numbers
-	assert(!nums.isEmpty, "no number terms!")
-	
-	//--Other NodeTypes
-	import scala.collection.immutable.Set
-	val rangeTypes = List("R","S")
-	val durationTypes = List("D","S")
-	//(arity-2 functions)
-	//((like rd2r))
-	val fn2 = {rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
-			case (soFar:List[(NodeType,Symbol,Symbol)],r:String) =>
-		durationTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
-				case (soFar:List[(NodeType,Symbol,Symbol)],d:String) =>
-			( NodeType.make(Symbol("F_{"+r+d+"}2"+r),'fn),Symbol(r),Symbol(d)
-				) :: soFar
-		} ::: soFar
-	}.toSet ++
-	//((like rr2r))
-	rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
-			case (soFar:List[(NodeType,Symbol,Symbol)],r1:String) =>
-		rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
-				case (soFar:List[(NodeType,Symbol,Symbol)],r2:String) =>
-			(NodeType.make(Symbol("F_{"+r1+r2+"}2"+r1),'fn),
-				Symbol(r1),Symbol(r2)) :: soFar
-		} ::: soFar
-	}}.toList
-	//(arity-1 functions)
-	//((like r2r))
-	val fn1 = {rangeTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
-			case (soFar:List[((NodeType,Symbol),Symbol)],r:String) =>
-		((NodeType.make(Symbol("F_{"+r+"}2"+r),'fn),Symbol(r)),Symbol(r)) :: soFar
-	}.toSet ++
-	//((n2r))
-	List[((NodeType,Symbol),Symbol)](
-		((NodeType.make(Symbol("F_{N0th}2S"),'fn),'S), 'N0th)
-	) ++
-	//((like d2d))
-	durationTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
-			case (soFar:List[((NodeType,Symbol),Symbol)],d:String) =>
-		((NodeType.make(Symbol("F_{"+d+"}2"+d),'fn),Symbol(d)),Symbol(d)) :: soFar
-	}}.toList
-	
-	//--Preterminal Equivalents
-	//(add lex entries)
-	NodeType.all.filter{ _.flag('fn) }.foreach{ (nt:NodeType) =>
-		if(!nt.isPreterminal && !nt.flag('nil)){
-			NodeType.makePreterminal(nt.toString + "_")
-		}
-	}
-	
-	//--From Short Version
-	def fromShort(short:String):NodeType = fromShort(Symbol(short))
-	def fromShort(short:Symbol):NodeType = {
-		short match {
-			case 'R => NodeType('Range)
-			case 'S => NodeType('Sequence)
-			case 'D => NodeType('Duration)
-			case 'N0th => NodeType(getNumFromOrder(0,NumberType.ORDINAL))
-			case _ => throw fail("No such short form: " + short)
-		}
-	}
+case class Grammar(index:Indexing,factory:NodeTypeFactory,lex:Lex,rules:List[GrammarRule]) {
+	import lex.REF
 
-	//----------
-	// TIME TERMS
-	//----------
-	val DOW_STR = Array[String]("Mon:S","Tue:S","Wed:S","Thu:S","Fri:S",
-		"Sat:S","Sun:S")
-	val MOY_STR = Array[String]("Jan:S","Feb:S","Mar:S","Apr:S","May:S",
-		"Jun:S","Jul:S","Aug:S","Sep:S","Oct:S","Nov:S","Dec:S")
-	val QOY_STR = Array[String]("Q1:S","Q2:S","Q3:S","Q4:S")
-	val SEASON_STR = Array[String]("SP:S","SU:S","FA:S","WI:S")
-	val TOD_STR = Array[String]("MO:S","AF:S","EV:S","NI:S")
-
-	//(ranges)
-	val ranges = List[(Range,String)](
-		(PAST,"PAST:R"),(FUTURE,"FUTURE:R"),
-		(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"),
-		(TODAY,"TODAY:R"),
-		(REF,"REF:R")
-		)
-	//(durations)
-	var durations = 
-		{if(O.useTime) List[(Duration,String)]((ASEC,"Sec:D"),(AMIN,"Min:D"),
-			(AHOUR,"Hour:D")) else List[(Duration,String)]()} :::
-		List[(Duration,String)](
-			(ADAY,"Day:D"),(AWEEK,"Week:D"),(AMONTH,"Month:D"),(AQUARTER,"Quarter:D"),
-			(AHALFYEAR,"HalfYear:D"),
-			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"Century:D")
-			)
-	durations = {if(!O.functionalApproximate){
-			durations ::: durations.map{ case (d:Duration,name:String) =>
-				(~d,"~"+name)
-			}
-		} else {
-			durations
-		}}
-	//(sequences)
-	val sequences = 
-		(1 to 7).map(i=>(DOW(i).asInstanceOf[RepeatedRange]
-			.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
-		(1 to 12).map(i=>(MOY(i).asInstanceOf[RepeatedRange]
-			.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
-//		(1 to 4).map(i=>(QOY(i).asInstanceOf[RepeatedRange]
-//			.dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
-		(1 to 4).map(i=>(SEASON(i).asInstanceOf[RepeatedRange]
-			.name(SEASON_STR(i-1)),SEASON_STR(i-1)) ).toList ::: 
-		(1 to 4).map(i=>(TOD(i).asInstanceOf[RepeatedRange]
-			.name(TOD_STR(i-1)),TOD_STR(i-1)) ).toList ::: 
-		{if(O.useTime && !O.ignoreTimeSequences) List[(Sequence,String)](
-			(SEC,"Sec:S"),(MIN,"Min:S"),
-			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
-		List[(Sequence,String)](
-			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
-			(HALFYEAR,"HalfYear:S"),(YEAR,"Year:S")
-			) :::
-		Nil
-	val indexedSequences:List[(Array[Sequence],String)]
-		= List[(Array[Sequence],String)](
-			(DOW,"DOW$(n^{th})$"),
-			(WOM,"WOM$(n^{th})$"),
-			(WOY,"WOY$(n^{th})$"),
-			(MOY,"MOY$(n^{th})$"),
-			(QOY,"QOY$(n^{th})$")
-		) :::
-		(1 to 7).map{(i:Int) => (DOWOM(i), DOW_STR(i-1)+"$(n)$")}.toList :::
-		Nil
-	//(associated node types)
-	ranges.foreach{ case (r:Range,s:String) =>
-		NodeType.makePreterminal(s+"_",'Range)
-	}
-	sequences.foreach{ case (r:Sequence,s:String) =>
-		NodeType.makePreterminal(s+"_",'Sequence)
-	}
-	durations.foreach{ case (d:Duration,s:String) =>
-		NodeType.makePreterminal(s+"_",'Duration)
-	}
-	
-	//----------
-	// RULES
-	//----------
-	private val NAMED_RULES:Array[(GrammarRule,String)] = {
-		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
-		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
-			= fn.asInstanceOf[(Any,Any)=>Any]
-		var rtn = List[(GrammarRule,String)]()
-		//--Lex
-		//(primitives)
-		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
-			val sym = Symbol(s+"_")
-			(new TimeLex((sent:Option[Sentence],i:Int) => r, NodeType(sym)
-					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
-		}
-		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
-			val sym = Symbol(s+"_")
-			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType(sym)
-					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
-		}
-		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
-			val sym = Symbol(s+"_")
-			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType(sym)
-					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
-		}
-		//(nil)
-		rtn = rtn ::: 
-			{if(O.lexNils){
-				assert(index.wordIndexer.size > 0, "Haven't initialized indexer yet")
-				nils.map{ (nil:NodeType) =>
-					if(nil.flag('nilnum)){
-						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
-							nil).restrict{ (sent:Sentence,i:Int) =>
-								val s = sent.asInstanceOf[TimeSent]
-								s.words(i) == index.NUM &&
-									getNum(s.nums(i),s.ordinality(i)).name ==
-										nil.toString.substring(4)
-							},
-							"nil-"+nil.toString.substring(4))
-					} else {
-						val w:Int = index.str2w(nil.toString.substring(4))
-						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
-								nil).restrict( (word:Int) => word == w),
-							"nil-"+nil.toString.substring(4))
-					}
-				}.toList
-			} else {
-				List[(GrammarRule,String)](
-					(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
-						NodeType('NIL)), "nil"))
-			}}
-		//(numbers)
-		rtn = rtn ::: nums.map{ (parent:NodeType) =>
-			(new TimeLex(
-				(sent:Option[Sentence],index:Int) => sent.get.asNumber(index), 
-				parent
-				).restrict( (sent:Sentence,i:Int) => {
-					val valid = 
+	def registerNumbers(nums:Array[(String,NumberType.Value,Int)]):Grammar = {
+		val newRules = nums.toList.map{ case (name:String, typ:NumberType.Value, order:Int) =>
+			//(create node type)
+			factory.makePreterminal(name, 'num)
+			//(lexical entry)
+			new TimeLex((sent:Option[Sentence],i:Int) => sent.get.asNumber(i), factory(name))
+				.restrict( (sent:Sentence,i:Int) => {
 						//((is a number))
 						sent(i) == index.NUM && 
-						//((and is of the right ordinality))
+						//((and has right characteristics))
 						{sent match {
 							case (s:TimeSent) =>
-								val len:Int = s.asNumber(i).toString.length-1
-								val typ:String = s.ordinality(i).toString
-								(parent.flag(Symbol(len.toString)) && parent.flag(Symbol(typ)) ) ||
-									parent.flag('largenum)
+								val theLength:Int = s.asNumber(i).toString.length-1
+								val theType:String = s.ordinality(i).toString
+								theType == typ && theLength == order 
 							case _ => throw new IllegalStateException("Bad sentence")
 						}}
-					valid
-				}),parent.toString)
-			}.toList
-		//(indexed numbers)
-		def thack(fn:Int=>Range, min:Int, max:Int):Any=>Any = (x:Any) =>
-			{x match {
-				case (num:Int) =>
-					if(num >= min && num < max){ fn(num) }
-					else { new NoTime }
-			}}.asInstanceOf[Any]
-		def indirect(first:Boolean,
-				head:NodeType,child:NodeType,fn:Any=>Any,nm:String) = {
-			List[(GrammarRule,String)](
-				(new TimeUnary(fn,NodeType(nm),child),nm)
-			) ::: {
-				if(first) List[(GrammarRule,String)](
-					(new TimeUnary((x:Any) => x,head,NodeType(nm)),
-						nm + {if(head == NodeType('Sequence)) ":S" else ":R" }))
-				else Nil}
-		}
-		def indices(first:Boolean,numType:NodeType):List[(GrammarRule,String)]
-				= List[List[(GrammarRule,String)]](
-			indirect(first,NodeType('Sequence),numType,
-				thack((num:Int) =>  MOH(num), 0, 60 ),"moh(n)"),
-			indirect(first,NodeType('Sequence), numType,
-				thack((num:Int) =>  HOD(num), 0, 24 ), "hod(n)"),
-			indirect(first,NodeType('Sequence), numType,
-				thack((num:Int) =>  DOM(num), 1, 32 ),"dom(n)"),
-			indirect(first,NodeType('Sequence), numType,
-				thack((num:Int) =>  MOY(num), 1, 13 ),"moy(n)"),
-			indirect(first,NodeType('Sequence), numType,
-				thack((num:Int) =>  YOC(num), 0, 100 ),"yoc(n)"),
-			indirect(first,NodeType('Sequence), numType,
-				thack((num:Int) =>  DOC(num), 0, 10 ),"doc(n)"),
-			indirect(first,NodeType('Sequence), numType,
-				thack((num:Int) =>  YOD(num), 0, 10 ),"yod(n)"),
-			indirect(first,NodeType('Range), numType,
-				hack((num:Int) =>  THEYEAR(num) ), "year(n)"),
-			indirect(first,NodeType('Range), numType,
-				thack((num:Int) =>  CENTURY(num), -100, 100),"century(n)")
-			).flatten
-		var first:Boolean = true
-		nums.foreach{ (numType:NodeType) => {
-			rtn = rtn ::: indices(first,numType)
-			first = false
-		}}
-		//--Index
-		//(index function)
-		rtn = rtn ::: indexedSequences.map{ case (fn:Array[Sequence],name:String) =>
-			(new TimeLex( (sent:Option[Sentence],i:Int) => { (n:Int) =>
-					if(n < 0 || n >= fn.length){ new NoTime } else { fn(n) }
-				}, NodeType("F_{N0th}2S_")
-				).restrict( (sent:Sentence,i:Int) => {
-					sent(i) != index.NUM
-				}),
-				name )
-		}
-		
-		//--Arity 1 Functions
-		//(util)
-		case class F1Info[A](
-			fn:(_<:A)=>_<:A,name:String,validA:List[Symbol])
-		//(define)
-		val function1 = List[F1Info[Temporal]](
-			F1Info(move(_:Sequence,-1L),"moveLeft1",List('S)),   //last [sequence]
-			F1Info(move(_:Sequence,1L),"moveRight1",List('S)),   //next [sequence]
-			F1Info(fuzzify,"fuzzify",List('D))                   //around
-		) ::: {if(O.functionalUnboundedRange){
-				List[F1Info[Temporal]](
-					F1Info(toPast,"toPast",List('R,'S)),             //recent months
-					F1Info(toFuture,"toFuture",List('R,'S))          //future months
-				)
+				})
+		} ::: rules
+		new Grammar(index, factory, lex, newRules)
+	}
+	
+	def registerNumeric(
+			fn:Int=>Temporal, 
+			name:String, 
+			eventualType:String, 
+			nums:Seq[(String,NumberType.Value,Int)]):Grammar = {
+		//--Make Node Types
+		factory.make(eventualType, 'static)
+		factory.make(name)
+		//--Rules
+		val newRules = {
+			//(to type)
+			new TimeUnary((x:Any) => x, factory(eventualType), factory(name)) ::
+			nums.map{ case (numName:String, typ:NumberType.Value, order:Int) =>
+				//(to term)
+				new TimeUnary(fn.asInstanceOf[Any=>Any], factory(name), factory(numName))
+			}.toList} :::
+			//(existing rules)
+			rules
+		//--Return
+		return new Grammar(index, factory, lex, newRules)
+	}
+
+	def registerStatic(
+			term:Temporal, 
+			name:String, 
+			eventualType:String, 
+			restrict:Option[(Sentence,Int)=>Boolean]):Grammar = {
+		//--Make Node Types
+		factory.make(eventualType, 'static)
+		factory.makePreterminal(name)
+		//--Rules
+		val newRules = 
+			//(lex)
+			{restrict match {
+				case Some(fn) => 
+					new TimeLex((sent:Option[Sentence],i:Int) => term, factory(name)).restrict(fn)
+				case None => 
+					new TimeLex((sent:Option[Sentence],i:Int) => term, factory(name))
+			}} ::
+			//(to type)
+			new TimeUnary((x:Any) => x, factory(eventualType), factory(name)) ::
+			//(existing rules)
+			rules
+		//--Return
+		return new Grammar(index, factory, lex, newRules)
+	}
+
+	def registerFunction1[F](
+			fn:F,
+			name:String,
+			input1:String,
+			output:String,
+			restrict:Option[(Sentence,Int)=>Boolean]):Grammar = {
+		//--Make Node Types
+		val eventualType = "f("+input1+"):"+output
+		if(!factory.exists(input1)){ factory.make(input1) }
+		factory.make(output, 'static)
+		factory.make(eventualType, 'fn)
+		factory.makePreterminal(name)
+		//--Rules
+		val newRules = 
+			//(lex)
+			new TimeLex((sent:Option[Sentence],i:Int) => fn.asInstanceOf[Any=>Temporal], factory(name)) ::
+			//(to type)
+			new TimeUnary((x:Any) => x, factory(eventualType), factory(name)) ::
+			//(left apply)
+			new TimeBinary(
+				{(a:Any,fn:Any=>Temporal) => fn(a)}.asInstanceOf[(Any,Any)=>Any],
+				factory(output),
+				factory(input1),
+				factory(eventualType) ) ::
+			//(right apply)
+			new TimeBinary(
+				{(fn:Any=>Temporal,a:Any) => fn(a)}.asInstanceOf[(Any,Any)=>Any],
+				factory(output),
+				factory(eventualType),
+				factory(input1) ) ::
+			//(existing rules)
+			rules
+		//--Return
+		new Grammar(index, factory, lex, newRules)
+	}
+	
+	def registerFunction2[F](
+			fn:F,
+			name:String,
+			input1:String,
+			input2:String,
+			output:String):Grammar = {
+		//--Make Node Types
+		val eventualType = "f("+input1+","+input2+"):"+output
+		val intermType = "f("+input1+"):"+output
+		if(!factory.exists(input1)){ factory.make(input1, 'static) }
+		if(!factory.exists(input2)){ factory.make(input2, 'static) }
+		factory.make(output, 'static)
+		factory.make(intermType, 'fn)
+		factory.make(eventualType, 'fn)
+		factory.makePreterminal(name)
+		//--Rules
+		val newRules = {
+			//(lex)
+			new TimeLex((sent:Option[Sentence],i:Int) => fn.asInstanceOf[(Temporal,Temporal)=>Temporal], factory(name)) ::
+			//(to type)
+			new TimeUnary((x:Any) => x, factory(eventualType), factory(name)) ::
+			//(consume arg2 from left)
+			new TimeBinary(
+				{(b:Temporal,fn:(Temporal,Temporal)=>Temporal) => fn(_:Temporal,b)}.asInstanceOf[(Any,Any)=>Any],
+				factory(intermType),
+				factory(input2),
+				factory(eventualType) ) ::
+			//(consume arg2 from right)
+			new TimeBinary(
+				{(fn:(Temporal,Temporal)=>Temporal,b:Temporal) => fn(_:Temporal,b)}.asInstanceOf[(Any,Any)=>Any],
+				factory(intermType),
+				factory(eventualType),
+				factory(input2) ) :: Nil} :::
+			{if(input2 == "Range"){
+				//(consume arg1 from the left with ref)
+				new TimeBinary(
+					{(a:Temporal,fn:(Temporal,Temporal)=>Temporal) => fn(a,REF)}.asInstanceOf[(Any,Any)=>Any],
+					factory(output),
+					factory(input1),
+					factory(eventualType) ) ::
+				//(consume arg1 from the right with ref)
+				new TimeBinary(
+					{(fn:(Temporal,Temporal)=>Temporal,a:Temporal) => fn(a,REF)}.asInstanceOf[(Any,Any)=>Any],
+					factory(output),
+					factory(eventualType),
+					factory(input1) ) :: Nil
 			} else {
-				Nil
-			}
-		}
-		//(apply)
-		rtn = rtn ::: {
-			fn1.foldLeft(List[(GrammarRule,String)]()){
-					case (soFar:List[(GrammarRule,String)],
-						((fnNode:NodeType,head:Symbol),a:Symbol)) =>
-				//(consume A on the left)
-				{(new TimeBinary(
-					hack2((a:Any,fn:Any=>Temporal) => fn(a)),       //function
-					fromShort(head),                                  //head
-					fromShort(a),                                     //left
-					fnNode ),                                         //right
-				"$x:"+a.name+"$") ::                                //name
-				//(consume A on the right)
-				(new TimeBinary(
-					hack2((fn:(Any)=>Temporal,a:Any) => fn(a)),       //function
-					fromShort(head),                                  //head
-					fnNode,                                           //left
-					fromShort(a) ),                                   //right
-				"$x:"+a.name+"$") ::                                //name
-				Nil} ::: soFar
-			}
-		}
-		//(intro)
-		function1.foreach{ (info:F1Info[Temporal]) =>
-			//(for every argA...)
-			rtn = rtn ::: info.validA.foldLeft(List[(GrammarRule,String)]()){ 
-					case (soFarOuter:List[(GrammarRule,String)],a:Symbol) =>
-				//(create rule)
-				val rule = (new TimeLex(
-							(sent:Option[Sentence],i:Int) => info.fn,
-							NodeType("F_{"+a.name+"}2"+a.name+"_")
-						).restrict( (sent:Sentence,i:Int) => {
-							sent(i) != index.NUM
-						}),
-					info.name+"$(-:"+a.name+"):"+a.name+"$")
-				//(append rule)
-				rule :: soFarOuter
-			}
-		}
-
-		//--Arity 2 Functions
-		//(util)
-		case class F2Info[A,B](
-			fn:(_<:A,_<:B)=>_<:A,name:String,validA:List[Symbol],validB:List[Symbol])
-		//(define)
-		val function2 = List[F2Info[Temporal,Temporal]](
-			F2Info(
-				if(O.cannonicalShifts){ cannonicalLeft } else shiftLeft,
-				"shiftLeft",List('R,'S),List('D)),                       //last/ago
-			F2Info(
-				if(O.cannonicalShifts){ cannonicalRight } else shiftRight,
-				"shiftRight",List('R,'S),List('D)),                      //next
-			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D)),    //first
-			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D)),      //last
-			F2Info(catLeft,"catLeft",List('R),List('D)),               //past
-			F2Info(catRight,"catRight",List('R),List('D))              //coming
-//			F2Info(cons,"cons",List('R,'S),List('R,'S))                //from...until
-		)
-		//(apply)
-		rtn = rtn ::: {
-			fn2.foldLeft(List[(GrammarRule,String)]()){
-					case (soFar:List[(GrammarRule,String)],
-					      (fn:NodeType,a:Symbol,b:Symbol)) =>
-				//(consume B on the left)
-				{(new TimeBinary(
-					hack2((b:Temporal,fn:(Temporal,Temporal)=>Temporal) =>     //function
-						fn(_:Temporal,b)),
-					NodeType(Symbol("F_{"+a.name+"}2"+a.name)),                //head
-					fromShort(b),                                              //left
-					fn),                                                       //right
-				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
-				//(consume B on the right)
-				(new TimeBinary(
-					hack2((fn:(Temporal,Temporal)=>Temporal,b:Temporal) =>     //function
-						fn(_:Temporal,b)), 
-					NodeType(Symbol("F_{"+a.name+"}2"+a.name)),                //head
-					fn,                                                        //left
-					fromShort(b)),                                             //right
-				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
-				Nil} ::: soFar
-			}
-		}
-		//(ref augmented apply)
-		rtn = rtn ::: fn2.filter {
-				case (fn:NodeType,a:Symbol,b:Symbol) => 
-					a == 'R || b == 'R
-			}.foldLeft(List[(GrammarRule,String)]()){
-				case (soFar:List[(GrammarRule,String)],
-				     (fn:NodeType,a:Symbol,b:Symbol))=>
-			{if(b == 'R){
-				//(consume A on the left -- B is Range)
-				(new TimeBinary(
-					hack2((a:Temporal,fn:(Temporal,Range)=>Temporal) => {      //function
-						fn(a,REF)}),
-					fromShort(a),                                     //head
-					fromShort(a),                                     //left
-					fn ),                                                      //right
-				"$r:"+a.name+"$") ::                                         //name
-				//(consume A on the right -- B is Range)
-				(new TimeBinary(
-					hack2((fn:(Temporal,Range)=>Temporal,a:Temporal) => {      //function
-						fn(a,REF)}),
-					fromShort(a),                                     //head
-					fn,                                                        //left
-					fromShort(a) ),                                   //right
-				"$r:"+a.name+"$") ::                                         //name
-				Nil
-			} else {List[(GrammarRule,String)]()} :::
-			{if(a == 'R){
-				//(consume B on the left -- A is Range)
-				(new TimeBinary(
-					hack2((b:Temporal,fn:(Range,Temporal)=>Temporal) => {      //function
-						fn(REF,b)}),
-					fromShort(a),                                     //head
-					fromShort(b),                                     //left
-					fn ),                                                      //right
-				"$r:"+a.name+"$") ::                                         //name
-				//(consume B on the right -- A is Range)
-				(new TimeBinary(
-					hack2((fn:(Range,Temporal)=>Temporal,b:Temporal) => {      //function
-						fn(REF,b)}),
-					fromShort(a),                                     //head
-					fn,                                                        //left
-					fromShort(b) ),                                   //right
-				"$r:"+a.name+"$") ::                                         //name
-				Nil
-			} else { Nil } }} ::: soFar
-		}
-		//(intro)
-		function2.foreach{ (info:F2Info[Temporal,Temporal]) =>
-			//(for every argA...)
-			rtn = rtn ::: info.validA.foldLeft(List[(GrammarRule,String)]()){ 
-					case (soFarOuter:List[(GrammarRule,String)],a:Symbol) =>
-				//(for every argB...)
-				soFarOuter ::: info.validB.foldLeft(List[(GrammarRule,String)]()){
-						case (soFarInner:List[(GrammarRule,String)],b:Symbol) =>
-					//(create rule)
-					val rule = (new TimeLex(
-							(s:Option[Sentence],i:Int) => info.fn,
-							NodeType("F_{"+a.name+b.name+"}2"+a.name+"_")
-						).restrict( (sent:Sentence,i:Int) => {
-							sent(i) != index.NUM
-						}),
-						info.name+"$(-:"+a.name+",-:"+b.name+"):"+a.name+"$" )
-					//(append rule)
-					rule :: soFarInner
-				}
-			}
-		}
-		
-		//--Multiply Duration
-		def multiplies(numType:NodeType) = List[(GrammarRule,String)](
-			(new TimeBinary(
-				hack2( (d:Duration,n:Int) => d*n ),
-				NodeType('Duration),
-				NodeType('Duration), 
-				numType
-				), "D*n"),
-			(new TimeBinary(
-				hack2( (n:Int,d:Duration) => d*n ),
-				NodeType('Duration), 
-				numType, 
-				NodeType('Duration)
-				), "n*D")
-			)
-		nums
-				.filter{ (numType:NodeType) => 
-					numType.flag(Symbol(NumberType.NUMBER.toString)) ||
-					numType.flag(Symbol(NumberType.REAL.toString))    }
-				.foreach{ (numType:NodeType) =>
-			rtn = rtn ::: multiplies(numType)
-		}
-
-		//--Intersect
-		rtn = rtn ::: rangeTypes.foldLeft(List[(GrammarRule,String)]()) {
-				case (soFar:List[(GrammarRule,String)],rA:String) =>
-			rangeTypes.foldLeft(List[(GrammarRule,String)]()){
-					case (soFarInner:List[(GrammarRule,String)],rB:String) =>
-				val head = {if(rA == "R" || rB == "R") "R" else rA}
-				(new TimeBinary(
-					hack2( (r1:Range,r2:Range) => r1 ^ r2), 
-					fromShort(head), 
-					fromShort(rA),
-					fromShort(rB) ),
-				"$a + b:"+head+"$") :: soFarInner
-			} ::: soFar
-		}
-
-		//--NIL Identities
-		rtn = rtn ::: 
-				NodeType.all
-				.filter{ (x:NodeType) =>
-					!x.flag('nil) && x != NodeType.ROOT && x != NodeType.WORD && 
-					!x.isPreterminal}
-				.foldLeft(List[(GrammarRule,String)]()){
-					case (soFar:List[(GrammarRule,String)],term:NodeType) => 
-			//(add identities)
-			nils.foldLeft(List[(GrammarRule,String)]()){ 
-					case (lst:List[(GrammarRule,String)],nil:NodeType) =>
-				(new TimeBinary(
-						hack2( (x:Any,n:NIL) => x ),
-						term,
-						term,
-						nil
-					),"$x:"+term.name+"$") ::
-				(new TimeBinary(
-					hack2( (n:NIL,x:Any) => x),
-					term,
-					nil,
-					term
-					),"$x:"+term.name+"$") :: lst
-			} ::: soFar
-		}
-
+				List[TimeBinary]()
+			}} ::: 
+			{if(input1 == "Range"){
+				//(consume arg2 from the left with ref)
+				new TimeBinary(
+					{(b:Temporal,fn:(Temporal,Temporal)=>Temporal) => fn(REF,b)}.asInstanceOf[(Any,Any)=>Any],
+					factory(output),
+					factory(input2),
+					factory(eventualType) ) ::
+				//(consume arg2 from the right with ref)
+				new TimeBinary(
+					{(fn:(Temporal,Temporal)=>Temporal,b:Temporal) => fn(REF,b)}.asInstanceOf[(Any,Any)=>Any],
+					factory(output),
+					factory(eventualType),
+					factory(input2) ) :: Nil
+			} else {
+				List[TimeBinary]()
+			}} ::: 
+			//(existing rules)
+			rules
 		//--Return
-		rtn.foreach{ case (r:GrammarRule,s:String) => r.setGloss(s) }
-		rtn.toArray
-	}
-	
-	val RULES:Array[GrammarRule] = {
-		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
-		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
-			= fn.asInstanceOf[(Any,Any)=>Any]
-		var rtn = List[GrammarRule]()
-		
-		//--Named Rules
-		rtn = rtn ::: NAMED_RULES.map( _._1 ).toList
-
-		//--ROOT
-		rtn = rtn ::: List[GrammarRule](
-			//(rules)
-			new TimeUnary(hack((r:Range) => r),
-				NodeType.ROOT, NodeType('Range)), 
-			new TimeUnary(hack((d:Duration) => d),
-				NodeType.ROOT, NodeType('Duration)), 
-			new TimeUnary(hack((s:Range) => s), //note: range
-				NodeType.ROOT, NodeType('Sequence))
-			) ::: { if(O.allowPartialTime)
-								List[TimeUnary]( 
-									new TimeUnary(hack((fn:Range=>Range) => fn),
-										NodeType.ROOT, NodeType('F_R2R)) )
-							else List[TimeUnary]() }
-		
-		//--Preterminal Identities
-		rtn = rtn ::: NodeType.all
-				.filter{ (nt:NodeType) =>
-					nt.isPreterminal
-				}.map{ (pt:NodeType) =>
-					if(pt.flag('Sequence)){
-						Some(new TimeUnary((x:Any) => x,NodeType('Sequence),pt))
-					} else if(pt.flag('Range)){
-						Some(new TimeUnary((x:Any) => x,NodeType('Range),pt))
-					} else if(pt.flag('Duration)){
-						Some(new TimeUnary((x:Any) => x,NodeType('Duration),pt))
-					} else {
-						val proposedParent:String
-							= pt.toString.substring(0,pt.toString.length-1)
-						if(pt.toString.endsWith("_") && NodeType.exists(proposedParent)){
-							Some(new TimeUnary((x:Any) => x,NodeType(proposedParent),pt))
-						} else {
-							None
-						}
-					}
-				}.filter{_.isDefined}.map{ _.get }.toList
-//		rtn = rtn ::: NodeType.all
-//				.filter{ (nt:NodeType) => 
-//					val cand = nt.toString+"_"
-//					!nt.isPreterminal && NodeType.exists(cand) }
-//				.map{ (nonPreterminal:NodeType) =>
-//					val preterminal:NodeType = NodeType(nonPreterminal.toString+"_")
-//					new TimeUnary((x:Any) => x,nonPreterminal,preterminal) }
-//				.toList
-		//--Return
-		rtn.toArray
-	}
-	
-	val RULES_STR:Array[String] = {
-		val rtn = RULES.map{ _.parent.toString }
-		for(i <- 0 until NAMED_RULES.length){
-			assert(RULES(i) == NAMED_RULES(i)._1, "name mismatch")
-			rtn(i) = NAMED_RULES(i)._2
-		}
-		rtn
+		new Grammar(index, factory, lex, newRules)
 	}
 
-	def r2str(r:CKYRule):String = {
-		val cand = RULES.zip(RULES_STR).find( _._1 == r )
-		cand match {
-			case Some(pair) => pair._2
-			case None => r.parent.toString
-		}
+	def registerBinary[F](fn:F, output:String, input1:String, input2:String) = {
+		val newRules = 
+			new TimeBinary(
+				fn.asInstanceOf[(Any,Any)=>Any], 
+				factory(output), 
+				factory(input1), 
+				factory(input2) ) ::
+			rules
+		new Grammar(index, factory, lex, newRules)
 	}
 
+	def mkNils:Grammar = {
+		//(node types)
+		val newRules = {if(O.lexNils){
+			(0 until index.W).map{ (w:Int) =>
+				 factory.makePreterminal("NIL-"+index.w2str(w), 'nil)
+			}.toList
+		} else {
+			List[NodeType](factory.makePreterminal("NIL", 'nil))
+		//(rules)
+		}}.flatMap{ (nil:NodeType) =>
+			new TimeLex((sent:Option[Sentence],i:Int) => new Grammar.NIL(), nil) ::
+			new TimeBinary(	(a:Any,term:Any) => term, factory("Sequence"), nil, factory("Sequence") ) ::
+			new TimeBinary(	(term:Any,a:Any) => term, factory("Sequence"), factory("Sequence"), nil ) ::
+			new TimeBinary(	(a:Any,term:Any) => term, factory("Range"),    nil, factory("Range") ) ::
+			new TimeBinary(	(term:Any,a:Any) => term, factory("Range"),    factory("Range"), nil ) ::
+			new TimeBinary(	(a:Any,term:Any) => term, factory("Duration"), nil, factory("Duration") ) ::
+			new TimeBinary(	(term:Any,a:Any) => term, factory("Duration"), factory("Duration"), nil ) :: 
+			Nil
+		} ::: rules
+		//(return)
+		new Grammar(index, factory, lex, newRules)
+	}
+
+	def root:Grammar = {
+		val newRules =
+			new TimeUnary((x:Any) => x, factory.ROOT, factory("Sequence") ) ::
+			new TimeUnary((x:Any) => x, factory.ROOT, factory("Duration") ) ::
+			new TimeUnary((x:Any) => x, factory.ROOT, factory("Range")    ) ::
+			rules
+		new Grammar(index, factory, lex, newRules)
+	}
+
+	def r2str(r:CKYRule):String = r.parent.toString
 	def lexPrior:NodeType=>Prior[Int,Multinomial[Int]] 
 		= (parent:NodeType) => {
-			if(parent.flag('nil) && !parent.flag('nilnum) && O.freeNils){
+			if(O.lexNils && parent.flag('nil) && !parent.flag('nilnum) && O.freeNils){
 				val w = index.str2wTest(parent.toString.substring(4))
 				assert(w != index.UNK)
 				Dirichlet.fromMap(
@@ -727,6 +315,832 @@ class Grammar(index:Indexing,lex:Lex,val NodeType:NodeTypeFactory) extends Seria
 	def rulePrior:NodeType=>Prior[Int,Multinomial[Int]] 
 		= (parent:NodeType) => O.rulePrior
 }
+
+object Grammar {
+	//--Values
+	case class NIL()
+	val DOW_STR = Array[String]("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
+	val MOY_STR = Array[String]("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+	val QOY_STR = Array[String]("Q1","Q2","Q3","Q4")
+	val SEASON_STR = Array[String]("SP","SU","FA","WI")
+	val TOD_STR = Array[String]("MO","AF","EV","NI")
+	def getNumFromOrder(order:Int,typ:NumberType.Value):Symbol = {
+		Symbol("NUM*$10^"+order+"$:"+typ.toString)
+	}
+	def getNum(num:Int,typ:NumberType.Value):Symbol = {
+		getNumFromOrder(num.toString.length-1,typ)
+	}
+	//--Init Function
+	val nums:Array[(String,NumberType.Value,Int)] = {
+		(0 to 10).map{ (order:Int) =>
+			NumberType.values.map{ (typ:NumberType.Value) =>
+				("NUM*$10^"+order+"$:"+typ.toString, typ, order)
+			}
+		}.flatten.toArray
+	}
+
+	//--Create Grammar
+	def apply(index:Indexing, lex:Lex, factory:NodeTypeFactory):Grammar = {
+		import lex._
+		val duration:String = "Duration";
+		val range:String = "Range";
+		val sequence:String = "Sequence";
+
+		var grammar = new Grammar(index, factory, lex, Nil).registerNumbers(nums)
+
+		//--Static
+		//(ranges)
+		grammar = grammar
+			.registerStatic(PAST,      "past",      range, None)
+			.registerStatic(FUTURE,    "future",    range, None)
+			.registerStatic(YESTERDAY, "yesterday", range, None)
+			.registerStatic(TOMORROW,  "tomorrow",  range, None)
+			.registerStatic(TODAY,     "today",     range, None)
+			.registerStatic(REF,       "ref",       range, None)
+		//(durations)
+		if(O.useTime){
+			grammar = grammar
+				.registerStatic(ASEC,    "asec",      duration, None)
+				.registerStatic(AMIN,    "amin",      duration, None)
+				.registerStatic(AHOUR,   "ahour",     duration, None)
+		}
+		grammar = grammar
+			.registerStatic(ADAY,      "aday",      duration, None)
+			.registerStatic(AWEEK,     "aweek",     duration, None)
+			.registerStatic(AMONTH,    "amonth",    duration, None)
+			.registerStatic(AQUARTER,  "aquarter",  duration, None)
+			.registerStatic(AHALFYEAR, "ahalfyear", duration, None)
+			.registerStatic(AYEAR,     "ayear",     duration, None)
+			.registerStatic(ADECADE,   "adecade",   duration, None)
+			.registerStatic(ACENTURY,  "acentury",  duration, None)
+		//(approximate durations)
+		if(!O.functionalApproximate){
+			if(O.useTime){
+				grammar = grammar
+					.registerStatic(~ASEC,    "~asec",      duration, None)
+					.registerStatic(~AMIN,    "~amin",      duration, None)
+					.registerStatic(~AHOUR,   "~ahour",     duration, None)
+			}
+			grammar = grammar
+				.registerStatic(~ADAY,      "~aday",      duration, None)
+				.registerStatic(~AWEEK,     "~aweek",     duration, None)
+				.registerStatic(~AMONTH,    "~amonth",    duration, None)
+				.registerStatic(~AQUARTER,  "~aquarter",  duration, None)
+				.registerStatic(~AHALFYEAR, "~ahalfyear", duration, None)
+				.registerStatic(~AYEAR,     "~ayear",     duration, None)
+				.registerStatic(~ADECADE,   "~adecade",   duration, None)
+				.registerStatic(~ACENTURY,  "~acentury",  duration, None)
+		}
+		//(sequences -- dense)
+		if(O.useTime && !O.ignoreTimeSequences){
+			grammar = grammar
+				.registerStatic(SEC,    "sec",      sequence, None)
+				.registerStatic(MIN,    "min",      sequence, None)
+				.registerStatic(HOUR,   "hour",     sequence, None)
+		}
+		grammar = grammar
+			.registerStatic(DAY,      "day",      sequence, None)
+			.registerStatic(WEEK,     "week",     sequence, None)
+			.registerStatic(MONTH,    "month",    sequence, None)
+			.registerStatic(QUARTER,  "quarter",  sequence, None)
+			.registerStatic(HALFYEAR, "halfyear", sequence, None)
+			.registerStatic(YEAR,     "year",     sequence, None)
+		//(sequences -- sparse)
+		(1 to 7).foreach{ (dow:Int) =>	
+			grammar = grammar.registerStatic(DOW(dow), DOW_STR(dow-1), sequence, None) 
+		}
+		(1 to 12).foreach{ (moy:Int) =>	
+			grammar = grammar.registerStatic(MOY(moy), MOY_STR(moy-1), sequence, None) 
+		}
+		(1 to 4).foreach{ (season:Int) =>	
+			grammar = grammar.registerStatic(SEASON(season), SEASON_STR(season-1), sequence, None) 
+		}
+		(1 to 4).foreach{ (time:Int) =>	
+			grammar = grammar.registerStatic(TOD(time), TOD_STR(time-1), sequence, None) 
+		}
+		//(sequences -- indexed -- e.g., [May] *17th*)
+		def nthFn(seq:Array[_<:Sequence]) = 
+		{(n:Int) => if(n < 0 || n >= seq.length) new NoTime else seq(n)}.asInstanceOf[Any=>Temporal]
+		if(O.useTime){
+			grammar = grammar
+				.registerNumeric(nthFn(MOH), "moh(n)", sequence, nums) 
+				.registerNumeric(nthFn(HOD), "hod(n)", sequence, nums) 
+			}
+		grammar = grammar
+			.registerNumeric(nthFn(DOM),     "dom(n)",     sequence, nums) 
+			.registerNumeric(nthFn(MOY),     "moy(n)",     sequence, nums) 
+			.registerNumeric(nthFn(YOC),     "yoc(n)",     sequence, nums) 
+			.registerNumeric(nthFn(DOC),     "doc(n)",     sequence, nums) 
+			.registerNumeric(nthFn(YOD),     "yod(n)",     sequence, nums) 
+			.registerNumeric(THEYEAR(_:Int), "year(n)",    sequence, nums) 
+			.registerNumeric(CENTURY(_:Int), "century(n)", sequence, nums) 
+
+		//--Function1
+		//(indexing function -- e.g., [3rd] *quarter*)
+		nums.foreach{ case (numName:String, numType:NumberType.Value, magnitude:Int) =>
+			grammar = grammar
+				//(usual)
+				.registerFunction1(nthFn(DOW),      "dow(nth)",         numName, sequence, None)
+				.registerFunction1(nthFn(WOM),      "wom(nth)",         numName, sequence, None)
+				.registerFunction1(nthFn(WOY),      "woy(nth)",         numName, sequence, None)
+				.registerFunction1(nthFn(MOY),      "moy(nth)",         numName, sequence, None)
+				.registerFunction1(nthFn(QOY),      "qoy(nth)",         numName, sequence, None)
+				//(day of week of month)
+				.registerFunction1(nthFn(DOWOM(1)), DOW_STR(0)+"(nth)", numName, sequence, None)
+				.registerFunction1(nthFn(DOWOM(2)), DOW_STR(1)+"(nth)", numName, sequence, None)
+				.registerFunction1(nthFn(DOWOM(3)), DOW_STR(2)+"(nth)", numName, sequence, None)
+				.registerFunction1(nthFn(DOWOM(4)), DOW_STR(3)+"(nth)", numName, sequence, None)
+				.registerFunction1(nthFn(DOWOM(5)), DOW_STR(4)+"(nth)", numName, sequence, None)
+				.registerFunction1(nthFn(DOWOM(6)), DOW_STR(5)+"(nth)", numName, sequence, None)
+				.registerFunction1(nthFn(DOWOM(7)), DOW_STR(6)+"(nth)", numName, sequence, None)
+		}
+		//(functions)
+		grammar = grammar
+			.registerFunction1(move(_:Sequence,-1L), "moveLeft1",  sequence, sequence, None)
+			.registerFunction1(move(_:Sequence, 1L), "moveRight1", sequence, sequence, None)
+		if(O.functionalApproximate){
+			grammar = grammar
+				.registerFunction1(fuzzify,            "fuzzify",    duration, duration, None)
+		}
+		if(O.functionalUnboundedRange){
+			grammar = grammar
+				.registerFunction1(toPast,             "toPast",     duration, duration, None)
+				.registerFunction1(toFuture,           "toFuture",   duration, duration, None)
+		}
+		
+		//--Function2
+		grammar = grammar
+			.registerFunction2(if(O.cannonicalShifts) cannonicalLeft else shiftLeft, 
+				                              "shiftLeft",   range,    duration, range)
+			.registerFunction2(if(O.cannonicalShifts) cannonicalLeft else shiftLeft, 
+				                              "shiftLeft",   sequence, duration, sequence)
+			.registerFunction2(if(O.cannonicalShifts) cannonicalRight else shiftRight, 
+				                              "shiftRight",  range,    duration, range)
+			.registerFunction2(if(O.cannonicalShifts) cannonicalRight else shiftRight, 
+				                              "shiftRight",  sequence, duration, sequence)
+			.registerFunction2(shrinkBegin, "shrinkBegin", range,    duration, range)
+			.registerFunction2(shrinkBegin, "shrinkBegin", sequence, duration, sequence)
+			.registerFunction2(shrinkEnd,   "shrinkEnd",   range,    duration, range)
+			.registerFunction2(shrinkEnd,   "shrinkEnd",   sequence, duration, sequence)
+			.registerFunction2(catLeft,     "catLeft",     range,    duration, range)
+			.registerFunction2(catRight,    "catRight",    range,    duration, range)
+
+		//--Special
+		//(intersect)
+		grammar = grammar
+			.registerBinary((a:Sequence,b:Sequence) => a ^ b, sequence, sequence, sequence)
+			.registerBinary((a:Sequence,b:Range) => a ^ b,    range,    sequence, range)
+			.registerBinary((a:Range,b:Sequence) => a ^ b,    range,    range,    sequence)
+			.registerBinary((a:Range,b:Range) => a ^ b,       range,    range,    range)
+		//(multiply)
+		nums.foreach{ case (numName:String, numType:NumberType.Value, magnitude:Int) =>
+			grammar = grammar
+				.registerBinary((n:Int,d:Duration) => d * n,    duration, numName,  duration)
+				.registerBinary((d:Duration,n:Int) => d * n,    duration, duration, numName)
+		}
+
+		//--Return
+		return grammar.mkNils.root
+	}
+}
+
+
+//@SerialVersionUID(1L)
+//class Grammar(index:Indexing,lex:Lex,val NodeType:NodeTypeFactory) extends Serializable {
+//	import lex._
+//	import Grammar.NIL
+//	//----------
+//	// NODE TYPES
+//	//----------
+//	def getNumFromOrder(order:Int,typ:NumberType.Value):Symbol = {
+//		Symbol("NUM*$10^"+order+"$:"+typ.toString)
+//	}
+//	def getNum(num:Int,typ:NumberType.Value):Symbol = {
+//		getNumFromOrder(num.toString.length-1,typ)
+//	}
+//	//--Init Function
+//	val nums:Seq[NodeType] = {
+//		(0 to 10).map{ (orderOfMagnitude:Int) =>
+//			NumberType.values.map{ (numberType:NumberType.Value) =>
+//				NodeType.makePreterminal(
+//					getNumFromOrder(orderOfMagnitude,numberType),
+//					'num, Symbol(orderOfMagnitude.toString), Symbol(numberType.toString))
+//			}
+//		}.flatten.toList
+//	}
+//	var nils:Seq[NodeType] = List[NodeType]()
+//	def mkNils(index:Indexing, num:Int) {
+//		nils = if(O.lexNils){
+//			(0 until index.W).map{ (w:Int) =>
+//				if(w == index.NUM) {
+//					nums.map{ (num:NodeType) =>
+//						NodeType.make(Symbol("NIL-"+num.toString), 'nil, 'nilnum)
+//					}
+//				} else {
+//					val word:String = index.w2str(w)
+//					List[NodeType](NodeType.makePreterminal(Symbol("NIL-"+word), 'nil))
+//				}
+//			}.flatten
+//		} else {
+//			List[NodeType](NodeType.makePreterminal('NIL, 'nil))
+//		}
+//	}
+//	
+//	//--Added Terms
+//	//(basic types)
+//	NodeType.make('Range)
+//	NodeType.make('Duration)
+//	NodeType.make('Sequence)
+//	//(sequences)
+//	NodeType.make("moh(n)")
+//	NodeType.make("hod(n)")
+//	NodeType.make("dom(n)")
+//	NodeType.make("moy(n)")
+//	NodeType.make("yoc(n)")
+//	NodeType.make("doc(n)")
+//	NodeType.make("yod(n)")
+//	NodeType.make("year(n)")
+//	NodeType.make("century(n)")
+//	//(nils)
+//	mkNils(index,index.NUM)
+//	//--Numbers
+//	assert(!nums.isEmpty, "no number terms!")
+//	
+//	//--Other NodeTypes
+//	import scala.collection.immutable.Set
+//	val rangeTypes = List("R","S")
+//	val durationTypes = List("D","S")
+//	//(arity-2 functions)
+//	//((like rd2r))
+//	val fn2 = {rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
+//			case (soFar:List[(NodeType,Symbol,Symbol)],r:String) =>
+//		durationTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
+//				case (soFar:List[(NodeType,Symbol,Symbol)],d:String) =>
+//			( NodeType.make(Symbol("F_{"+r+d+"}2"+r),'fn),Symbol(r),Symbol(d)
+//				) :: soFar
+//		} ::: soFar
+//	}.toSet ++
+//	//((like rr2r))
+//	rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
+//			case (soFar:List[(NodeType,Symbol,Symbol)],r1:String) =>
+//		rangeTypes.foldLeft(List[(NodeType,Symbol,Symbol)]()){
+//				case (soFar:List[(NodeType,Symbol,Symbol)],r2:String) =>
+//			(NodeType.make(Symbol("F_{"+r1+r2+"}2"+r1),'fn),
+//				Symbol(r1),Symbol(r2)) :: soFar
+//		} ::: soFar
+//	}}.toList
+//	//(arity-1 functions)
+//	//((like r2r))
+//	val fn1 = {rangeTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
+//			case (soFar:List[((NodeType,Symbol),Symbol)],r:String) =>
+//		((NodeType.make(Symbol("F_{"+r+"}2"+r),'fn),Symbol(r)),Symbol(r)) :: soFar
+//	}.toSet ++
+//	//((n2r))
+//	List[((NodeType,Symbol),Symbol)](
+//		((NodeType.make(Symbol("F_{N0th}2S"),'fn),'S), 'N0th)
+//	) ++
+//	//((like d2d))
+//	durationTypes.foldLeft(List[((NodeType,Symbol),Symbol)]()){
+//			case (soFar:List[((NodeType,Symbol),Symbol)],d:String) =>
+//		((NodeType.make(Symbol("F_{"+d+"}2"+d),'fn),Symbol(d)),Symbol(d)) :: soFar
+//	}}.toList
+//	
+//	//--From Short Version
+//	def fromShort(short:String):NodeType = fromShort(Symbol(short))
+//	def fromShort(short:Symbol):NodeType = {
+//		short match {
+//			case 'R => NodeType('Range)
+//			case 'S => NodeType('Sequence)
+//			case 'D => NodeType('Duration)
+//			case 'N0th => NodeType(getNumFromOrder(0,NumberType.ORDINAL))
+//			case _ => throw fail("No such short form: " + short)
+//		}
+//	}
+//
+//	//----------
+//	// TIME TERMS
+//	//----------
+//	val DOW_STR = Array[String]("Mon:S","Tue:S","Wed:S","Thu:S","Fri:S",
+//		"Sat:S","Sun:S")
+//	val MOY_STR = Array[String]("Jan:S","Feb:S","Mar:S","Apr:S","May:S",
+//		"Jun:S","Jul:S","Aug:S","Sep:S","Oct:S","Nov:S","Dec:S")
+//	val QOY_STR = Array[String]("Q1:S","Q2:S","Q3:S","Q4:S")
+//	val SEASON_STR = Array[String]("SP:S","SU:S","FA:S","WI:S")
+//	val TOD_STR = Array[String]("MO:S","AF:S","EV:S","NI:S")
+//
+//	//(ranges)
+//	val ranges = List[(Range,String)](
+//		(PAST,"PAST:R"),(FUTURE,"FUTURE:R"),
+//		(YESTERDAY,"YESTERDAY:R"),(TOMORROW,"TOMORROW:R"),
+//		(TODAY,"TODAY:R"),
+//		(REF,"REF:R")
+//		)
+//	//(durations)
+//	var durations = 
+//		{if(O.useTime) List[(Duration,String)]((ASEC,"Sec:D"),(AMIN,"Min:D"),
+//			(AHOUR,"Hour:D")) else List[(Duration,String)]()} :::
+//		List[(Duration,String)](
+//			(ADAY,"Day:D"),(AWEEK,"Week:D"),(AMONTH,"Month:D"),(AQUARTER,"Quarter:D"),
+//			(AHALFYEAR,"HalfYear:D"),
+//			(AYEAR,"Year:D"),(ADECADE,"Decade:D"),(ACENTURY,"Century:D")
+//			)
+//	durations = {if(!O.functionalApproximate){
+//			durations ::: durations.map{ case (d:Duration,name:String) =>
+//				(~d,"~"+name)
+//			}
+//		} else {
+//			durations
+//		}}
+//	//(sequences)
+//	val sequences = 
+//		(1 to 7).map(i=>(DOW(i).asInstanceOf[RepeatedRange]
+//			.name(DOW_STR(i-1)),DOW_STR(i-1)) ).toList :::
+//		(1 to 12).map(i=>(MOY(i).asInstanceOf[RepeatedRange]
+//			.name(MOY_STR(i-1)),MOY_STR(i-1)) ).toList :::
+////		(1 to 4).map(i=>(QOY(i).asInstanceOf[RepeatedRange]
+////			.dense.name(QOY_STR(i-1)),QOY_STR(i-1)) ).toList ::: 
+//		(1 to 4).map(i=>(SEASON(i).asInstanceOf[RepeatedRange]
+//			.name(SEASON_STR(i-1)),SEASON_STR(i-1)) ).toList ::: 
+//		(1 to 4).map(i=>(TOD(i).asInstanceOf[RepeatedRange]
+//			.name(TOD_STR(i-1)),TOD_STR(i-1)) ).toList ::: 
+//		{if(O.useTime && !O.ignoreTimeSequences) List[(Sequence,String)](
+//			(SEC,"Sec:S"),(MIN,"Min:S"),
+//			(HOUR,"Hour:S")) else List[(Sequence,String)]()} :::
+//		List[(Sequence,String)](
+//			(DAY,"Day:S"),(WEEK,"Week:S"),(MONTH,"Month:S"),(QUARTER,"Quarter:S"),
+//			(HALFYEAR,"HalfYear:S"),(YEAR,"Year:S")
+//			) :::
+//		Nil
+//	val indexedSequences:List[(Array[Sequence],String)]
+//		= List[(Array[Sequence],String)](
+//			(DOW,"DOW$(n^{th})$"),
+//			(WOM,"WOM$(n^{th})$"),
+//			(WOY,"WOY$(n^{th})$"),
+//			(MOY,"MOY$(n^{th})$"),
+//			(QOY,"QOY$(n^{th})$")
+//		) :::
+//		(1 to 7).map{(i:Int) => (DOWOM(i), DOW_STR(i-1)+"$(n)$")}.toList :::
+//		Nil
+//	//(associated node types)
+//	ranges.foreach{ case (r:Range,s:String) =>
+//		NodeType.makePreterminal(s+"_",'Range)
+//	}
+//	sequences.foreach{ case (r:Sequence,s:String) =>
+//		NodeType.makePreterminal(s+"_",'Sequence)
+//	}
+//	durations.foreach{ case (d:Duration,s:String) =>
+//		NodeType.makePreterminal(s+"_",'Duration)
+//	}
+//	
+//	//----------
+//	// RULES
+//	//----------
+//	private val NAMED_RULES:Array[(GrammarRule,String)] = {
+//		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
+//		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
+//			= fn.asInstanceOf[(Any,Any)=>Any]
+//		var rtn = List[(GrammarRule,String)]()
+//		//--Lex
+//		//(primitives)
+//		rtn = rtn ::: ranges.map{ case (r:Range,s:String) => 
+//			val sym = Symbol(s+"_")
+//			(new TimeLex((sent:Option[Sentence],i:Int) => r, NodeType(sym)
+//					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
+//		}
+//		rtn = rtn ::: durations.map{ case (d:Duration,s:String) => 
+//			val sym = Symbol(s+"_")
+//			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType(sym)
+//					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
+//		}
+//		rtn = rtn ::: sequences.map{ case (d:Duration,s:String) => 
+//			val sym = Symbol(s+"_")
+//			(new TimeLex((sent:Option[Sentence],i:Int) => d, NodeType(sym)
+//					).restrict( (sent:Sentence,i:Int) => { sent(i) != index.NUM }), s)
+//		}
+//		//(nil)
+//		rtn = rtn ::: 
+//			{if(O.lexNils){
+//				assert(index.wordIndexer.size > 0, "Haven't initialized indexer yet")
+//				nils.map{ (nil:NodeType) =>
+//					if(nil.flag('nilnum)){
+//						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
+//							nil).restrict{ (sent:Sentence,i:Int) =>
+//								val s = sent.asInstanceOf[TimeSent]
+//								s.words(i) == index.NUM &&
+//									getNum(s.nums(i),s.ordinality(i)).name ==
+//										nil.toString.substring(4)
+//							},
+//							"nil-"+nil.toString.substring(4))
+//					} else {
+//						val w:Int = index.str2w(nil.toString.substring(4))
+//						(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
+//								nil).restrict( (word:Int) => word == w),
+//							"nil-"+nil.toString.substring(4))
+//					}
+//				}.toList
+//			} else {
+//				List[(GrammarRule,String)](
+//					(new TimeLex((sent:Option[Sentence],index:Int) => new NIL,
+//						NodeType('NIL)), "nil"))
+//			}}
+//		//(numbers)
+//		rtn = rtn ::: nums.map{ (parent:NodeType) =>
+//			(new TimeLex(
+//				(sent:Option[Sentence],index:Int) => sent.get.asNumber(index), 
+//				parent
+//				).restrict( (sent:Sentence,i:Int) => {
+//					val valid = 
+//						//((is a number))
+//						sent(i) == index.NUM && 
+//						//((and is of the right ordinality))
+//						{sent match {
+//							case (s:TimeSent) =>
+//								val len:Int = s.asNumber(i).toString.length-1
+//								val typ:String = s.ordinality(i).toString
+//								(parent.flag(Symbol(len.toString)) && parent.flag(Symbol(typ)) ) ||
+//									parent.flag('largenum)
+//							case _ => throw new IllegalStateException("Bad sentence")
+//						}}
+//					valid
+//				}),parent.toString)
+//			}.toList
+//		//(indexed numbers)
+//		def thack(fn:Int=>Range, min:Int, max:Int):Any=>Any = (x:Any) =>
+//			{x match {
+//				case (num:Int) =>
+//					if(num >= min && num < max){ fn(num) }
+//					else { new NoTime }
+//			}}.asInstanceOf[Any]
+//		def indirect(first:Boolean,
+//				head:NodeType,child:NodeType,fn:Any=>Any,nm:String) = {
+//			List[(GrammarRule,String)](
+//				(new TimeUnary(fn,NodeType(nm),child),nm)
+//			) ::: {
+//				if(first) List[(GrammarRule,String)](
+//					(new TimeUnary((x:Any) => x,head,NodeType(nm)),
+//						nm + {if(head == NodeType('Sequence)) "Sequence" else "Range" }))
+//				else Nil}
+//		}
+//		def indices(first:Boolean,numType:NodeType):List[(GrammarRule,String)]
+//				= List[List[(GrammarRule,String)]](
+//			indirect(first,NodeType('Sequence),numType,
+//				thack((num:Int) =>  MOH(num), 0, 60 ),"moh(n)"),
+//			indirect(first,NodeType('Sequence), numType,
+//				thack((num:Int) =>  HOD(num), 0, 24 ), "hod(n)"),
+//			indirect(first,NodeType('Sequence), numType,
+//				thack((num:Int) =>  DOM(num), 1, 32 ),"dom(n)"),
+//			indirect(first,NodeType('Sequence), numType,
+//				thack((num:Int) =>  MOY(num), 1, 13 ),"moy(n)"),
+//			indirect(first,NodeType('Sequence), numType,
+//				thack((num:Int) =>  YOC(num), 0, 100 ),"yoc(n)"),
+//			indirect(first,NodeType('Sequence), numType,
+//				thack((num:Int) =>  DOC(num), 0, 10 ),"doc(n)"),
+//			indirect(first,NodeType('Sequence), numType,
+//				thack((num:Int) =>  YOD(num), 0, 10 ),"yod(n)"),
+//			indirect(first,NodeType('Range), numType,
+//				hack((num:Int) =>  THEYEAR(num) ), "year(n)"),
+//			indirect(first,NodeType('Range), numType,
+//				thack((num:Int) =>  CENTURY(num), -100, 100),"century(n)")
+//			).flatten
+//		var first:Boolean = true
+//		nums.foreach{ (numType:NodeType) => {
+//			rtn = rtn ::: indices(first,numType)
+//			first = false
+//		}}
+//		//--Index
+//		//(index function)
+//		rtn = rtn ::: indexedSequences.map{ case (fn:Array[Sequence],name:String) =>
+//			(new TimeLex( (sent:Option[Sentence],i:Int) => { (n:Int) =>
+//					if(n < 0 || n >= fn.length){ new NoTime } else { fn(n) }
+//				}, NodeType("F_{N0th}2S_")
+//				).restrict( (sent:Sentence,i:Int) => {
+//					sent(i) != index.NUM
+//				}),
+//				name )
+//		}
+//		
+//		//--Arity 1 Functions
+//		//(util)
+//		case class F1Info[A](
+//				fn:(_<:A)=>_<:A,name:String,validA:List[Symbol]){
+//			NodeType.makePreterminal(name)
+//			def node:NodeType = NodeType(name)
+//		}
+//		//(define)
+//		val function1 = List[F1Info[Temporal]](
+//			F1Info(move(_:Sequence,-1L),"moveLeft1",List('S)),   //last [sequence]
+//			F1Info(move(_:Sequence,1L),"moveRight1",List('S)),   //next [sequence]
+//			F1Info(fuzzify,"fuzzify",List('D))                   //around
+//		) ::: {if(O.functionalUnboundedRange){
+//				List[F1Info[Temporal]](
+//					F1Info(toPast,"toPast",List('R,'S)),             //recent months
+//					F1Info(toFuture,"toFuture",List('R,'S))          //future months
+//				)
+//			} else {
+//				Nil
+//			}
+//		}
+//		//(apply)
+//		rtn = rtn ::: {
+//			fn1.foldLeft(List[(GrammarRule,String)]()){
+//					case (soFar:List[(GrammarRule,String)],
+//						((fnNode:NodeType,head:Symbol),a:Symbol)) =>
+//				//(consume A on the left)
+//				{(new TimeBinary(
+//					hack2((a:Any,fn:Any=>Temporal) => fn(a)),       //function
+//					fromShort(head),                                  //head
+//					fromShort(a),                                     //left
+//					fnNode ),                                         //right
+//				"$x:"+a.name+"$") ::                                //name
+//				//(consume A on the right)
+//				(new TimeBinary(
+//					hack2((fn:(Any)=>Temporal,a:Any) => fn(a)),       //function
+//					fromShort(head),                                  //head
+//					fnNode,                                           //left
+//					fromShort(a) ),                                   //right
+//				"$x:"+a.name+"$") ::                                //name
+//				Nil} ::: soFar
+//			}
+//		}
+//		//(intro)
+//		function1.foreach{ (info:F1Info[Temporal]) =>
+//			//(for every argA...)
+//			rtn = rtn ::: info.validA.foldLeft(List[(GrammarRule,String)]()){ 
+//					case (soFarOuter:List[(GrammarRule,String)],a:Symbol) =>
+//				//(to type)
+//				(new TimeUnary( (x:Any) => x, 
+//						NodeType("F_{"+a.name+"}2"+a.name+"_"),
+//						info.node),
+//					info.name+"$(-:"+a.name+"):"+a.name+"$") ::
+//				//(to preterminal)
+//				(new TimeLex(
+//							(sent:Option[Sentence],i:Int) => info.fn,
+//							info.node
+//						).restrict( (sent:Sentence,i:Int) => {
+//							sent(i) != index.NUM
+//						}),
+//					""+a.name) :: soFarOuter
+//			}
+//		}
+//
+//		//--Arity 2 Functions
+//		//(util)
+//		case class F2Info[A,B](
+//			fn:(_<:A,_<:B)=>_<:A,name:String,validA:List[Symbol],validB:List[Symbol])
+//		//(define)
+//		val function2 = List[F2Info[Temporal,Temporal]](
+//			F2Info(
+//				if(O.cannonicalShifts){ cannonicalLeft } else shiftLeft,
+//				"shiftLeft",List('R,'S),List('D)),                       //last/ago
+//			F2Info(
+//				if(O.cannonicalShifts){ cannonicalRight } else shiftRight,
+//				"shiftRight",List('R,'S),List('D)),                      //next
+//			F2Info(shrinkBegin,"shrinkBegin",List('R,'S),List('D)),    //first
+//			F2Info(shrinkBegin,"shrinkEnd",List('R,'S),List('D)),      //last
+//			F2Info(catLeft,"catLeft",List('R),List('D)),               //past
+//			F2Info(catRight,"catRight",List('R),List('D))              //coming
+////			F2Info(cons,"cons",List('R,'S),List('R,'S))                //from...until
+//		)
+//		//(apply)
+//		rtn = rtn ::: {
+//			fn2.foldLeft(List[(GrammarRule,String)]()){
+//					case (soFar:List[(GrammarRule,String)],
+//					      (fn:NodeType,a:Symbol,b:Symbol)) =>
+//				//(consume B on the left)
+//				{(new TimeBinary(
+//					hack2((b:Temporal,fn:(Temporal,Temporal)=>Temporal) =>     //function
+//						fn(_:Temporal,b)),
+//					NodeType(Symbol("F_{"+a.name+"}2"+a.name)),                //head
+//					fromShort(b),                                              //left
+//					fn),                                                       //right
+//				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+//				//(consume B on the right)
+//				(new TimeBinary(
+//					hack2((fn:(Temporal,Temporal)=>Temporal,b:Temporal) =>     //function
+//						fn(_:Temporal,b)), 
+//					NodeType(Symbol("F_{"+a.name+"}2"+a.name)),                //head
+//					fn,                                                        //left
+//					fromShort(b)),                                             //right
+//				"$f(-:"+a.name+",x:"+b.name+"):"+a.name+"$") ::              //name
+//				Nil} ::: soFar
+//			}
+//		}
+//		//(ref augmented apply)
+//		rtn = rtn ::: fn2.filter {
+//				case (fn:NodeType,a:Symbol,b:Symbol) => 
+//					a == 'R || b == 'R
+//			}.foldLeft(List[(GrammarRule,String)]()){
+//				case (soFar:List[(GrammarRule,String)],
+//				     (fn:NodeType,a:Symbol,b:Symbol))=>
+//			{if(b == 'R){
+//				//(consume A on the left -- B is Range)
+//				(new TimeBinary(
+//					hack2((a:Temporal,fn:(Temporal,Range)=>Temporal) => {      //function
+//						fn(a,REF)}),
+//					fromShort(a),                                     //head
+//					fromShort(a),                                     //left
+//					fn ),                                                      //right
+//				"$r:"+a.name+"$") ::                                         //name
+//				//(consume A on the right -- B is Range)
+//				(new TimeBinary(
+//					hack2((fn:(Temporal,Range)=>Temporal,a:Temporal) => {      //function
+//						fn(a,REF)}),
+//					fromShort(a),                                     //head
+//					fn,                                                        //left
+//					fromShort(a) ),                                   //right
+//				"$r:"+a.name+"$") ::                                         //name
+//				Nil
+//			} else {List[(GrammarRule,String)]()} :::
+//			{if(a == 'R){
+//				//(consume B on the left -- A is Range)
+//				(new TimeBinary(
+//					hack2((b:Temporal,fn:(Range,Temporal)=>Temporal) => {      //function
+//						fn(REF,b)}),
+//					fromShort(a),                                     //head
+//					fromShort(b),                                     //left
+//					fn ),                                                      //right
+//				"$r:"+a.name+"$") ::                                         //name
+//				//(consume B on the right -- A is Range)
+//				(new TimeBinary(
+//					hack2((fn:(Range,Temporal)=>Temporal,b:Temporal) => {      //function
+//						fn(REF,b)}),
+//					fromShort(a),                                     //head
+//					fn,                                                        //left
+//					fromShort(b) ),                                   //right
+//				"$r:"+a.name+"$") ::                                         //name
+//				Nil
+//			} else { Nil } }} ::: soFar
+//		}
+//		//(intro)
+//		function2.foreach{ (info:F2Info[Temporal,Temporal]) =>
+//			//(for every argA...)
+//			rtn = rtn ::: info.validA.foldLeft(List[(GrammarRule,String)]()){ 
+//					case (soFarOuter:List[(GrammarRule,String)],a:Symbol) =>
+//				//(for every argB...)
+//				soFarOuter ::: info.validB.foldLeft(List[(GrammarRule,String)]()){
+//						case (soFarInner:List[(GrammarRule,String)],b:Symbol) =>
+//					//(create rule)
+//					val rule = (new TimeLex(
+//							(s:Option[Sentence],i:Int) => info.fn,
+//							NodeType("F_{"+a.name+b.name+"}2"+a.name+"_")
+//						).restrict( (sent:Sentence,i:Int) => {
+//							sent(i) != index.NUM
+//						}),
+//						info.name+"$(-:"+a.name+",-:"+b.name+"):"+a.name+"$" )
+//					//(append rule)
+//					rule :: soFarInner
+//				}
+//			}
+//		}
+//		
+//		//--Multiply Duration
+//		def multiplies(numType:NodeType) = List[(GrammarRule,String)](
+//			(new TimeBinary(
+//				hack2( (d:Duration,n:Int) => d*n ),
+//				NodeType('Duration),
+//				NodeType('Duration), 
+//				numType
+//				), "D*n"),
+//			(new TimeBinary(
+//				hack2( (n:Int,d:Duration) => d*n ),
+//				NodeType('Duration), 
+//				numType, 
+//				NodeType('Duration)
+//				), "n*D")
+//			)
+//		nums
+//				.filter{ (numType:NodeType) => 
+//					numType.flag(Symbol(NumberType.NUMBER.toString)) ||
+//					numType.flag(Symbol(NumberType.REAL.toString))    }
+//				.foreach{ (numType:NodeType) =>
+//			rtn = rtn ::: multiplies(numType)
+//		}
+//
+//		//--Intersect
+//		rtn = rtn ::: rangeTypes.foldLeft(List[(GrammarRule,String)]()) {
+//				case (soFar:List[(GrammarRule,String)],rA:String) =>
+//			rangeTypes.foldLeft(List[(GrammarRule,String)]()){
+//					case (soFarInner:List[(GrammarRule,String)],rB:String) =>
+//				val head = {if(rA == "R" || rB == "R") "R" else rA}
+//				(new TimeBinary(
+//					hack2( (r1:Range,r2:Range) => r1 ^ r2), 
+//					fromShort(head), 
+//					fromShort(rA),
+//					fromShort(rB) ),
+//				"$a + b:"+head+"$") :: soFarInner
+//			} ::: soFar
+//		}
+//
+//		//--NIL Identities
+//		rtn = rtn ::: List[NodeType](NodeType('Sequence),NodeType('Duration),NodeType('Range))
+//			.flatMap{ (nonNil:NodeType) =>
+//				nils.flatMap{ (nil:NodeType) => List[(GrammarRule,String)](
+//					(new TimeBinary(
+//							hack2( (x:Any,n:NIL) => x ),
+//							nonNil,
+//							nonNil,
+//							nil
+//						),"$x:"+nonNil.name+"$"),
+//					(new TimeBinary(
+//						hack2( (n:NIL,x:Any) => x),
+//						nonNil,
+//						nil,
+//						nonNil
+//						),"$x:"+nonNil.name+"$")
+//						
+//				)}
+//			}
+//		//--Return
+//		rtn.foreach{ case (r:GrammarRule,s:String) => r.setGloss(s) }
+//		rtn.toArray
+//	}
+//	
+//	val RULES:Array[GrammarRule] = {
+//		def hack[A,Z](fn:A=>Z):Any=>Any = fn.asInstanceOf[Any=>Any]
+//		def hack2[A,B,Z](fn:(A,B)=>Z):(Any,Any)=>Any 
+//			= fn.asInstanceOf[(Any,Any)=>Any]
+//		var rtn = List[GrammarRule]()
+//		
+//		//--Named Rules
+//		rtn = rtn ::: NAMED_RULES.map( _._1 ).toList
+//
+//		//--ROOT
+//		rtn = rtn ::: List[GrammarRule](
+//			//(rules)
+//			new TimeUnary(hack((r:Range) => r),
+//				NodeType.ROOT, NodeType('Range)), 
+//			new TimeUnary(hack((d:Duration) => d),
+//				NodeType.ROOT, NodeType('Duration)), 
+//			new TimeUnary(hack((s:Range) => s), //note: range
+//				NodeType.ROOT, NodeType('Sequence))
+//			) ::: { if(O.allowPartialTime)
+//								List[TimeUnary]( 
+//									new TimeUnary(hack((fn:Range=>Range) => fn),
+//										NodeType.ROOT, NodeType('F_R2R)) )
+//							else List[TimeUnary]() }
+//		
+//		//--Preterminal Identities
+//		rtn = rtn ::: NodeType.all
+//				.filter{ (nt:NodeType) =>
+//					nt.isPreterminal
+//				}.map{ (pt:NodeType) =>
+//					if(pt.flag('Sequence)){
+//						Some(new TimeUnary((x:Any) => x,NodeType('Sequence),pt))
+//					} else if(pt.flag('Range)){
+//						Some(new TimeUnary((x:Any) => x,NodeType('Range),pt))
+//					} else if(pt.flag('Duration)){
+//						Some(new TimeUnary((x:Any) => x,NodeType('Duration),pt))
+//					} else {
+//						val proposedParent:String
+//							= pt.toString.substring(0,pt.toString.length-1)
+//						if(pt.toString.endsWith("_") && NodeType.exists(proposedParent)){
+//							Some(new TimeUnary((x:Any) => x,NodeType(proposedParent),pt))
+//						} else {
+//							None
+//						}
+//					}
+//				}.filter{_.isDefined}.map{ _.get }.toList
+////		forceTrack("RULES")
+////		rtn.foreach{ log(FORCE,_) }
+////		endTrack("RULES")
+//		//--Return
+//		rtn.toArray
+//	}
+//	
+//	val RULES_STR:Array[String] = {
+//		val rtn = RULES.map{ _.parent.toString }
+//		for(i <- 0 until NAMED_RULES.length){
+//			assert(RULES(i) == NAMED_RULES(i)._1, "name mismatch")
+//			rtn(i) = NAMED_RULES(i)._2
+//		}
+//		rtn
+//	}
+//
+//	def r2str(r:CKYRule):String = {
+//		val cand = RULES.zip(RULES_STR).find( _._1 == r )
+//		cand match {
+//			case Some(pair) => pair._2
+//			case None => r.parent.toString
+//		}
+//	}
+//
+//	def lexPrior:NodeType=>Prior[Int,Multinomial[Int]] 
+//		= (parent:NodeType) => {
+//			if(O.lexNils && parent.flag('nil) && !parent.flag('nilnum) && O.freeNils){
+//				val w = index.str2wTest(parent.toString.substring(4))
+//				assert(w != index.UNK)
+//				Dirichlet.fromMap(
+//					Map( w -> 1.0 )
+//						.map{ case (x,y) => (x, y.asInstanceOf[java.lang.Double]) }
+//					)
+//			} else {
+//				O.lexPrior
+//			}
+//		}
+//	
+//	def rulePrior:NodeType=>Prior[Int,Multinomial[Int]] 
+//		= (parent:NodeType) => O.rulePrior
+//}
 
 //------------------------------------------------------------------------------
 // GROUNDING DATA
@@ -958,7 +1372,8 @@ class InterpretationTask extends TemporalTask {
 	startTrack("Creating Grammar")
 	val lex = new Lex
 	import lex._
-	val grammar = new Grammar(index,lex,NodeType.defaultFactory)
+	val grammar = Grammar(index,lex,NodeType.defaultFactory)
+	grammar.rules.foreach{ log(FORCE,_) }
 	endTrack("Creating Grammar")
 
 	//<<scoring>>
@@ -1365,7 +1780,7 @@ class InterpretationTask extends TemporalTask {
 			forceTrack("Good Output")
 		}
 		filtered.foreach{ (t:GoodOutput) => 
-			log("["+t.offset+"] "+
+			log(FORCE,"["+t.offset+"] "+
 				"("+G.df.format(t.prob)+")"+
 				t.tree.asParseString(index.w2str(_),grammar.r2str(_))) 
 		}
@@ -1382,8 +1797,8 @@ class InterpretationTask extends TemporalTask {
 		forceTrack("Creating Parser")
 		val initialParser = CKYParser(
 			index.W,
-			grammar.RULES.map{ (_,1.0) },
-			grammar.NodeType,
+			grammar.rules.map{ (_,1.0) },
+			grammar.factory,
 			grammar.lexPrior,
 			grammar.rulePrior )
 		endTrack("Creating Parser")
@@ -1436,6 +1851,7 @@ class InterpretationTask extends TemporalTask {
 				log("updated parser")
 				//(update time)
 				startTrack("Updating Times")
+				var toUpdate = List[Temporal]()
 				//((E-step))
 				nonZeroGoodParses.foreach{ 
 						case GoodOutput(tree,value,offset,prob,ground,s) =>
@@ -1445,6 +1861,9 @@ class InterpretationTask extends TemporalTask {
 					value.traverse(gr,offset,
 						(term:Temporal,trueOffset:Long) => {
 //							log(FORCE,"Touching " + term + " " + term.getClass)
+							if(!toUpdate.contains(term)){
+								toUpdate = term :: toUpdate
+							}
 							term.updateE(gr,trueOffset,if(O.hardEM) 0 else U.safeLn(prob))
 						}
 					)
@@ -1457,9 +1876,7 @@ class InterpretationTask extends TemporalTask {
 					value.traverse(gr,offset,
 						(term:Temporal,trueOffset:Long) => term.runM)
 				}
-				grammar.ranges.foreach{ _._1.runM }
-				grammar.durations.foreach{ _._1.runM }
-				grammar.sequences.foreach{ _._1.runM }
+				toUpdate.foreach{ _.runM }
 				endTrack("Updating Times")
 				//(debug)
 				startTrack("Parameters")
