@@ -80,18 +80,15 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 			case None => "✇"
 		}
 	}
-	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):(String,String,String) = {
-		//returns: number, ordinality, magnitude
+	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match {
 			case Some((s:TimeSent,i:Int)) =>
 				if(s(i) == index.NUM){
-					( s.nums(i).toString, 
-					  s.ordinality(i).toString, 
-						s.nums(i).toString.length.toString)
+					s.nums(i)+"["+s.ordinality(i)+"]"
 				} else {
-					throw new IllegalArgumentException("Not a number: " + s.gloss(i))
+					"not_number"
 				}
-			case None => ("✇","✇","✇")
+			case None => "✇"
 		}
 	}
 	def isNumber(info:PaddedList[CoreMap],pos:Int):String = {
@@ -117,19 +114,20 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 			//(bigrams)
 			feats.add("word@"+(relativePos-1)+","+relativePos+"="+
 				word(info,absolutePos-1)+","+word(info,absolutePos))
+//			feats.add("word@"+relativePos+","+(relativePos+1)+"="+
+//				word(info,absolutePos)+","+word(info,absolutePos+1))
 			//(pos)
 			feats.add("pos@"+relativePos+"="+pos(info,absolutePos))
-//			//(shape)
-//			feats.add("shape@"+relativePos+"="+shape(info,absolutePos))
+			//(shape)
+			feats.add("shape@"+relativePos+"="+shape(info,absolutePos))
 			//(isNum)
 			feats.add("isnumber@"+relativePos+"="+isNumber(info,absolutePos))
+//			if(isNumber(info,absolutePos) == "true"){
+//				feats.add("word@"+relativePos+","+(relativePos+1)+"="+
+//					word(info,absolutePos)+","+word(info,absolutePos+1))
+//			}
 			//(num)
-			if(isNumber(info,absolutePos) == "true"){
-				val (num,numType,numMag) = characterizeNumber(info,absolutePos)
-//				feats.add("numberType@"+relativePos+"="+numType)
-//				feats.add("numberMagnitude@"+relativePos+"="+numMag)
-//				feats.add("number@"+relativePos+"="+numType+"*10^"+numMag)
-			}
+			feats.add("number@"+relativePos+"="+characterizeNumber(info,absolutePos))
 		}
 		return feats
 	}
