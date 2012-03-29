@@ -24,9 +24,9 @@ env!(
 
 	run(
 		# -- RUN MODE --
-#		o('runInterpretModel'),
-		o('interpretModel', 'out/842.exec/interpretModel.ser.gz'),
-		selo(0, 'mode', 
+		o('runInterpretModel'),
+		o('interpretModel', 'aux/interpret.ser.gz'),
+		selo(1, 'mode', 
 			'detect',
 			'interpret',
 			'system',
@@ -45,19 +45,24 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-		o('rulePrior', 0.325),
-		o('lexPrior', 0.0025),
-		o('uniformRoot'),
+#		o('rulePrior', 0.325),
+#		o('lexPrior', 0.0025),
+		o('rulePrior', 0.001),
+		o('lexPrior', 0.001),
+		selo(1,'nilPrior',
+			'lex',
+			'uniform',
+			'free',
+		nil),
 		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
 			'shortWithOffsetZero',
 			'mostNilsWithOffsetZero'),
-		selo(3,'CkyCountNormalization',
+		selo(2,'CkyCountNormalization',
 			'none',
 			'uniform',
-			'proportional',
 			'distribution'),
 		selo(@timeDistribution,'timeDistribution',
 			'Point',
@@ -72,14 +77,14 @@ env!(
 		selo(2,'timeDistributionScope', 'Global', 'Hybrid', 'Local'),
 		selo(0,'initMethod','uniform','random'),
 		o('lexNils'),
+		o('uniformFirstIteration'),
 		# <training>
 		o('beam', 1500), #1500 works well
-		o('iters', 15),
+		o('iters', 10),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
 		o('crfFeatureFactory','time.TRIPSFeatures'),
-		o('maxLength', 1),
 		#<params>
 		o('useTime'),
 		o('pruneTime', 1000),
@@ -88,7 +93,7 @@ env!(
 #		o('functionalUnboundedRange'), # BROKEN
 		o('functionalApproximate'),
 #		o('cannonicalShifts'),
-		selo(1,'sortTimeProbInScore','false','true'),
+		selo(0,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
 		o('exactMatchThreshold', 1),        # exact
@@ -99,9 +104,9 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
-#		o('train', 'English[0,2]'),   o('dev',   'English[142,143]'),
+		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,10]'),   o('dev',   'English[10,20]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
@@ -115,7 +120,6 @@ env!(
 #		o('includeRuleInLexProb'), # err...probably not right
 #		o('allowPartialTime'),
 #		o('hardEM'),
-#		o('freeNils'),
 #		o('guessRange'),
 #		o('instantAsDay'),
 #		o('nilWordPrior', 0.0001),

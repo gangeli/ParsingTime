@@ -37,7 +37,7 @@ function detect {
 		time.Interpret\
 			tempeval\
 			"out/$last/treeTime.ser.gz" \
-			aux/coremap/tempeval2-english-retok-numbers \
+			aux/coremap/tempeval2-english \
 			aux/tempeval2
 }
 
@@ -52,7 +52,7 @@ function interpret {
 		time.Interpret\
 			tempeval\
 			"out/$last/interpretModel.ser.gz" \
-			aux/coremap/tempeval2-english-retok-numbers \
+			aux/coremap/tempeval2-english \
 			aux/tempeval2
 }
 

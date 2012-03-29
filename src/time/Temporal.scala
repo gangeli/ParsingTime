@@ -656,7 +656,7 @@ class UngroundedRange(val normVal:Duration,val beginOffset:Duration
 	}
 
 	override def >|(diff:Duration):Range = {
-		assert(diff >= 0, "Shrinking to a negative duration")
+		assert(diff >= 0, "Shrinking to a negative duration: " + diff + " seconds=" + diff.seconds)
 		if(diff == Duration.INFINITE){ Range(Time.DAWN_OF, Time.DAWN_OF) }
 		else { new UngroundedRange(diff.interval,beginOffset+normVal-diff.interval)}
 	}
@@ -1013,8 +1013,8 @@ class GroundedDuration(val base:ReadablePeriod) extends Duration {
 	override def interval:GroundedDuration = this
 	override def seconds:Long = {
 		var period = base.toPeriod
-		val monthContrib:Long = period.getMonths*30*24*60*60
-		val yearContrib:Long = period.getYears.longValue*365*24*60*60
+		val monthContrib:Long = 1L*period.getMonths*30*24*60*60
+		val yearContrib:Long = 1L*period.getYears.longValue*365*24*60*60
 		period = period.withMonths(0).withYears(0)
 		period.toStandardDuration.getStandardSeconds+monthContrib+yearContrib
 	}
@@ -1581,7 +1581,7 @@ object Sequence {
 		val m = (tag:String,update:Boolean) => {
 			if(update && seenE){
 				gauss = ess.runMStep
-				log("m-update["+tag+"]: " + gauss)
+				log(FORCE,"m-update["+tag+"]: " + gauss)
 				ess.clear
 				seenE = false
 			}

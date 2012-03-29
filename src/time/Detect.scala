@@ -44,7 +44,11 @@ case class DetectedTime(begin:Int,end:Int,time:Option[(Temporal,Temporal,Double)
 	}
 }
 trait TimeDetector {
-	def findTimes(sent:TimeSent):Array[DetectedTime]
+	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)],
+			gloss:Array[String]):Array[DetectedTime]
+	
+	def findTimes(sent:TimeSent):Array[DetectedTime] 
+		= findTimes(sent, (t:TimeSent) => None, sent.toGlossArray)
 }
 
 //------------------------------------------------------------------------------
@@ -53,8 +57,8 @@ trait TimeDetector {
 @SerialVersionUID(1L)
 class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	import CRFDetector.InputAnnotation
-	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Int)] = {
-		val x = info.get(pos).get[(TimeSent,Int),InputAnnotation](
+	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Array[String],Int)] = {
+		val x = info.get(pos).get[(TimeSent,Array[String],Int),InputAnnotation](
 			classOf[InputAnnotation])
 		if(x == null) {
 			None
@@ -64,36 +68,45 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 	}
 	def word(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => index.w2str(s.words(i))
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+				if(s(i) == index.NUM){
+					s.nums(i).toString
+				} else {
+					gloss(i)
+				}
 			case None => "✇"
 		}
 	}
 	def pos(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => index.pos2str(s.pos(i))
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => index.pos2str(s.pos(i))
 			case None => "✇"
 		}
 	}
 	def shape(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,i:Int)) => s.shape(i)
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+				U.shape(gloss(i))
 			case None => "✇"
 		}
 	}
-	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):String = {
+	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):(Int,String,String) = {
+		//returns: number, ordinality, magnitude
 		sent(info,pos) match {
-			case Some((s:TimeSent,i:Int)) =>
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) =>
 				if(s(i) == index.NUM){
-					s.nums(i)+"["+s.ordinality(i)+"]"
+					( s.nums(i), 
+					  s.ordinality(i).toString, 
+						s.nums(i).toString.length.toString)
 				} else {
-					"not_number"
+					throw new IllegalArgumentException("Not a number: " + s.gloss(i))
 				}
-			case None => "✇"
+			case None => (-1,"✇","✇")
 		}
 	}
 	def isNumber(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match {
-			case Some((s:TimeSent,i:Int)) =>
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) =>
 				if(s(i) == index.NUM){
 					"true"
 				} else {
@@ -103,31 +116,81 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 		}
 	}
 
+
 	override def getCliqueFeatures(
 			info:PaddedList[CoreMap],position:Int,clique:Clique
 			):java.util.Collection[String] = {
 		val feats = new HashSet[String]
-		(clique.maxLeft to clique.maxRight).foreach{ (relativePos:Int) =>
+		//--Helpers
+		def addFeature(str:String){
+			feats.add(str)
+		}
+		def localFeatures(relativePos:Int){
 			val absolutePos = position+relativePos
-			//(word)
-			feats.add("word@"+relativePos+"="+word(info,absolutePos))
-			//(bigrams)
-			feats.add("word@"+(relativePos-1)+","+relativePos+"="+
-				word(info,absolutePos-1)+","+word(info,absolutePos))
-//			feats.add("word@"+relativePos+","+(relativePos+1)+"="+
-//				word(info,absolutePos)+","+word(info,absolutePos+1))
+			val dir:String = {
+				if(relativePos < 0){ "neg" }
+				else if(relativePos == 0){ "0" }
+				else{ "pos" }
+			}
+			addFeature("word@"+dir+"="+word(info,absolutePos))
+		}
+		def characterNgrams(word:String,n:Int,relativePosition:Int){
+			val chars = word.toCharArray
+			(1 to n).foreach{ (len:Int) =>
+				((-len+1) until chars.length).foreach{ (start:Int) =>
+					//(get n-gram)
+					val gram = (start until (start+len)).foldLeft(""){ case (soFar:String,i:Int) =>
+						if(i < 0 || i >= chars.length){
+							soFar + "✇"
+						} else {
+							soFar + chars(i)
+						}
+					}
+					//(add feature)
+					addFeature("ngram@"+relativePosition+"="+gram)
+				}
+			}
+		}
+		def prefix(n:Int) = word(info,position).slice(0,n)
+		def suffix(n:Int) = {
+			val str = word(info,position)
+			str.slice(math.max(0,str.length-n),str.length)
+		}
+		//--Features
+		if(clique == FeatureFactory.cliqueC){
+			//(general surrounding features)
+			(-O.maxLookaround to O.maxLookaround).foreach{ (position:Int) =>
+				localFeatures(position)
+			}
+			//(affixes)
+			(1 to 5).foreach{ (i:Int) =>
+				addFeature("prefix("+i+")@"+0+"="+prefix(i))
+				addFeature("suffix("+i+")@"+0+"="+suffix(i))
+			}
+			//(affix shapes)
+			(1 to 5).foreach{ (i:Int) =>
+				addFeature("prefixShape(i)@"+0+"="+U.shape(prefix(i)))
+				addFeature("suffixShape(i)@"+0+"="+U.shape(suffix(i)))
+			}
 			//(pos)
-			feats.add("pos@"+relativePos+"="+pos(info,absolutePos))
+			addFeature("POS@"+0+"="+pos(info,position))
 			//(shape)
-			feats.add("shape@"+relativePos+"="+shape(info,absolutePos))
-			//(isNum)
-			feats.add("isnumber@"+relativePos+"="+isNumber(info,absolutePos))
-//			if(isNumber(info,absolutePos) == "true"){
-//				feats.add("word@"+relativePos+","+(relativePos+1)+"="+
-//					word(info,absolutePos)+","+word(info,absolutePos+1))
-//			}
-			//(num)
-			feats.add("number@"+relativePos+"="+characterizeNumber(info,absolutePos))
+			addFeature("shape@"+0+"="+shape(info,position))
+			//(isnumber)
+			addFeature("isnumber@"+0+"="+isNumber(info,position))
+			//(surrounding number stuff)
+			if(isNumber(info,position) == "true"){
+				val (num,numType,numMag) = characterizeNumber(info,position)
+				addFeature("wordBeforeNum="+word(info,position-1))
+				addFeature("wordAfterNum="+word(info,position+1))
+				addFeature("numberType@"+0+"="+numType)
+				addFeature("numberMagnitude@"+0+"="+numMag)
+				addFeature("number@"+0+"=|"+numType+"|*10^"+numMag)
+			}
+		} else {
+			(-O.maxLookaround to O.maxLookaround).foreach{ (position:Int) =>
+				localFeatures(position)
+			}
 		}
 		return feats
 	}
@@ -137,42 +200,25 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 // CRF
 //------------------------------------------------------------------------------
 @SerialVersionUID(1L)
-case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
+case class CRFDetector(impl:CRFClassifier[CoreMap],index:Indexing
+		) extends TimeDetector {
 	import CRFDetector._
 
-	def getTemporal(sent:TimeSent):Option[Temporal] = {
-		None
-//		(0 to 5).foreach{ (beamPow:Int) =>
-//			//(parse)
-//			val beam = math.pow(2,beamPow).toInt
-//			val parses = parser.parse(sent,beam)
-//			//(find correct)
-//			val evaluated:Array[Any] = parses
-//				.map{ _.evaluate }
-//				.dropWhile{ _.isInstanceOf[NoTime] }
-//			//(return)
-//			if(evaluated.length > 0){
-//				return Some(evaluated(0).asInstanceOf[Temporal])
-//			}
-//		}
-//		return None
-	}
 
-	override def findTimes(sent:TimeSent):Array[DetectedTime] 
-		= findTimes(sent, (t:TimeSent) => None)
-
-	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)]
-			):Array[DetectedTime] = {
+	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)],
+			gloss:Array[String]
+				):Array[DetectedTime] = {
 		//--Make Input
 		val input:JList[CoreMap] = (0 until sent.length).map{ (i:Int) =>
 			//(make word)
 			val word = new CoreLabel(1)
 			//(set input)
-			word.set(classOf[InputAnnotation], (sent,i))
+			word.set(classOf[InputAnnotation], (sent,gloss,i))
 			//(return)
 			word
 		}
 		//--Classify
+		CRFDetector.parser = Some(parse) //TODO thread safety here
 		val output = impl.classify(input) //output eq input
 		//--Convert Output
 		//(get annotations)
@@ -207,14 +253,36 @@ case class CRFDetector(impl:CRFClassifier[CoreMap]) extends TimeDetector {
 		//--Return
 		return rtn.map{ _.tagMetaInfo(sent.meta) }.reverse.toArray
 	}
+	
+	def corelabels2timeSent(tokens:Array[CoreLabel]):TimeSent = {
+		//(get POS)
+		val pos = tokens.map{ (lbl:CoreLabel) => index.str2posTest(lbl.tag) }
+		//(get numbers)
+		val (ordinality,nums) = tokens.map{ DataLib.number(_) }.unzip
+		//(get words)
+		val words = tokens.zip(ordinality).map{ 
+				case (lbl:CoreLabel,numType:NumberType.Value) =>
+			if(numType != NumberType.NONE){ 
+				index.NUM 
+			} else { 
+					index.str2wTest(lbl.word,false) 
+			}
+		}
+		//(create sentence)
+		TimeSent(words,pos,nums.toArray,ordinality.toArray,index)
+	}
+
 }
 
 object CRFDetector {
-	def TIME:String = "X"
-	def NOTM:String = "-"
+	val TIME:String = "X"
+	val NOTM:String = "-"
+	
+	var parser:Option[TimeSent=>Option[(Temporal,Temporal,Double)]] = None
 
-	class InputAnnotation extends CoreAnnotation[(TimeSent,Int)]{
-		def getType:Class[(TimeSent,Int)] = classOf[(TimeSent,Int)]
+	class InputAnnotation extends CoreAnnotation[(TimeSent,Array[String],Int)]{
+		def getType:Class[(TimeSent,Array[String],Int)] 
+			= classOf[(TimeSent,Array[String],Int)]
 	}
 
 	def apply(data:DataStore[DetectionDatum],index:Indexing,treeTime:TreeTime):CRFDetector = {
@@ -237,8 +305,10 @@ object CRFDetector {
 			"Object["+flags.featureFactoryArgs.length+"]")
 		flags.backgroundSymbol = NOTM
 		log(FORCE,"flags.backgroundSymbol: " + flags.featureFactory)
-		flags.maxLeft = O.maxLength
+		flags.maxLeft = 1
 		log(FORCE,"flags.maxLeft: " + flags.maxLeft)
+		flags.maxRight = 0
+		log(FORCE,"flags.maxRight: " + flags.maxRight)
 		endTrack("Flags")
 		val classifier = new CRFClassifier[CoreMap](flags)
 		//--Create Data
@@ -251,7 +321,7 @@ object CRFDetector {
 					//(make word)
 					val word = new CoreLabel(2)
 					//(set input)
-					word.set(classOf[InputAnnotation], (datum.sent,i))
+					word.set(classOf[InputAnnotation], (datum.sent,datum.sent.toGlossArray,i))
 					//(set output)
 					word.set(classOf[AnswerAnnotation],datum.getTime(i) match {
 						case Some(temporal) => b.append(TIME); TIME
@@ -271,8 +341,9 @@ object CRFDetector {
 		endTrack("CRF")
 
 		//--Return
-		new CRFDetector(classifier)
+		new CRFDetector(classifier,index)
 	}
+
 }
 
 //------------------------------------------------------------------------------
@@ -280,8 +351,11 @@ object CRFDetector {
 //------------------------------------------------------------------------------
 case class DetectionDatum(
 		doc:String,sent:TimeSent,sentIndex:Int,
-		spans:Array[(Int,Int)],times:Array[Temporal],dct:Time
+		spans:Array[(Int,Int)],times:Array[Temporal],dct:Time,
+		gloss:Array[String]
 		) extends Iterable[Int] {
+	assert(gloss.length == sent.length, "Gloss length mismatch")
+
 	def getTime(i:Int):Option[Temporal] = {
 		spans.zipWithIndex.foreach{ case ((begin:Int,end:Int),index:Int) =>
 			if(i >= begin && i < end){
@@ -319,6 +393,9 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 		new Iterable[DetectionDatum] {
 			override def iterator:Iterator[DetectionDatum]
 				= docs.iterator.flatMap{ (doc:CoreMap) =>
+					//--Process Document
+					DataLib.retokenize(doc)
+					DataLib.normalizeNumbers(doc)
 					//--Variables
 					val dct:Time = Time(new DateTime(
 						doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
@@ -354,6 +431,8 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 									}
 								}
 							}
+							//((get gloss))
+							val gloss = tokens.map{ _.word }
 							//((create sentence))
 							val timeSent = 
 								TimeSent(words,pos,nums.toArray,ordinality.toArray,index)
@@ -395,7 +474,9 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 								//(datum)
 								DetectionDatum(
 									docName,timeSent,sentI,
-									spans.toArray,times.toArray,dct)
+									spans.toArray,times.toArray,dct,
+									gloss
+									)
 									.setOrigBegin({ (i:Int) =>
 										tokens(i).get[java.lang.Integer,TokenBeginAnnotation](
 											classOf[TokenBeginAnnotation])
@@ -426,9 +507,9 @@ object CoreMapDetectionStore {
 		//--Data Source
 		val file:String = 
 			System.getenv("HOME") + 
-			"/workspace/time/aux/coremap/tempeval2-english" +
-			{if(O.retokenize) "-retok" else "" } +
-			{if(O.collapseNumbers) "-numbers" else "" }
+			"/workspace/time/aux/coremap/tempeval2-english"
+//			{if(O.retokenize) "-retok" else "" } +
+//			{if(O.collapseNumbers) "-numbers" else "" }
 		log(FORCE,"INPUT: "+file)
 		//--Create Data
 		val data = new SerializedCoreMapDataset(file)
@@ -463,7 +544,8 @@ class DetectionTask extends TemporalTask {
 		data.eachExample(Int.MaxValue).zipWithIndex.foreach{ 
 				case (datum:DetectionDatum,index:Int) =>
 			//(make prediction)
-			val guess:Array[DetectedTime] = sys.findTimes(datum.sent)
+			val guess:Array[DetectedTime] 
+				= sys.findTimes(datum.sent,(t:TimeSent)=>None,datum.gloss)
 			//(get span overlap)
 			//((variables))
 			val goldMask:Array[Boolean] = new Array[Boolean](datum.sent.length)
@@ -530,7 +612,7 @@ class DetectionTask extends TemporalTask {
 		val index = Indexing()
 		val data = CoreMapDetectionStore(O.train,if(O.devTest) O.dev else O.test,index)
 		endTrack("Loading dataset")
-		forceTrack("Training Interpretation Model") //TODO logic here
+		forceTrack("Training Interpretation Model")
 		val sys:TreeTime = if(O.runInterpretModel){
 			(new InterpretationTask).run
 			IOUtils.readObjectFromFileNoExceptions(Execution.touch("interpretModel.ser.gz"))
@@ -558,18 +640,27 @@ class DetectionTask extends TemporalTask {
 		evalExtent.close
 		endTrack("Evaluate")
 		//--Score
+		val logger = Execution.getLogger();
 		startTrack("Scores")
 		startTrack("Train")
 		log("Precision: " + trainScore.detect.precision)
 		log("Recall:    " + trainScore.detect.recall)
-		log("F1:        " + trainScore.detect.F1)
+		log(YELLOW,"F1:        " + trainScore.detect.F1)
 		log("Accuracy   " + trainScore.accuracy)
+		logger.setGlobalResult("detect.train.precision", trainScore.detect.precision)
+		logger.setGlobalResult("detect.train.recall",    trainScore.detect.recall)
+		logger.setGlobalResult("detect.train.f1",        trainScore.detect.F1)
+		logger.setGlobalResult("detect.train.accuracy",  trainScore.accuracy)
 		endTrack("Train")
 		startTrack("Test")
 		log("Precision: " + evalScore.detect.precision)
 		log("Recall:    " + evalScore.detect.recall)
-		log("F1:        " + evalScore.detect.F1)
+		log(YELLOW,"F1:        " + evalScore.detect.F1)
 		log("Accuracy   " + evalScore.accuracy)
+		logger.setGlobalResult("detect.eval.precision", evalScore.detect.precision)
+		logger.setGlobalResult("detect.eval.recall",    evalScore.detect.recall)
+		logger.setGlobalResult("detect.eval.f1",        evalScore.detect.F1)
+		logger.setGlobalResult("detect.eval.accuracy",  evalScore.accuracy)
 		endTrack("Test")
 		endTrack("Scores")
 	}
