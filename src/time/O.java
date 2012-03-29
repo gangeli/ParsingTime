@@ -79,8 +79,9 @@ public class O {
 	public static Dirichlet<scala.Int> lexPrior = Dirichlet.ZERO();
 	@Option(name="nilWordPrior", gloss="Dirichlet prior for CKY NIL")
 	public static Dirichlet<scala.Int> nilWordPrior = Dirichlet.ZERO();
-	@Option(name="freeNils", gloss="Enforce P(w | NIL-w) = 1.0")
-	public static boolean freeNils = false;
+	public static enum NilPrior{ free, uniform, lex }
+	@Option(name="nilPrior", gloss="Enforce P(w | NIL-w) = 1.0 / uniform / learned")
+	public static NilPrior nilPrior = NilPrior.lex;
 	@Option(name="useTime", gloss="Parse date and time both in grammar")
 	public static boolean useTime = false;
 	@Option(name="hardEM", gloss="Use hard rather than soft EM updates")
@@ -99,8 +100,7 @@ public class O {
 		all, bestAll, bestRandom, shortWithOffsetZero, mostNilsWithOffsetZero }
 	@Option(name="ckyCountType", gloss="Parses to count as 'correct' for EM")
 	public static CkyCountType ckyCountType = CkyCountType.bestAll;
-	public static enum CkyCountNormalization{ none, uniform, 
-		proportional, distribution }
+	public static enum CkyCountNormalization{ none, uniform, distribution }
 	@Option(name="ckyCountNormalization",gloss="Normalize EM counts from example")
 	public static CkyCountNormalization ckyCountNormalization 
 		= CkyCountNormalization.none;
@@ -129,6 +129,8 @@ public class O {
 	public static boolean lexNils = false;
 	@Option(name="includeRuleInLexProb", gloss="Lex prob = P(rule|head)*P(word|rule)")
 	public static boolean includeRuleInLexProb = false;
+	@Option(name="uniformFirstIteration", gloss="Parse probabilities from the first iteration are uniform")
+	public static boolean uniformFirstIteration = false;
 	//(detection)
 	@Option(name="crfFeatureFactory", gloss="FeatureFactory class for tagging")
 	public static String crfFeatureFactory 

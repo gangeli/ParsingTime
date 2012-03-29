@@ -49,17 +49,20 @@ env!(
 #		o('lexPrior', 0.0025),
 		o('rulePrior', 0.001),
 		o('lexPrior', 0.001),
-#		o('freeNils'),
+		selo(1,'nilPrior',
+			'lex',
+			'uniform',
+			'free',
+		nil),
 		selo(0,'ckyCountType',
 			'all',
 			'bestAll',
 			'bestRandom',
 			'shortWithOffsetZero',
 			'mostNilsWithOffsetZero'),
-		selo(3,'CkyCountNormalization',
+		selo(2,'CkyCountNormalization',
 			'none',
 			'uniform',
-			'proportional',
 			'distribution'),
 		selo(@timeDistribution,'timeDistribution',
 			'Point',
@@ -73,10 +76,11 @@ env!(
 		o('gaussianMuPrior', 'N[0.0,1.0]'),
 		selo(2,'timeDistributionScope', 'Global', 'Hybrid', 'Local'),
 		selo(0,'initMethod','uniform','random'),
-#		o('lexNils'),
+		o('lexNils'),
+		o('uniformFirstIteration'),
 		# <training>
 		o('beam', 1500), #1500 works well
-		o('iters', 2),
+		o('iters', 10),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
@@ -100,10 +104,10 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
-#		o('train', 'English[20,162]'),   o('dev',   'English[0,20]'),
-		o('train', 'TOY'),              o('dev', 'TOY'),
+#		o('train', 'English[0,10]'),   o('dev',   'English[10,20]'),
+#		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
 		o('devTest'),                   #uncomment for real test
 
