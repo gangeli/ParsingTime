@@ -56,22 +56,26 @@ A \ty{Sequence} is a tuple of three elements
 
 %(definition of reference time)
 We define the \textit{reference time} $t$ \cite{key:1947reichenback-temporal}
-	to be the instant when the phrase 
-	is uttered; for the \tempeval\ corpus, we approximate this as the
+	to be the instant which is considered to be the current time relative to
+	to the expression uttered.
+For the \tempeval\ corpus, we approximate this (occasionally incorrectly) as the
 	publication time of the article.
 
 %(sequence as distribution)
-To contrast with \ty{Range}s, a \ty{Sequence} can represent a number of specific
+To contrast with \ty{Range}s, a \ty{Sequence} can represent a number of grounded
 	times.
 Nonetheless, pragmatically, not all of these are given equal weight --
 	an utterance of \tp{last Friday} may mean either of the previous two Fridays,
 	but is unlikely to ground to anything else.
 We represent this ambiguity by defining a distribution over the elements
 	of the \ty{Sequence}.
-Particularly, we define a Gaussian -- conditioned on $t$ -- with mean and
-	variance defined according to the distance \seqjump.
-The input to the Gaussian uses a function $\delta_{s,t}$:
-	the distance between the reference time and the element in question.
+While this could be any distribution, we chose to approximate it as a
+	Gaussian.
+The domain of the Gaussian is the distance between the reference time
+	and the element in of the sequence in question; to account for sequences
+	of different granularities (e.g., \te{Friday} versus \te{\th{13}}),
+	we normalize this distance by \seqjump.
+Our probability, with learned parameters $\mu$ and $\sigma$, thus becomes:
 % -- Gaussian Plot
 \begin{figure}[t]
 \begin{center}
@@ -101,10 +105,6 @@ The input to the Gaussian uses a function $\delta_{s,t}$:
 \reffig{distribution} shows an example of such a distribution;
 	importantly, note that moving the reference time between two elements
 	dynamically changes the probability assigned to each.
-The parameters $\mu$ and $\sigma$ in Equation \refeqn{gaussian} are shared
-	among all sequence instances; the normalization
-	with respect to \seqjump\ ensures that the distribution is applicable
-	to any particular sequence.
 	
 % -- Duration
 \paragraph{Duration}
@@ -117,11 +117,10 @@ We denote a duration with the variable \dur.
 
 %(fuzzy)
 We define a special case of the \ty{Duration} type to represent 
-	\textit{approximate} durations.
+	\textit{approximate} durations, identified by their cannonical
+	unit (\te{week}, \te{month}, etc).
 These are used to represent expressions such as \tp{a few years} or
 	\tp{some days}.
-Semantically, they are equivalent to any other approximate
-	duration with the same unit and distinct from any other \ty{Duration}.
 
 % -- Functions
 \paragraph{Function}
@@ -162,77 +161,77 @@ Notably, a body of work has focused on reasoning about events or states
 	changes of state; 
 	\newcite{key:2010condoravdi-temporal} explores NPI licensing in temporal
 	expressions.
+Broader context is also not directly modeled, but rather left to systems
+	in which the model would be embedded.
 Furthermore, vague times (e.g., \tp{in the 90's}) represent a notable chunk of 
 	temporal expressions uttered.
-In contrast, NLP evaluations have generally not included such vague 
+In contrast, NLP evaluations have generally not handled such vague 
 	time expressions.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TIME AS COMPOSITIONAL PARSING
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\Subsection{repr-compositional}{Synchronous PCFG}
+\Subsection{repr-compositional}{Grammar Formalism}
 % -- Time is compositional
-Our approach builds on the assumption that the natural language description
-	of time is compositional in nature.
-Unlike many aspects of language  -- which are often idiomatic or not compositional
-	-- each word attached to a temporal phrase is 
+Our approach builds on the assumption that natural language descriptions
+	of time are compositional in nature.
+Each word attached to a temporal phrase is 
 	usually compositionally modifying the meaning of the phrase.
 To demonstrate, we consider the expression \tp{the week before last week}.
-Decomposing the example, we can construct a meaning by 
+We can construct a meaning by 
 	applying the modifier \tp{last} to \tp{week} -- 
 	creating the previous week;
-	and then applying \tp{before} to \tp{week} and \tp{last week} 
-	to create our intended expression.
+	and then applying \tp{before} to \tp{week} and \tp{last week}.
 
-% -- Synchronous Grammar
+% -- Grammar
 \Fig{fig/grammar}{0.45}{grammar}{
-	The synchronous grammar -- (a) describes the CFG parse of the
-		temporal \textit{types}; (b) describes the corresponding combination
-		of the temporal \textit{instances}.
+	The grammar -- (a) describes the CFG parse of the
+		temporal \textit{types}. Words are tagged with their nonterminal
+		entry, above which only the types of the expressions are maintained;
+	(b) describes the corresponding combination
+			of the temporal \textit{instances}.
 	The parse in (b) is deterministic given the grammar combination rules
 		in (a).
 }
 %(introduction)
-We construct a paradigm for parsing temporal phrases based on a Synchronous
-	PCFG defined over the temporal \textit{instances} and their
-	corresponding \textit{types}, similar in some respects but more
-	constrained than those used in machine translation 
-	(e.g., \newcite{key:2001yamada-syntaxmt}).
-This is in contrast to common approaches, such as CCG grammars 
+We construct a paradigm for parsing temporal phrases 
+	consisting of a standard PCFG over temporal \textit{types} with each parse 
+	rule defining a function to apply to the child nodes, or the word being
+	generated.
+At the root of the tree, we recursively apply the functions in the parse tree
+	to obtain a final temporal \textit{value}.
+One can view this formalism as a constrained Synchronous PCFG
+	\cite{key:2001yamada-syntaxmt}, or a rule-to-rule translation
+	\cite{key:1976bach-semantics}.
+
+Our approach contrasts with common approaches, such as CCG grammars 
 	\cite{key:2000steedman-ccg,key:2004bos-ccg,2011kwiatkowski-semantics},
 	giving us more flexibility in the composition rules.
 \reffig{grammar} shows an example of the grammar.
 
 %(formal definition)
-Formally, we define a Synchronous PCFG 
+Formally, we define a grammar
 	$G = \left(\Sigma,S,\sV,\sW,\sR,\theta\right)$.
 The alphabet $\Sigma$ and start symbol $S$ retain their usual interpretations.
-
 %(nonterminals)
-We define a set $\sV$ to be the set of types as described in
+We define a set $\sV$ to be the set of types, as described in
 	\refsec{repr-types} -- these act as our nonterminals.
 For each $v \in \sV$ we define an (infinite) set $W_v$ corresponding to the 
 	possible instances of type $v$.
 Concretely, if $v=\ty{Sequence}$, our set $W_v \in \sW$ could contain elements
 	corresponding to \tp{Friday}, \tp{last Friday}, \tp{Nov. \th{27}}, etc.
-The synchronous grammar is constructed over pairs $(v,w \in W_v)$.
+Each node in the tree defines a pair $(v,w)$ such that $w \in W_v$,
+	with combination rules defined over $v$ and function applications performed
+	on $w$.
 
 %(rules)
 A rule $R \in \sR$ is defined as a pair 
 	$R = \left(v_i \rightarrow v_jv_k, 
 		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$.
-The first term is a conventional PCFG rule over the types
-	$\sV$.
-In a conventional synchronous PCFG, the second term would be the corresponding
-	combination rule over our nonterminals $\sW$.
-In our case, this term is a deterministic function mapping the
-	constituent expressions to the parent expression.
-That is, we are applying a rule-to-rule translation 
-	\cite{key:1976bach-semantics}.
-%This both handles the unbounded domain of temporal expressions,
-%	as well as constrains the formalism.
-Note that the definition above is trivially adapted for the case of unary
-	rules.
+The first term is our conventional PCFG rule over the types $\sV$.
+The second term defines the function to apply to the values returned
+	recursively by the child nodes.
+Note that this definition is trivially adapted for the case of unary rules.
 
 %(probabilities)
 The last term in our grammar formalism denotes the rule probabilities $\theta$.
@@ -242,16 +241,6 @@ Importantly, note that the distribution over possible groundings
 	of a temporal expression are not included in the grammar
 	formalism.
 The learning of these probabilities is detailed in \refsec{learn}.
-
-%%(motivation)
-%We defined a paradigm for expressing how natural language composes
-%	temporal phrases while accounting for the sparsity inherent in composing
-%	individual expressions -- as well as helping ensure that the resulting
-%	expressions are semantically valid.
-%In parallel, a particular temporal expression is parsed, which can then
-%	be grounded by a reference time to provide the final temporal expression.
-%We continue to describe the preterminals of our grammar and the introduction
-%	of our synchronous terms.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -305,9 +294,9 @@ The learning of these probabilities is detailed in \refsec{learn}.
 	\caption{
 		The content-bearing preterminals of the grammar, arranged by their
 			types.
-		Note that the \ty{Sequence} type contains significantly more elements
-			than enumerated here; however, these are condensed for the sake of
-			brevity.
+		Note that the \ty{Sequence} type contains more elements
+			than enumerated here; however, only a few of each characteristic type
+			are shown here for brevity.
 	}
 	\label{tab:content}
 	\end{center}
@@ -374,27 +363,30 @@ The learning of these probabilities is detailed in \refsec{learn}.
 			denote \ty{Range}s \ty{Sequence}s and \ty{Duration}s respectively.
 		The name, a brief description, and the type signature of the function
 			(as used in parsing) are given.
-		Described in more detail in \refsec{repr-rules}, the functions generally 
-			apply generic interval or sequence modifications.
+		Described in more detail in \refsec{repr-rules}, the functions are most
+			easily interpreted as operations on either an interval or sequence.
 	}
 	\label{tab:function}
 	\end{center}
 \end{table*}
 
 % -- Intro
-We define a set of preterminals, consisting of pairs of 
-	\textit{types} and \textit{instances}	of temporal expressions.
+We define a set of preterminals, specifying their eventual
+	\textit{type}, as well as the temporal \textit{instance} it
+	produces when its function is evaluated on the word it generates
+	(e.g., $f(\tp{day}) = \te{Day}$).
 A distinction is made in our description between entities with 
 	content roles versus entities with a functional role.
 
 % -- Content
 The first -- consisting of \ty{Range}s, \ty{Sequence}s, and \ty{Duration}s --
 	are listed in \reftab{content}.
-A total of 57 such preterminals are defined in the implemented system,
-	although this list is easily adaptable to fit specialized domains.
-It should be noted that, although the expressions are described textually,
-	their meaning is purely semantic, and any association with their 
-	textual realization must be learned.
+A total of 62 such preterminals are defined in the implemented system
+	corresponding to primitive entities often appearing in newswire,
+	although this list is easily adaptable to fit other domains.
+It should be noted that the expressions, represented in \te{Typewriter},
+	have no a prior association with word,s denoted by \tp{italics};
+	this correspondence must be learned.
 Furthermore, entities which are subject to interpretation -- for example
 	\te{Quarter} or \te{Season} -- are given a concrete interpretation.
 The \th{$n$} quarter is defined by evenly splitting a year into four;
@@ -415,8 +407,11 @@ Additionally, a sequence can be modified by shifting its origin
 	(\tp{fourth Sunday in November}).
 
 % -- Other
-The lexical entries for the \ty{Nil} and \ty{Number} types are straightforward,
-	though they play an important role in parsing, as described later.
+The lexical entry for the \ty{Nil} type is tagged with the word it
+	generates, producing entries such as \ty{Nil(a)}, \ty{Nil(November)}, etc.
+The lexical entry for the \ty{Number} type is further parameterized by
+	the order of magnitude and ordinality of the number; e.g.,
+	\th{27} becomes \ty{Number($10^1$,ordinal)}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -424,43 +419,38 @@ The lexical entries for the \ty{Nil} and \ty{Number} types are straightforward,
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \Subsection{repr-rules}{Combination Rules}
 % -- Intro
-The synchronous PCFG grammar consists of a standard CFG rule over temporal
-	types (in $\sV$) paired with a deterministic procedure for combining instances
-	of those types (in $W_v \in \sW$).
-This procedure can be summarized as function application: 
-applying (or partially applying) a function with one of its
-		arguments.
-A separate rule exists for applying on the left versus on the right --
-that is, for composing $f(x,y) \odot x$ versus $x \odot f(x,y)$.
+As mentioned earlier, our grammar defines both combination rules
+	over types (in $\sV$) as well as a method for combining temporal
+	instances (in $W_v \in sW$).
+This method is either a function application of one of the functions in
+	\reftab{function}, a function which is implicit in the text
+	(intersection and multiplication), or an identity operation (for \ty{Nil}s).
+These cases are detailed below:
 
-% -- Special Cases
-Three functions are defined in addition to those in \reftab{function};
-	these are unique in that they can be applied without needing explicit 
-	support from the text:
-
-% -- Operators
 \begin{itemize}
+	\item Function application, e.g., \tp{last week}.
+		We apply (or partially apply) a function to an argument
+			on either the left or the right -- $f(x,y) \odot x$ or $x \odot f(x,y)$.
+		Furthermore, for functions of arity 2 taking a \ty{Range} as an argument,
+			we define a rule treating it as a unary function with the reference time
+			taking the place of the second argument.
 	%(intersection)
-	\item Intersecting two ranges or sequences.
-%		This roughly equates to applying a special \textit{intersect} function
-%			without requiring that it be explicit in the temporal phrase.
+	\item Intersecting two ranges or sequences, e.g., \tp{November \th{27}}.
 		The intersect function treats both arguments as intervals, and will return
-			the overlap between the intervals\footnote{
-				In the case of sequences (e.g., \te{\th{13}} intersect \te{May}) a
+			an interval (\ty{Range} or \ty{Sequence}) corresponding to the overlap
+			between the two.
+			\footnote{
+				In the case of complex sequences 
+					(e.g., \tp{Friday the \th{13}}) an A$^{*}$
 					search is performed to find overlapping ranges in the two sequences;
-					the origin is updated to refer to the closest such
+					the origin $r_s(0)$ is updated to refer to the closest such
 					match to the reference time.
-				In cases where this search cannot be solved analytically
-					(e.g., \te{\th{13}} intersect \te{Friday}), an A$^{*}$
-					search is used to find an overlapping pair of ranges
-					in time logarithmic with respect to
-					the distance in milliseconds to the match.
 		}.
 	%(mult)
-	\item Multiplying a \ty{Number} with a \ty{Duration}.
+	\item Multiplying a \ty{Number} with a \ty{Duration}, e.g., \tp{5 weeks}.
 	%(nil)
 	\item Combining a non-\ty{Nil} and \ty{Nil} element with no change to the
-			temporal expression.
+			temporal expression, e.g., \tp{a week}.
 		The lexicalization of the \ty{Nil} type allows the algorithm
 			to take hints from these supporting words.
 \end{itemize}

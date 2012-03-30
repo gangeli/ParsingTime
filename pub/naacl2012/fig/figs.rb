@@ -10,12 +10,12 @@ def lastFriday
 	Parse.new(
 		[intersect( ctable('\texttt{\darkred{moveLeft1}}(',friday,')'), dom(13) ),
 			[ctable('\texttt{\darkred{moveLeft1}}(',friday,')'),
-				['\texttt{\darkred{moveLeft1$(-)$}}','last'],
-				[friday,'friday'],
+				['\texttt{\darkred{moveLeft1$(-)$}}','\darkgreen{last}'],
+				[friday,'\darkgreen{friday}'],
 			],
 			[dom(13),
-				['nil','the'],
-				[dom(13),'13$^{\textrm{th}}$'],
+				['\textsf{Nil$_\textsf{the}$}','\darkgreen{the}'],
+				[dom(13),'\darkgreen{13$^{\textrm{th}}$}'],
 			],
 		]
 	).constituency
@@ -38,12 +38,12 @@ def lastFridayTypes
 	Parse.new(
 		['\texttt{Sequence}',
 			['\texttt{Sequence}',
-				['$f: \texttt{Sequence} \rightarrow \texttt{Sequence}$','last'],
-				['\texttt{Sequence}','Friday'],
+				['$f: \texttt{Sequence} \rightarrow \texttt{Sequence}$','\darkgreen{last}'],
+				['\texttt{Sequence}','\darkgreen{Friday}'],
 			],
 			['\texttt{Sequence}',
-				['\texttt{Nil}','the'],
-				['\texttt{Sequence}','13$^{\textrm{th}}$'],
+				['\texttt{Nil}','\darkgreen{the}'],
+				['\texttt{Sequence}','\darkgreen{13$^{\textrm{th}}$}'],
 			],
 	]).constituency
 end
@@ -105,10 +105,13 @@ end
 def next2daysTypes
 	Parse.new(
 	  ['\texttt{Range}',
-	    ['$f(\texttt{Duration}):\texttt{Range}$','next'],
+	    ['$f(\texttt{Duration}):\texttt{Range}$',
+				['\texttt{\cadetblue{catRight}}', '\darkgreen{next}']],
 	    ['\texttt{Duration}',
-	      ['\texttt{Number}','2'],
-	      ['\texttt{Duration}','days'],
+	      ['\texttt{Number}',
+					['\texttt{\cadetblue{Num$_{n*10^0}$}}', '\darkgreen{2}']],
+	      ['\texttt{Duration}',
+					['\texttt{\cadetblue{Day}}', '\darkgreen{days}']],
 	    ],
 	]).constituency
 end
@@ -116,10 +119,10 @@ end
 def next2days
 	Parse.new(
 		[ctable('\texttt{\darkred{catRight$(t$}},',time('2D'),'$)$'),
-	    ['\texttt{\darkred{catRight$(t,-)$}}','next'],
+	    ['\texttt{\darkred{catRight$(t,-)$}}','\darkgreen{next}'],
 	    [time('2D'),
-	      [time('Num(2)'),'2'],
-	      [time('1D'),'days'],
+	      [time('Num(2)'),'\darkgreen{2}'],
+	      [time('1D'),'\darkgreen{days}'],
 	    ],
 	]).constituency
 end
@@ -148,7 +151,7 @@ def grammar
 	nil).cjustify('c').rmargin(u(0.5))
 end
 printObj(
-	:obj => grammar.signature(32),
+	:obj => grammar.signature(45),
 	:outPrefix => 'grammar'
 )
 	
@@ -187,7 +190,7 @@ def sys
 	nil).cjustify('c').rjustify('c').rmargin(u(0.3))
 end
 printObj(
-	:obj => sys.signature(15),
+	:obj => sys.signature(19),
 	:outPrefix => 'system'
 )
 

@@ -56,4 +56,22 @@ Furthermore, our system is run using neither lexical cues nor intelligent
 	initialization.
 
 % -- Rule-Based Temporal Comparison
+%(rule based)
+Related work on interpreting temporal expressions has focused on constructing
+	hand-crafted interpretation rules
+	% Random, TERESO, Marta's Friend, Edinburgh
+	\cite{key:2000mani-temporal,key:2003saquete-temporal,key:2004puscasu-temporal,key:2010grover-temporal}.  
+Of these, \sys{HeidelTime} \cite{key:2010strotgen-temporal} and
+	\sys{SUTime} \cite{key:2012chang-temporal} provide particularly strong
+	competition.
 
+%(probabilistic)
+Recent probabilistic approaches to temporal resulution include
+	\newcite{key:2010uzzaman-temporal},    %TRIPS/TRIOS - probabilistic
+	who employ a parser to produce deep logical forms, in conjunction with
+	a CRF classifier.
+In a similar vein,
+	\newcite{key:2010kolomiyets-temporal} %KUL - partly probabilistic
+	employ a maximum entropy classifier to detect the location and temporal
+	type of expressions; the grounding is then done via deterministic rules.
+	
