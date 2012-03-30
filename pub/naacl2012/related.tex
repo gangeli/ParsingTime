@@ -8,8 +8,19 @@ Like these representations, a parse -- in conjunction with
 	the reference time -- completely defines a set of
 	matching entities, in this case the single grounded time.
 
+%(logic analogy)
+The complexity of parsing temporal expressions as nested function
+	applications is similar to that of parsing to logical forms.
+Whereas the latter involves filtering elements for whom an expression
+	holds true from a logical \textit{model} (in most cases, a database),
+	our model filters and weights the probability of grounded times
+	which are consistent with the given temporal expression.
+Our supervision is in turn analogous to concrete entities in a database:
+	we are not given the latent parse, but only the entities that
+	are ``true'' in the model.
+
 %(supervised)
-Supervised approaches to the task prominently include
+Supervised approaches to logical parsing prominently include
 	\newcite{key:1996zelle-semantics},
 	\newcite{key:2005zettlemoyer-semantics},
 	\newcite{key:2005kate-semantics}, 
@@ -43,4 +54,6 @@ Rather than querying from a finite database, however, our system must compare
 	temporal expression within an infinite timeline.
 Furthermore, our system is run using neither lexical cues nor intelligent
 	initialization.
+
+% -- Rule-Based Temporal Comparison
 

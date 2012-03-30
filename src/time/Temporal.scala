@@ -1562,7 +1562,7 @@ object Sequence {
 	type Distribution = (Long,Double)=>Double
 	type Updater = ((Long,Double,Double)=>Unit,(String,Boolean)=>Distribution) 
 
-	def mkGaussianUpdater:Sequence.Updater = {
+	def mkGaussianUpdater(name:Option[String]):Sequence.Updater = {
 		//--Variables
 		//(initial distribution)
 		assert(O.timeDistributionParams.length == 2, "Bad gaussian params")
@@ -1581,7 +1581,7 @@ object Sequence {
 		val m = (tag:String,update:Boolean) => {
 			if(update && seenE){
 				gauss = ess.runMStep
-				log(FORCE,"m-update["+tag+"]: " + gauss)
+				log(FORCE,"m-update["+name.getOrElse(tag)+"]: " + gauss)
 				ess.clear
 				seenE = false
 			}
@@ -1590,7 +1590,7 @@ object Sequence {
 		//--Return
 		(e,m)
 	}
-	lazy val gaussianUpdater:Updater = mkGaussianUpdater
+	lazy val gaussianUpdater:Updater = mkGaussianUpdater(None)
 
 	def mkMultinomialUpdater:Updater = {
 		var data = new ClassicCounter[Long]()
@@ -1984,10 +1984,10 @@ class Lex extends Serializable {
 					case Global => gaussianUpdater
 					case Hybrid => 
 						if(!updaters.contains(typ)){
-							updaters(typ) = mkGaussianUpdater
+							updaters(typ) = mkGaussianUpdater(Some(typ.name))
 						}
 						updaters(typ)
-					case Local => mkGaussianUpdater
+					case Local => mkGaussianUpdater(None)
 				}
 		}
 	}
@@ -2057,7 +2057,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AMONTH*3,
-			AMONTH*3,updater('month)).name("everyQuarter") 
+			AMONTH*3,updater('quarter)).name("everyQuarter") 
 	val HALFYEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2065,7 +2065,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](1,1,0,0,0,0)),
 			AMONTH*6,
-			AMONTH*6,updater('month)).name("everyQuarter") 
+			AMONTH*6,updater('quarter)).name("everyHalfYear") 
 	val YEAR:Sequence 
 		= new RepeatedRange(
 			new Partial(
@@ -2195,7 +2195,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,1,1,0,0,0,0)),
 			AYEAR,
-			AYEAR*100,updater('year)).name("YOC("+i+")") }.toArray
+			AYEAR*100,updater('years)).name("YOC("+i+")") }.toArray
 	val DOC = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](DecadeOfCentury,YearOfDecade,
@@ -2203,7 +2203,7 @@ class Lex extends Serializable {
 					hourOfDay,minuteOfHour,secondOfMinute,millisOfSecond),
 				Array[Int](i,0,1,1,0,0,0,0)),
 			AYEAR*10,
-			AYEAR*100,updater('year)).name("DOC("+i+")") }.toArray
+			AYEAR*100,updater('years)).name("DOC("+i+")") }.toArray
 	val YOD = (0 until 10).map{ i => new RepeatedRange(
 			new Partial(
 				Array[DateTimeFieldType](YearOfDecade,

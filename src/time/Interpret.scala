@@ -983,6 +983,18 @@ class InterpretationTask extends TemporalTask {
 				} else {
 					Array[GoodOutput](ok(0).normalize(ok(0).prob,1))
 				}
+			case O.CkyCountType.offsetZero => {
+				//((has an offset zero term?))
+				val hasZeroOffset:Boolean = correct.exists{ _.offset == 0L }
+				//((get matching trees))
+				val matching:Array[GoodOutput] = correct.filter{
+						(output:GoodOutput) =>
+					(!hasZeroOffset || output.offset == 0L)
+				}
+				//((create list))
+				val total:Double = matching.map{_.prob}.sum
+				matching.map{ _.normalize(total,matching.length) }
+			}
 			case O.CkyCountType.shortWithOffsetZero => {
 				//((has an offset zero term?))
 				val hasZeroOffset:Boolean = correct.exists{ _.offset == 0L }

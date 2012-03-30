@@ -30,12 +30,13 @@ The dominant approach to this problem in previous work has been to use
 %(motivation)
 In general, it is appealing to learn the interpretation of temporal expressions,
 	rather than hand-building systems.
-Moreover,
-	we note that complex temporal expressions such as \tp{the Tuesday before last}
-	or \tp{the third Wednesday of each month} are poorly handled by current
-	systems and suggest the need for recursive phrase structure representations.
+Moreover, complex hierarchical temporal expressions such as 
+	\tp{the Tuesday before last} or \tp{the third Wednesday of each month},
+	and ambiguous expressions such as \tp{last Friday} are difficult to
+	handle using deterministic rules and would benifit from a
+	recursive and probabilistic phrase structure representations.
 %(approach)
-Therefore, in contrast to previous rule-based approaches, we attempt to learn
+Therefore, we attempt to learn
 	a temporal interpretation system where temporal phrases are parsed by
 	a grammar, but this grammar and its semantic interpretation rules are
 	latent, with only the input phrase and its grounded interpretation given
@@ -53,10 +54,18 @@ This also includes examples of lexical ambiguity -- e.g., two
 In addition, temporal expressions often carry a pragmatic ambiguity.
 For instance, a speaker may refer to either the next or previous Friday
 	when he utters \tp{Friday} on a Sunday.
-Furthermore, probabilistic systems in general allow propagation of uncertainty
+Similarly, \tp{next week} can refer to either the coming week or the week
+	thereafter.
+
+Probabilistic systems furthermore allow propagation of uncertainty
 	to higher-level components -- for example recognizing that \tp{May} could
 	have a number of non-temporal meanings and allowing a system with a broader
 	contextual scope to make the final judgment.
+In order to demonstrate our model's ability to incorporate with such components,
+	and to allow for straightforward comparisons with the other systems in the
+	\tempeval task, we incorporate our model into a Conditional Random Field
+	\cite{key:2001lafferty-crf} to allow for detection as well as interpretation
+	of temporal expressions.
 
 %(table of contents)
 We describe our temporal representation,
