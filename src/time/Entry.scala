@@ -34,6 +34,7 @@ import edu.stanford.nlp.time.TimeAnnotator
 import edu.stanford.nlp.time.TimeAnnotations._
 import edu.stanford.nlp.ling.CoreAnnotations._
 import edu.stanford.nlp.ling.CoreLabel
+import edu.stanford.nlp.process.Morphology
 //(lib)
 import org.goobs.exec.Execution
 import org.goobs.util.Indexer
@@ -135,6 +136,8 @@ object G {
 		if(O.useSeed) new scala.util.Random(O.seed) else new scala.util.Random 
 	
 	val CanInt = """^\-?[0-9]+(\.0+)?(E[0-9]+)?$""".r
+	
+	val morphology = new Morphology
 }
 
 /**
@@ -427,9 +430,10 @@ object Interpret {
 				= Entry.officialEval(model,trainData,true,new File(tempevalHome))
 			log(GREEN,FORCE,"TRAIN official: " + trainOfficial)
 			log(GREEN,FORCE,"TRAIN angel:    " + trainAngel)
-//			val testScore 
+//			val (testOfficial,testAngel)
 //				= Entry.officialEval(model,testData,false,new File(tempevalHome))
-//			log(GREEN,FORCE,"TEST: " + testScore)
+//			log(GREEN,FORCE,"TEST official: " + testOfficial)
+//			log(GREEN,FORCE,"TEST angel:    " + testAngel)
 		}
 	}
 }
@@ -485,7 +489,7 @@ object Entry {
 			} else {
 				tempevalHome.getPath+"/training/english/data"
 			}
-		val scorer:String = tempevalHome.getPath+"/scorer/score_entities_angel.py"
+		val scorer:String = tempevalHome.getPath+"/scorer/score_entities_extended.py"
 		val segments:String = base + "/base-segmentation.tab"
 		val goldExtents:String = base + "/timex-extents.tab"
 		val goldAttributes:String = base + "/timex-attributes.tab"
@@ -514,10 +518,8 @@ object Entry {
 					NO GUESSES
 					precision   1.0
 					recall      0.0
-					attribute type       precision   1.0
-					attribute type       recall      0.0
-					attribute value      precision   1.0
-					attribute value      recall      0.0
+					attribute type       1.0 | 1.0 0.0 0.0
+					attribute value      1.0 | 1.0 0.0 0.0
 					"""
 				}
 				case _ => throw new IllegalStateException("???")
@@ -528,17 +530,16 @@ object Entry {
 		startTrack("Script Output")
 		log(scriptOutput)
 		endTrack("Script Output")
-		//(get scores)
+		//(define scores)
 		val Prec      = """(?ms).*precision   ([0-9\.]+).*""".r
 		val Recall    = """(?ms).*recall      ([0-9\.]+).*""".r
-		val TypePrec  =  """(?ms).*attribute type       precision   ([0-9\.]+).*""".r
-		val TypeRec   =  """(?ms).*attribute type       recall      ([0-9\.]+).*""".r
-		val ValuePrec = """(?ms).*attribute value      precision   ([0-9\.]+).*""".r
-		val ValueRec  = """(?ms).*attribute value      recall      ([0-9\.]+).*""".r
-		val TypePrec(typePrec) = scriptOutput
-		val TypeRec(typeRec) = scriptOutput
-		val ValuePrec(valuePrec) = scriptOutput
-		val ValueRec(valueRec) = scriptOutput
+		val Type  =  """(?ms).*attribute type       ([0-9\.]+) \| ([0-9\.]+) ([0-9\.]+) ([0-9\.]+).*""".r
+		val Value =  """(?ms).*attribute value      ([0-9\.]+) \| ([0-9\.]+) ([0-9\.]+) ([0-9\.]+).*""".r
+		val MType  =  """(?ms).*mention attribute type       ([0-9\.]+) \| ([0-9\.]+) ([0-9\.]+) ([0-9\.]+).*""".r
+		val MValue =  """(?ms).*mention attribute value      ([0-9\.]+) \| ([0-9\.]+) ([0-9\.]+) ([0-9\.]+).*""".r
+		//(digest scores)
+		val MType(typeOrig,typePrec,typeRec,typF1) = scriptOutput
+		val MValue(valueOrig,valuePrec,valueRec,valueF1) = scriptOutput
 		//(return score
 		AngelScore(typePrec.toDouble, typeRec.toDouble, 
 			valueRec.toDouble,valuePrec.toDouble)

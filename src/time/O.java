@@ -136,7 +136,9 @@ public class O {
 	public static String crfFeatureFactory 
 		= "edu.stanford.nlp.sequences.SuperSimpleFeatureFactory";
 	@Option(name="maxLookaround", gloss="Clique size for CRF")
-	public static int maxLookaround = 0;
+	public static int maxLookaround = 2;
+	@Option(name="crfSigma", gloss="Smoothing (Sigma) for CRF")
+	public static double crfSigma = 1.0;
 	//--TESTING
 	@Option(name="exactmatchThreshold", 	
 		gloss="Max difference to consider exact match")

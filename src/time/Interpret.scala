@@ -369,6 +369,27 @@ case class Grammar(index:Indexing,factory:NodeTypeFactory,lex:Lex,rules:List[Gra
 	
 	def rulePrior:NodeType=>Prior[Int,Multinomial[Int]] 
 		= (parent:NodeType) => O.rulePrior
+
+	/**
+		Returns a set of [lowercase] words which the parser believes to be reasonable
+		lexical entries
+	*/
+	def lexWords(parser:CKYParser,probThreshold:Double=0.1):Set[String] = {
+		rules.flatMap{ (rule:GrammarRule) =>
+			rule match {
+				case (lex:TimeLex) =>
+					if(!lex.parent.flag('nil)){
+					parser.sortedLexProbs(lex)
+						.takeWhile{ case (p:Double,w:Int) => p >= probThreshold }
+						.map{ case (p:Double,w:Int) => index.w2str(w).toLowerCase }
+					} else {
+						List[String]()
+					}
+				case _ =>
+					List[String]()
+			}
+		}.toSet
+	}
 }
 
 object Grammar {
@@ -581,10 +602,10 @@ class GroundingData(impl:TimeDataset,train:Boolean,index:Indexing
 trait TemporalTask {
 	def run:Unit
 }
-@SerialVersionUID(1L)
+@SerialVersionUID(2L)
 case class TreeTime(
 		parser:CKYParser,
-		index:Indexing,
+		grammar:Grammar,
 		lex:Lex,
 		crf:Option[CRFDetector],
 		crfIndex:Option[Indexing]
@@ -593,11 +614,13 @@ case class TreeTime(
 	assert(!crfIndex.isDefined || crf.isDefined, "CRF index without CRF")
 	assert(!crf.isDefined || crf.get.index == crfIndex.get, "Indices mismatch")
 
-	def this(parser:CKYParser,index:Indexing,lex:Lex)
-		= this(parser,index,lex,None,None)
+	def this(parser:CKYParser,grammar:Grammar,lex:Lex)
+		= this(parser,grammar,lex,None,None)
+
+	def index:Indexing = grammar.index
 
 	def addDetector(detector:CRFDetector,detectorIndex:Indexing):TreeTime = {
-		new TreeTime(parser,index,lex,Some(detector),Some(detectorIndex))
+		new TreeTime(parser,grammar,lex,Some(detector),Some(detectorIndex))
 	}
 
 	private def parse(sent:TimeSent,ground:Time):(Temporal,Temporal,Double) = {
@@ -1363,7 +1386,7 @@ class InterpretationTask extends TemporalTask {
 		endTrack("Running")
 		//--Score
 		startTrack(FORCE,BOLD,"Results")
-		val sys = new TreeTime(parser,index,lex)
+		val sys = new TreeTime(parser,grammar,lex)
 		reportScores(sys,trainScoresRev.reverse.toArray,testScore)
 		endTrack("Results")
 		//--Save Model

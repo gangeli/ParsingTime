@@ -24,9 +24,9 @@ env!(
 
 	run(
 		# -- RUN MODE --
-		o('runInterpretModel'),
+#		o('runInterpretModel'),
 		o('interpretModel', 'aux/interpret.ser.gz'),
-		selo(1, 'mode', 
+		selo(0, 'mode', 
 			'detect',
 			'interpret',
 			'system',
@@ -85,7 +85,8 @@ env!(
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
-		o('crfFeatureFactory','time.TRIPSFeatures'),
+		o('crfFeatureFactory','time.CRFFeatures'),
+		o('crfSigma',1.0),
 		#<params>
 		o('useTime'),
 		o('pruneTime', 1000),
@@ -94,7 +95,7 @@ env!(
 #		o('functionalUnboundedRange'), # BROKEN
 		o('functionalApproximate'),
 #		o('cannonicalShifts'),
-		selo(0,'sortTimeProbInScore','false','true'),
+		selo(1,'sortTimeProbInScore','false','true'),
 
 		# -- EVALUATION --
 		o('exactMatchThreshold', 1),        # exact
@@ -105,7 +106,8 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+		o('train', 'English[20,162]'),  o('dev',   'English[0,20]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,10]'),   o('dev',   'English[10,20]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),

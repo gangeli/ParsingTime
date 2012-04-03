@@ -51,12 +51,49 @@ trait TimeDetector {
 		= findTimes(sent, (t:TimeSent) => None, sent.toGlossArray)
 }
 
+
 //------------------------------------------------------------------------------
 // FEATURES
 //------------------------------------------------------------------------------
+object CRFFeatures {
+	val triggers = Set[String](
+		"monday","tuesday","wednesday","thursday","friday","saturday","sunday",
+		"mon","tue","wed","thu","fri","sat","sun",
+		"january","february","march","april","may","june","july","august",
+			"september","october","november","december",
+		"jan","feb","mar","jun","jul","aug","sep","aug","nov","dec",
+		"second","minute","hour","day","week","month","quarter","year","decade","century",
+		"seconds","minutes","hours","days","weeks","months","quarters","years","decades","centuries",
+		"winter","spring","summer","fall",
+		"today","tomorrow","yesterday",
+		"now"
+	)
+}
 @SerialVersionUID(1L)
-class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
+class CRFFeaturesWithTriggers(index:Indexing, ckyTriggers:Set[String]
+		)extends CRFFeatures(index,ckyTriggers) {
+	import CRFFeatures.triggers
+	
+	override def getCliqueFeatures(
+			info:PaddedList[CoreMap],position:Int,clique:Clique
+			):java.util.Collection[String] = {
+		//--Super Features
+		val feats = super.getCliqueFeatures(info,position,clique)
+		//--Triggers
+		if(clique == FeatureFactory.cliqueC){
+			if(triggers.contains(word(info,position).toLowerCase)){
+				feats.add("trigger")
+			}
+		}
+		//--Return
+		return feats
+	}
+}
+
+@SerialVersionUID(1L)
+class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[CoreMap] {
 	import CRFDetector.InputAnnotation
+
 	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Array[String],Int)] = {
 		val x = info.get(pos).get[(TimeSent,Array[String],Int),InputAnnotation](
 			classOf[InputAnnotation])
@@ -73,6 +110,17 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 					s.nums(i).toString
 				} else {
 					gloss(i)
+				}
+			case None => "✇"
+		}
+	}
+	def lemma(info:PaddedList[CoreMap],pos:Int):String = {
+		sent(info,pos) match{
+			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+				if(s(i) == index.NUM){
+					"--num--"
+				} else {
+					G.morphology.lemma(gloss(i), index.pos2str(s.pos(i))).toLowerCase
 				}
 			case None => "✇"
 		}
@@ -132,7 +180,8 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 				else if(relativePos == 0){ "0" }
 				else{ "pos" }
 			}
-			addFeature("word@"+dir+"="+word(info,absolutePos))
+			addFeature("word@" +relativePos+"="+word(info,absolutePos))
+			addFeature("lemma@"+relativePos+"="+lemma(info,absolutePos))
 		}
 		def characterNgrams(word:String,n:Int,relativePosition:Int){
 			val chars = word.toCharArray
@@ -181,8 +230,6 @@ class TRIPSFeatures(index:Indexing) extends FeatureFactory[CoreMap] {
 			//(surrounding number stuff)
 			if(isNumber(info,position) == "true"){
 				val (num,numType,numMag) = characterizeNumber(info,position)
-				addFeature("wordBeforeNum="+word(info,position-1))
-				addFeature("wordAfterNum="+word(info,position+1))
 				addFeature("numberType@"+0+"="+numType)
 				addFeature("numberMagnitude@"+0+"="+numMag)
 				addFeature("number@"+0+"=|"+numType+"|*10^"+numMag)
@@ -290,8 +337,11 @@ object CRFDetector {
 		startTrack("Parser")
 		log("loading TreeTime")
 		val parser:CKYParser = treeTime.parser
+		val grammar:Grammar = treeTime.grammar
 		val interpretIndexer = treeTime.index
 		val lex:Lex = treeTime.lex
+		log("calculating common lex terms")
+		val triggers:Set[String] = grammar.lexWords(parser)
 		endTrack("Parser")
 
 		//--Create Flags
@@ -300,7 +350,7 @@ object CRFDetector {
 		val flags = new SeqClassifierFlags
 		flags.featureFactory = O.crfFeatureFactory
 		log(FORCE,"flags.featureFactory: " + flags.featureFactory)
-		flags.featureFactoryArgs = Array[java.lang.Object](index)
+		flags.featureFactoryArgs = Array[java.lang.Object](index, triggers)
 		log(FORCE,"flags.featureFactoryArgs: " + 
 			"Object["+flags.featureFactoryArgs.length+"]")
 		flags.backgroundSymbol = NOTM
@@ -309,6 +359,8 @@ object CRFDetector {
 		log(FORCE,"flags.maxLeft: " + flags.maxLeft)
 		flags.maxRight = 0
 		log(FORCE,"flags.maxRight: " + flags.maxRight)
+		flags.sigma = O.crfSigma
+		log(FORCE,"flags.sigma: " + flags.sigma)
 		endTrack("Flags")
 		val classifier = new CRFClassifier[CoreMap](flags)
 		//--Create Data
@@ -338,6 +390,10 @@ object CRFDetector {
 		startTrack("Train")
 		classifier.train(javaData)
 		endTrack("Train")
+		forceTrack("Params")
+		val f = Execution.touch("crf-weights.txt")
+		classifier.writeWeights(new java.io.PrintStream(f))
+		endTrack("Params")
 		endTrack("CRF")
 
 		//--Return
@@ -576,12 +632,12 @@ class DetectionTask extends TemporalTask {
 			//((debug log))
 			if(!goldMask.zip(guessMask).forall{ case (a,b) => a == b }){
 				log(FORCE,"sentence " + index +": " + 
-					goldMask.zip(guessMask)
-					.map{ case (a,b) => 
+					goldMask.zip(guessMask).zip(datum.gloss)
+					.map{ case ((a,b),word) => 
 						if(a && b) "✔" 
-						if(!a && !b) "✓" 
-						else if(a) "R" 
-						else "P" }
+						else if(!a && !b) "-" 
+						else if(a) "[R:"+word+"]" 
+						else "[P:"+word+"]" }
 					.mkString(""))
 			} else {
 				log("sentence " + index + " (correct)")
