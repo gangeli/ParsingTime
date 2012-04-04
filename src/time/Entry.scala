@@ -266,6 +266,7 @@ object U {
 				}
 			}
 			override def totalCount:Double = totalCnt
+			override def domainSize:Double = capacity
 		}
 	}
 			

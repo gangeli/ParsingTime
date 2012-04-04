@@ -18,15 +18,15 @@ env!(
 	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('mx6g'),
-	o('ea'),
+	o('mx20g'),
+#	o('ea'),
 	'time.Entry',
 
 	run(
 		# -- RUN MODE --
-#		o('runInterpretModel'),
+		o('runInterpretModel'),
 		o('interpretModel', 'aux/interpret.ser.gz'),
-		selo(0, 'mode', 
+		selo(1, 'mode', 
 			'detect',
 			'interpret',
 			'system',
@@ -45,10 +45,8 @@ env!(
 			'1',   #G n^3 k   logk          better mult
 			'2',   #G n^3 + V k logk        combined mult/merge (special case of 3)
 			'3'),  #G n^3 + |D_max| k logk  lazy evaluation
-#		o('rulePrior', 0.325),
-#		o('lexPrior', 0.0025),
 		o('rulePrior', 0.001),
-		o('lexPrior', 0.001),
+		o('lexPrior', 0.0001),
 		selo(0,'nilPrior',
 			'lex',
 			'uniform',
@@ -81,12 +79,11 @@ env!(
 		o('uniformFirstIteration'),
 		# <training>
 		o('beam', 1500), #1500 works well
-		o('iters', 10),
+		o('iters', 20),
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
-		o('crfFeatureFactory','time.CRFFeatures'),
-		o('crfSigma',1.0),
+		o('crfFeatureFactory','time.TRIPSFeatures'),
 		#<params>
 		o('useTime'),
 		o('pruneTime', 1000),
@@ -106,8 +103,7 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
-		o('train', 'English[20,162]'),  o('dev',   'English[0,20]'),
+		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,10]'),   o('dev',   'English[10,20]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
@@ -140,7 +136,7 @@ env!(
 		o('todoHacks'),
 		o('reportK', 5),
 		o('ignoreTimeSequences'),
-#		o('numThreads','1'),
+		o('numThreads','20'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)
@@ -148,8 +144,8 @@ env!(
 		o('ignoreClasspath', "\"[#{ENV['JAVANLP_HOME']}/.*,etc/scala-.*.jar,etc/postgres.jar,etc/jdom.jar,etc/joda-time.jar]\""),
 		#(logging)
 		o('execDir', 'out'),
-		o('execOutput', "\"psql://research@localhost:#{JAR}<what?why42?\""),
+		o('execOutput', "\"psql://research@goobs.org:#{JAR}<what?why42?\""),
 		#(data)
-		o('execData', '"psql://research@localhost:data<what?why42?"'),
+		o('execData', '"psql://research@goobs.org:data<what?why42?"'),
 	nil),
 nil)
