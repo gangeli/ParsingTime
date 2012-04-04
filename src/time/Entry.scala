@@ -266,6 +266,7 @@ object U {
 				}
 			}
 			override def totalCount:Double = totalCnt
+			override def domainSize:Double = capacity
 		}
 	}
 			
@@ -385,8 +386,8 @@ object Interpret {
 		props.setProperty("log.toStderr", "false");
 		StanfordRedwoodConfiguration.apply(props);
 		//--Variables
-		if(args.length != 4){
-			println("USAGE: Interpret tempeval model data tempeval_home")
+		if(args.length < 4 || args.length > 5){
+			println("USAGE: Interpret tempeval model data tempeval_home [detect=false]")
 		}
 		val typ = args(0)
 		if(typ.toLowerCase == "tempeval"){
@@ -395,45 +396,40 @@ object Interpret {
 			val modelStr = args(1)
 			val dataStr = args(2)
 			val tempevalHome = args(3)
+			val detect = if(args.length > 4){ args(4).equalsIgnoreCase("true") } else { false }
 			//(model)
 			val model:Annotator = {
 				if(new File(modelStr).exists){
 					log(FORCE,"Reading model from " + modelStr)
 					edu.stanford.nlp.io.IOUtils.readObjectFromFile(modelStr)
 				} else {
+					val props = new Properties
+//					props.setProperty("sutime.markTimeRanges", "true")
+//					props.setProperty("sutime.includeNested", "true")
+//					props.setProperty("sutime.includeRange", "true")
+					props.setProperty("sutime.teRelHeurLevel", "MORE")
 					log(FORCE,"Creating new " + modelStr)
-					new MetaClass(modelStr).createInstance()
+					new MetaClass(modelStr).createInstance(props)
 				}
 			}
 			//(data)
-			val (trainData,testData) = /*model match*/ {
-//				case (tt:TreeTime) =>
-//					val rawData = new TimeDataset(new SerializedCoreMapDataset(dataStr))
-//		  		val data = TimeData(
-//						new GroundingData( rawData.train, true, tt.index),
-//						new GroundingData( rawData.test, false, tt.index))
-//					val trainData = data.train.asInstanceOf[Iterable[Annotation]]
-//					val testData = data.eval.asInstanceOf[Iterable[Annotation]]
-//					(trainData,testData)
-//				case _ =>
-					val rawData = new TimeDataset(new SerializedCoreMapDataset(dataStr))
-					val trainData = rawData.train.data.map{ (datum:CoreMapDatum) =>
-							datum.impl.asInstanceOf[Annotation]
-						}
-					val testData = rawData.test.data.map{ (datum:CoreMapDatum) =>
-							datum.impl.asInstanceOf[Annotation]
-						}
-					(trainData,testData)
+			val (trainData,testData) = {
+				val rawData = new TimeDataset(new SerializedCoreMapDataset(dataStr))
+				val trainData = rawData.train.data
+					.map{ (datum:CoreMapDatum) => datum.impl.asInstanceOf[Annotation] }
+				val testData = rawData.test.data
+					.map{ (datum:CoreMapDatum) => datum.impl.asInstanceOf[Annotation] }
+				( trainData, testData )
 			}
 			//(script)
 			val (trainOfficial,trainAngel)
-				= Entry.officialEval(model,trainData,true,new File(tempevalHome))
+				= Entry.officialEval(model,trainData,true,new File(tempevalHome), detect)
 			log(GREEN,FORCE,"TRAIN official: " + trainOfficial)
 			log(GREEN,FORCE,"TRAIN angel:    " + trainAngel)
-//			val (testOfficial,testAngel)
-//				= Entry.officialEval(model,testData,false,new File(tempevalHome))
-//			log(GREEN,FORCE,"TEST official: " + testOfficial)
-//			log(GREEN,FORCE,"TEST angel:    " + testAngel)
+			val (testOfficial,testAngel)
+				= Entry.officialEval(model,testData,false,new File(tempevalHome), detect)
+			log(GREEN,FORCE,"TEST official: " + testOfficial)
+			log(GREEN,FORCE,"TEST angel:    " + testAngel)
 		}
 	}
 }
@@ -619,76 +615,77 @@ object Entry {
 	}
 
 	private def annotateSpans(sys:Annotator,doc:Annotation):Buffer[TimexSpan] = {
-			sys.annotate(doc)
-			//--Collect Timexes
-			//(utility)
-			def isTimex(lbl:CoreLabel):Boolean 
-				= lbl.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation]) != null
-			//(for each sentence)
-			doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
-					.zipWithIndex.flatMap{ case (sent:CoreMap,sentI:Int) =>
-				if(sent.get[JList[CoreMap],TimexAnnotations](classOf[TimexAnnotations])
-						!= null){
-					//--Case: Central Timexes
-					val timexes:Buffer[CoreMap] = sent.get[JList[CoreMap],TimexAnnotations](
-							classOf[TimexAnnotations])
-					timexes.map{ (expr:CoreMap) =>
-						val timex = expr.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
-						val begin = expr.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
-						val end = expr.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
-						val span = TimexSpan(timex,begin,sentI)
-						span.end = end
-						span
-					} 
-				} else {
-					//--Case: No Central Timexes
-					//((get tokens))
-					val tokens:Buffer[CoreLabel] 
-						= sent.get[JList[CoreLabel],TokensAnnotation](
-						classOf[TokensAnnotation])
-					//((cycle over tokens))
-					val (revTimexes,endedOnTimex)
-						= tokens.zipWithIndex.foldLeft(List[TimexSpan](),false){ 
-							case ((timexes:List[TimexSpan],lastTimex:Boolean),
-							      (tok:CoreLabel,index:Int)) =>
-						if(!lastTimex && isTimex(tok)){
-							//(case: start timex)
-							val timex = tok.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
-							var begin = tok.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
-							if(begin == null){ begin = index }
-							(TimexSpan(timex,begin,sentI) :: timexes, true)
-						} else if(lastTimex && isTimex(tok)){
-							//(case: in timex)
-							(timexes, true)
-						} else if(!lastTimex && !isTimex(tok)){
-							//(case: not in timex)
-							(timexes, false)
-						} else if(lastTimex && !isTimex(tok)){
-							//(case: ended timex)
-							var end = tokens.get(index-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
-							if(end == null){ end = index }
-							timexes.head.end = end
-							(timexes, false)
-						} else {
-							throw new IllegalStateException("impossible")
-						}
+		//--Annotate
+		sys.annotate(doc)
+		//--Collect Timexes
+		//(utility)
+		def isTimex(lbl:CoreLabel):Boolean 
+			= lbl.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation]) != null
+		//(for each sentence)
+		doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+				.zipWithIndex.flatMap{ case (sent:CoreMap,sentI:Int) =>
+			if(sent.get[JList[CoreMap],TimexAnnotations](classOf[TimexAnnotations])
+					!= null){
+				//--Case: Central Timexes
+				val timexes:Buffer[CoreMap] = sent.get[JList[CoreMap],TimexAnnotations](
+						classOf[TimexAnnotations])
+				timexes.map{ (expr:CoreMap) =>
+					val timex = expr.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
+					val begin = expr.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
+					val end = expr.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+					val span = TimexSpan(timex,begin,sentI)
+					span.end = end
+					span
+				} 
+			} else {
+				//--Case: No Central Timexes
+				//((get tokens))
+				val tokens:Buffer[CoreLabel] 
+					= sent.get[JList[CoreLabel],TokensAnnotation](
+					classOf[TokensAnnotation])
+				//((cycle over tokens))
+				val (revTimexes,endedOnTimex)
+					= tokens.zipWithIndex.foldLeft(List[TimexSpan](),false){ 
+						case ((timexes:List[TimexSpan],lastTimex:Boolean),
+						      (tok:CoreLabel,index:Int)) =>
+					if(!lastTimex && isTimex(tok)){
+						//(case: start timex)
+						val timex = tok.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
+						var begin = tok.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
+						if(begin == null){ begin = index }
+						(TimexSpan(timex,begin,sentI) :: timexes, true)
+					} else if(lastTimex && isTimex(tok)){
+						//(case: in timex)
+						(timexes, true)
+					} else if(!lastTimex && !isTimex(tok)){
+						//(case: not in timex)
+						(timexes, false)
+					} else if(lastTimex && !isTimex(tok)){
+						//(case: ended timex)
+						var end = tokens.get(index-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+						if(end == null){ end = index }
+						timexes.head.end = end
+						(timexes, false)
+					} else {
+						throw new IllegalStateException("impossible")
 					}
-					//(last timex)
-					if(endedOnTimex){
-						var end = tokens.get(tokens.length-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
-						if(end == null){ end = tokens.length }
-						revTimexes.head.end = end
-					}
-					//--Append
-					revTimexes.reverse
 				}
+				//(last timex)
+				if(endedOnTimex){
+					var end = tokens.get(tokens.length-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+					if(end == null){ end = tokens.length }
+					revTimexes.head.end = end
+				}
+				//--Append
+				revTimexes.reverse
 			}
-		
+		}
+	
 	}
 
 
 	def officialEval(sys:Annotator,data:Iterable[Annotation],train:Boolean,
-			tempevalHome:File, 
+			tempevalHome:File, detect:Boolean
 			attributeFile:File=File.createTempFile("attr",".tab"),
 			extentsFile:File=File.createTempFile("ext",".tab")
 			):(OfficialScore,AngelScore) = {
@@ -718,18 +715,20 @@ object Entry {
 					.append("t").append(tidNum).append("\t")
 					.append("1").append("\t")
 				//(value)
-				if(span.timex.timexType != null){
-					base(attrs,span.begin)
-						.append("type").append("\t")
-						.append(span.timex.timexType)
-				}
-				if(span.timex.value != null){
-					base(attrs,span.begin)
-						.append("value").append("\t")
-						.append(DataLib.patchAttribute(
-							span.timex.timexType,
-							span.timex.value,
-							ground))
+				(span.begin until span.end).foreach{ (token:Int) =>
+					if(span.timex.timexType != null){
+						base(attrs,token)
+							.append("type").append("\t")
+							.append(span.timex.timexType)
+					}
+					if(span.timex.value != null){
+						base(attrs,token)
+							.append("value").append("\t")
+							.append(DataLib.patchAttribute(
+								span.timex.timexType,
+								span.timex.value,
+								ground))
+					}
 				}
 				//(extent)
 				(span.begin until span.end).foreach{ (tokI:Int) =>

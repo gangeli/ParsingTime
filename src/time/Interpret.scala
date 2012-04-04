@@ -1297,6 +1297,7 @@ class InterpretationTask extends TemporalTask {
 				})
 				//(run tasks)
 				threadAndRun("Parsing", tasks, Execution.numThreads)
+				log(FORCE,"finished parsing")
 				//(debug)
 				assert(goodParses.toArray.length == 0 || 
 					goodParses.exists( _.prob > 0.0 ), 

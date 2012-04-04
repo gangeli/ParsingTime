@@ -1,5 +1,5 @@
 \Section{result}{Evaluation}
-We evaluate our system against current state-of-the art systems for temporal
+We evaluate our model against current state-of-the art systems for temporal
 	resolution on the English portion of the \tempeval\ Task A dataset
 	\cite{key:2010verhagen-tempeval}.
 %We describe the dataset in \refsec{result-dataset}, and detail the previous
@@ -15,12 +15,10 @@ Each temporal phrase was annotated as a \timex\footnote{
 	}
 	tag around an adverbial or prepositional phrase
 
-Our system was trained on 142 documents, with the remaining 20 held out as
+We used 142 documents for training, with the remaining 20 held out as
 	a development set.
 Final reported results make use of the full 162 documents in the training
 	set.
-
-\Subsection{result-detection}{Detection}
 
 
 \Subsection{result-scores}{Results}
@@ -34,7 +32,7 @@ Final reported results make use of the full 162 documents in the training
 		\hline
 		\hline
 		\sys{GUTime}     & 0.72          & 0.45          & 0.79           & 0.41 \\
-		\sys{SUTime}     & 0.85          & 0.69          & \textbf{0.90}  & 0.67 \\
+		\sys{SUTime}     & 0.85          & 0.69+         & \textbf{0.90}  & 0.67+ \\
 		\sys{HeidelTime} & 0.80          & 0.67          & 0.85           & \textbf{0.71} \\
 		\hline                                           
 		% -- RUN 649; on Cluster --
@@ -45,9 +43,7 @@ Final reported results make use of the full 162 documents in the training
 	\caption{
 		\tempeval\ Attribute scores for our system and three previous systems.
 		The scores are calculated using gold extents, forcing a guessed
-		interpretation for each parse.
-%		The results of \sys{GUTime} have been reformatted to conform to the
-%			\tempeval\ output format.
+		interpretation for each parse. \todo{new scores -- around 0.72}
 		\label{tab:results}
 	}
 	\end{center}
@@ -63,7 +59,7 @@ Since we perform only the second of these, we evaluate our system
 \Fig{fig/pr}{0.62}{pr}{
 	A precision-recall curve for our system, compared to prior work.
 	The data points are obtained by setting a threshold minimum probability,
-	creating different recall values.
+	creating different recall values. \todo{update with new model}
 }
 
 % -- Scoring Tweak
@@ -101,6 +97,55 @@ More recently, \sys{SUTime} \cite{key:2012chang-temporal}
 We also compare to \sys{HeidelTime} \cite{key:2010strotgen-temporal}, 
 	which represents the state-of-the-art system at the \tempeval\ task.
 
+\Subsection{result-detection}{Detection}
+One of the advantages of our model is that it can provide candidate groundings for any
+	expression, with an associated probability.
+We explore this ability by incorporating a detection model to find candidate temporal
+	expressions, which we then ground.
+The detection model is implemented as a Conditional Random Field, with features over the
+	morphology and context.
+Particularly, we define the following features:
+\begin{itemize}
+\item The word and lemma within 2 of the current word.
+\item The word shape\footnote{
+		Word shape is calculated by mapping each character to one of uppercase, lowercase, number,
+			or punctuation.
+		The first four characters are mapped verbatim; subsequent sequences of similar characters
+			are collapsed.
+	}
+	and part of speech of the current word.
+\item Whether the current word is a number, along with its ordinality and order of magnitude
+\item Prefixes and Suffixes up to length 5, along with their word shape.
+\end{itemize}
+
+% -- Detection Table
+\begin{table}
+	\begin{center}
+	\begin{tabular}{|l|c|c|c|}
+		\hline
+		System & P & R  & F$_1$ \\
+		\hline
+		\hline
+		\sys{GUTime}      & 0.89          & 0.79          & 0.84 \\
+		\sys{SUTime}      & 0.88          & \textbf{0.96} & \textbf{0.92} \\
+		\sys{HeidelTime1} & \textbf{0.90} & 0.82          & 0.86 \\
+		\sys{HeidelTime2} & 0.82          & 0.91          & 0.86 \\
+		\hline                                           
+		\sys{OurSystem}   &               &               & 0.85 \\
+		\hline
+	\end{tabular}
+	%(caption)
+	\caption{
+		\tempeval\ Extent scores for our system and three previous systems.
+		\todo{0.85 is quite low}
+		\label{tab:detection}
+	}
+	\end{center}
+\end{table}
+
+We summarize our results in \reftab{detection}
+
+\Subsection{result-error}{Discussion}
 % -- Our Results
 Our system performs well above the \sys{GUTime} baseline and is competitive
 	with both of the more recent systems.
@@ -109,10 +154,24 @@ In part, this is from more sophisticated modeling of syntactic ambiguity:
 	e.g., \tp{the past few weeks} has a clause \tp{the past} -- which, alone,
 	should be parsed as \te{PAST} -- yet the system correctly disprefers
 	incorporating this interpretation and 
-	returns the approximate duration \te{~2 weeks}.
+	returns the approximate duration \te{~1 week}.
 Furthermore, we often capture cases of pragmatic ambiguity -- for example,
-	empirically, \tp{August} refers to the previous August when mentioned in
+	empirically, \tp{August} tends to refers to the previous August when mentioned in
 	February.
 
+% -- Errors
+%(only us)
+We attribute most errors the system makes which rule-based systems would not
+	to either data sparsity or missing lexical primitives.
+For example -- illustrating sparsity -- we have trouble recognizing \tp{Nov.} as corresponding
+	to \te{November} (e.g., \tp{Nov. 13}), since the publication time of the articles happen to
+	often be near November and we prefer tagging the word as \te{Nil} (analogous to 
+	\tp{the \th{13}}).
+Missing lexical primitives, in turn, include tagging \tp{1990s}, or \tp{half}
+	(in \tp{minute and a half}), among others.
 
-
+%(also rule-based)
+Remaining errors can be attributed to causes such as providing the wrong Viterbi grounding
+	to the evaluation script (e.g., last rather than this Friday), differences in 
+	annotation (e.g., 24 hours is marked wrong against a day), missing context 
+	(e.g., the publication time is not the true reference time), among others.
