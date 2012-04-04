@@ -1385,12 +1385,8 @@ class InterpretationTask extends TemporalTask {
 		log(FORCE,YELLOW,""+testScore.reportK)
 		endTrack("Eval")
 		endTrack("Running")
-		//--Score
-		startTrack(FORCE,BOLD,"Results")
-		val sys = new TreeTime(parser,grammar,lex)
-		reportScores(sys,trainScoresRev.reverse.toArray,testScore)
-		endTrack("Results")
 		//--Save Model
+		val sys = new TreeTime(parser,grammar,lex)
 		try {
 			import org.goobs.util.TrackedObjectOutputStream
 			import java.io.FileOutputStream
@@ -1398,6 +1394,14 @@ class InterpretationTask extends TemporalTask {
 		} catch {
 			case (e:Throwable) => throw new RuntimeException(e)
 		}
+		//--Score
+		startTrack(FORCE,BOLD,"Results")
+		try {
+			reportScores(sys,trainScoresRev.reverse.toArray,testScore)
+		} catch {
+			case (e:Exception) => log(FORCE,e)
+		}
+		endTrack("Results")
 	}
 
 	def reportScores(sys:TreeTime,trainScores:Array[Score],testScore:Score) {
