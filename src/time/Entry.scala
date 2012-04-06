@@ -378,13 +378,15 @@ trait DataStore[T] {
 //------------------------------------------------------------------------------
 object Interpret {
 	DateTimeZone.setDefault(DateTimeZone.UTC);
-	def main(args:Array[String]) {
+
+	def run(args:Array[String]) {
 		System.setProperty("gutime","aux/gutime")
 		//--Redwood
 		val props = new Properties();
 		props.setProperty("log.neatExit", "true");
-//		props.setProperty("log.collapse", "exact");
+		props.setProperty("log.collapse", "approximate");
 		props.setProperty("log.toStderr", "false");
+		props.setProperty("log.captureStderr", "false");
 		StanfordRedwoodConfiguration.apply(props);
 		//--Variables
 		if(args.length < 4 || args.length > 5){
@@ -405,12 +407,15 @@ object Interpret {
 					edu.stanford.nlp.io.IOUtils.readObjectFromFile(modelStr)
 				} else {
 					val props = new Properties
+					//(SUTime properties)
 //					props.setProperty("sutime.markTimeRanges", "true")
 //					props.setProperty("sutime.includeNested", "true")
 //					props.setProperty("sutime.includeRange", "true")
 					props.setProperty("sutime.teRelHeurLevel", "MORE")
 					props.setProperty("sutime.restrictToTimex3", "true")
 					props.setProperty("sutime.verbose", "true")
+					//(GUTime properties)
+					props.setProperty("gutime", "etc/")
 					log(FORCE,"Creating new " + modelStr)
 					new MetaClass(modelStr).createInstance(props)
 				}
@@ -425,14 +430,22 @@ object Interpret {
 				( trainData, testData )
 			}
 			//(script)
-			val (trainOfficial,trainAngel)
-				= Entry.officialEval(model,trainData,true,new File(tempevalHome), detect)
-			log(GREEN,FORCE,"TRAIN official: " + trainOfficial)
-			log(GREEN,FORCE,"TRAIN angel:    " + trainAngel)
+//			val (trainOfficial,trainAngel)
+//				= Entry.officialEval(model,trainData,true,new File(tempevalHome), detect)
+//			log(GREEN,FORCE,"TRAIN official: " + trainOfficial)
+//			log(GREEN,FORCE,"TRAIN angel:    " + trainAngel)
 			val (testOfficial,testAngel)
 				= Entry.officialEval(model,testData,false,new File(tempevalHome), detect)
 			log(GREEN,FORCE,"TEST official: " + testOfficial)
 			log(GREEN,FORCE,"TEST angel:    " + testAngel)
+			System.err.println("" + testOfficial.detectRecall + "\t" + testOfficial.valueAccuracy)
+		}
+	}
+
+	def main(args:Array[String]) {
+		for(i <- 0.0 until 0.5 by 0.0002){
+			O.interpretThreshold = i
+			run(args)
 		}
 	}
 }
@@ -697,14 +710,19 @@ object Entry {
 		}
 		//--Ensure Guess
 		metaInfo match {
-			case None => cands
+			case None => 
+				//(case: detect)
+				cands
 			case Some((sentI,(begin,end))) =>
 				if(cands.length > 0){
+					//(case: have guess)
 					cands
 				} else {
-					val miss = TimexSpan(new StanfordTimex("MISS","MISS"),begin,sentI)
-					miss.end = end
-					Buffer[TimexSpan](miss)
+//					//(case: automiss
+//					val miss = TimexSpan(new StanfordTimex("MISS","MISS"),begin,sentI)
+//					miss.end = end
+//					Buffer[TimexSpan](miss)
+					Buffer[TimexSpan]()
 				}
 		}
 	}

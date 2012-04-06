@@ -738,10 +738,11 @@ object DataLib {
 		}
 	}
 	
-	private def words(span:Buffer[CoreLabel],index:Indexing,train:Boolean):Array[Int] = { 
+	private def words(span:Buffer[CoreLabel],index:Indexing,train:Boolean,maxNum:Int=Int.MaxValue
+			):Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 
 			val (typ,num) = DataLib.number(lbl)
-			if(typ != NumberType.NONE){
+			if(typ != NumberType.NONE && num <= maxNum){
 				index.NUM
 			} else {
 				if(train){
@@ -761,10 +762,14 @@ object DataLib {
 			}
 		}.toArray
 	}
-	private def nums(span:Buffer[CoreLabel]):Array[Int] = { 
+	private def nums(span:Buffer[CoreLabel],maxValue:Int=Int.MaxValue):Array[Int] = { 
 		span.map{ (lbl:CoreLabel) => 
 			val (typ,num) = DataLib.number(lbl)
-			num
+			if(num > maxValue){
+				Int.MinValue
+			} else {
+				num
+			}
 		}.toArray
 	}
 	private def numTypes(span:Buffer[CoreLabel]):Array[NumberType.Value] = {
@@ -782,11 +787,12 @@ object DataLib {
 		val span = tokens.slice(beginIndex,endIndex)
 		mkTimeSent(span,index,train)
 	}
-	def mkTimeSent(tokens:Buffer[CoreLabel],index:Indexing,train:Boolean):TimeSent = {
+	def mkTimeSent(tokens:Buffer[CoreLabel],index:Indexing,train:Boolean,
+			maxNumber:Int=Int.MaxValue):TimeSent = {
 		TimeSent(
-			words(tokens,index,train),
+			words(tokens,index,train,maxNumber),
 			pos(tokens,index,train),
-			nums(tokens),
+			nums(tokens,maxNumber),
 			numTypes(tokens),
 			index)
 	}

@@ -155,7 +155,7 @@ Our TimEM algorithm for learning the parameters for the grammar ($\theta$),
 	jointly with the temporal distribution ($\mu$ and $\sigma$) is given 
 	in \refalg{pseudocode}.
 %(input/output)
-The inputs to the algorithm are the initial parameters $\theta$,$\mu$, and
+The inputs to the algorithm are the initial parameters $\theta$, $\mu$, and
 	$\sigma$, and a set of training instances $\sD$.
 Furthermore, the algorithm makes use of a Dirichlet prior $\alpha$ on 
 	the grammar parameters $\theta$, as well as a Gaussian prior $\sN$ on the
@@ -212,7 +212,7 @@ In the multinomial case, our (unnormalized) parameter updates, with
 
 In the Gaussian case, the parameter update for $\sigma$ is the maximum
 	likelihood update; while the update for $\mu$ incorporates a
-	Bayesian prior $sN(\mu_0,\sigma_0)$:
+	Bayesian prior $\sN(\mu_0,\sigma_0)$:
 
 \begin{align}
 	\sigma' =& \sqrt{
@@ -233,7 +233,7 @@ As the parameters improve, the parser more efficiently prunes incorrect parses
 	and the beam incorporates valid parses for longer and longer phrases.
 For instance, in the first iteration the model must learn the meaning of both
 	words in \tp{last Friday}; once the parser learns the meaning of one of them
-	(e.g., \tp{Friday} appears elsewhere in the corpus) subsequent iterations
+	-- e.g., \tp{Friday} appears elsewhere in the corpus -- subsequent iterations
 	focus on proposing candidate meanings for \tp{last}.
 In this way, a progressively larger percentage of the data is available to be
 	learned from at each iteration.

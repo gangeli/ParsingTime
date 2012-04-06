@@ -734,16 +734,18 @@ case class TreeTime(
 		val sent = DataLib.mkTimeSent(span,index,false)
 		//(parse)
 		val (time,original,logProb) = parse(sent,ground)
-		//--Annotate
-		val timex = toStanfordTimex(time,original)
-		log("annotated "+sent+" as "+timex)
-		//(annotate)
-		span.foreach{ case (tok:CoreLabel) =>
-			tok.set(classOf[TimexAnnotation], timex)
+		if( math.exp(logProb/(3*sent.length)) > O.interpretThreshold ){
+			//--Annotate
+			val timex = toStanfordTimex(time,original)
+			log("annotated "+sent+" as "+timex)
+			//(annotate)
+			span.foreach{ case (tok:CoreLabel) =>
+				tok.set(classOf[TimexAnnotation], timex)
+			}
 		}
 	}
 	
-	private def annotateSentence(tokens:JList[CoreLabel], ground:Time) = {
+	private def annotateSentenceCRF(tokens:JList[CoreLabel], ground:Time) = {
 		//--Run CRF
 		val tokensArray:Array[CoreLabel] = tokens.map{ x => x }.toArray
 		val sent = crf.get.corelabels2timeSent(tokensArray)
@@ -755,8 +757,8 @@ case class TreeTime(
 					parse(s.reIndex(crfInd),ground)
 				}
 			},
-//			parser.chart(sent.reIndex(crfIndex.get)), //TODO
-			Map[(NodeType,Int,Int),Double](),
+			parser.chart(sent.reIndex(crfIndex.get)),
+//			Map[(NodeType,Int,Int),Double](),
 			gloss)
 		//--Annotate
 		times.foreach{ case DetectedTime(begin,end,timeInfo) =>
@@ -769,6 +771,42 @@ case class TreeTime(
 				tokens.get(i).set(classOf[TimexAnnotation], timex)
 			}
 		}
+	}
+	
+	private def annotateSentence(tokens:JList[CoreLabel], ground:Time) = {
+		//--Parse
+		//(create sentence)
+		val sent = DataLib.mkTimeSent(tokens,index,false,9999) //a teeny bit hacky...
+		log(FORCE,"|sent|="+sent.length)
+		//(get chart)
+		val chart = parser.chart(sent,0,Int.MaxValue, List(grammar.factory.ROOT))
+		//--Detect
+		chart
+			//(calculate score)
+			.map{ case ((n:NodeType,s:Int,e:Int),value:Double) => 
+				val len = e-s
+				val numRules = (3*len).toDouble
+				((s,e), math.exp(value / numRules)) //parse_score = (**ave_rule_score**)^(num_rules)
+			}.toArray
+			//(sort by score descendinascending)
+			.sortWith{ case (((bA:Int,eA:Int),sA:Double),((bB:Int,eB:Int),sB:Double)) =>
+			 	sA > sB
+			//(take top elements)
+			}.takeWhile{ case (key:(Int,Int),score:Double) => score > O.detectThreshold }
+			//(tag timex)
+			.reverse
+			.foreach{ case ((begin:Int,end:Int),score:Double) =>
+				//(parse timex)
+				val (time,original,logProb) = parse(sent.slice(begin,end),ground)
+				val timex = toStanfordTimex(time,original)
+				//(annotate)
+				log(FORCE,"detected ["+begin+"-"+end+") " + 
+					tokens.slice(begin,end).map{ _.word }.mkString(" ") + 
+					" as " + timex)
+				(begin until end).foreach{ (i:Int) =>
+					tokens.get(i).set(classOf[TimexAnnotation], timex)
+				}
+			}
 	}
 	
 	//<<annotator overrides>>
@@ -788,35 +826,16 @@ case class TreeTime(
 			//(variables)
 			val tokens = sent
 					.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
-			
-			
+			//--Annotate
 			if(crf.isDefined){
-				annotateSentence(tokens,ground)
+				if(O.detectMode == O.DetectMode.crf){
+					annotateSentenceCRF(tokens,ground)
+				} else {
+					annotateSentence(tokens,ground)
+				}
 			} else {
 				annotateKnownSpan(tokens,ground)
-			} //vv Replaces below vv
-
-
-//			if(crf.isDefined){
-//				//(annotate sentence)
-//				assert(crfIndex.isDefined, "CRF but no CRF Index found!")
-//				annotateSentence(tokens,ground)
-//			} else if(sent.containsKey[JList[CoreMap],TimeExpressionsAnnotation](
-//					classOf[TimeExpressionsAnnotation])){
-//				//(annotate gold spans)
-//				val knownSpans = 
-//					sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
-//				if(knownSpans != null){
-//					knownSpans.foreach{ (expr:CoreMap) =>
-//						annotateKnownSpan(tokens,expr,ground)
-//					}
-//				}
-//			} else {
-//				//(nothing to annotate)
-//				throw new IllegalStateException("Cannot annotate without CRF detector")
-//			}
-
-
+			}
 		}
 	}
 }

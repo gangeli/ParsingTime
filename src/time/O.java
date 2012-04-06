@@ -131,6 +131,8 @@ public class O {
 	public static boolean includeRuleInLexProb = false;
 	@Option(name="uniformFirstIteration", gloss="Parse probabilities from the first iteration are uniform")
 	public static boolean uniformFirstIteration = false;
+	@Option(name="interpretThreshold", gloss="Average rule score for interpretation threshold")
+	public static double interpretThreshold = 0.0;
 	//(detection)
 	@Option(name="crfFeatureFactory", gloss="FeatureFactory class for tagging")
 	public static String crfFeatureFactory 
@@ -139,6 +141,11 @@ public class O {
 	public static int maxLookaround = 2;
 	@Option(name="crfSigma", gloss="Smoothing (Sigma) for CRF")
 	public static double crfSigma = 1.0;
+	@Option(name="detectThreshold", gloss="Average rule score for detection threshold")
+	public static double detectThreshold = 0.3;
+	public static enum DetectMode{ crf, tree }
+	@Option(name="detectMode",gloss="Detection method to use")
+	public static DetectMode detectMode = DetectMode.tree;
 	//--TESTING
 	@Option(name="exactmatchThreshold", 	
 		gloss="Max difference to consider exact match")

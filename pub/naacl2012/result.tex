@@ -26,19 +26,19 @@ Each temporal phrase was annotated as a \timex\footnote{
 		System & Type & Value  & Type & Value \\
 		\hline
 		\hline
-		\sys{GUTime}     & 0.72          & 0.45          & 0.79           & 0.41 \\
-		\sys{SUTime}     & 0.85          & 0.69+         & \textbf{0.90}  & 0.67+ \\
-		\sys{HeidelTime} & 0.80          & 0.67          & 0.85           & \textbf{0.71} \\
+		\sys{GUTime}     & 0.72          & 0.46          & 0.80           & 0.42 \\
+		\sys{SUTime}     & 0.85          & 0.69          & \textbf{0.94}  & 0.71 \\
+		\sys{HeidelTime} & 0.80          & 0.67          & 0.85           & 0.71 \\
 		\hline                                           
 		% -- RUN 649; on Cluster --
-		\sys{OurSystem}  & \textbf{0.89} & \textbf{0.71} & \textbf{0.90} & \textbf{0.71} \\
+		\sys{OurSystem}  & \textbf{0.90} & \textbf{0.72} & 0.88           & \textbf{0.72} \\
 		\hline
 	\end{tabular}
 	%(caption)
 	\caption{
 		\tempeval\ Attribute scores for our system and three previous systems.
 		The scores are calculated using gold extents, forcing a guessed
-		interpretation for each parse. \todo{new scores -- around 0.72}
+		interpretation for each parse.
 		\label{tab:results}
 	}
 	\end{center}
@@ -53,8 +53,11 @@ Since we perform only the second of these, we evaluate our system
 
 \Fig{fig/pr}{0.62}{pr}{
 	A precision-recall curve for our system, compared to prior work.
-	The data points are obtained by setting a threshold minimum probability,
-	creating different recall values. \todo{update with new model}
+	The data points are obtained by setting a threshold minimum probability
+		at which to guess a time creating different extent recall values. 
+	The curve falls below \sys{HeidelTime1} and \sys{SUTime} in part from
+		lack of context, and in part since our system was not trained to
+		optimize this curve.
 }
 
 % -- Scoring Tweak
@@ -116,29 +119,35 @@ Particularly, we define the following features:
 % -- Detection Table
 \begin{table}
 	\begin{center}
-	\begin{tabular}{|l|c|c|c|}
+	\begin{tabular}{|lccc|cc|}
 		\hline
-		System & P & R  & F$_1$ \\
+		& \multicolumn{3}{c|}{Extent} & \multicolumn{2}{c|}{Attribute} \\
+		System & P & R & F$_1$ & Typ & Val \\
 		\hline
 		\hline
-		\sys{GUTime}      & 0.89          & 0.79          & 0.84 \\
-		\sys{SUTime}      & 0.88          & \textbf{0.96} & \textbf{0.92} \\
-		\sys{HeidelTime1} & \textbf{0.90} & 0.82          & 0.86 \\
-		\sys{HeidelTime2} & 0.82          & 0.91          & 0.86 \\
+		\sys{GUTime}      & 0.89          & 0.79          & 0.84          & 0.95 & 0.68 \\
+		\sys{SUTime}      & 0.88          & \textbf{0.96} & \textbf{0.92} & \textbf{0.96} & 0.82 \\
+		\sys{HeidelTime1} & \textbf{0.90} & 0.82          & 0.86          & \textbf{0.96} & \textbf{0.85} \\
+		\sys{HeidelTime2} & 0.82          & 0.91          & 0.86          & 0.92 & 0.77 \\
 		\hline                                           
-		\sys{OurSystem}   &               &               & 0.85 \\
+		\sys{OurSystem}   & 0.89          & 0.84          & 0.86          & 0.91 & 0.72 \\
 		\hline
 	\end{tabular}
 	%(caption)
 	\caption{
-		\tempeval\ Extent scores for our system and three previous systems.
-		\todo{0.85 is quite low}
 		\label{tab:detection}
+		\tempeval\ Extent scores for our system and three previous systems.
+		Note that the attribute scores are now relatively low compared to previous work;
+			unlike rule-based approaches, our model can guess a temporal interpretation for
+			any phrase, meaning that a good proportion of the phrases not detected would have
+			been interpreted correctly.
 	}
 	\end{center}
 \end{table}
 
-We summarize our results in \reftab{detection}
+We summarize our results in \reftab{detection}, noting that the performance indicates that
+	the CRF and interpretation model find somewhat different phrases hard to detect and
+	interpret respectively.
 
 \Subsection{result-error}{Discussion}
 % -- Our Results
@@ -162,11 +171,12 @@ For example -- illustrating sparsity -- we have trouble recognizing \tp{Nov.} as
 	to \te{November} (e.g., \tp{Nov. 13}), since the publication time of the articles happen to
 	often be near November and we prefer tagging the word as \te{Nil} (analogous to 
 	\tp{the \th{13}}).
-Missing lexical primitives, in turn, include tagging \tp{1990s}, or \tp{half}
-	(in \tp{minute and a half}), among others.
+Missing lexical primitives, in turn, include tags for \tp{1990s}, or \tp{half}
+	(in \tp{minute and a half}); as well as missing functions, such as
+	\tp{or} (in \tp{weeks or months}).
 
 %(also rule-based)
 Remaining errors can be attributed to causes such as providing the wrong Viterbi grounding
 	to the evaluation script (e.g., last rather than this Friday), differences in 
-	annotation (e.g., 24 hours is marked wrong against a day), missing context 
+	annotation (e.g., 24 hours is marked wrong against a day), or missing context 
 	(e.g., the publication time is not the true reference time), among others.

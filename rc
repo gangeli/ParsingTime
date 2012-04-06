@@ -32,7 +32,7 @@ function detect {
 		last="$1.exec"
 	fi
 	java\
-		-mx2g -ea\
+		-mx6g -ea\
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\

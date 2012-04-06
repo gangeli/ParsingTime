@@ -608,27 +608,12 @@ object CoreMapDetectionStore {
 		Map[(NodeType,Int,Int),Double]()
 //		val sent = s.reIndex(treeTime.index,3)
 //		log(FORCE,"chart |sent|=" + sent.length)
-//		//--Create
-//		val chart = if(s.length <= 15){
-//			//(case: short sentence)
-//			treeTime.parser.chart(sent,0,20,List(treeTime.grammar.factory.ROOT))
-//		} else {
-//			//(case: split into parts)
-//			var chart = treeTime.parser.chart(sent.slice(0,8), 0, 6, List(treeTime.grammar.factory.ROOT))
-//			for(i <- 0 until sent.length by 2){
-//				chart = 
-//					treeTime.parser.chart(sent.slice(i,i+8), 2, 6, List(treeTime.grammar.factory.ROOT))
-//						.map{ case ((node,begin,end),lprob) =>
-//							((node,begin+i,end+i),lprob)
-//						} ++ chart
-//			}
-//			chart
-//		}
+//		val chart = treeTime.parser.chart(sent,0,sent.length,List(treeTime.grammar.factory.ROOT))
 //		//--Check
 //		(0 until sent.length).foreach{ (begin:Int) =>
-//			(begin+1 to math.min(sent.length,begin+2)).foreach{ (end:Int) =>
-////				assert(chart.contains( (treeTime.grammar.factory.ROOT, begin, end)),
-////					"No match for " + begin + ", " + end + " in sentence " + sent) //TODO ??? broken?
+//			(begin+1 to sent.length).foreach{ (end:Int) =>
+//				assert(chart.contains( (treeTime.grammar.factory.ROOT, begin, end)),
+//					"No match for " + begin + ", " + end + " in sentence " + sent)
 //			}
 //		}
 //		//--Return
@@ -752,7 +737,7 @@ class DetectionTask extends TemporalTask {
 		}
 		endTrack("Training Interpretation Model")
 		forceTrack("Loading serialized dataset")
-		val (data, index) = if(new File("aux/detectData.ser.gz-fake").exists){
+		val (data, index) = if(new File("aux/detectData.ser.gz").exists){
 				log(FORCE,"Loading data")
 				IOUtils.readObjectFromFile("aux/detectData.ser.gz").asInstanceOf[(TimeData[DetectionDatum],Indexing)]
 			} else {
