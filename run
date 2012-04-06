@@ -18,15 +18,15 @@ env!(
 	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('mx20g'),
+	o('mx10g'),
 #	o('ea'),
 	'time.Entry',
 
 	run(
 		# -- RUN MODE --
-		o('runInterpretModel'),
+#		o('runInterpretModel'),
 		o('interpretModel', 'aux/interpret.ser.gz'),
-		selo(1, 'mode', 
+		selo(0, 'mode', 
 			'detect',
 			'interpret',
 			'system',
@@ -83,7 +83,8 @@ env!(
 		o('scoreBeam', 3),
 		o('maxSearchTime', 10000),
 		#<detection>
-		o('crfFeatureFactory','time.TRIPSFeatures'),
+		o('crfFeatureFactory','time.CRFFeatures'),
+		o('crfSigma','2.0'),
 		#<params>
 		o('useTime'),
 		o('pruneTime', 1000),
@@ -104,6 +105,7 @@ env!(
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
 		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[20,162]'),   o('dev',   'English[0,20]'),
 #		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,10]'),   o('dev',   'English[10,20]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
@@ -140,12 +142,12 @@ env!(
 
 		# -- BOOTSTRAPING --
 		#(exec options)
-		o('logDebug'),
+#		o('logDebug'),
 		o('ignoreClasspath', "\"[#{ENV['JAVANLP_HOME']}/.*,etc/scala-.*.jar,etc/postgres.jar,etc/jdom.jar,etc/joda-time.jar]\""),
 		#(logging)
 		o('execDir', 'out'),
-		o('execOutput', "\"psql://research@goobs.org:#{JAR}<what?why42?\""),
+		o('execOutput', "\"psql://research@localhost:#{JAR}<what?why42?\""),
 		#(data)
-		o('execData', '"psql://research@goobs.org:data<what?why42?"'),
+		o('execData', '"psql://research@localhost:data<what?why42?"'),
 	nil),
 nil)

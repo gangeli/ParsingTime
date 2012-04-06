@@ -28,6 +28,8 @@ import org.joda.time.DateTime
 import org.goobs.stanford.JavaNLP._
 import org.goobs.stanford.SerializedCoreMapDataset
 import org.goobs.nlp.CKYParser
+import org.goobs.nlp.NodeType
+import org.goobs.nlp.NodeTypeFactory
 import org.goobs.testing.ScoreCalc
 import org.goobs.exec.Execution
 
@@ -45,10 +47,8 @@ case class DetectedTime(begin:Int,end:Int,time:Option[(Temporal,Temporal,Double)
 }
 trait TimeDetector {
 	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)],
-			gloss:Array[String]):Array[DetectedTime]
+			chart:CRFDetector.Chart,gloss:Array[String]):Array[DetectedTime]
 	
-	def findTimes(sent:TimeSent):Array[DetectedTime] 
-		= findTimes(sent, (t:TimeSent) => None, sent.toGlossArray)
 }
 
 
@@ -93,9 +93,10 @@ class CRFFeaturesWithTriggers(index:Indexing, ckyTriggers:Set[String]
 @SerialVersionUID(1L)
 class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[CoreMap] {
 	import CRFDetector.InputAnnotation
+	import CRFDetector.Chart
 
-	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Array[String],Int)] = {
-		val x = info.get(pos).get[(TimeSent,Array[String],Int),InputAnnotation](
+	def sent(info:PaddedList[CoreMap],pos:Int):Option[(TimeSent,Array[String],Chart,Int)] = {
+		val x = info.get(pos).get[(TimeSent,Array[String],Chart,Int),InputAnnotation](
 			classOf[InputAnnotation])
 		if(x == null) {
 			None
@@ -103,9 +104,22 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 			Some(x)
 		}
 	}
+	def chartProb(info:PaddedList[CoreMap],begin:Int,end:Int):Double = {
+		assert(end > begin)
+		val (sent,gloss,chart,i) = 
+			info.get(0).get[(TimeSent,Array[String],Chart,Int),InputAnnotation](classOf[InputAnnotation])
+		val node = chart.keys.iterator.next._1
+		val key = (node, math.max(0,begin), math.min(info.size,end))
+		if(chart.contains(key)){
+			chart( key )
+		} else {
+			log("missing key: " + key + " spawned from " + begin + " until " + end)
+			-50
+		}
+	}
 	def word(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+			case Some((s:TimeSent,gloss:Array[String],chart:Chart,i:Int)) => 
 				if(s(i) == index.NUM){
 					s.nums(i).toString
 				} else {
@@ -116,7 +130,7 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 	}
 	def lemma(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+			case Some((s:TimeSent,gloss:Array[String],chart:Chart,i:Int)) => 
 				if(s(i) == index.NUM){
 					"--num--"
 				} else {
@@ -127,13 +141,13 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 	}
 	def pos(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,gloss:Array[String],i:Int)) => index.pos2str(s.pos(i))
+			case Some((s:TimeSent,gloss:Array[String],chart:Chart,i:Int)) => index.pos2str(s.pos(i))
 			case None => "✇"
 		}
 	}
 	def shape(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match{
-			case Some((s:TimeSent,gloss:Array[String],i:Int)) => 
+			case Some((s:TimeSent,gloss:Array[String],chart:Chart,i:Int)) => 
 				U.shape(gloss(i))
 			case None => "✇"
 		}
@@ -141,7 +155,7 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 	def characterizeNumber(info:PaddedList[CoreMap],pos:Int):(Int,String,String) = {
 		//returns: number, ordinality, magnitude
 		sent(info,pos) match {
-			case Some((s:TimeSent,gloss:Array[String],i:Int)) =>
+			case Some((s:TimeSent,gloss:Array[String],chart:Chart,i:Int)) =>
 				if(s(i) == index.NUM){
 					( s.nums(i), 
 					  s.ordinality(i).toString, 
@@ -154,7 +168,7 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 	}
 	def isNumber(info:PaddedList[CoreMap],pos:Int):String = {
 		sent(info,pos) match {
-			case Some((s:TimeSent,gloss:Array[String],i:Int)) =>
+			case Some((s:TimeSent,gloss:Array[String],chart:Chart,i:Int)) =>
 				if(s(i) == index.NUM){
 					"true"
 				} else {
@@ -182,6 +196,7 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 			}
 			addFeature("word@" +relativePos+"="+word(info,absolutePos))
 			addFeature("lemma@"+relativePos+"="+lemma(info,absolutePos))
+			addFeature("trigger@"+relativePos+"="+triggers.contains(word(info,position).toLowerCase))
 		}
 		def characterNgrams(word:String,n:Int,relativePosition:Int){
 			val chars = word.toCharArray
@@ -206,11 +221,13 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 			str.slice(math.max(0,str.length-n),str.length)
 		}
 		//--Features
+		//(general surrounding features)
+		(-O.maxLookaround to O.maxLookaround).foreach{ (position:Int) =>
+			localFeatures(position)
+		}
 		if(clique == FeatureFactory.cliqueC){
-			//(general surrounding features)
-			(-O.maxLookaround to O.maxLookaround).foreach{ (position:Int) =>
-				localFeatures(position)
-			}
+			//(trigger n-gram)
+			addFeature("trigger@"+0+"="+triggers.contains(word(info,position).toLowerCase))
 			//(affixes)
 			(1 to 5).foreach{ (i:Int) =>
 				addFeature("prefix("+i+")@"+0+"="+prefix(i))
@@ -234,10 +251,23 @@ class CRFFeatures(index:Indexing,triggers:Set[String]) extends FeatureFactory[Co
 				addFeature("numberMagnitude@"+0+"="+numMag)
 				addFeature("number@"+0+"=|"+numType+"|*10^"+numMag)
 			}
-		} else {
-			(-O.maxLookaround to O.maxLookaround).foreach{ (position:Int) =>
-				localFeatures(position)
+		} else if(clique == FeatureFactory.cliqueCpC){
+			//(triggers)
+			if(triggers.contains(word(info,position-1).toLowerCase)){
+				addFeature("trigger->"+word(info,position))
 			}
+			if(triggers.contains(word(info,position+1).toLowerCase)){
+				addFeature(word(info,position)+"->trigger")
+			}
+//			//(chart prob)
+//			log(G.df.format((chartProb(info,position,position+1)))+"  "+word(info,position))
+//			if(position > 0){
+//				addFeature("lprob_-1_0="+
+//					((chartProb(info,position-1,position)/2).toInt*2)+","+
+//					((chartProb(info,position-1,position)/2).toInt*2))
+//			}
+//			addFeature("lprob_0="+((chartProb(info,position,position+1)/2).toInt*2))
+//			addFeature("lprob_-1+0="+((chartProb(info,position-1,position+1)/2).toInt*2))
 		}
 		return feats
 	}
@@ -252,7 +282,9 @@ case class CRFDetector(impl:CRFClassifier[CoreMap],index:Indexing
 	import CRFDetector._
 
 
-	def findTimes(sent:TimeSent,parse:TimeSent=>Option[(Temporal,Temporal,Double)],
+	def findTimes(sent:TimeSent,
+			parse:TimeSent=>Option[(Temporal,Temporal,Double)],
+			chart:Chart,
 			gloss:Array[String]
 				):Array[DetectedTime] = {
 		//--Make Input
@@ -260,12 +292,11 @@ case class CRFDetector(impl:CRFClassifier[CoreMap],index:Indexing
 			//(make word)
 			val word = new CoreLabel(1)
 			//(set input)
-			word.set(classOf[InputAnnotation], (sent,gloss,i))
+			word.set(classOf[InputAnnotation], (sent,gloss,chart,i))
 			//(return)
 			word
 		}
 		//--Classify
-		CRFDetector.parser = Some(parse) //TODO thread safety here
 		val output = impl.classify(input) //output eq input
 		//--Convert Output
 		//(get annotations)
@@ -325,11 +356,11 @@ object CRFDetector {
 	val TIME:String = "X"
 	val NOTM:String = "-"
 	
-	var parser:Option[TimeSent=>Option[(Temporal,Temporal,Double)]] = None
+	type Chart = Map[(NodeType,Int,Int),Double]
 
-	class InputAnnotation extends CoreAnnotation[(TimeSent,Array[String],Int)]{
-		def getType:Class[(TimeSent,Array[String],Int)] 
-			= classOf[(TimeSent,Array[String],Int)]
+	class InputAnnotation extends CoreAnnotation[(TimeSent,Array[String],Chart,Int)]{
+		def getType:Class[(TimeSent,Array[String],Chart,Int)] 
+			= classOf[(TimeSent,Array[String],Chart,Int)]
 	}
 
 	def apply(data:DataStore[DetectionDatum],index:Indexing,treeTime:TreeTime):CRFDetector = {
@@ -369,11 +400,13 @@ object CRFDetector {
 			data.eachExample(Int.MaxValue).zipWithIndex.map{ case 
 					(datum:DetectionDatum,index:Int) =>
 				val b:StringBuilder = new StringBuilder
+				//(parse)
+				//(set)
 				val lst:JList[CoreMap] = seqAsJavaList( datum.map{ (i:Int) =>
 					//(make word)
 					val word = new CoreLabel(2)
 					//(set input)
-					word.set(classOf[InputAnnotation], (datum.sent,datum.sent.toGlossArray,i))
+					word.set(classOf[InputAnnotation], (datum.sent,datum.sent.toGlossArray,datum.chart,i))
 					//(set output)
 					word.set(classOf[AnswerAnnotation],datum.getTime(i) match {
 						case Some(temporal) => b.append(TIME); TIME
@@ -408,7 +441,7 @@ object CRFDetector {
 case class DetectionDatum(
 		doc:String,sent:TimeSent,sentIndex:Int,
 		spans:Array[(Int,Int)],times:Array[Temporal],dct:Time,
-		gloss:Array[String]
+		gloss:Array[String],chart:CRFDetector.Chart
 		) extends Iterable[Int] {
 	assert(gloss.length == sent.length, "Gloss length mismatch")
 
@@ -441,109 +474,122 @@ case class DetectionDatum(
 	
 trait DetectionData extends DataStore[DetectionDatum]
 
-class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
-		) extends DetectionData {
+@SerialVersionUID(2L)
+class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,val index:Indexing,
+		getChart:TimeSent=>CRFDetector.Chart
+		) extends DetectionData with Serializable {
+	
+	var impl:Option[Array[DetectionDatum]] = None
+
 	override def name:String = theName+{if(test){"-eval"}else{"-train"}}
 	override def eachExample(iter:Int):Iterable[DetectionDatum] = {
-		val test = this.test
-		new Iterable[DetectionDatum] {
-			override def iterator:Iterator[DetectionDatum]
-				= docs.iterator.flatMap{ (doc:CoreMap) =>
-					//--Process Document
-					DataLib.retokenize(doc)
-					DataLib.normalizeNumbers(doc)
-					//--Variables
-					val dct:Time = Time(new DateTime(
-						doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
-						.getTimeInMillis))
-					val docName:String
-						= doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
-					//--Iterate Sentences
-					doc.get[JList[CoreMap],SentencesAnnotation](SENTENCES)
-						.zipWithIndex
-						.map{ case (sent:CoreMap,sentI:Int) =>
-							//(sentence)
-							//((get tokens))
-							val tokens:Array[CoreLabel] = 
-								sent.get[JList[CoreLabel],TokensAnnotation](
-									classOf[TokensAnnotation])
-								.toArray.map{ _.asInstanceOf[CoreLabel] }
-							//((get POS))
-							val pos = tokens.map{ (lbl:CoreLabel) => 
-									if(test) index.str2posTest(lbl.tag) else index.str2pos(lbl.tag) 
-								}
-							//((get numbers))
-							val (ordinality,nums) = tokens.map{ DataLib.number(_) }.unzip
-							//((get words))
-							val words = tokens.zip(ordinality).map{ 
-									case (lbl:CoreLabel,numType:NumberType.Value) =>
-								if(numType != NumberType.NONE){ 
-									index.NUM 
-								} else { 
-									if(test){
-										index.str2wTest(lbl.word,false) 
-									} else {
-										index.str2w(lbl.word,false) 
+		impl match {
+			case Some(data) => data
+			case None => 
+				val test = this.test
+				val iterable = new Iterable[DetectionDatum] {
+					override def iterator:Iterator[DetectionDatum]
+						= docs.iterator.flatMap{ (doc:CoreMap) =>
+							//--Process Document
+							DataLib.retokenize(doc)
+							DataLib.normalizeNumbers(doc)
+							//--Variables
+							val dct:Time = Time(new DateTime(
+								doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+								.getTimeInMillis))
+							val docName:String
+								= doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
+							//--Iterate Sentences
+							doc.get[JList[CoreMap],SentencesAnnotation](SENTENCES)
+								.zipWithIndex
+								.map{ case (sent:CoreMap,sentI:Int) =>
+									//(sentence)
+									//((get tokens))
+									val tokens:Array[CoreLabel] = 
+										sent.get[JList[CoreLabel],TokensAnnotation](
+											classOf[TokensAnnotation])
+										.toArray.map{ _.asInstanceOf[CoreLabel] }
+									//((get POS))
+									val pos = tokens.map{ (lbl:CoreLabel) => 
+											if(test) index.str2posTest(lbl.tag) else index.str2pos(lbl.tag) 
+										}
+									//((get numbers))
+									val (ordinality,nums) = tokens.map{ DataLib.number(_) }.unzip
+									//((get words))
+									val words = tokens.zip(ordinality).map{ 
+											case (lbl:CoreLabel,numType:NumberType.Value) =>
+										if(numType != NumberType.NONE){ 
+											index.NUM 
+										} else { 
+											if(test){
+												index.str2wTest(lbl.word,false) 
+											} else {
+												index.str2w(lbl.word,false) 
+											}
+										}
 									}
+									//((get gloss))
+									val gloss = tokens.map{ _.word }
+									//((create sentence))
+									val timeSent = 
+										TimeSent(words,pos,nums.toArray,ordinality.toArray,index)
+										.tagMetaInfo(docName,sentI)
+									//(spans/times)
+									val exprs
+										= sent.get[JList[CoreMap],TimeExpressionsAnnotation](
+											classOf[TimeExpressionsAnnotation])
+									val (theSpans,theTemporals) 
+										= {if(exprs == null) Nil else asScalaBuffer(exprs)}
+										.map{ (time:CoreMap) =>
+											//((span))
+											val begin:Int 
+												= time.get[java.lang.Integer,BeginIndexAnnotation](
+													classOf[BeginIndexAnnotation])
+											val end:Int 
+												= time.get[java.lang.Integer,EndIndexAnnotation](
+													classOf[EndIndexAnnotation])
+											//((original span))
+											val origBegin:Int 
+												= time.get[java.lang.Integer,OriginalBeginIndexAnnotation](
+													classOf[OriginalBeginIndexAnnotation])
+											val origEnd:Int 
+												= time.get[java.lang.Integer,OriginalEndIndexAnnotation](
+													classOf[OriginalEndIndexAnnotation])
+											//((temporal value))
+											val temporal = DataLib.array2JodaTime(
+												time.get[Array[String],TimeValueAnnotation](
+													classOf[TimeValueAnnotation]))
+											//((tid))
+											val tid = 
+												time.get[String,TimeIdentifierAnnotation](
+													classOf[TimeIdentifierAnnotation])
+											(((begin,end),(origBegin,origEnd)),(temporal,tid))
+										}	.sortBy{ _._2._2.substring(1).toInt } //sort by tid
+											.unzip
+										val (spans,origSpans) = theSpans.unzip
+										val (times,tids) = theTemporals.unzip
+										//(chart)
+										val chart = getChart(timeSent)
+										//(datum)
+										DetectionDatum(
+											docName,timeSent,sentI,
+											spans.toArray,times.toArray,dct,
+											gloss,chart
+											)
+											.setOrigBegin({ (i:Int) =>
+												tokens(i).get[java.lang.Integer,TokenBeginAnnotation](
+													classOf[TokenBeginAnnotation])
+											})
+											.setOrigEnd({ (i:Int) =>
+												tokens(i).get[java.lang.Integer,TokenEndAnnotation](
+													classOf[TokenEndAnnotation])
+											})
+											.setTids(tids.toArray)
 								}
-							}
-							//((get gloss))
-							val gloss = tokens.map{ _.word }
-							//((create sentence))
-							val timeSent = 
-								TimeSent(words,pos,nums.toArray,ordinality.toArray,index)
-								.tagMetaInfo(docName,sentI)
-							//(spans/times)
-							val exprs
-								= sent.get[JList[CoreMap],TimeExpressionsAnnotation](
-									classOf[TimeExpressionsAnnotation])
-							val (theSpans,theTemporals) 
-								= {if(exprs == null) Nil else asScalaBuffer(exprs)}
-								.map{ (time:CoreMap) =>
-									//((span))
-									val begin:Int 
-										= time.get[java.lang.Integer,BeginIndexAnnotation](
-											classOf[BeginIndexAnnotation])
-									val end:Int 
-										= time.get[java.lang.Integer,EndIndexAnnotation](
-											classOf[EndIndexAnnotation])
-									//((original span))
-									val origBegin:Int 
-										= time.get[java.lang.Integer,OriginalBeginIndexAnnotation](
-											classOf[OriginalBeginIndexAnnotation])
-									val origEnd:Int 
-										= time.get[java.lang.Integer,OriginalEndIndexAnnotation](
-											classOf[OriginalEndIndexAnnotation])
-									//((temporal value))
-									val temporal = DataLib.array2JodaTime(
-										time.get[Array[String],TimeValueAnnotation](
-											classOf[TimeValueAnnotation]))
-									//((tid))
-									val tid = 
-										time.get[String,TimeIdentifierAnnotation](
-											classOf[TimeIdentifierAnnotation])
-									(((begin,end),(origBegin,origEnd)),(temporal,tid))
-								}	.sortBy{ _._2._2.substring(1).toInt } //sort by tid
-									.unzip
-								val (spans,origSpans) = theSpans.unzip
-								val (times,tids) = theTemporals.unzip
-								//(datum)
-								DetectionDatum(
-									docName,timeSent,sentI,
-									spans.toArray,times.toArray,dct,
-									gloss
-									)
-									.setOrigBegin({ (i:Int) =>
-										tokens(i).get[java.lang.Integer,TokenBeginAnnotation](
-											classOf[TokenBeginAnnotation])
-									})
-									.setOrigEnd({ (i:Int) =>
-										tokens(i).get[java.lang.Integer,TokenEndAnnotation](
-											classOf[TokenEndAnnotation])
-									})
-									.setTids(tids.toArray)
 						}
 				}
+				this.impl = Some(iterable.toArray)
+				this.impl.get
 		}
 	}
 	def test:Boolean = {
@@ -558,7 +604,39 @@ class CoreMapDetectionStore(docs:Iterable[CoreMap],theName:String,index:Indexing
 }
 
 object CoreMapDetectionStore {
-	def apply(train:O.DataInfo,eval:O.DataInfo,index:Indexing
+	def getChart(treeTime:TreeTime) = (s:TimeSent) => {
+		Map[(NodeType,Int,Int),Double]()
+//		val sent = s.reIndex(treeTime.index,3)
+//		log(FORCE,"chart |sent|=" + sent.length)
+//		//--Create
+//		val chart = if(s.length <= 15){
+//			//(case: short sentence)
+//			treeTime.parser.chart(sent,0,20,List(treeTime.grammar.factory.ROOT))
+//		} else {
+//			//(case: split into parts)
+//			var chart = treeTime.parser.chart(sent.slice(0,8), 0, 6, List(treeTime.grammar.factory.ROOT))
+//			for(i <- 0 until sent.length by 2){
+//				chart = 
+//					treeTime.parser.chart(sent.slice(i,i+8), 2, 6, List(treeTime.grammar.factory.ROOT))
+//						.map{ case ((node,begin,end),lprob) =>
+//							((node,begin+i,end+i),lprob)
+//						} ++ chart
+//			}
+//			chart
+//		}
+//		//--Check
+//		(0 until sent.length).foreach{ (begin:Int) =>
+//			(begin+1 to math.min(sent.length,begin+2)).foreach{ (end:Int) =>
+////				assert(chart.contains( (treeTime.grammar.factory.ROOT, begin, end)),
+////					"No match for " + begin + ", " + end + " in sentence " + sent) //TODO ??? broken?
+//			}
+//		}
+//		//--Return
+//		chart
+	}
+
+	def apply(train:O.DataInfo,eval:O.DataInfo,index:Indexing,
+			treeTime:TreeTime
 			):TimeData[DetectionDatum] = {
 		//--Data Source
 		val file:String = 
@@ -571,9 +649,10 @@ object CoreMapDetectionStore {
 		val data = new SerializedCoreMapDataset(file)
 		val rtn = TimeData(
 			new CoreMapDetectionStore(data.slice(train.begin,train.end),
-				train.source.toString,index),
+				train.source.toString,index,getChart(treeTime)),
 			new CoreMapDetectionStore(data.slice(eval.begin,eval.end),
-				eval.source.toString,index))
+				eval.source.toString,index,getChart(treeTime))
+			)
 		//--NOOP Loop
 		startTrack("NOOP loop")
 		rtn.noopLoop{ log(_) }
@@ -601,7 +680,7 @@ class DetectionTask extends TemporalTask {
 				case (datum:DetectionDatum,index:Int) =>
 			//(make prediction)
 			val guess:Array[DetectedTime] 
-				= sys.findTimes(datum.sent,(t:TimeSent)=>None,datum.gloss)
+				= sys.findTimes(datum.sent,(t:TimeSent)=>None,datum.chart,datum.gloss)
 			//(get span overlap)
 			//((variables))
 			val goldMask:Array[Boolean] = new Array[Boolean](datum.sent.length)
@@ -664,10 +743,6 @@ class DetectionTask extends TemporalTask {
 		log("JodaTime settings")
 		DateTimeZone.setDefault(DateTimeZone.UTC);
 		//--Create Data
-		forceTrack("Loading dataset")
-		val index = Indexing()
-		val data = CoreMapDetectionStore(O.train,if(O.devTest) O.dev else O.test,index)
-		endTrack("Loading dataset")
 		forceTrack("Training Interpretation Model")
 		val sys:TreeTime = if(O.runInterpretModel){
 			(new InterpretationTask).run
@@ -676,6 +751,17 @@ class DetectionTask extends TemporalTask {
 			IOUtils.readObjectFromFileNoExceptions(O.interpretModel)
 		}
 		endTrack("Training Interpretation Model")
+		forceTrack("Loading serialized dataset")
+		val (data, index) = if(new File("aux/detectData.ser.gz-fake").exists){
+				log(FORCE,"Loading data")
+				IOUtils.readObjectFromFile("aux/detectData.ser.gz").asInstanceOf[(TimeData[DetectionDatum],Indexing)]
+			} else {
+				val index = Indexing()
+				val data = CoreMapDetectionStore(O.train,if(O.devTest) O.dev else O.test,index,sys)
+				IOUtils.writeObjectToFile((data,index), "aux/detectData.ser.gz")
+				(data,index)
+			}
+		endTrack("Loading serialized dataset")
 		//--Train CRF
 		startTrack("Training")
 		val crf:CRFDetector = CRFDetector(data.train,index,sys)

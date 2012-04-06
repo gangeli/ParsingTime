@@ -289,7 +289,8 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 	assert(words.length == ordinality.length, 
 		"word and num types lengths must match")
 	//<<methods>>
-	def reIndex(newIndex:Indexing):TimeSent = {
+	def reIndex(newIndex:Indexing,limitMagnitude:Int=Int.MaxValue):TimeSent = {
+		val max:Double = math.pow(10.0,limitMagnitude)*10-1
 		TimeSent(
 			words.zipWithIndex.map{ case (w:Int,i:Int) => 
 				if(w == index.NUM){
@@ -302,7 +303,7 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 				}
 			},
 			pos.map{ (p:Int) => newIndex.str2posTest(index.pos2str(p)) },
-			nums, ordinality, newIndex
+			nums.map{ math.min(_,max).toInt }, ordinality, newIndex
 		)
 	}
 
@@ -382,7 +383,7 @@ object Interpret {
 		//--Redwood
 		val props = new Properties();
 		props.setProperty("log.neatExit", "true");
-		props.setProperty("log.collapse", "approximate");
+//		props.setProperty("log.collapse", "exact");
 		props.setProperty("log.toStderr", "false");
 		StanfordRedwoodConfiguration.apply(props);
 		//--Variables
@@ -408,6 +409,8 @@ object Interpret {
 //					props.setProperty("sutime.includeNested", "true")
 //					props.setProperty("sutime.includeRange", "true")
 					props.setProperty("sutime.teRelHeurLevel", "MORE")
+					props.setProperty("sutime.restrictToTimex3", "true")
+					props.setProperty("sutime.verbose", "true")
 					log(FORCE,"Creating new " + modelStr)
 					new MetaClass(modelStr).createInstance(props)
 				}
@@ -516,6 +519,8 @@ object Entry {
 					recall      0.0
 					attribute type       1.0 | 1.0 0.0 0.0
 					attribute value      1.0 | 1.0 0.0 0.0
+					mention attribute type       1.0 | 1.0 0.0 0.0
+					mention attribute value      1.0 | 1.0 0.0 0.0
 					"""
 				}
 				case _ => throw new IllegalStateException("???")
@@ -614,7 +619,8 @@ object Entry {
 		var end:Int = begin+1 
 	}
 
-	private def annotateSpans(sys:Annotator,doc:Annotation):Buffer[TimexSpan] = {
+	private def annotateSpans(sys:Annotator,doc:Annotation,
+			metaInfo:Option[(Int,(Int,Int))]):Buffer[TimexSpan] = {
 		//--Annotate
 		sys.annotate(doc)
 		//--Collect Timexes
@@ -622,8 +628,25 @@ object Entry {
 		def isTimex(lbl:CoreLabel):Boolean 
 			= lbl.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation]) != null
 		//(for each sentence)
-		doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
-				.zipWithIndex.flatMap{ case (sent:CoreMap,sentI:Int) =>
+		val cands = doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+				.zipWithIndex.flatMap{ case (sent:CoreMap,sentIEmpirical:Int) =>
+			//(helper functions)
+			def sentI:Int = metaInfo match {
+						case Some((sent,(b,e))) => sent
+						case None => sentIEmpirical
+			}
+			def begin(expr:CoreMap,default:Int):Int = metaInfo match {
+						case Some((sent,(b,e))) => b
+						case None => 
+							val cand = expr.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
+							if(cand == null){ default } else { cand }
+			}
+			def end(expr:CoreMap,default:Int):Int = metaInfo match {
+						case Some((sent,(b,e))) => e
+						case None => 
+							val cand = expr.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
+							if(cand == null){ default } else { cand }
+			}
 			if(sent.get[JList[CoreMap],TimexAnnotations](classOf[TimexAnnotations])
 					!= null){
 				//--Case: Central Timexes
@@ -631,10 +654,8 @@ object Entry {
 						classOf[TimexAnnotations])
 				timexes.map{ (expr:CoreMap) =>
 					val timex = expr.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
-					val begin = expr.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
-					val end = expr.get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
-					val span = TimexSpan(timex,begin,sentI)
-					span.end = end
+					val span = TimexSpan(timex,begin(expr,-1),sentI)
+					span.end = end(expr,-1)
 					span
 				} 
 			} else {
@@ -651,9 +672,7 @@ object Entry {
 					if(!lastTimex && isTimex(tok)){
 						//(case: start timex)
 						val timex = tok.get[StanfordTimex,TimexAnnotation](classOf[TimexAnnotation])
-						var begin = tok.get[JInt,TokenBeginAnnotation](classOf[TokenBeginAnnotation])
-						if(begin == null){ begin = index }
-						(TimexSpan(timex,begin,sentI) :: timexes, true)
+						(TimexSpan(timex,begin(tok,index),sentI) :: timexes, true)
 					} else if(lastTimex && isTimex(tok)){
 						//(case: in timex)
 						(timexes, true)
@@ -662,9 +681,7 @@ object Entry {
 						(timexes, false)
 					} else if(lastTimex && !isTimex(tok)){
 						//(case: ended timex)
-						var end = tokens.get(index-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
-						if(end == null){ end = index }
-						timexes.head.end = end
+						timexes.head.end = end(tokens.get(index-1),index)
 						(timexes, false)
 					} else {
 						throw new IllegalStateException("impossible")
@@ -672,39 +689,105 @@ object Entry {
 				}
 				//(last timex)
 				if(endedOnTimex){
-					var end = tokens.get(tokens.length-1).get[JInt,TokenEndAnnotation](classOf[TokenEndAnnotation])
-					if(end == null){ end = tokens.length }
-					revTimexes.head.end = end
+					revTimexes.head.end = end(tokens.get(tokens.length-1),tokens.length)
 				}
 				//--Append
 				revTimexes.reverse
 			}
 		}
-	
+		//--Ensure Guess
+		metaInfo match {
+			case None => cands
+			case Some((sentI,(begin,end))) =>
+				if(cands.length > 0){
+					cands
+				} else {
+					val miss = TimexSpan(new StanfordTimex("MISS","MISS"),begin,sentI)
+					miss.end = end
+					Buffer[TimexSpan](miss)
+				}
+		}
 	}
 
 
 	def officialEval(sys:Annotator,data:Iterable[Annotation],train:Boolean,
-			tempevalHome:File, detect:Boolean
-			attributeFile:File=File.createTempFile("attr",".tab"),
-			extentsFile:File=File.createTempFile("ext",".tab")
+			tempevalHome:File, detect:Boolean,
+//			attributeFile:File=File.createTempFile("attr",".tab"),
+//			extentsFile:File=File.createTempFile("ext",".tab")
+			attributeFile:File=new File("tmp/attr.tab"),
+			extentsFile:File=new File("tmp/ext.tab")
 			):(OfficialScore,AngelScore) = {
 		startTrack("Evaluating " + sys.getClass + " on " + {if(train) "train" else "test" })
 		//--Setup
 		if(!attributeFile.exists){ attributeFile.createNewFile }
 		val attrs = new StringBuilder
 		val extents = new StringBuilder
+		//--Get Iterable Datums
+		val datums:Iterable[(Annotation,DateTime,Option[(Int,(Int,Int))])] = 
+			//--Case: Do Detection
+			if(detect){
+				data.map{ (d:Annotation) =>
+					val ground = new DateTime(
+							d.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+							.getTimeInMillis )
+					(d,ground,None) 
+				}
+			} else {
+				//--Case: Only Interpret
+//				val props = new Properties
+//				props.setProperty("annotators", "tokenize,ssplit,pos")
+//				props.setProperty("pos.model", 
+//					System.getenv("HOME") + "/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+//				props.setProperty("tokenize.whitespace", "true")
+//				val pipeline = new StanfordCoreNLP(props)
+				
+				val pipeline = new AnnotationPipeline()
+      	pipeline.addAnnotator(new WhitespaceTokenizerAnnotator)
+				pipeline.addAnnotator(new WordsToSentencesAnnotator(false))
+    		pipeline.addAnnotator(new POSTaggerAnnotator(
+					System.getenv("HOME") +
+						"/lib/data/bidirectional-distsim-wsj-0-18.tagger", //TODO hard coded
+					false))
+
+
+				//(for each document)
+				data.flatMap{ (doc:Annotation) =>
+					val ground = new DateTime(
+							doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+							.getTimeInMillis )
+					//(for each sentence)
+					val sents = doc.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+					sents.zipWithIndex.flatMap{ case (sent:CoreMap,sentI:Int) =>
+						val tokens = sent
+								.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
+						//(get spans)
+						val knownSpans = 
+							sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
+						assert(knownSpans != null, "No known spans for interpretation task")
+						//(convert spans)
+						knownSpans.map{ (span:CoreMap) =>
+							val beginIndex:Int = span.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
+							val endIndex:Int = span.get[JInt,EndIndexAnnotation](classOf[EndIndexAnnotation])
+							val spanTokens = tokens.slice(beginIndex,endIndex)
+							val ann = new Annotation(spanTokens.map{ _.word }.mkString(" "))
+							ann.set(classOf[CalendarAnnotation], 
+								doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation]))
+							ann.set(classOf[DocIDAnnotation], 
+								doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation]))
+							pipeline.annotate(ann)
+							(ann,ground,Some(sentI,(beginIndex,endIndex)))
+						}
+					}
+				}
+			}
 		//--Annotate
-		data.foreach{ (doc:Annotation) =>
+		var tidNum = 0
+		datums.foreach{ case (doc:Annotation,ground:DateTime,meta:Option[(Int,(Int,Int))]) =>
 			//--Variables
-			val docID = doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
-			var tidNum = 0
-			val ground = new DateTime(
-					doc.get[Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
-					.getTimeInMillis )
+			var docID = doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation])
 			startTrack("Document " + docID)
 			//--Process Spans
-			annotateSpans(sys,doc).foreach{ (span:TimexSpan) =>
+			annotateSpans(sys,doc,meta).foreach{ case (span:TimexSpan) =>
 				//(variables)
 				tidNum += 1
 				def base(b:StringBuilder,tok:Int) = b.append("\n")

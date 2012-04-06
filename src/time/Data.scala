@@ -726,6 +726,7 @@ object DataLib {
 			classOf[NumericCompositeValueAnnotation])
 		val t = numType(lbl.get[String,NumericCompositeTypeAnnotation](
 			classOf[NumericCompositeTypeAnnotation]))
+		assert(t == null || t == NumberType.NONE || numVal != null, "Null value but not type: " + t)
 		//(get number)
 		if(t == null || t == NumberType.NONE){
 			(NumberType.NONE,Int.MinValue)

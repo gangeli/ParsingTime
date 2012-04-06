@@ -56,10 +56,11 @@ A \ty{Sequence} is a tuple of three elements
 
 %(definition of reference time)
 We define the \textit{reference time} $t$ \cite{key:1947reichenback-temporal}
-	to be the instant which is considered to be the current time relative to
-	to the expression uttered.
-For the \tempeval\ corpus, we approximate this (occasionally incorrectly) as the
+	to be the instant relative to which times are evaluated.
+For the \tempeval\ corpus, we approximate this as the
 	publication time of the article.
+While this is conflating Reichenbach's reference time with speech time, 
+	it is a useful approximation
 
 %(sequence as distribution)
 To contrast with \ty{Range}s, a \ty{Sequence} can represent a number of grounded
@@ -71,11 +72,21 @@ We represent this ambiguity by defining a distribution over the elements
 	of the \ty{Sequence}.
 While this could be any distribution, we chose to approximate it as a
 	Gaussian.
-The domain of the Gaussian is the distance between the reference time
-	and the element in of the sequence in question; to account for sequences
-	of different granularities (e.g., \te{Friday} versus \te{\th{13}}),
-	we normalize this distance by \seqjump.
-Our probability, with learned parameters $\mu$ and $\sigma$, thus becomes:
+
+%(details of distribution)
+In order to allow sharing parameters between any sequence, we define the domain
+	in terms of the \textit{index} of the sequence rather than
+	of a constant unit of time (e.g., seconds).
+To illustrate, the distribution over \te{April} would have a much larger
+	variance than the distribution over \te{Sunday}, were the domains
+	fixed.
+The probability of the \th{i} element of a sequence thus depends on
+	the beginning of the range $\seqelem(i)$, 
+	the reference time $t$, 
+	and the distance between elements of the sequence $\seqjump$.
+We summarize this in the equation below, with learned parameters
+	$\mu$ and $\sigma$:
+
 % -- Gaussian Plot
 \begin{figure}[t]
 \begin{center}
@@ -87,18 +98,22 @@ Our probability, with learned parameters $\mu$ and $\sigma$, thus becomes:
 		An illustration of a temporal distribution, e.g., \te{Sunday}.
 		The reference time is labeled as time $t$ between \te{Nov 20} and 
 			\te{Nov 27}; the probability that this sequence is referring to
-			\te{Nov 20} is integral of the marked area.
-		Note that shifting the reference time towards \te{Nov 20} would increase
-			this probability.
+			\te{Nov 20} is the integral of the marked area.
+		The domain of the graph are the indices of the sequence;
+			the distribution is overlayed with mean at the (normalized) reference time
+			$t / \seqjump$; in our case \seqjump\ is a week.
+		Note that the probability of an index changes depending on the exact location
+		of the reference time.
 	}
 \end{center}
 \end{figure}
+
 % -- Gaussian Equation
 \begin{equation}
 \label{eqn:gaussian}
 	P_t(i) = 
-	\int_{i-0.5}^{i+0.5}
-		\sN_{\mu,\sigma}\left(\frac{\delta_{s,t}(i)-\delta_{s,t}(0)}{\seqjump}\right)
+	\int_{\delta=-0.5}^{0.5}
+		\sN_{\mu,\sigma}\left(\frac{\seqelem(i) - t}{\seqjump} + \delta \right)
 \end{equation}
 
 %(global scope)

@@ -229,8 +229,12 @@ In the Gaussian case, the parameter update for $\sigma$ is the maximum
 \end{align}
 
 %(big picture)
-As the parameters converge to their optimal values, the beam incorporates
-	valid parses for longer and longer phrases.
+As the parameters improve, the parser more efficiently prunes incorrect parses
+	and the beam incorporates valid parses for longer and longer phrases.
+For instance, in the first iteration the model must learn the meaning of both
+	words in \tp{last Friday}; once the parser learns the meaning of one of them
+	(e.g., \tp{Friday} appears elsewhere in the corpus) subsequent iterations
+	focus on proposing candidate meanings for \tp{last}.
 In this way, a progressively larger percentage of the data is available to be
 	learned from at each iteration.
 

@@ -374,14 +374,16 @@ case class Grammar(index:Indexing,factory:NodeTypeFactory,lex:Lex,rules:List[Gra
 		Returns a set of [lowercase] words which the parser believes to be reasonable
 		lexical entries
 	*/
-	def lexWords(parser:CKYParser,probThreshold:Double=0.1):Set[String] = {
-		rules.flatMap{ (rule:GrammarRule) =>
+	def lexWords(parser:CKYParser,probThreshold:Double=0.01):Set[String] = {
+		val notNil = rules.flatMap{ (rule:GrammarRule) =>
 			rule match {
 				case (lex:TimeLex) =>
-					if(!lex.parent.flag('nil)){
-					parser.sortedLexProbs(lex)
-						.takeWhile{ case (p:Double,w:Int) => p >= probThreshold }
-						.map{ case (p:Double,w:Int) => index.w2str(w).toLowerCase }
+					if(!lex.parent.flag('nil) && !lex.parent.flag('num)){
+						parser.sortedLexProbs(lex)
+							.takeWhile{ case (p:Double,w:Int) => p >= probThreshold }
+							.map{ case (p:Double,w:Int) => 
+								index.w2str(w).toLowerCase 
+							}
 					} else {
 						List[String]()
 					}
@@ -389,7 +391,37 @@ case class Grammar(index:Indexing,factory:NodeTypeFactory,lex:Lex,rules:List[Gra
 					List[String]()
 			}
 		}.toSet
+		notNil
 	}
+	
+//	/**
+//		Returns a set of [lowercase] words which the parser believes to be reasonable
+//		lexical entries
+//	*/
+//	def lexWords(parser:CKYParser):Set[String] = {
+//		(0 until index.W).map{ (w:Int) =>
+//			if(w != index.NUM && w != index.UNK){
+//				//(parse)
+//				val tree = parser.parse(TimeSent(Array[Int](w),
+//					Array[Int](0),Array[Int](Int.MinValue),Array[NumberType.Value](NumberType.NONE),index))
+//				//(prob)
+//				val prob = math.exp(tree.logProb)
+//				if(!tree.lexRules(0).parent.flag('nil) && prob > 0.001){
+//					//(case: parsed to not nil)
+//					log(FORCE,G.df.format(prob) + " " + index.w2str(w).toLowerCase )
+//					Some(index.w2str(w).toLowerCase)
+//				} else {
+//					//(case: nil parse)
+//					None
+//				}
+//			} else {
+//				//(case: invalid word)
+//				None
+//			}
+//		}.filter{ _.isDefined }.map{ _.get }.toSet
+//	}
+
+
 }
 
 object Grammar {
@@ -696,22 +728,18 @@ case class TreeTime(
 		new StanfordTimex(typ,value)
 	}
 
-	private def annotateKnownSpan(tokens:JList[CoreLabel], expr:CoreMap,
-			ground:Time) = {
+	private def annotateKnownSpan(span:JList[CoreLabel],ground:Time) = {
 		//--Parse
 		//(create sentence)
-		val sent = DataLib.mkTimeSent(expr,tokens,index,false)
+		val sent = DataLib.mkTimeSent(span,index,false)
 		//(parse)
 		val (time,original,logProb) = parse(sent,ground)
 		//--Annotate
 		val timex = toStanfordTimex(time,original)
 		log("annotated "+sent+" as "+timex)
-		//(get span)
-		val begin:Int = expr.get[JInt,BeginIndexAnnotation](classOf[BeginIndexAnnotation])
-		val end:Int = expr.get[JInt,EndIndexAnnotation](classOf[EndIndexAnnotation])
 		//(annotate)
-		(begin until end).foreach{ (i:Int) =>
-			tokens.get(i).set(classOf[TimexAnnotation], timex)
+		span.foreach{ case (tok:CoreLabel) =>
+			tok.set(classOf[TimexAnnotation], timex)
 		}
 	}
 	
@@ -726,7 +754,10 @@ case class TreeTime(
 				crfIndex.map{ (crfInd:Indexing) =>
 					parse(s.reIndex(crfInd),ground)
 				}
-			}, gloss)
+			},
+//			parser.chart(sent.reIndex(crfIndex.get)), //TODO
+			Map[(NodeType,Int,Int),Double](),
+			gloss)
 		//--Annotate
 		times.foreach{ case DetectedTime(begin,end,timeInfo) =>
 			val (time,original,logProb) = timeInfo.get
@@ -757,24 +788,35 @@ case class TreeTime(
 			//(variables)
 			val tokens = sent
 					.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
+			
+			
 			if(crf.isDefined){
-				//(annotate sentence)
-				assert(crfIndex.isDefined, "CRF but no CRF Index found!")
 				annotateSentence(tokens,ground)
-			} else if(sent.containsKey[JList[CoreMap],TimeExpressionsAnnotation](
-					classOf[TimeExpressionsAnnotation])){
-				//(annotate gold spans)
-				val knownSpans = 
-					sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
-				if(knownSpans != null){
-					knownSpans.foreach{ (expr:CoreMap) =>
-						annotateKnownSpan(tokens,expr,ground)
-					}
-				}
 			} else {
-				//(nothing to annotate)
-				throw new IllegalStateException("Cannot annotate without CRF detector")
-			}
+				annotateKnownSpan(tokens,ground)
+			} //vv Replaces below vv
+
+
+//			if(crf.isDefined){
+//				//(annotate sentence)
+//				assert(crfIndex.isDefined, "CRF but no CRF Index found!")
+//				annotateSentence(tokens,ground)
+//			} else if(sent.containsKey[JList[CoreMap],TimeExpressionsAnnotation](
+//					classOf[TimeExpressionsAnnotation])){
+//				//(annotate gold spans)
+//				val knownSpans = 
+//					sent.get[JList[CoreMap],TimeExpressionsAnnotation](classOf[TimeExpressionsAnnotation])
+//				if(knownSpans != null){
+//					knownSpans.foreach{ (expr:CoreMap) =>
+//						annotateKnownSpan(tokens,expr,ground)
+//					}
+//				}
+//			} else {
+//				//(nothing to annotate)
+//				throw new IllegalStateException("Cannot annotate without CRF detector")
+//			}
+
+
 		}
 	}
 }
@@ -1413,12 +1455,12 @@ class InterpretationTask extends TemporalTask {
 			startTrack("Train")
 			val (trnOfficial,trnAngel) 
 				= Entry.officialEval(sys,data.train.asInstanceOf[Iterable[Annotation]],
-				true,O.tempevalHome,Execution.touch("attr-train.tab"))
+				true,O.tempevalHome,false,Execution.touch("attr-train.tab"))
 			endTrack("Train")
 			startTrack("Eval")
 			val (tstOfficial,tstAngel) 
 				= Entry.officialEval(sys,data.eval.asInstanceOf[Iterable[Annotation]],
-				false,O.tempevalHome,Execution.touch("attr-test.tab"))
+				false,O.tempevalHome,false,Execution.touch("attr-test.tab"))
 			endTrack("Eval")
 			//(print)
 			startTrack("Eval Results")

@@ -6,18 +6,20 @@ The latent parse parallels the formal semantics in previous work,
 	e.g., Montague semantics.
 Like these representations, a parse -- in conjunction with
 	the reference time -- completely defines a set of
-	matching entities, in this case the single grounded time.
+	matching entities, in this case the grounded time.
+The matching times can be thought of as analogous to the entities
+	in a logical model which satisfy a given expression.
 
-%(logic analogy)
-The complexity of parsing temporal expressions as nested function
-	applications is similar to that of parsing to logical forms.
-Whereas the latter involves filtering elements for whom an expression
-	holds true from a logical \textit{model} (in most cases, a database),
-	our model filters and weights the probability of grounded times
-	which are consistent with the given temporal expression.
-Our supervision is in turn analogous to concrete entities in a database:
-	we are not given the latent parse, but only the entities that
-	are ``true'' in the model.
+%%(logic analogy)
+%The complexity of parsing temporal expressions as nested function
+%	applications is similar to that of parsing to logical forms.
+%Whereas the latter involves identifying the truth of statements
+%	in a logical \textit{model} (in most cases, a database),
+%	our model filters and weighs the probability of grounded times
+%	which are consistent with the given temporal expression.
+%Our supervision is in turn analogous to concrete entities in a database:
+%	we are not given the latent parse, but only the entities that
+%	are ``true'' in the model.
 
 %(supervised)
 Supervised approaches to logical parsing prominently include
