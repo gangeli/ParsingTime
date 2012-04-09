@@ -2,7 +2,7 @@
 We define a compositional representation of time; a type system 
 	is described in \refsec{repr-types} while the grammar is outlined in
 	\refsec{repr-compositional} and described in detail in 
-	\refsecs{repr-lexicon}{repr-rules}
+	\refsecs{repr-lexicon}{repr-rules}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TEMPORAL EXPRESSIONS
@@ -60,7 +60,7 @@ We define the \textit{reference time} $t$ \cite{key:1947reichenback-temporal}
 For the \tempeval\ corpus, we approximate this as the
 	publication time of the article.
 While this is conflating Reichenbach's reference time with speech time, 
-	it is a useful approximation
+	it is a useful approximation.
 
 %(sequence as distribution)
 To contrast with \ty{Range}s, a \ty{Sequence} can represent a number of grounded
@@ -215,9 +215,10 @@ We construct a paradigm for parsing temporal phrases
 	generated.
 At the root of the tree, we recursively apply the functions in the parse tree
 	to obtain a final temporal \textit{value}.
-One can view this formalism as a constrained Synchronous PCFG
-	\cite{key:2001yamada-syntaxmt}, or a rule-to-rule translation
-	\cite{key:1976bach-semantics}.
+One can view this formalism as a rule-to-rule translation
+	\cite[p.~263]{key:1976bach-semantics,key:1995allen-semantics},
+	or a constrained Synchronous PCFG
+	\cite{key:2001yamada-syntaxmt}.
 
 Our approach contrasts with common approaches, such as CCG grammars 
 	\cite{key:2000steedman-ccg,key:2004bos-ccg,2011kwiatkowski-semantics},
@@ -400,7 +401,7 @@ A total of 62 such preterminals are defined in the implemented system
 	corresponding to primitive entities often appearing in newswire,
 	although this list is easily adaptable to fit other domains.
 It should be noted that the expressions, represented in \te{Typewriter},
-	have no a prior association with words, denoted by \tp{italics};
+	have no a priori association with words, denoted by \tp{italics};
 	this correspondence must be learned.
 Furthermore, entities which are subject to interpretation -- for example
 	\te{Quarter} or \te{Season} -- are given a concrete interpretation.
@@ -453,14 +454,13 @@ These cases are detailed below:
 	\item Intersecting two ranges or sequences, e.g., \tp{November \th{27}}.
 		The intersect function treats both arguments as intervals, and will return
 			an interval (\ty{Range} or \ty{Sequence}) corresponding to the overlap
-			between the two.
-			\footnote{
+			between the two.\footnote{
 				In the case of complex sequences 
 					(e.g., \tp{Friday the \th{13}}) an A$^{*}$
 					search is performed to find overlapping ranges in the two sequences;
 					the origin $r_s(0)$ is updated to refer to the closest such
 					match to the reference time.
-		}.
+			}
 	%(mult)
 	\item Multiplying a \ty{Number} with a \ty{Duration}, e.g., \tp{5 weeks}.
 	%(nil)

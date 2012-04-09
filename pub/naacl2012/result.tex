@@ -83,11 +83,11 @@ Results are summarized in \reftab{results}.
 We compare to three previous rule-based systems.
 %(GUTime)
 \sys{GUTime} \cite{key:2000mani-temporal} presents an older but widely
-	used baseline\footnote{
+	used baseline.\footnote{
 		Due to discrepancies in output formats, 
 			the output of \sys{GUTime} was heuristically patched
 			and manually checked to conform to the expected format.
-	}.
+	}
 %(SuTime)
 More recently, \sys{SUTime} \cite{key:2012chang-temporal} 
 	provides a much stronger comparison.
@@ -168,7 +168,7 @@ Furthermore, we often capture cases of pragmatic ambiguity -- for example,
 We attribute most errors the system makes which rule-based systems would not
 	to either data sparsity or missing lexical primitives.
 For example -- illustrating sparsity -- we have trouble recognizing \tp{Nov.} as corresponding
-	to \te{November} (e.g., \tp{Nov. 13}), since the publication time of the articles happen to
+	to \te{November} (e.g., \tp{Nov.\ 13}), since the publication time of the articles happen to
 	often be near November and we prefer tagging the word as \te{Nil} (analogous to 
 	\tp{the \th{13}}).
 Missing lexical primitives, in turn, include tags for \tp{1990s}, or \tp{half}
