@@ -28,18 +28,18 @@ Revisiting the notion of pragmatic ambiguity,
 	rather than a best guess of its grounding.
 However, it is often advantageous to ground to a concrete expression with a
 	corresponding probability.
-
 % -- Combination Method
 The CKY $k$-best beam and the temporal distribution 
 	-- capturing syntactic and pragmatic ambiguity --
 	can be combined to provide a \textit{Viterbi} decoding, as well as
 	its associated probability.
+
 We define the probability of a syntactic parse $y$ making use of rules 
 	$R \subseteq \sR$ as
 	$P(y) = P(w_1,\dots w_n; R) = \prod_{i \rightarrow j,k \in R}P(j,k \mid i)$.
 	As described in \refsec{repr-types}, we define the probability of a 
 	grounding relative to reference time $t$ and a particular
-	syntactic interpretation as $P_t(i | y)$.
+	syntactic interpretation $P_t(i | y)$.
 The product of these two terms provides the probability of a grounded temporal
 	interpretation; we can obtain a Viterbi decoding by maximizing this
 	joint probability:
@@ -188,10 +188,10 @@ This does not work in our case for two reasons.
 In part, we would like to incorporate the probability of the temporal
 	grounding in our feedback probability.
 Additionally, we are only using parses which are valid candidates -- that is,
-	which ground to the correct time $\tau*$ -- which we cannot establish
+	the parses which ground to the correct time $\tau*$ -- which we cannot establish
 	until the entire expression is parsed.
 %(beams)
-The expected statistics are thus computed non-analytically by use of
+The expected statistics are thus computed non-analytically via
 	a beam on both the possible parses (line \ref{line:parsebeam}) and the
 	possible temporal groundings of a given interpretation (line
 	\ref{line:timebeam}).
@@ -221,9 +221,9 @@ In the Gaussian case, the parameter update for $\sigma$ is the maximum
 	} \\
 	\mu' =&
 		\frac{
-			\sigma^2 \mu_0 + \sigma_0^2 \sum_{(i,p) \in \bar M_{\mu,\sigma}}  i \cdot p
+			\sigma'^2 \mu_0 + \sigma_0^2 \sum_{(i,p) \in \bar M_{\mu,\sigma}}  i \cdot p
 		}{
-			\sigma^2 + \sigma_0^2 \sum_{(i,p) \in \bar M_{\mu,\sigma}} p 
+			\sigma'^2 + \sigma_0^2 \sum_{(i,p) \in \bar M_{\mu,\sigma}} p 
 		}
 \label{eqn:gaussianEM}
 \end{align}

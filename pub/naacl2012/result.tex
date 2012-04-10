@@ -97,8 +97,8 @@ We also compare to \sys{HeidelTime} \cite{key:2010strotgen-temporal},
 
 \Subsection{result-detection}{Detection}
 One of the advantages of our model is that it can provide candidate groundings for any
-	expression, with an associated probability.
-We explore this ability by incorporating a detection model to find candidate temporal
+	expression.
+We explore this ability by building a detection model to find candidate temporal
 	expressions, which we then ground.
 The detection model is implemented as a Conditional Random Field, with features over the
 	morphology and context.
@@ -165,7 +165,8 @@ Furthermore, we often capture cases of pragmatic ambiguity -- for example,
 
 % -- Errors
 %(only us)
-We attribute most errors the system makes which rule-based systems would not
+%We attribute most errors the system makes which rule-based systems would not
+Compared to rule-based systems, we attribute most errors the system makes
 	to either data sparsity or missing lexical primitives.
 For example -- illustrating sparsity -- we have trouble recognizing \tp{Nov.} as corresponding
 	to \te{November} (e.g., \tp{Nov.\ 13}), since the publication time of the articles happen to

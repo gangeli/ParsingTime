@@ -430,23 +430,19 @@ object Interpret {
 				( trainData, testData )
 			}
 			//(script)
-//			val (trainOfficial,trainAngel)
-//				= Entry.officialEval(model,trainData,true,new File(tempevalHome), detect)
-//			log(GREEN,FORCE,"TRAIN official: " + trainOfficial)
-//			log(GREEN,FORCE,"TRAIN angel:    " + trainAngel)
-			val (testOfficial,testAngel)
-				= Entry.officialEval(model,testData,false,new File(tempevalHome), detect)
-			log(GREEN,FORCE,"TEST official: " + testOfficial)
-			log(GREEN,FORCE,"TEST angel:    " + testAngel)
-			System.err.println("" + testOfficial.detectRecall + "\t" + testOfficial.valueAccuracy)
+			val (trainOfficial,trainAngel)
+				= Entry.officialEval(model,trainData,true,new File(tempevalHome), detect)
+			log(GREEN,FORCE,"TRAIN official: " + trainOfficial)
+			log(GREEN,FORCE,"TRAIN angel:    " + trainAngel)
+//			val (testOfficial,testAngel)
+//				= Entry.officialEval(model,testData,false,new File(tempevalHome), detect)
+//			log(GREEN,FORCE,"TEST official: " + testOfficial)
+//			log(GREEN,FORCE,"TEST angel:    " + testAngel)
 		}
 	}
 
 	def main(args:Array[String]) {
-		for(i <- 0.0 until 0.5 by 0.0002){
-			O.interpretThreshold = i
-			run(args)
-		}
+		run(args)
 	}
 }
 

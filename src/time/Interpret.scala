@@ -734,7 +734,7 @@ case class TreeTime(
 		val sent = DataLib.mkTimeSent(span,index,false)
 		//(parse)
 		val (time,original,logProb) = parse(sent,ground)
-		if( math.exp(logProb/(3*sent.length)) > O.interpretThreshold ){
+		if( math.exp(logProb/(3*sent.length)) >= O.interpretThreshold ){
 			//--Annotate
 			val timex = toStanfordTimex(time,original)
 			log("annotated "+sent+" as "+timex)

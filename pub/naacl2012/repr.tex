@@ -45,12 +45,12 @@ A \ty{Sequence} is a tuple of three elements
 	\item \seqjump:
 		The \textit{distance} between two elements in the sequence -- approximated
 			if this distance is not constant.
-		In the case of \te{Friday}, this distance would be a \te{Week}.
+		In the case of \te{Friday}, this distance would be a week.
 	\item \seqcanon:
 		The \textit{containing unit} of an element of a sequence.
 		For example, \seqcanonX{Friday} would be the \ty{Range}
 			corresponding to \tp{the current week}.
-		The sequence index $i \in \BZ$ is defined relative to $\seqelem(0)$ --
+		The sequence index $i \in \BZ$ in $\seqelem(i)$ is defined relative to $\seqelem(0)$ --
 			the element in the same containing unit as the reference time.
 \end{enumerate}
 
@@ -226,8 +226,8 @@ Our approach contrasts with common approaches, such as CCG grammars
 \reffig{grammar} shows an example of the grammar.
 
 %(formal definition)
-Formally, we define a grammar
-	$G = \left(\Sigma,S,\sV,\sW,\sR,\theta\right)$.
+Formally, we define our temporal grammar
+	\mbox{$G=\left(\Sigma,S,\sV,\sW,\sR,\theta\right)$}.
 The alphabet $\Sigma$ and start symbol $S$ retain their usual interpretations.
 %(nonterminals)
 We define a set $\sV$ to be the set of types, as described in
@@ -241,9 +241,9 @@ Each node in the tree defines a pair $(v,w)$ such that $w \in W_v$,
 	on $w$.
 
 %(rules)
-A rule $R \in \sR$ is defined as a pair 
-	$R = \left(v_i \rightarrow v_jv_k, 
-		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$.
+A rule \mbox{$R \in \sR$} is defined as a pair 
+	\mbox{$R = \left(v_i \rightarrow v_jv_k, 
+		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$}.
 The first term is our conventional PCFG rule over the types $\sV$.
 The second term defines the function to apply to the values returned
 	recursively by the child nodes.
@@ -397,7 +397,7 @@ A distinction is made in our description between entities with
 % -- Content
 The first -- consisting of \ty{Range}s, \ty{Sequence}s, and \ty{Duration}s --
 	are listed in \reftab{content}.
-A total of 62 such preterminals are defined in the implemented system
+A total of 62 such preterminals are defined in the implemented system,
 	corresponding to primitive entities often appearing in newswire,
 	although this list is easily adaptable to fit other domains.
 It should be noted that the expressions, represented in \te{Typewriter},
@@ -425,7 +425,7 @@ Additionally, a sequence can be modified by shifting its origin
 % -- Other
 The lexical entry for the \ty{Nil} type is tagged with the word it
 	generates, producing entries such as \ty{Nil(a)}, \ty{Nil(November)}, etc.
-The lexical entry for the \ty{Number} type is further parameterized by
+The lexical entry for the \ty{Number} type is parameterized by
 	the order of magnitude and ordinality of the number; e.g.,
 	\th{27} becomes \ty{Number($10^1$,ordinal)}.
 
@@ -446,7 +446,7 @@ These cases are detailed below:
 \begin{itemize}
 	\item Function application, e.g., \tp{last week}.
 		We apply (or partially apply) a function to an argument
-			on either the left or the right -- $f(x,y) \odot x$ or $x \odot f(x,y)$.
+			on either the left or the right: $f(x,y) \odot x$ or $x \odot f(x,y)$.
 		Furthermore, for functions of arity 2 taking a \ty{Range} as an argument,
 			we define a rule treating it as a unary function with the reference time
 			taking the place of the second argument.
