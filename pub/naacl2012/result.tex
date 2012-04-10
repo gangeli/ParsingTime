@@ -100,8 +100,8 @@ One of the advantages of our model is that it can provide candidate groundings f
 	expression.
 We explore this ability by building a detection model to find candidate temporal
 	expressions, which we then ground.
-The detection model is implemented as a Conditional Random Field, with features over the
-	morphology and context.
+The detection model is implemented as a Conditional Random Field \cite{key:2001lafferty-crf}, 
+	with features over the morphology and context.
 Particularly, we define the following features:
 \begin{itemize}
 \item The word and lemma within 2 of the current word.
@@ -148,6 +148,8 @@ Particularly, we define the following features:
 We summarize our results in \reftab{detection}, noting that the performance indicates that
 	the CRF and interpretation model find somewhat different phrases hard to detect and
 	interpret respectively.
+Many errors made in detection are attributable to the small size of the training
+	corpus (63,000 tokens).
 
 \Subsection{result-error}{Discussion}
 % -- Our Results
