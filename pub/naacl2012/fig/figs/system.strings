@@ -1,0 +1,37 @@
+Input (\phrase,$t$)
+(
+\textit{Last Friday the 13 th}
+,
+\texttt{May 16 2011}
+)
+
+Latent
+parse
+\latent
+\texttt{\darkred{moveLeft1}}(
+\darkred{\texttt{FRI}}
+)
+$\cap$
+\darkred{$13^{\textrm{th}}$}
+\textit{}
+\texttt{\darkred{moveLeft1}}(
+\darkred{\texttt{FRI}}
+)
+\textit{}
+\texttt{\darkred{moveLeft1$(-)$}}
+\textit{}
+\textit{\darkgreen{last}}
+\darkred{\texttt{FRI}}
+\textit{}
+\textit{\darkgreen{friday}}
+\darkred{$13^{\textrm{th}}$}
+\textit{}
+\textsf{Nil$_\textsf{the}$}
+\textit{}
+\textit{\darkgreen{the}}
+\darkred{$13^{\textrm{th}}$}
+\textit{}
+\textit{\darkgreen{13$^{\textrm{th}}$}}
+
+Output \grounded
+\texttt{May 13 2011}
