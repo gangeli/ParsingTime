@@ -23,12 +23,80 @@ Scala 2.9.1
 JavaNLP April 9 2012
 
 Most experiments can be run with something in the rc file
-	interpret: run the interpretation model (last valid run)
-	interpretAux: run the interpretation model (good parameters)
-	sutimeInterpret: run SUTime
-	heideltimeInterpret: run HeidelTime
-	gutimeInterpret: run GUTime
+  interpret: run the interpretation model (last valid run)
+  interpretAux: run the interpretation model (good parameters)
+  sutimeInterpret: run SUTime
+  heideltimeInterpret: run HeidelTime
+  gutimeInterpret: run GUTime
 
-	detect: run the detection model (last valid run)
+  detect: run the detection model (last valid run)
 
 run configuration for publication run is in ./run
+
+----------
+TOUR
+----------
+Some key classes are explained below. This is not an exhaustive list, but
+  hopefully can help give a sense for the code.
+
+Data.scala: Utilities for working with tempeval data, or the CoreMaps created
+            from them
+  class TimeDataset: holds the CoreMaps corresponding to the raw data
+  object DataLib:    utilities for working with the data
+
+Detect.scala: Code for the detection model
+  class CRFFeatures: the definition of the features used
+  class CRFDetector: the class which performs and aggregates the detections
+  class DetectionDatum: encapsulates the input information for detecting a
+    time during training
+  class CoreMapDetectionStore: the dataset used for detection; handles
+    iterating over the data
+  class DetectionTask: trains the CRF detection module
+
+Entry.scala: General purpose code and main methods
+  class Indexing: handles moving between strings and ints for POS and words
+  object G: general utility fields
+  object U: general utility functions
+  class TimeSent: Embodies a sentence sent to the CKY parser
+  trait DataStore: interface for a block of data (train/dev/test)
+  *object Interpret: MAIN for running interpretation or detection for
+    either our system or another system (via a CoreNLP Annotator)
+  *object Entry: MAIN for training the models; this is the usual entry
+    point for the program, when not evaluating
+
+Gigaword.scala: Some old code to try to get more training instances from
+                automatically parsed data
+
+Interpret.scala: Most of the code for the interpretation model lives here
+  class Grammar: defines the grammar used in CKY parsing
+  object Grammar: creates the actual temporal grammar
+  *class TreeTime: MODEL this is our model, which can be serialized and loaded.
+    It is also a CoreNLP annotator, and does both detection and interpretation.
+  class InterpretationTask: The code for training the interpretation model
+
+O.java: All the options for training the model(s). Some of these may be dead
+
+Tempeval2.scala: Code for processing the TempEval data into CoreMaps
+
+Temporal.scala: The temporal representation
+  trait Temporal: all temporal representations subclass this
+  trait Range: all ranges subclass this (see paper)
+  trait Duration: all durations subclass this (see paper)
+  trait Sequence: all sequences subclass this (see paper). Note that it is
+    both a Range and a Duration as well
+  class Time: a point in time
+
+  class GroundedRange: the conventional begin-to-end range (e.g., 1998)
+  class UngroundedRange: a 'floating' range (e.g., today)
+  class GroundedDuration: the conventional x-milliseconds type of duration
+  class FuzzyDuration: an approximate duration
+  class RepeatedRange: the standard range-every-n-milliseconds type of sequence
+  class CompositeRange: a complex sequence that we can't evaluate analytically
+  class NoTime: returned when an invalid operation is performed and no such
+    time actually exists (e.g., Feb 30)
+  class UnkTime: a time that we can't represent
+
+  object Range: utility functions for handling ranges, notably intersecting
+  *object Time: MAIN for running an interactive shell for evaluating temporal
+    expressions. This is actually kind of a nifty domain specific language.
+  object Lex: the definitions of times used in the grammar
