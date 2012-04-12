@@ -31,7 +31,13 @@ Most experiments can be run with something in the rc file
 
   detect: run the detection model (last valid run)
 
-run configuration for publication run is in ./run
+Models
+	dist/time.jar: the program
+	dist/interpretModel.ser.gz: serialized temporal interpretation model
+	dist/detectModel.ser.gz: serialized temporal detection model (includes
+	                         interpretation model)
+	dist/log.gz: the log from the run producing interpretModel.ser.gz
+	dist/options: the command line options from the run
 
 ----------
 TOUR
