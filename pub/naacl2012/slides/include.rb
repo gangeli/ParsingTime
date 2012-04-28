@@ -3,6 +3,21 @@
 require 'figlib.rb'
 require 'rfig/FigureSet'
 
+def blank(cond, txt)
+	if(cond) then
+		_(txt)
+	else
+		_(txt).color(white)
+	end
+end
+
+def move(num, *args)
+	overlay(
+		overlay(*args.map{ |term| term ? _(term).color(white) : nil }),
+		num ? args[num] : nil,
+	nil)
+end
+
 def pastelred; Value.color(140.0 / 255, 84.0 / 255, 84.0 / 255); end
 
 def outline(item=nil)
@@ -91,4 +106,70 @@ end
 
 def defn(header, txt)
 	ctable(_(header).color(darkred).bold, txt).cmargin(u(0.2))
+end
+
+def h1(txt); _(txt).bold.color(darkred); end
+def h2(txt); ind("\\darkblue{#{txt}}"); end
+
+
+def sys(input=0,output=false,latent=false,latentParse=false)
+	inputTxt = '\darkblue{Input (\darkgreen{\textbf{\phrase}},\blue{\textbf{$t$}})}'
+	table(
+		#(input)
+		[
+			inputTxt,
+			ctable(
+				blank(input,'('),
+				move(input,phrase('phrase'),phrase('Last Friday the 13th')),
+				blank(input,','),
+				move(input,ground('reference'),ground('May 16 2011')),
+				blank(input,')'),
+			nil).center,
+		nil],
+		['',darrow],
+		#(parse)
+		[
+			rtable(
+				blank(latent, _('Latent').color(darkred)),
+				blank(latent, _('parse').color(darkred)),
+				blank(latent, _('\latent').color(darkred)),
+			nil).cjustify('c'),
+			blank(latentParse, lastFriday_13.scale(0.75)),
+		nil],
+		['',darrow],
+		#(output)
+		[
+			blank(output, '\darkblue{Output \darkred{\textbf{\grounded}}}'),
+			move(output, time('normalized time'), time('May 13 2011')),
+		nil],
+	nil).cjustify('c').rjustify('c').rmargin(u(0.3)).cmargin(u(0.5))
+end
+
+def relatedParsing(state=nil)
+	rtable(
+		ind(ind(move(state,
+			'\darkred{Zelle \& Mooney (1996), Zettlemoyer \& Collins (2005/2007)}',
+			'Zelle \& Mooney (1996), Zettlemoyer \& Collins (2005/2007)',
+			'Zelle \& Mooney (1996), Zettlemoyer \& Collins (2005/2007)'
+		))), 
+		ind(ind(ctable(
+			move(state,'\darkred{Kate et al. (2005)},', 'Kate et al. (2005),', 'Kate et al. (2005),'),
+			move(state,
+				'Clarke et al. (2010), Liang et al. (2011)',
+				'\darkred{Clarke et al. (2010), Liang et al. (2011)}',
+				'Clarke et al. (2010), Liang et al. (2011)'),
+		nil)))
+	)
+end
+def relatedSemantics(state=nil)
+	rtable(
+		ind(ind(move(state,
+			'\darkred{Mani \& Wilson (2000), Saquete et al. (2003), Puscasu (2004)}',
+			'Mani \& Wilson (2000), Saquete et al. (2003), Puscasu (2004)',
+			nil))),
+		ind(ind(ctable(
+			move(state,'\darkred{Grover et al. (2010)},', 'Grover et al. (2010),'),
+			move(state, 'Str\"{o}tgen and Gertz (2010)', '\darkred{Str\"{o}tgen and Gertz (2010)}')))),
+		ind(ind(move(state, 'Chang and Manning (2012)', '\darkred{Chang and Manning (2012)}'))),
+	nil)
 end

@@ -41,7 +41,7 @@ slide!('',
 		nil).cmargin(u(0.5)),
 	nil).rmargin(u(0.75)).cjustify('c'),
 	left,
-nil){ |slide| slide.label('title').signature(31) }
+nil){ |slide| slide.label('intro_title').signature(31) }
 
 ################################################################################
 # OUTLINE
@@ -51,7 +51,7 @@ slide!('Outline',
 		outline(nil),
 		outline(0),
 	nil),
-nil){ |slide| slide.label('outline').signature(9) }
+nil){ |slide| slide.label('intro_outline').signature(9) }
 
 ################################################################################
 # EXAMPLE
@@ -77,7 +77,39 @@ slide!('Example',
 	ind('But, often incomplete information').level(3),
 	ind('Incorporate a \ground{reference time}').level(4),
 	ind('Sneak Peek: ambiguity in \tp{next week}').level(5),
-nil){ |slide| slide.label('motivation').signature(88) }
+nil){ |slide| slide.label('motivation_example').signature(91) }
+
+################################################################################
+# MOTIVATION
+################################################################################
+slide!('Motivation',
+	h1('Related Work'),
+	h2('\textbf{[Semantic] Parsing}'),
+	staggeredOverlay(true,
+		relatedParsing(2),
+		relatedParsing(0),
+		relatedParsing(1),
+		relatedParsing(2),
+	nil),
+	h2('\textbf{Temporal Interpretation}'),
+	staggeredOverlay(true,
+		relatedSemantics(0),
+		relatedSemantics(1),
+	nil),
+nil){ |slide| slide.label('motivation_motiv').signature(30) }
+
+################################################################################
+# SYSTEM
+################################################################################
+slide!('System',
+nil){ |slide| slide.label('motivation_system').signature(47) }
+
+################################################################################
+# REPRESENTATION
+################################################################################
+slide!('Outline',
+	outline(1),
+nil){ |slide| slide.label('representation_outline').signature(9) }
 
 
 

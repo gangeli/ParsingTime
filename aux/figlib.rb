@@ -40,11 +40,11 @@ class Parse
 	#-----
 	def head(term,prob)
 		if prob then
-		rtable(
-			term,
-			scale(0.5),
-			_("\\textit{#{prob}}").color(grey),
-		nil).center.rmargin(u(0.0))
+			rtable(
+				term,
+				scale(0.5),
+				_("\\textit{#{prob}}").color(grey),
+			nil).center.rmargin(u(0.0))
 		else
 			_(term)
 		end
@@ -83,6 +83,7 @@ class Parse
 	#-----
 	# RENDER
 	#-----
+
 	def constituency
 		def subTree(lst,probs) #[tree, root, [[edge_begin,edge_end], ...]
 			if not lst.is_a? Array then
@@ -192,13 +193,13 @@ def rarrow; image('img/rarrow.jpg').scale(0.05); end
 # Lex
 ##########
 #--Functions
-def calendar(txt,img='img/clocks.png')
+def calendar(txt,img='img/months.png')
 	ctable(
 		image(img).scale(0.025),
 		time(txt),
 	nil)
 end
-def clock(txt,img='img/months.png')
+def clock(txt,img='img/times.png')
 	ctable(
 		image(img).scale(0.1),
 		time(txt),
@@ -335,14 +336,14 @@ end
 
 def lastFriday_13
 	Parse.new(
-		[intersect( ctable('\texttt{\darkred{moveLeft1}}(',friday,')'), dom(13) ),
+		[intersect( ctable('\texttt{\darkred{moveLeft1}}(',friday,')'), dom(13,'th') ),
 			[ctable('\texttt{\darkred{moveLeft1}}(',friday,')'),
 				['\texttt{\darkred{moveLeft1$(-)$}}','\darkgreen{last}'],
-				[friday,'\darkgreen{friday}'],
+				[friday,'\darkgreen{Friday}'],
 			],
-			[dom(13),
+			[dom(13,'th'),
 				['\textsf{Nil$_\textsf{the}$}','\darkgreen{the}'],
-				[dom(13),'\darkgreen{13$^{\textrm{th}}$}'],
+				[dom(13,'th'),'\darkgreen{13$^{\textrm{th}}$}'],
 			],
 		]
 	).constituency
