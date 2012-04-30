@@ -219,11 +219,11 @@ slide!('Grammar Of Time',
 	h1(hourglass('Duration')),
 	'',
 	pause,
-	h1('Functions'),
+	h1(time('Functions')),
 	'',
-	h1('Number'),
+	h1(time('Number')),
 	'',
-	h1('Nil (no temporal meaning)'),
+	h1(time('Nil (no temporal meaning)')),
 nil){ |slide| slide.label('representation_type_overview').signature(12) }
 
 ################################################################################
@@ -254,7 +254,7 @@ slide!('Grammar Of Time',
 	ind('A sequence of Ranges (not necessarily at regular intervals)'),
 	'',
 	pause,
-	ind('34 lexical values, e.g.: \te{Friday}, \te{Saturday}, \te{January},'),
+	ind('44 lexical values, e.g.: \te{Friday}, \te{Saturday}, \te{January},'),
 	ind(ind('\te{DayOfMonth}, \te{DayOfWeek}, \te{WeekOfYear},')),
 	ind(ind('\te{EveryDay}, \te{EveryWeek}, \te{year$(n)$}, \te{century$(n)$}')),
 	'',
@@ -312,12 +312,91 @@ slide!('Grammar Of Time',
 	'',
 	pause,
 	ind('Also, e.g., \tp{2 weeks}, \tp{10 years}'),
-	'',
-	pause,
-	ind('10 more \textit{approximate} durations, e.g., for \tp{some weeks}'),
 
 nil){ |slide| slide.label('representation_duration').signature(10) }
 
+################################################################################
+# FUNCTION
+################################################################################
+slide!('Grammar Of Time',
+	h1Grey(mcal('Range')),
+	h1Grey(calendar('Sequence')),
+	h1Grey(hourglass('Duration')),
+	h1(time('Functions')),
+	ind('General sequence and interval operations'),
+	'',
+	pause,
+	ind('10 lexical values'),
+	ind(ind('Shift a range/sequence by a duration')),
+	ind(ind('Move the origin of a sequence')),
+	ind(ind('Take the \th{$n$} element of a sequence')),
+	ind(ind('$\dots$')),
+nil){ |slide| slide.label('representation_function').signature(2) }
+
+################################################################################
+# NUMBER
+################################################################################
+slide!('Grammar Of Time',
+	h1Grey(mcal('Range')),
+	h1Grey(calendar('Sequence')),
+	h1Grey(hourglass('Duration')),
+	h1Grey(time('Functions')),
+	h1(time('Number')),
+	ind('A number, characterized by its ordinality and magnitude'),
+nil){ |slide| slide.label('representation_number').signature(1) }
+
+################################################################################
+# NIL
+################################################################################
+slide!('Grammar Of Time',
+	h1Grey(mcal('Range')),
+	h1Grey(calendar('Sequence')),
+	h1Grey(hourglass('Duration')),
+	h1Grey(time('Functions')),
+	h1Grey(time('Number')),
+	h1(time('Nil')),
+	ind('A word without direct temporal meaning'),
+	pause,
+	ind('Lexicalized: e.g., \te{Nil-the}, \te{Nil-a}'),
+	pause,
+	ind(ind(phrase('a week'))),
+	ind(ind(phrase('the week'))),
+nil){ |slide| slide.label('representation_nil').signature(3) }
+
+################################################################################
+# LEARNING
+################################################################################
+slide!('Outline',
+	outline(2),
+nil){ |slide| slide.label('learn_outline').signature(0) }
+
+################################################################################
+# TRAINING SETUP
+################################################################################
+slide!('Training Setup',
+	#(training)
+	h1('At training'),
+	ind(staggeredOverlay(true,
+			ctable('Given ', '$\left\{\right.($','$x$',',',time('$y$'), '$)\left.\right\}$'),
+			ctable('Given ',
+				'$\left\{\right.($',ctable('(',phrase('Phrase'),',',ground('Reference'),')'),
+				',',time('Time'),'$)\left.\right\}$'),
+		nil)),
+	pause,
+	ind('\textbf{Not} given latent parse'),
+	ind('\textbf{Not} given lexical cues'),
+
+	#(ambiguity)
+	pause,
+	ind('Therefore, in general, latent parse is ambiguous'),
+	ind(ind(ctable('( (',phrase('w$_1$ w$_2$'),',',ground('June 5, 2011'),') , ',time('June 12, 2011'), ')'))),
+	#(ambiguity figure)
+	center,
+	'',
+	pause,
+	ambiguous,
+	left,
+nil){ |slide| slide.label('learn_setup').signature(11) }
 
 
 ################################################################################
