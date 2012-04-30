@@ -29,6 +29,30 @@ def describe(*rows)
 	}).cmargin(u(1.0)).rmargin(u(0.2)).rjustify('c')
 end
 
+def blank(cond, txt)
+	if(cond) then
+		_(txt)
+	else
+		_(txt).color(white)
+	end
+end
+
+def move(num, *args)
+	elems = []
+	args.each_with_index{ |term,i|
+		if(i != num and term) then
+			elems << _(term).color(white)
+		end
+	}
+	elems << (num ? args[num] : nil)
+	centeredOverlay(*elems)
+end
+
+def heat(value)
+	Value.color(1.0, 1.0-value, 0.0)
+
+end
+
 ################################################################################
 # PARSE CLASS
 ################################################################################
@@ -52,20 +76,23 @@ class Parse
 	def leaf(a)
 		_("\\textit{#{a}}")
 	end
-	def node(*args)
+	def node(rspace,cspace,thickness,*args)
 		def vert(*args)
-			rtable(*args).center.rmargin(u(0.20))
+			rtable(*args).center.rmargin(u(0.40))
 		end
 		def horiz(*args)
-			ctable(*args).cmargin(u(0.25))
+			ctable(*args).cmargin(u(0.40))
 		end
 		vert(*[args[0], horiz(*args[1..-1])])
 	end
 	def synedge(a,b)
+		if(a.getColor == white) then
+			puts "-----_HERE"
+		end
 		path(
 			tdown(a).post{ |x| x.add(upair(0.0,0.00)) },
-			tup(b).post{ |x| x.add(upair(0.0,0.05)) }
-			).arrow
+			tup(b).post{ |x| x.add(upair(0.0,0.10)) }
+			).arrow.thickness(2)
 	end
 
 	public
@@ -84,14 +111,20 @@ class Parse
 	# RENDER
 	#-----
 
-	def constituency
-		def subTree(lst,probs) #[tree, root, [[edge_begin,edge_end], ...]
+	def constituency(args={})
+		#--Arguments
+		rspace = args[:rspace] ? args[:rspace] : 0.4
+		cspace = args[:cspace] ? args[:cspace] : 0.4
+		thickness = args[:thickness] ? args[:thickness] : 2
+		visibleEdges = args[:visibleEdges]
+		#--Recursive Function
+		def subTree(lst,probs,rspace,cspace,thickness,visibleEdges) 
+				#return [isVisible, tree, root, [[edge_begin,edge_end], ...]
 			if not lst.is_a? Array then
 				raise "Lex mismatch: #{probs} != #{lst}" if probs and not probs == lst
 				leaf = leaf(lst)
-				[leaf,leaf,[]] # base case
+				[true,leaf,leaf,[]] # base case
 			else
-				#--Argument Parse
 				raise "Too few arguments in tree #{lst}" if lst.length == 0
 				#(head)
 				head = head(lst[0],probs ? probs[0] : "")
@@ -99,23 +132,32 @@ class Parse
 				rec = (1...lst.length).map{ |i| 
 					term = lst[i]
 					subprobs = probs ? probs[i] : nil
-					subTree(term,subprobs) 
+					subTree(term,subprobs,rspace,cspace,thickness,visibleEdges) 
 				}
-				children = rec.map{ |tuple| tuple[0] }
-				edges = rec.map{ |tuple| [head,tuple[1]] }
-				rec.each{ |tuple| tuple[2].each{ |e| edges << e } } # add new edges
-				#--Render Return
+				#(determine if visible)
+				isVisible = true
+				if(visibleEdges)
+					isVisible = (rec.all?{ |tuple| tuple[0] } and visibleEdges[lst[0]])
+				end
+				#(create recursive info)
+				children = rec.map{ |tuple| tuple[1] }
+				edges = isVisible ? rec.map{ |tuple| [head,tuple[2]] } : [] # add these edges
+				rec.each{ |tuple| tuple[3].each{ |e| edges << e } } # add recursive edges
+				#(return)
 				[
-					node(*[head,*children]),
+					isVisible,
+					node(rspace,cspace,thickness,*[head,*children]),
 					head,
 					edges
 				]
 			end
 		end
-		info = subTree(@input,@probs)
-		tree = info[0]
-		root = info[1]
-		edges = info[2]
+		#--Start And Render
+		info = subTree(@input,@probs,rspace,cspace,thickness,visibleEdges)
+		isVisible = info[0]
+		tree = info[1]
+		root = info[2]
+		edges = info[3]
 		overlay(tree, *edges.map{ |pair| synedge(*pair) })
 	end
 
@@ -149,7 +191,7 @@ end
 # Macros
 ##########
 #--Entity Types
-def phrase(txt); _("\\textit{#{txt}}").color(darkgreen); end
+def phrase(txt); _("\\darkgreen{\\textit{#{txt}}}"); end
 def ground(time); _("\\texttt{#{time}}").color(blue); end
 def time(time); _("\\texttt{#{time}}").color(darkred); end
 def now; time('$x$'); end
@@ -197,13 +239,25 @@ def calendar(txt,img='img/months.png')
 	ctable(
 		image(img).scale(0.025),
 		time(txt),
-	nil)
+	nil).rjustify('c')
+end
+def mcal(txt,img='img/calendar.png')
+	ctable(
+		image(img).scale(0.4),
+		time(txt),
+	nil).rjustify('c')
 end
 def clock(txt,img='img/times.png')
 	ctable(
 		image(img).scale(0.1),
 		time(txt),
-	nil)
+	nil).rjustify('c')
+end
+def hourglass(txt,img='img/hourglass.png')
+	ctable(
+		image(img).scale(0.08),
+		time(txt),
+	nil).rjustify('c')
 end
 
 #--DOM
@@ -265,13 +319,13 @@ def nov; mon('NOV'); end
 def second;  clock('SEC'); end
 def minute;  clock('MIN'); end
 def hour;    clock('HOUR'); end
-def day;     calendar('DAY'); end
-def week;    calendar('WEEK'); end
-def month;   calendar('MONTH'); end
-def quarter; calendar('QUARTER'); end
-def year;    calendar('YEAR'); end
-def decade;  calendar('DECADE'); end
-def century; calendar('CENTURY'); end
+def day;     hourglass('DAY'); end
+def week;    hourglass('WEEK'); end
+def month;   hourglass('MONTH'); end
+def quarter; hourglass('QUARTER'); end
+def year;    hourglass('YEAR'); end
+def decade;  hourglass('DECADE'); end
+def century; hourglass('CENTURY'); end
 
 ##########
 # Function Lex
@@ -334,6 +388,13 @@ end
 # Trees
 ##########
 
+def type(name)
+	_("\\texttt{#{name}}")
+end
+def value(*name)
+	ctable(*name).rjustify('c').color(darkred)
+end
+
 def lastFriday_13
 	Parse.new(
 		[intersect( ctable('\texttt{\darkred{moveLeft1}}(',friday,')'), dom(13,'th') ),
@@ -347,4 +408,43 @@ def lastFriday_13
 			],
 		]
 	).constituency
+end
+
+def last2days(args={})
+	#(arguments)
+	last = args[:last]
+	two = args[:two]
+	days = args[:days]
+	twodays = args[:twodays]
+	lasttwodays = args[:lasttwodays]
+	change = args[:change]
+	#(objects)
+	objLastTwoDays = nil
+  objTwoDays     = nil 
+  objLast        = nil
+  objTwo         = nil
+  objDays        = nil
+	#(parse)
+	parse = Parse.new(
+		[objLastTwoDays = move(lasttwodays, type('Range'), value('\texttt{takeLeft}$($', 2, '$\times$', day, '$)$')),
+			[objLast = move(last, type('$f:$ Duration$\rightarrow$Range'), value('\texttt{takeLeft}$($--$)$')), 
+				phrase('last')],
+			[objTwoDays = move(twodays, type('Duration'), value(2,'$\times$',day)),
+				[objTwo = move(two, type('Number'), value('2')), 
+					change ? phrase('\textbf{3}') : phrase('2')],
+				[objDays = move(days, type('Duration'), day), 
+					change ? phrase('\textbf{months}') : phrase('days')]
+			]
+		]
+	)
+	#(visible arcs)
+	visibleEdges = {
+		objLastTwoDays => lasttwodays,
+		objTwoDays     => twodays,
+		objLast        => last,
+		objTwo         => two,
+		objDays        => days
+	}
+	#(render)
+	parse.constituency( :visibleEdges => visibleEdges )
 end

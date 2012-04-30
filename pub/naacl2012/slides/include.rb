@@ -3,20 +3,6 @@
 require 'figlib.rb'
 require 'rfig/FigureSet'
 
-def blank(cond, txt)
-	if(cond) then
-		_(txt)
-	else
-		_(txt).color(white)
-	end
-end
-
-def move(num, *args)
-	overlay(
-		overlay(*args.map{ |term| term ? _(term).color(white) : nil }),
-		num ? args[num] : nil,
-	nil)
-end
 
 def pastelred; Value.color(140.0 / 255, 84.0 / 255, 84.0 / 255); end
 
@@ -109,6 +95,7 @@ def defn(header, txt)
 end
 
 def h1(txt); _(txt).bold.color(darkred); end
+def h1Grey(txt); _(txt).bold.color(gray); end
 def h2(txt); ind("\\darkblue{#{txt}}"); end
 
 
@@ -126,7 +113,7 @@ def sys(input=0,output=false,latent=false,latentParse=false)
 				blank(input,')'),
 			nil).center,
 		nil],
-		['',darrow],
+		[blank(latent,darrow),''],
 		#(parse)
 		[
 			rtable(
@@ -136,7 +123,7 @@ def sys(input=0,output=false,latent=false,latentParse=false)
 			nil).cjustify('c'),
 			blank(latentParse, lastFriday_13.scale(0.75)),
 		nil],
-		['',darrow],
+		[blank(latent,darrow),''],
 		#(output)
 		[
 			blank(output, '\darkblue{Output \darkred{\textbf{\grounded}}}'),
@@ -163,13 +150,19 @@ def relatedParsing(state=nil)
 end
 def relatedSemantics(state=nil)
 	rtable(
-		ind(ind(move(state,
-			'\darkred{Mani \& Wilson (2000), Saquete et al. (2003), Puscasu (2004)}',
-			'Mani \& Wilson (2000), Saquete et al. (2003), Puscasu (2004)',
-			nil))),
+		ind(ind('Mani \& Wilson (2000), Saquete et al. (2003), Puscasu (2004)')),
 		ind(ind(ctable(
-			move(state,'\darkred{Grover et al. (2010)},', 'Grover et al. (2010),'),
-			move(state, 'Str\"{o}tgen and Gertz (2010)', '\darkred{Str\"{o}tgen and Gertz (2010)}')))),
+			'Grover et al. (2010),',
+			move(state, 'Str\"{o}tgen and Gertz (2010),', '\darkred{Str\"{o}tgen and Gertz (2010),}')))),
 		ind(ind(move(state, 'Chang and Manning (2012)', '\darkred{Chang and Manning (2012)}'))),
 	nil)
+end
+
+def nextFridayDistribution(show=[],hilight=[],probs=false)
+	table(
+		[blank(probs,_('0.04').color(heat(0.08))), blank(show.member?(1), time(hilight.member?(1) ? '\textbf{June 02, 2012?}' : 'June 02, 2012' ))],
+		[blank(probs,_('0.24').color(heat(0.48))), blank(show.member?(2), time(hilight.member?(2) ? '\textbf{June 08, 2012?}' : 'June 08, 2012' ))],
+		[blank(probs,_('0.43').color(heat(0.86))), blank(show.member?(3), time(hilight.member?(3) ? '\textbf{June 15, 2012?}' : 'June 15, 2012'))],
+		[blank(probs,_('0.17').color(heat(0.34))), blank(show.member?(4), time(hilight.member?(4) ? '\textbf{June 22, 2012?}' : 'June 22, 2012'))],
+	nil).cmargin(u(0.3))
 end
