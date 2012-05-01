@@ -4,12 +4,6 @@ require 'rfig/Presentation'
 require 'figlib.rb'
 require 'include.rb'
 
-"""
-	Point-based versus Interval-based semantics of time
-	'Temporal Semantics'
-	Look at TempEval2 guidelines
-"""
-
 #--Set Slide Style
 slideStyle = nil
 slideStyle = SlideStyle.new.border(1).borderColor(black)
@@ -41,7 +35,7 @@ slide!('',
 		nil).cmargin(u(0.5)),
 	nil).rmargin(u(0.75)).cjustify('c'),
 	left,
-nil){ |slide| slide.label('intro_title').signature(31) }
+nil){ |slide| slide.label('intro_title').signature(32) }
 
 ################################################################################
 # OUTLINE
@@ -212,11 +206,11 @@ nil){ |slide| slide.label('representation_outline').signature(12) }
 # NONTERMINAL TYPES
 ################################################################################
 slide!('Grammar Of Time',
-	h1(mcal('Range')),
+	h1(range),
 	'',
-	h1(calendar('Sequence')),
+	h1(sequence),
 	'',
-	h1(hourglass('Duration')),
+	h1(duration),
 	'',
 	pause,
 	h1(time('Functions')),
@@ -230,7 +224,7 @@ nil){ |slide| slide.label('representation_type_overview').signature(12) }
 # RANGE
 ################################################################################
 slide!('Grammar Of Time',
-	h1(mcal('Range')),
+	h1(range),
 	ind('A period between two dates (or times)'),
 	'',
 	pause,
@@ -249,8 +243,8 @@ nil){ |slide| slide.label('representation_range').signature(3) }
 # SEQUENCE
 ################################################################################
 slide!('Grammar Of Time',
-	h1Grey(mcal('Range')),
-	h1(calendar('Sequence')),
+	h1Grey(range),
+	h1(sequence),
 	ind('A sequence of Ranges (not necessarily at regular intervals)'),
 	'',
 	pause,
@@ -269,8 +263,8 @@ nil){ |slide| slide.label('representation_sequence').signature(7) }
 # SEQUENCE AMBIGUITY
 ################################################################################
 slide!('Grammar Of Time',
-	h1Grey(mcal('Range')),
-	h1(calendar('Sequence')),
+	h1Grey(range),
+	h1(sequence),
 	#(answer)
 	ind('\green{Answer:} We\'re referring to all of them! (Kind of$\dots$)'),
 	#(distribution)
@@ -301,9 +295,9 @@ nil){ |slide| slide.label('representation_sequence_ambiguity').signature(19) }
 # DURATION
 ################################################################################
 slide!('Grammar Of Time',
-	h1Grey(mcal('Range')),
-	h1Grey(calendar('Sequence')),
-	h1(hourglass('Duration')),
+	h1Grey(range),
+	h1Grey(sequence),
+	h1(duration),
 	ind('A period of time'),
 	'',
 	pause,
@@ -319,9 +313,9 @@ nil){ |slide| slide.label('representation_duration').signature(10) }
 # FUNCTION
 ################################################################################
 slide!('Grammar Of Time',
-	h1Grey(mcal('Range')),
-	h1Grey(calendar('Sequence')),
-	h1Grey(hourglass('Duration')),
+	h1Grey(range),
+	h1Grey(sequence),
+	h1Grey(duration),
 	h1(time('Functions')),
 	ind('General sequence and interval operations'),
 	'',
@@ -337,9 +331,9 @@ nil){ |slide| slide.label('representation_function').signature(2) }
 # NUMBER
 ################################################################################
 slide!('Grammar Of Time',
-	h1Grey(mcal('Range')),
-	h1Grey(calendar('Sequence')),
-	h1Grey(hourglass('Duration')),
+	h1Grey(range),
+	h1Grey(sequence),
+	h1Grey(duration),
 	h1Grey(time('Functions')),
 	h1(time('Number')),
 	ind('A number, characterized by its ordinality and magnitude'),
@@ -349,9 +343,9 @@ nil){ |slide| slide.label('representation_number').signature(1) }
 # NIL
 ################################################################################
 slide!('Grammar Of Time',
-	h1Grey(mcal('Range')),
-	h1Grey(calendar('Sequence')),
-	h1Grey(hourglass('Duration')),
+	h1Grey(range),
+	h1Grey(sequence),
+	h1Grey(duration),
 	h1Grey(time('Functions')),
 	h1Grey(time('Number')),
 	h1(time('Nil')),
@@ -375,28 +369,216 @@ nil){ |slide| slide.label('learn_outline').signature(0) }
 ################################################################################
 slide!('Training Setup',
 	#(training)
-	h1('At training'),
-	ind(staggeredOverlay(true,
+	staggeredOverlay(true,
 			ctable('Given ', '$\left\{\right.($','$x$',',',time('$y$'), '$)\left.\right\}$'),
 			ctable('Given ',
 				'$\left\{\right.($',ctable('(',phrase('Phrase'),',',ground('Reference'),')'),
 				',',time('Time'),'$)\left.\right\}$'),
-		nil)),
+		nil),
 	pause,
-	ind('\textbf{Not} given latent parse'),
-	ind('\textbf{Not} given lexical cues'),
+	'\textbf{Not} given latent parse',
+	'\textbf{Not} given lexical cues',
 
 	#(ambiguity)
 	pause,
-	ind('Therefore, in general, latent parse is ambiguous'),
-	ind(ind(ctable('( (',phrase('w$_1$ w$_2$'),',',ground('June 5, 2011'),') , ',time('June 12, 2011'), ')'))),
+	'Therefore, in general, latent parse is ambiguous',
+	ind(ctable('( (',phrase('w$_1$ w$_2$'),',',ground('June 5, 2012'),') , ',time('June 12, 2012'), ')')),
 	#(ambiguity figure)
 	center,
+	'','',
+	pause,
+	staggeredOverlay(true,
+		ambiguousWithText(0),
+		ambiguousWithText(1),
+		ambiguousWithText(2),
+	nil),
+	left,
+	#(conclusion)
+	pause,
+	'Usually, only one of these parses is correct',
+nil){ |slide| slide.label('learn_setup').signature(30) }
+
+################################################################################
+# TIMEM K-BEST
+################################################################################
+slide!('Training: TimEM',
+	emHeaders(0),
+	#(input)
+	pause,
+	center,
+	ctable('( (',phrase('next Tuesday'),',',ground('June 5, 2012'),') , ',time('June 12, 2012'), ')'),
+	#(parses)
 	'',
 	pause,
-	ambiguous,
+	staggeredOverlay(true,
+		kbest,
+		kbest(0),
+	nil),
 	left,
-nil){ |slide| slide.label('learn_setup').signature(11) }
+
+nil){ |slide| slide.label('learn_timem_kbest').signature(23) }
+
+################################################################################
+# TIMEM FILTER
+################################################################################
+slide!('Training: TimEM',
+	emHeaders(1),
+	#(input)
+	center,
+	ctable('( (',phrase('next Tuesday'),',',ground('June 5, 2012'),') , ',time('June 12, 2012'), ')'),
+	#(parses)
+	'',
+	staggeredOverlay(true,
+		kbest(0),
+		kbest(0,true),
+		kbest(1,true),
+	nil),
+nil){ |slide| slide.label('learn_timem_filter').signature(23) }
+
+################################################################################
+# TIMEM UPDATE
+################################################################################
+slide!('Training: TimEM',
+	emHeaders(2),
+	center,
+	ctable('',phrase(''),ground(''),time('')),
+	'',
+	staggeredOverlay(true,
+		kbest(1,true),
+	nil),
+nil){ |slide| slide.label('learn_timem_update').signature(6) }
+
+################################################################################
+# TIMEM UPDATE2
+################################################################################
+slide!('Training: TimEM',
+	emHeaders(2),
+	'','',
+	#(lex)
+	ctable(
+		'\textbf{$\theta_{\textrm{Lex}}$}', larrow, 
+		ambiguiousLex[0], ',', ambiguiousLex[2], ',', ambiguiousLex[4], ',', ambiguiousLex[5],
+		', $\dots$',
+	nil).cmargin(u(0.1)).rjustify('c'),
+	pause,
+	'',
+	#(grammar)
+	ctable(
+		'\textbf{$\theta_{\textrm{Grammar}}$}', larrow, 
+		ambiguiousGrammar[0], ',', ambiguiousGrammar[1], ',', ambiguiousGrammar[2],
+	nil).cmargin(u(0.1)).rjustify('c'),
+	pause,
+	'',
+	#(time)
+	ctable(
+		'\textbf{$\mu_{\textrm{sequence}},\sigma_{\textrm{sequence}}$}', larrow, 
+		ctable(tuesday, '$+ 0$').rjustify('c'),',',
+		ctable(tuesday, '$+ 1$').rjustify('c'),
+	nil).cmargin(u(0.1)).rjustify('c'),
+nil){ |slide| slide.label('learn_timem_update2').signature(22) }
+
+################################################################################
+# RESULTS
+################################################################################
+slide!('Outline',
+	outline(3),
+nil){ |slide| slide.label('results_outline').signature(0) }
+
+################################################################################
+# CORPUS
+################################################################################
+slide!('Dataset',
+	#(corpus)
+	h1('TempEval2'),
+	ind('Newswire annotated for temporal expressions'),
+	pause,
+	ind('Train: 1052 expressions'),
+	ind('Test: 156 expressions'),
+	pause,
+	'','',
+	#(evaluation)
+	h1('Evaluation'),
+	ind('Most likely grounding (e.g., \te{June 5} $\rightarrow$ \te{June 5, 2012})'),
+	pause,
+	ind('\textbf{Type}: Accuracy over result\'s temporal type'),
+	ind(ind(ctable(
+		range('June 5, 2012'), ' $=$ ', range('June 12, 2012'),
+	nil).cmargin(u(0.2)))),
+	'',
+	pause,
+	ind('\textbf{Value}: Accuracy over result\'s value, if types match'),
+	ind(ind(ctable(
+		range('June 5, 2012'), ' $\ne$ ', range('June 12, 2012'),
+	nil).cmargin(u(0.2)))),
+nil){ |slide| slide.label('results_results').signature(5) }
+
+################################################################################
+# NUMBERS
+################################################################################
+slide!('Results',
+	#(other systems)
+	h1('Comparisons'),
+	ind('\textbf{\sys{GUTime}} (Mani and Wilson, 2000)'),
+	ind('\textbf{\sys{SUTime}} (Chang and Manning, 2012)'),
+	ind('\textbf{\sys{HeidelTime}} (Str\"{o}tgen and Gertz, 2010)'),
+	'','',
+	pause,
+	
+	#(results)
+	overlay(
+		h1('Test').level(1),
+		h1('Test').color(white).level(5),
+		h1('Training').level(5),
+	nil),
+	center,
+	staggeredOverlay(true,
+		#(test)
+		results(true,['gutime']),
+		results(true,['gutime','sutime']),
+		results(true,['gutime','sutime','heideltime']),
+		results(true,['gutime','sutime','heideltime','parsingtime']),
+		#(training)
+		results(false,['gutime','sutime','heideltime','parsingtime']),
+	nil),
+	left,
+nil){ |slide| slide.label('results_numbers').signature(33) }
+
+################################################################################
+# CONCLUSION
+################################################################################
+slide!('Conclusion',
+	h1('Learn latent parses for temporal expressions'),
+	ind('Parse over \textit{types}'),
+	ind('EM-like algorithm for learning'),
+	pause,
+	ind('State-of-the-art results'),
+	pause,
+	'',
+	h1('Capture ambiguity elegantly'),
+	ind('\textbf{Syntactic}: \tp{last Friday the \th{13}}'),
+	ind('\textbf{Pragmatic}: \tp{next Friday}'),
+	pause,
+	'',
+	h1('Future directions'),
+	ind('Multilingual support'),
+	pause,
+	ind('Incorporate contextual information'),
+	pause,
+	ind('Similar approach for spacial descriptions?'),
+nil){ |slide| slide.label('conclusion').signature(1) }
+
+################################################################################
+# THANKS
+################################################################################
+slide!('',
+	center,
+	rtable(
+		image('img/logo.jpg').scale(0.25),
+		_('Thank You!').scale(2.0).color(darkred),
+		'(\'bout time...)',
+	nil).rmargin(u(0.75)).cjustify('c'),
+	left,
+nil){ |slide| slide.label('thanks').signature(1) }
 
 
 ################################################################################

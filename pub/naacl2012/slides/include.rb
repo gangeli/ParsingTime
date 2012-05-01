@@ -15,35 +15,6 @@ def ground(time); _("\\texttt{#{time}}").color(blue); end
 def time(time); _("\\texttt{#{time}}").color(darkred); end
 def now; time('$x$'); end
 def w(txt); phrase(txt); end
-#--Time Constructs
-def interval(start,duration,finish)
-	overlay(
-		ctable(
-			rtable(
-				l=_('$\mid$'),
-				_(start).scale(0.75),
-			nil).cjustify('c'),
-			'   ',_(duration).color(white),'   ',
-			rtable(
-				r=_('$\mid$'),
-				_(finish).scale(0.75),
-			nil).cjustify('c'),
-		nil),
-		p=path(tcenter(l),tcenter(r)).thickness(2).color(black),
-		shift( tleft(p).post{ |x| x.add(upair(0.25,0.07)) } ),
-		time(duration).scale(0.75),
-	nil)
-end
-def range(start,finish)
-	interval(time(start),'',time(finish))
-end
-def urange(duration,direction=1)
-	if direction >= 0 then
-		interval(now,duration,'')
-	else
-		interval('',duration,now)
-	end
-end
 #--Arrows
 def darrow; image('img/darrow.jpg').scale(0.05); end
 def uarrow; image('img/uarrow.jpg').scale(0.05); end
@@ -72,7 +43,7 @@ def clock(txt,img='img/times.png')
 		time(txt),
 	nil).rjustify('c')
 end
-def hourglass(txt,img='img/hourglass.png')
+def hourglass(txt,img='img/hourglass_dull.png')
 	ctable(
 		image(img).scale(0.08),
 		time(txt),
@@ -145,6 +116,14 @@ def quarter; hourglass('QUARTER'); end
 def year;    hourglass('YEAR'); end
 def decade;  hourglass('DECADE'); end
 def century; hourglass('CENTURY'); end
+
+#--Types
+def range(txt='Range'); mcal(txt); end
+def duration(txt='Duration'); hourglass(txt); end
+def sequence(txt='Sequence'); calendar(txt); end
+def r; mcal(''); end
+def d; hourglass(''); end
+def s; calendar(''); end
 
 ##########
 # Function Lex
@@ -245,13 +224,13 @@ def last2days(args={})
   objDays        = nil
 	#(parse)
 	parse = Parse.new(
-		[objLastTwoDays = move(lasttwodays, type('Range'), value('\texttt{takeLeft}$($', 2, '$\times$', day, '$)$')),
-			[objLast = move(last, type('$f:$ Duration$\rightarrow$Range'), value('\texttt{takeLeft}$($--$)$')), 
+		[objLastTwoDays = choose(lasttwodays, type('Range'), value('\texttt{takeLeft}$($', 2, '$\times$', day, '$)$')),
+			[objLast = choose(last, type('$f:$ Duration$\rightarrow$Range'), value('\texttt{takeLeft}$($--$)$')), 
 				phrase('last')],
-			[objTwoDays = move(twodays, type('Duration'), value(2,'$\times$',day)),
-				[objTwo = move(two, type('Number'), value('2')), 
+			[objTwoDays = choose(twodays, type('Duration'), value(2,'$\times$',day)),
+				[objTwo = choose(two, type('Number'), value('2')), 
 					change ? phrase('\textbf{3}') : phrase('2')],
-				[objDays = move(days, type('Duration'), day), 
+				[objDays = choose(days, type('Duration'), day), 
 					change ? phrase('\textbf{months}') : phrase('days')]
 			]
 		]
@@ -268,15 +247,121 @@ def last2days(args={})
 	parse.constituency( :visibleEdges => visibleEdges )
 end
 
-def ambiguous
+def ambiguous(cand,gloss=['w$_1$', 'w$_2$'],overlay=true)
+	fn = overlay ? lambda { |cand,*args| choose(cand,*args) } : lambda { |cand,*args| cand ? args[cand] : nil }
+	#(parse)
 	Parse.new(
-		[value('moveRight1$($',tuesday,'$)$'),
-			[value('moveRight1$($\textrm{--}$)$'), phrase('w$_1$')],
-			[value(tuesday),phrase('w$_1$')]
+		#(top)
+		[fn.call(cand,
+			value('moveRight1$($',tuesday,'$)$'),
+			value('moveRight$($',now,',',week,'$)$'),
+			value(tuesday),
+			value('moveLeft1$($',tuesday,'$)$'),
+			value('moveLeft1$($',friday,'$)$'),
+			value('takeLeft$($',week,'$)$'),
+			value('takeRight$($',month,'$)$'),
+			value('moveRight$($',now,',',month,'$)$'),
+			nil),
+			#(left branch)
+			[fn.call(cand,
+				value('moveRight1$($\textrm{--}$)$'), 
+				value('moveRight$($',now,',\textrm{--}$)$'), 
+				value('Nil'), 
+				value('moveLeft1$($\textrm{--}$)$'), 
+				value('moveLeft1$($\textrm{--}$)$'), 
+				value('takeLeft$($\textrm{--}$)$'), 
+				value('takeRight$($\textrm{--}$)$'), 
+				value('moveRight$($',now,',\textrm{--}$)$'), 
+				nil),
+				phrase(gloss[0])],
+			#(right branch)
+			[fn.call(cand,
+				value(tuesday),
+				value(week),
+				value(tuesday),
+				value(tuesday),
+				value(friday),
+				value(week),
+				value(month),
+				value(month),
+				nil),
+				phrase(gloss[1])]
 		]
 	).constituency
 end
 
+
+def ambiguousWithText(cand)
+	ctable(
+		#(parse)
+		ambiguous(cand),
+		#(interpretations)
+		rtable(
+			blank(cand>=0, ctable('e.g., ',phrase('w$_1=$ next, w$_2=$ Tuesday'))),
+			blank(cand>=1, ctable('e.g., ',phrase('w$_1=$ next, w$_2=$ week'))),
+			blank(cand>=2, ctable('e.g., ',phrase('w$_1=$ the,  w$_2=$ Tuesday'))),
+		nil).rmargin(u(0.5)),
+	nil).cmargin(u(1.0))
+end
+
+def kbest(probs=nil,correct=false)
+	def p(prob,tree)
+		rtable(tree,prob).cjustify('c').rmargin(u(0.2))
+	end
+	table(
+		[
+			p(choose(probs,-2.43,'\red{0.48}'),
+				ambiguous(0,['next','Tuesday'],false).scale(0.5)),
+			p(choose(probs,-2.82,'\red{0.29}'),
+				ambiguous(1,['next','Tuesday'],false).scale(0.5)),
+			p(choose(probs,soft(!correct,-2.96),'\grey{0.00}'),
+				soft(!correct,ambiguous(3,['next','Tuesday'],false).scale(0.5))),
+			p(choose(probs,-3.17,'\red{0.23}'),
+				ambiguous(2,['next','Tuesday'],false).scale(0.5)),
+		nil],
+		[
+			p(choose(probs,soft(!correct,-3.75),'\grey{0.00}'),
+				soft(!correct,ambiguous(4,['next','Tuesday'],false).scale(0.5))),
+			p(choose(probs,soft(!correct,-3.82),'\grey{0.00}'),
+				soft(!correct,ambiguous(5,['next','Tuesday'],false).scale(0.5))),
+			p(choose(probs,soft(!correct,-3.90),'\grey{0.00}'),
+				soft(!correct,ambiguous(6,['next','Tuesday'],false).scale(0.5))),
+			p(choose(probs,soft(!correct,-4.52),'\grey{0.00}'),
+				soft(!correct,ambiguous(7,['next','Tuesday'],false).scale(0.5))),
+		nil],
+	nil).cmargin(u(0.25)).rmargin(u(0.5)).cjustify('c')
+end
+
+def ambiguiousLex
+	[
+		Parse.new([value('moveRight1$($\textrm{--}$)$'), 'next']).constituency,
+		Parse.new([value('moveRight$($',now,',\textrm{--}$)$'), 'next']).constituency,
+		Parse.new([value('Nil'), 'next']).constituency,
+		Parse.new([value(tuesday), 'Tuesday']).constituency,
+		Parse.new([value(week), 'Tuesday']).constituency,
+		Parse.new([value(tuesday), 'Tuesday']).constituency,
+	]
+end
+
+def ambiguiousGrammar
+	[
+		Parse.new(
+			[value(s), 
+				value(s,'$\rightarrow$',s),
+				value(s)
+			]).constituency,
+		Parse.new(
+			[value(r), 
+				value(d,'$\rightarrow$',r),
+				value(d)
+			]).constituency,
+		Parse.new(
+			[value(s), 
+				value('Nil'),
+				value(s)
+			]).constituency,
+	]
+end
 
 ################################################################################
 # STRUCTURED SLIDES
@@ -345,8 +430,8 @@ def example(detected=false, interpreted=nil, grounded=false, ambiguity=false)
 				*data.map{ |t,v,g| g }).cmargin(u(0.5))
 		else
 			ctable(
-				ctable(_('[').color(white), ground('June 2, 2012').color(white), _(']').color(white)), 
-				*data.map{ |t,v,g| g ? g.color(white) : g }).cmargin(u(0.5))
+				ctable(_('[').color(nocolor), ground('June 2, 2012').color(nocolor), _(']').color(nocolor)), 
+				*data.map{ |t,v,g| g ? g.color(nocolor) : g }).cmargin(u(0.5))
 		end),
 	nil).rmargin(u(1.0)).cjustify('c')
 	#(paths)
@@ -384,9 +469,9 @@ def sys(input=0,output=false,latent=false,latentParse=false)
 			inputTxt,
 			ctable(
 				blank(input,'('),
-				move(input,phrase('phrase'),phrase('Last Friday the 13th')),
+				choose(input,phrase('phrase'),phrase('Last Friday the 13th')),
 				blank(input,','),
-				move(input,ground('reference'),ground('May 16 2011')),
+				choose(input,ground('reference'),ground('May 16 2011')),
 				blank(input,')'),
 			nil).center,
 		nil],
@@ -404,21 +489,21 @@ def sys(input=0,output=false,latent=false,latentParse=false)
 		#(output)
 		[
 			blank(output, '\darkblue{Output \darkred{\textbf{\grounded}}}'),
-			move(output, time('normalized time'), time('May 13 2011')),
+			choose(output, time('normalized time'), time('May 13 2011')),
 		nil],
 	nil).cjustify('c').rjustify('c').rmargin(u(0.3)).cmargin(u(0.5))
 end
 
 def relatedParsing(state=nil)
 	rtable(
-		ind(ind(move(state,
+		ind(ind(choose(state,
 			'\darkred{Zelle \& Mooney (1996), Zettlemoyer \& Collins (2005/2007)}',
 			'Zelle \& Mooney (1996), Zettlemoyer \& Collins (2005/2007)',
 			'Zelle \& Mooney (1996), Zettlemoyer \& Collins (2005/2007)'
 		))), 
 		ind(ind(ctable(
-			move(state,'\darkred{Kate et al. (2005)},', 'Kate et al. (2005),', 'Kate et al. (2005),'),
-			move(state,
+			choose(state,'\darkred{Kate et al. (2005)},', 'Kate et al. (2005),', 'Kate et al. (2005),'),
+			choose(state,
 				'Clarke et al. (2010), Liang et al. (2011)',
 				'\darkred{Clarke et al. (2010), Liang et al. (2011)}',
 				'Clarke et al. (2010), Liang et al. (2011)'),
@@ -430,8 +515,8 @@ def relatedSemantics(state=nil)
 		ind(ind('Mani \& Wilson (2000), Saquete et al. (2003), Puscasu (2004)')),
 		ind(ind(ctable(
 			'Grover et al. (2010),',
-			move(state, 'Str\"{o}tgen and Gertz (2010),', '\darkred{Str\"{o}tgen and Gertz (2010),}')))),
-		ind(ind(move(state, 'Chang and Manning (2012)', '\darkred{Chang and Manning (2012)}'))),
+			choose(state, 'Str\"{o}tgen and Gertz (2010),', '\darkred{Str\"{o}tgen and Gertz (2010),}')))),
+		ind(ind(choose(state, 'Chang and Manning (2012)', '\darkred{Chang and Manning (2012)}'))),
 	nil)
 end
 
@@ -442,4 +527,43 @@ def nextFridayDistribution(show=[],hilight=[],probs=false)
 		[blank(probs,_('0.43').color(heat(0.86))), blank(show.member?(3), time(hilight.member?(3) ? '\textbf{June 15, 2012?}' : 'June 15, 2012'))],
 		[blank(probs,_('0.17').color(heat(0.34))), blank(show.member?(4), time(hilight.member?(4) ? '\textbf{June 22, 2012?}' : 'June 22, 2012'))],
 	nil).cmargin(u(0.3))
+end
+
+def emHeaders(headerNum)
+	rtable(
+		(if(headerNum == 0) then
+			h1('Step 1: Get $k$-best parses for phrase')
+		elsif(headerNum > 0)
+			h1Grey('Step 1: Get $k$-best parses for phrase')
+		end),
+		(if(headerNum == 1) then
+			h1('Step 2: Filter and reweight correct parses')
+		elsif(headerNum > 1)
+			h1Grey('Step 2: Filter and reweight correct parses')
+		else
+			h1('')
+		end),
+		(if(headerNum == 2) then
+			h1('Step 3: Update expected sufficient statistics')
+		elsif(headerNum > 2)
+			h1Grey('Step 3: Update expected sufficient statistics')
+		else
+			h1('')
+		end),
+	nil)
+end
+
+def results(trn=true,sys=[])
+	def mktable(sys,nums)
+		table(
+		 ['\darkred{System}' ,'\darkred{Type}','\darkred{Value}'],
+		 blank(sys.member?('gutime'),      ['\sys{GUTime}'     ,nums[0],nums[1]]),
+		 blank(sys.member?('sutime'),      ['\sys{SUTime}'     ,nums[2],nums[3]]),
+		 blank(sys.member?('heideltime'),  ['\sys{HeidelTime}' ,nums[4],nums[5]]),
+		 blank(sys.member?('parsingtime'), ['\sys{ParsingTime}',nums[6],nums[7]]),
+		nil).rmargin(u(0.2)).cmargin(u(0.5)).cjustify('lcc')
+	end
+	train = mktable(sys,['0.80','0.42','\textbf{0.94}','0.71','0.85','0.71','0.88','\textbf{0.72}'])
+	test = mktable(sys,['0.72','0.46','0.85','0.69','0.80','0.67','\textbf{0.90}','\textbf{0.72}'])
+	trn ? train : test
 end

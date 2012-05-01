@@ -4,6 +4,19 @@ require 'rfig/FigureSet'
 require "#{ENV['HOME']}/lib/ruby/earley.rb"
 
 ################################################################################
+# CLASS MODIFICATIONS
+################################################################################
+
+class Array
+	def color(c)
+		self.each_with_index{ |term,i|
+			self[i] = recursiveColor(term,c)
+		}
+		self
+	end
+end
+
+################################################################################
 # UTILITIES
 ################################################################################
 def stdemail(name)
@@ -33,15 +46,23 @@ def blank(cond, txt)
 	if(cond) then
 		_(txt)
 	else
-		_(txt).color(white)
+		_(txt).color(nocolor)
 	end
 end
 
-def move(num, *args)
+def soft(cond, txt)
+	if(cond) then
+		_(txt)
+	else
+		_(txt).color(grey)
+	end
+end
+
+def choose(num, *args)
 	elems = []
 	args.each_with_index{ |term,i|
 		if(i != num and term) then
-			elems << _(term).color(white)
+			elems << _(term).color(nocolor)
 		end
 	}
 	elems << (num ? args[num] : nil)
@@ -74,7 +95,11 @@ class Parse
 		end
 	end
 	def leaf(a)
-		_("\\textit{#{a}}")
+		if(a.is_a? String or a.is_a? Str) then
+			_("\\textit{#{a}}")
+		else
+			a
+		end
 	end
 	def node(rspace,cspace,thickness,*args)
 		def vert(*args)
@@ -86,9 +111,6 @@ class Parse
 		vert(*[args[0], horiz(*args[1..-1])])
 	end
 	def synedge(a,b)
-		if(a.getColor == white) then
-			puts "-----_HERE"
-		end
 		path(
 			tdown(a).post{ |x| x.add(upair(0.0,0.00)) },
 			tup(b).post{ |x| x.add(upair(0.0,0.10)) }
