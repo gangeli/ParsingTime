@@ -71,7 +71,6 @@ end
 
 def heat(value)
 	Value.color(1.0, 1.0-value, 0.0)
-
 end
 
 ################################################################################
@@ -102,13 +101,13 @@ class Parse
 		end
 	end
 	def node(rspace,cspace,thickness,*args)
-		def vert(*args)
-			rtable(*args).center.rmargin(u(0.40))
+		def vert(rspace,*args)
+			rtable(*args).center.rmargin(u(rspace))
 		end
-		def horiz(*args)
-			ctable(*args).cmargin(u(0.40))
+		def horiz(cspace,*args)
+			ctable(*args).cmargin(u(cspace))
 		end
-		vert(*[args[0], horiz(*args[1..-1])])
+		vert(rspace,*[args[0], horiz(cspace,*args[1..-1])])
 	end
 	def synedge(a,b)
 		path(

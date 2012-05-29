@@ -12,12 +12,21 @@ require 'rfig/FigureSet'
 #--Entity Types
 def phrase(txt); _("\\darkgreen{\\textit{#{txt}}}"); end
 def ground(time); _("\\texttt{#{time}}").color(blue); end
-def time(time); _("\\texttt{#{time}}").color(darkred); end
+def time(time)
+	if( time.is_a? Time ) then
+		_("\\texttt{#{time.strftime('%Y-%m-%d')}}").color(darkred)
+	elsif( time.is_a? Array ) then
+		ctable( *time.map{ |x| time(x) } )
+	else
+		_("\\texttt{#{time}}").color(darkred)
+	end
+end
 def now; time('$x$'); end
 def w(txt); phrase(txt); end
 #--Arrows
 def darrow; image('img/darrow.jpg').scale(0.05); end
 def uarrow; image('img/uarrow.jpg').scale(0.05); end
+def uarrowLong; image('img/uarrowLong.jpg').scale(0.05); end
 def larrow; image('img/larrow.jpg').scale(0.05); end
 def rarrow; image('img/rarrow.jpg').scale(0.05); end
 
@@ -193,18 +202,97 @@ def value(*name)
 	ctable(*name).rjustify('c').color(darkred)
 end
 
+def flightsToBoston(args={})
+	#(arguments)
+	flights = args[:flights]
+	to = args[:to]
+	boston = args[:boston]
+	toboston = args[:toboston]
+	flightstoboston = args[:flightstoboston]
+	#(objects)
+	objFlights         = nil
+  objTo              = nil 
+  objBoston          = nil
+  objToBoston        = nil
+  objFlightsToBoston = nil
+	#(formatting)
+	def logic(v)
+		_(v)
+	end
+	#(parse)
+	parse = Parse.new(
+		[logic('$\lambda x.flight(x) \land to(x,boston)$'),
+			[logic('$\lambda x.flight(x)$'), w('flights')],
+			[logic(rtable('$\lambda f.\lambda x.$','$f(x) \land to(x,boston)$').cjustify('c')),
+				[logic(rtable('$\lambda y.\lambda f.\lambda x.$','$f(x) \land to(x,y)$').cjustify('c')), w('to')],
+				[logic('$boston$'), w('Boston')]
+			]
+		]
+	)
+	#(visible arcs)
+	visibleEdges = {
+		objFlightsToBoston => flightstoboston,
+		objToBoston    => toboston,
+		objBoston      => boston,
+		objTo          => to,
+		objFlights     => flights
+	}
+	#(render)
+#	parse.constituency( :visibleEdges => visibleEdges )
+	parse.constituency
+end
+
+#def nextWeek(args={})
+#	#(arguments)
+#	nxt = args[:next]
+#	week = args[:week]
+#	nextweek = args[:nextweek]
+#	#(objects)
+#	objNext            = nil
+#  objWeek            = nil 
+#  objNextWeek        = nil
+#	#(parse)
+#	parse = Parse.new(
+#		[ctable('\texttt{\darkred{moveRight1}}(',week,')'),
+#			['\texttt{\darkred{moveRight1$(-)$}}','\darkgreen{last}'],
+#			[friday,'\darkgreen{Friday}'],
+#		]
+#	)
+#	#(visible arcs)
+#	visibleEdges = {
+#		objFlightsToBoston => flightstoboston,
+#		objToBoston    => toboston,
+#		objBoston      => boston,
+#		objTo          => to,
+#		objFlights     => flights
+#	}
+#	#(render)
+##	parse.constituency( :visibleEdges => visibleEdges )
+#	parse.constituency
+#end
+
 def lastFriday_13
 	Parse.new(
-		[intersect( ctable('\texttt{\darkred{moveLeft1}}(',friday,')'), dom(13,'th') ),
-			[ctable('\texttt{\darkred{moveLeft1}}(',friday,')'),
-				['\texttt{\darkred{moveLeft1$(-)$}}','\darkgreen{last}'],
+		[ctable('\texttt{\darkred{moveLeft1}}(',intersect(friday, dom(13,'th')),')'),
+			['\texttt{\darkred{moveLeft1$(-)$}}','\darkgreen{last}'],
+			[intersect(friday, dom(13,'th')),
 				[friday,'\darkgreen{Friday}'],
-			],
-			[dom(13,'th'),
-				['\textsf{Nil$_\textsf{the}$}','\darkgreen{the}'],
-				[dom(13,'th'),'\darkgreen{13$^{\textrm{th}}$}'],
-			],
+				[dom(13,'th'),
+					['\textsf{Nil$_\textsf{the}$}','\darkgreen{the}'],
+					[dom(13,'th'),'\darkgreen{13$^{\textrm{th}}$}'],
+				],
+			]
 		]
+#		[intersect( ctable('\texttt{\darkred{moveLeft1}}(',friday,')'), dom(13,'th') ),
+#			[ctable('\texttt{\darkred{moveLeft1}}(',friday,')'),
+#				['\texttt{\darkred{moveLeft1$(-)$}}','\darkgreen{last}'],
+#				[friday,'\darkgreen{Friday}'],
+#			],
+#			[dom(13,'th'),
+#				['\textsf{Nil$_\textsf{the}$}','\darkgreen{the}'],
+#				[dom(13,'th'),'\darkgreen{13$^{\textrm{th}}$}'],
+#			],
+#		]
 	).constituency
 end
 
@@ -393,11 +481,13 @@ def example(detected=false, interpreted=nil, grounded=false, ambiguity=false)
 		[_("\\textit{#{txt}}")]
 	end
 	def yes(txt, value, ground, ambiguity=false)
-		text = @detected ? [w(txt).bold] : no(txt)
+		text = @detected ? 
+			overlay(no(txt)[0].color(nocolor), w(txt).bold) :
+			overlay(w(txt).bold.color(nocolor), no(txt)[0])
 		v = nil
 		t = rtable(
 			#(text)
-			text[0],
+			text,
 			#(interpretation)
 			@interpreted ? downarrow.thickness(3).color(pastelred) : nil,
 			v = (if(@interpreted == nil)
@@ -471,7 +561,7 @@ def sys(input=0,output=false,latent=false,latentParse=false)
 				blank(input,'('),
 				choose(input,phrase('phrase'),phrase('Last Friday the 13th')),
 				blank(input,','),
-				choose(input,ground('reference'),ground('May 16 2011')),
+				choose(input,ground('reference'),ground(Time.mktime(2012,6,5))),
 				blank(input,')'),
 			nil).center,
 		nil],
@@ -489,9 +579,27 @@ def sys(input=0,output=false,latent=false,latentParse=false)
 		#(output)
 		[
 			blank(output, '\darkblue{Output \darkred{\textbf{\grounded}}}'),
-			choose(output, time('normalized time'), time('May 13 2011')),
+			choose(output, time('normalized time'), time(Time.mktime(2012,1,13))),
 		nil],
 	nil).cjustify('c').rjustify('c').rmargin(u(0.3)).cmargin(u(0.5))
+end
+
+def comparison
+	def flight(v); time(v); end
+	table(
+		[
+			t=time(Time.mktime(2012, 1, 13)).color(black).bold,
+			f=flight('Delta 3871').color(black).bold,
+		],
+		[
+			centeredOverlay(uarrowLong,circle(u(0.25)).color(white).fill,time(Time.mktime(2012,6,5))),
+			centeredOverlay(uarrowLong,image('img/database.png').scale(0.15)),
+		],
+		[
+			pt=lastFriday_13.scale(0.75),
+			pf=flightsToBoston.scale(0.75),
+		],
+	nil).cmargin(u(0.5)).rmargin(u(0.25)).cjustify('cc')
 end
 
 def relatedParsing(state=nil)

@@ -5,8 +5,15 @@ require 'figlib.rb'
 require 'include.rb'
 
 #--Set Slide Style
-slideStyle = nil
-slideStyle = SlideStyle.new.border(1).borderColor(black)
+slideStylePlain = SlideStyle.new.
+	border(1).
+	borderColor(black).
+	titleSpacing(u(0.2))
+slideStyle = SlideStyle.new.
+	border(1).
+	borderColor(black).
+	titleSpacing(u(0.2)).
+	leftHeader(image('img/logo.jpg').scale(0.20))
 
 #--Init Presentation
 initPresentation(
@@ -28,24 +35,21 @@ slide!('',
 	rtable(
 		image('img/logo.jpg').scale(0.25),
 		_('Parsing Time').scale(2.0).color(darkred),
-		ctable(
-			author(_('Gabor Angeli').color(darkblue)),
-			author('Christopher Manning'),
-			author('Dan Jurafsky'),
-		nil).cmargin(u(0.5)),
+		author(_('Gabor Angeli').color(darkblue)),
 	nil).rmargin(u(0.75)).cjustify('c'),
+	'\small{\textit{with Chris Manning and Dan Jurafsky}}',
 	left,
-nil){ |slide| slide.label('intro_title').signature(32) }
+nil){ |slide| slide.label('intro_title').slideStyle(SlideStyle.new.leftHeader(nil)).signature(52) }
 
 ################################################################################
 # OUTLINE
 ################################################################################
-slide!('Outline',
-	staggeredOverlay(true,
-		outline(nil),
-		outline(0),
-	nil),
-nil){ |slide| slide.label('intro_outline').signature(9) }
+#slide!('Outline',
+#	staggeredOverlay(true,
+#		outline(nil),
+#		outline(0),
+#	nil),
+#nil){ |slide| slide.label('intro_outline').signature(13) }
 
 ################################################################################
 # EXAMPLE
@@ -71,7 +75,17 @@ slide!('Example',
 	ind('But, often incomplete information').level(3),
 	ind('Incorporate a \ground{reference time}').level(4),
 	ind('Sneak Peek: ambiguity in \tp{next week}').level(5),
-nil){ |slide| slide.label('motivation_example').signature(91) }
+nil){ |slide| slide.label('motivation_example').signature(175) }
+
+################################################################################
+# MOTIVATION -- COMPARISON
+################################################################################
+slide!('Time As Parsing',
+	center,
+	comparison,
+	left,
+nil){ |slide| slide.label('motivation_compare').signature(59) }
+
 
 ################################################################################
 # MOTIVATION
@@ -100,7 +114,7 @@ slide!('Motivation',
 	pause,
 	ind('Ranking urgency'),
 
-nil){ |slide| slide.label('motivation_motiv').signature(41) }
+nil){ |slide| slide.label('motivation_motiv').signature(46) }
 
 ################################################################################
 # RELATED
@@ -119,7 +133,7 @@ slide!('Related Work',
 		relatedSemantics(0),
 		relatedSemantics(1),
 	nil),
-nil){ |slide| slide.label('motivation_related').signature(8) }
+nil){ |slide| slide.label('motivation_related').signature(9) }
 
 ################################################################################
 # SYSTEM
@@ -162,9 +176,9 @@ slide!('Latent Parse',
 	'',
 	'',
 	#(value)
-	ctable(ground('[June 5, 2012]'), '$\rightarrow$', time('June 3, 2012 \textrm{--} June 5, 2012')),
+	ctable(ground('[June 5, 2012]'), '$\rightarrow$', time([Time.mktime(2012,6,3),'--',Time.mktime(2012,6,5)])),
 	left,
-nil){ |slide| slide.label('motivation_parse').signature(60) }
+nil){ |slide| slide.label('motivation_parse').signature(62) }
 
 ################################################################################
 # PARSE -- TYPES
@@ -198,9 +212,9 @@ nil){ |slide| slide.label('motivation_parse2').signature(10) }
 ################################################################################
 # REPRESENTATION
 ################################################################################
-slide!('Outline',
-	outline(1),
-nil){ |slide| slide.label('representation_outline').signature(12) }
+#slide!('Outline',
+#	outline(1),
+#nil){ |slide| slide.label('representation_outline').signature(12) }
 
 ################################################################################
 # NONTERMINAL TYPES
@@ -360,9 +374,9 @@ nil){ |slide| slide.label('representation_nil').signature(3) }
 ################################################################################
 # LEARNING
 ################################################################################
-slide!('Outline',
-	outline(2),
-nil){ |slide| slide.label('learn_outline').signature(0) }
+#slide!('Outline',
+#	outline(2),
+#nil){ |slide| slide.label('learn_outline').signature(0) }
 
 ################################################################################
 # TRAINING SETUP
@@ -480,9 +494,9 @@ nil){ |slide| slide.label('learn_timem_update2').signature(22) }
 ################################################################################
 # RESULTS
 ################################################################################
-slide!('Outline',
-	outline(3),
-nil){ |slide| slide.label('results_outline').signature(0) }
+#slide!('Outline',
+#	outline(3),
+#nil){ |slide| slide.label('results_outline').signature(0) }
 
 ################################################################################
 # CORPUS
@@ -575,10 +589,10 @@ slide!('',
 	rtable(
 		image('img/logo.jpg').scale(0.25),
 		_('Thank You!').scale(2.0).color(darkred),
-		'(\'bout time...)',
+		'\textit{(We\'re out of \textit{time})}',
 	nil).rmargin(u(0.75)).cjustify('c'),
 	left,
-nil){ |slide| slide.label('thanks').signature(1) }
+nil){ |slide| slide.label('thanks').signature(4) }
 
 
 ################################################################################
