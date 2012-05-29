@@ -75,27 +75,23 @@ slide!('Example',
 	ind('But, often incomplete information').level(3),
 	ind('Incorporate a \ground{reference time}').level(4),
 	ind('Sneak Peek: ambiguity in \tp{next week}').level(5),
-nil){ |slide| slide.label('motivation_example').signature(175) }
-
-################################################################################
-# MOTIVATION -- COMPARISON
-################################################################################
-slide!('Time As Parsing',
-	center,
-	comparison,
-	left,
-nil){ |slide| slide.label('motivation_compare').signature(59) }
-
+nil){ |slide| slide.label('motivation_example').signature(178) }
 
 ################################################################################
 # MOTIVATION
 ################################################################################
 slide!('Motivation',
-	#(parsing of meaning)
-	h1('Deep parsing of meaning'),
-	ind('Complete understanding of interpreted expressions'),
-	'',
+	h1('Current approaches'),
+	ind('Collection of hand-coded rules'),
 	pause,
+	ind('Very effective, but rigid'),
+	ind(ind('\textit{\darkred{the past} \darkorange{few weeks}}')),
+	pause,
+	ind(ind(w('next Thursday?'))),
+	'','',
+	pause,
+
+	h1('Two Goals:'),
 	ind('Handle \textit{syntactic} ambiguity'),
 	ind(ind('\tp{[last Friday] [the \th{13}]} or \tp{[last] [Friday the \th{13}]}')),
 	'',
@@ -103,37 +99,88 @@ slide!('Motivation',
 	ind('Handle \textit{pragmatic} ambiguity'),
 	ind(ind('\tp{last Sunday} as \te{June 3, 2012} or \te{May 27, 2012}')),
 	'',
-	pause,
-	#(temporal info useful)
-	h1('Temporal information useful'),
-	ind('Information (e.g., relation) extraction'),
-	'',
-	pause,
-	ind('Finding times/appointments in correspondences'),
-	'',
-	pause,
-	ind('Ranking urgency'),
+nil){ |slide| slide.label('motivation_motiv').signature(5).footnote(
+	'\darkblue{Mani \& Wilson 2000; Str\"{o}tgen and Gertz 2010; Chang and Manning (2012)}'
+)}
 
-nil){ |slide| slide.label('motivation_motiv').signature(46) }
+################################################################################
+# MOTIVATION -- COMPARISON
+################################################################################
+slide!('Inspiration',
+	center,
+	plet(:startlevel, tstartlevel),
+	staggeredOverlay(true,
+		_('Parallels to semantic parsing').color(darkred),
+		pause,
+		_('\textbf{Option 1}: bootstrap from parse').color(darkred),
+		pause,
+		_('One more layer: grounding').color(darkred),
+		_('\textbf{Option 2}: bootstrap from grounded interpretation').color(darkred),
+	nil).pivot(0,0),
+	'',
+	plevel(:startlevel),
+	staggeredOverlay(true,
+		comparison(0,-1,false,false),
+		comparison(0, 0,false,false),
+		comparison(0, 0,true ,false),
+		comparison(0, 0,true ,true),
+#		comparison(1, 1,false,false),
+		comparison(2, 2,false,false),
+		pause,
+	nil),
+	left,
+nil){ |slide| slide.label('motivation_compare').signature(95).footnote(
+	_('\darkblue{Zettlemoyer \& Collins 2005/2007; Liang et al. 2011}')
+)}
+
+
+################################################################################
+# MOTIVATION
+################################################################################
+#slide!('Motivation',
+#	#(parsing of meaning)
+#	h1('Deep parsing of meaning'),
+#	ind('Complete understanding of interpreted expressions'),
+#	'',
+#	pause,
+#	ind('Handle \textit{syntactic} ambiguity'),
+#	ind(ind('\tp{[last Friday] [the \th{13}]} or \tp{[last] [Friday the \th{13}]}')),
+#	'',
+#	pause,
+#	ind('Handle \textit{pragmatic} ambiguity'),
+#	ind(ind('\tp{last Sunday} as \te{June 3, 2012} or \te{May 27, 2012}')),
+#	'',
+#	pause,
+#	#(temporal info useful)
+#	h1('Temporal information useful'),
+#	ind('Information (e.g., relation) extraction'),
+#	'',
+#	pause,
+#	ind('Finding times/appointments in correspondences'),
+#	'',
+#	pause,
+#	ind('Ranking urgency'),
+#
+#nil){ |slide| slide.label('motivation_motiv').signature(46) }
 
 ################################################################################
 # RELATED
 ################################################################################
-slide!('Related Work',
-	_('\darkred{\textbf{[Semantic] \darkblue{Parsing}}}'),
-	staggeredOverlay(true,
-		relatedParsing(2),
-		relatedParsing(0),
-		relatedParsing(1),
-		relatedParsing(2),
-	nil),
-	'','',
-	_('\textbf{\darkblue{Time} \darkred{[Interpretation]}}'),
-	staggeredOverlay(true,
-		relatedSemantics(0),
-		relatedSemantics(1),
-	nil),
-nil){ |slide| slide.label('motivation_related').signature(9) }
+#slide!('Related Work',
+#	_('\darkred{\textbf{[Semantic] \darkblue{Parsing}}}'),
+#	staggeredOverlay(true,
+#		relatedParsing(2),
+#		relatedParsing(0),
+#		relatedParsing(1),
+#		relatedParsing(2),
+#	nil),
+#	'','',
+#	_('\textbf{\darkblue{Time} \darkred{[Interpretation]}}'),
+#	staggeredOverlay(true,
+#		relatedSemantics(0),
+#		relatedSemantics(1),
+#	nil),
+#nil){ |slide| slide.label('motivation_related').signature(9) }
 
 ################################################################################
 # SYSTEM
@@ -169,16 +216,16 @@ slide!('Latent Parse',
 		last2days(:days=>1),
 		last2days(:days=>1, :two=>1),
 		last2days(:days=>1, :two=>1, :twodays=>1),
-		last2days(:days=>1, :two=>1, :twodays=>1, :last=>1),
+#		last2days(:days=>1, :two=>1, :twodays=>1, :last=>1),
 		last2days(:days=>1, :two=>1, :twodays=>1, :last=>1, :lasttwodays=>1),
 	nil),
 	pause,
 	'',
 	'',
 	#(value)
-	ctable(ground('[June 5, 2012]'), '$\rightarrow$', time([Time.mktime(2012,6,3),'--',Time.mktime(2012,6,5)])),
+	ctable('[',ground(Time.mktime(2012,6,5)),']', '$\rightarrow$', time([Time.mktime(2012,6,3),'$-$',Time.mktime(2012,6,5)])),
 	left,
-nil){ |slide| slide.label('motivation_parse').signature(62) }
+nil){ |slide| slide.label('motivation_parse').signature(64) }
 
 ################################################################################
 # PARSE -- TYPES
@@ -198,8 +245,8 @@ slide!('Latent Parse',
 		last2days(:days=>1, :two=>1, :twodays=>1, :last=>1, :lasttwodays=>1),
 		last2days(:days=>0, :two=>1, :twodays=>1, :last=>1, :lasttwodays=>1),
 		last2days(:days=>0, :two=>0, :twodays=>1, :last=>1, :lasttwodays=>1),
-		last2days(:days=>0, :two=>0, :twodays=>0, :last=>1, :lasttwodays=>1),
-		last2days(:days=>0, :two=>0, :twodays=>0, :last=>0, :lasttwodays=>1),
+#		last2days(:days=>0, :two=>0, :twodays=>0, :last=>1, :lasttwodays=>1),
+#		last2days(:days=>0, :two=>0, :twodays=>0, :last=>0, :lasttwodays=>1),
 		last2days(:days=>0, :two=>0, :twodays=>0, :last=>0, :lasttwodays=>0),
 		last2days(:days=>0, :two=>0, :twodays=>0, :last=>0, :lasttwodays=>0, :change=>true),
 	nil),
@@ -207,7 +254,7 @@ slide!('Latent Parse',
 	'','',
 	pause,
 	'What are these nonterminals, and how do they combine?',
-nil){ |slide| slide.label('motivation_parse2').signature(10) }
+nil){ |slide| slide.label('motivation_parse2').signature(11) }
 
 ################################################################################
 # REPRESENTATION
@@ -242,7 +289,7 @@ slide!('Grammar Of Time',
 	ind('A period between two dates (or times)'),
 	'',
 	pause,
-	ind('8 lexical values: \te{yesterday}, \te{tomorrow}, \te{today}, \te{reference},'),
+	ind('8 lexical categories: \te{yesterday}, \te{tomorrow}, \te{today}, \te{reference},'),
 	ind(ind('\te{past}, \te{future}, \te{year$(n)$}, \te{century$(n)$}')),
 	'',
 	pause,
@@ -262,7 +309,7 @@ slide!('Grammar Of Time',
 	ind('A sequence of Ranges (not necessarily at regular intervals)'),
 	'',
 	pause,
-	ind('44 lexical values, e.g.: \te{Friday}, \te{Saturday}, \te{January},'),
+	ind('44 lexical categories, e.g.: \te{Friday}, \te{Saturday}, \te{January},'),
 	ind(ind('\te{DayOfMonth}, \te{DayOfWeek}, \te{WeekOfYear},')),
 	ind(ind('\te{EveryDay}, \te{EveryWeek}, \te{year$(n)$}, \te{century$(n)$}')),
 	'',
@@ -284,7 +331,7 @@ slide!('Grammar Of Time',
 	#(distribution)
 	'',
 	pause,
-	ind('Today is \ground{June 5, 2012}, what is \tp{next Saturday}?'),
+	ind(ctable('Today is',ground(Time.mktime(2012,6,5)),', what is \tp{next Saturday}?')),
 	'',
 	pause,
 	center,
@@ -315,7 +362,7 @@ slide!('Grammar Of Time',
 	ind('A period of time'),
 	'',
 	pause,
-	ind('10 lexical values: \te{second}, \te{minute}, \te{hour}, \te{day}, \te{week}, \te{month},'),
+	ind('10 lexical categories: \te{second}, \te{minute}, \te{hour}, \te{day}, \te{week}, \te{month},'),
 	ind(ind('\te{quarter}, \te{year}, \te{decade}, \te{century}')),
 	'',
 	pause,
@@ -334,7 +381,7 @@ slide!('Grammar Of Time',
 	ind('General sequence and interval operations'),
 	'',
 	pause,
-	ind('10 lexical values'),
+	ind('10 lexical categories'),
 	ind(ind('Shift a range/sequence by a duration')),
 	ind(ind('Move the origin of a sequence')),
 	ind(ind('Take the \th{$n$} element of a sequence')),
@@ -396,7 +443,7 @@ slide!('Training Setup',
 	#(ambiguity)
 	pause,
 	'Therefore, in general, latent parse is ambiguous',
-	ind(ctable('( (',phrase('w$_1$ w$_2$'),',',ground('June 5, 2012'),') , ',time('June 12, 2012'), ')')),
+	ind(ctable('( (',phrase('w$_1$ w$_2$'),',',ground(Time.mktime(2012,6,5)),') , ',time(Time.mktime(2012,6,12)), ')')),
 	#(ambiguity figure)
 	center,
 	'','',
@@ -420,7 +467,7 @@ slide!('Training: TimEM',
 	#(input)
 	pause,
 	center,
-	ctable('( (',phrase('next Tuesday'),',',ground('June 5, 2012'),') , ',time('June 12, 2012'), ')'),
+	ctable('( (',phrase('next Tuesday'),',',ground(Time.mktime(2012,6,5)),') , ',time(Time.mktime(2012,6,12)), ')'),
 	#(parses)
 	'',
 	pause,
@@ -439,7 +486,7 @@ slide!('Training: TimEM',
 	emHeaders(1),
 	#(input)
 	center,
-	ctable('( (',phrase('next Tuesday'),',',ground('June 5, 2012'),') , ',time('June 12, 2012'), ')'),
+	ctable('( (',phrase('next Tuesday'),',',ground(Time.mktime(2012,6,5)),') , ',time(Time.mktime(2012,6,12)), ')'),
 	#(parses)
 	'',
 	staggeredOverlay(true,
@@ -512,7 +559,7 @@ slide!('Dataset',
 	'','',
 	#(evaluation)
 	h1('Evaluation'),
-	ind('Most likely grounding (e.g., \te{June 5} $\rightarrow$ \te{June 5, 2012})'),
+	ind(ctable('Most likely grounding (e.g., \te{June 5} $\rightarrow$ ', time(Time.mktime(2012,6,5)),')')),
 	pause,
 	ind('\textbf{Type}: Accuracy over result\'s temporal type'),
 	ind(ind(ctable(
@@ -524,7 +571,7 @@ slide!('Dataset',
 	ind(ind(ctable(
 		range('June 5, 2012'), ' $\ne$ ', range('June 12, 2012'),
 	nil).cmargin(u(0.2)))),
-nil){ |slide| slide.label('results_results').signature(5) }
+nil){ |slide| slide.label('results_results').signature(7) }
 
 ################################################################################
 # NUMBERS
@@ -578,8 +625,8 @@ slide!('Conclusion',
 	pause,
 	ind('Incorporate contextual information'),
 	pause,
-	ind('Similar approach for spacial descriptions?'),
-nil){ |slide| slide.label('conclusion').signature(1) }
+	ind('Similar approach for spatial descriptions?'),
+nil){ |slide| slide.label('conclusion').signature(2) }
 
 ################################################################################
 # THANKS
@@ -589,10 +636,10 @@ slide!('',
 	rtable(
 		image('img/logo.jpg').scale(0.25),
 		_('Thank You!').scale(2.0).color(darkred),
-		'\textit{(We\'re out of \textit{time})}',
+		'\textit{(We\'re out of \darkblue{time})}',
 	nil).rmargin(u(0.75)).cjustify('c'),
 	left,
-nil){ |slide| slide.label('thanks').signature(4) }
+nil){ |slide| slide.label('thanks').slideStyle(SlideStyle.new.leftHeader(nil)).signature(6) }
 
 
 ################################################################################

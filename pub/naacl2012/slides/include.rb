@@ -11,7 +11,15 @@ require 'rfig/FigureSet'
 ##########
 #--Entity Types
 def phrase(txt); _("\\darkgreen{\\textit{#{txt}}}"); end
-def ground(time); _("\\texttt{#{time}}").color(blue); end
+def ground(time)
+	if( time.is_a? Time ) then
+		_("\\texttt{#{time.strftime('%Y-%m-%d')}}").color(blue)
+	elsif( time.is_a? Array ) then
+		ctable( *time.map{ |x| time(x) } )
+	else
+		_("\\texttt{#{time}}").color(blue)
+	end
+end
 def time(time)
 	if( time.is_a? Time ) then
 		_("\\texttt{#{time.strftime('%Y-%m-%d')}}").color(darkred)
@@ -209,6 +217,7 @@ def flightsToBoston(args={})
 	boston = args[:boston]
 	toboston = args[:toboston]
 	flightstoboston = args[:flightstoboston]
+	color = args[:color]
 	#(objects)
 	objFlights         = nil
   objTo              = nil 
@@ -221,11 +230,12 @@ def flightsToBoston(args={})
 	end
 	#(parse)
 	parse = Parse.new(
-		[logic('$\lambda x.flight(x) \land to(x,boston)$'),
-			[logic('$\lambda x.flight(x)$'), w('flights')],
+		[logic('$\mathbf{\lambda x.\blue{flight(x)} \land \darkorange{to}(x,\purple{boston})}$').color(color ? nil : black),
+			[logic('$\lambda x.\blue{flight(x)}$').color(color ? nil : black), w('flights')],
 			[logic(rtable('$\lambda f.\lambda x.$','$f(x) \land to(x,boston)$').cjustify('c')),
-				[logic(rtable('$\lambda y.\lambda f.\lambda x.$','$f(x) \land to(x,y)$').cjustify('c')), w('to')],
-				[logic('$boston$'), w('Boston')]
+				[logic(rtable('$\lambda y.\lambda f.\lambda x.$','$f(x) \land \darkorange{to}(x,y)$').cjustify('c')).color(color ? nil : black),
+					w('to')],
+				[logic('$\purple{boston}$').color(color ? nil : black), w('Boston')]
 			]
 		]
 	)
@@ -271,15 +281,19 @@ end
 #	parse.constituency
 #end
 
-def lastFriday_13
+def lastFriday_13(color=false)
 	Parse.new(
-		[ctable('\texttt{\darkred{moveLeft1}}(',intersect(friday, dom(13,'th')),')'),
-			['\texttt{\darkred{moveLeft1$(-)$}}','\darkgreen{last}'],
-			[intersect(friday, dom(13,'th')),
+		[ctable(
+				_('\texttt{moveLeft1}').color(color ? blue : darkred),
+				'(',
+				intersect(friday.color(color ? darkorange : darkred), dom(13,'th').color(color ? purple : darkred)),
+				')'),
+			[_('\texttt{moveLeft1$(-)$}').color(color ? blue : darkred),'\darkgreen{last}'],
+			[intersect(friday.color(color ? darkorange : darkred), dom(13,'th')),
 				[friday,'\darkgreen{Friday}'],
 				[dom(13,'th'),
 					['\textsf{Nil$_\textsf{the}$}','\darkgreen{the}'],
-					[dom(13,'th'),'\darkgreen{13$^{\textrm{th}}$}'],
+					[dom(13,'th').color(color ? purple : darkred),'\darkgreen{13$^{\textrm{th}}$}'],
 				],
 			]
 		]
@@ -516,11 +530,11 @@ def example(detected=false, interpreted=nil, grounded=false, ambiguity=false)
 		ctable(*data.map{ |t,v,g| t }),
 		(if(grounded) then
 			ctable(
-				ctable(_('['), ground('June 2, 2012'), _(']')), 
+				ctable(_('['), ground(Time.mktime(2012,6,2)), _(']')), 
 				*data.map{ |t,v,g| g }).cmargin(u(0.5))
 		else
 			ctable(
-				ctable(_('[').color(nocolor), ground('June 2, 2012').color(nocolor), _(']').color(nocolor)), 
+				ctable(_('[').color(nocolor), ground(Time.mktime(2012,6,2)).color(nocolor), _(']').color(nocolor)), 
 				*data.map{ |t,v,g| g ? g.color(nocolor) : g }).cmargin(u(0.5))
 		end),
 	nil).rmargin(u(1.0)).cjustify('c')
@@ -584,20 +598,20 @@ def sys(input=0,output=false,latent=false,latentParse=false)
 	nil).cjustify('c').rjustify('c').rmargin(u(0.3)).cmargin(u(0.5))
 end
 
-def comparison
+def comparison(l=0,t=-1,colorLogic=false,colorTime=false)
 	def flight(v); time(v); end
 	table(
 		[
-			t=time(Time.mktime(2012, 1, 13)).color(black).bold,
-			f=flight('Delta 3871').color(black).bold,
+			blank(l>1,flight('Delta 3871').color(black).bold),
+			blank(t>1,time(Time.mktime(2012, 1, 13)).bold),
 		],
 		[
-			centeredOverlay(uarrowLong,circle(u(0.25)).color(white).fill,time(Time.mktime(2012,6,5))),
-			centeredOverlay(uarrowLong,image('img/database.png').scale(0.15)),
+			blank(l>0,centeredOverlay(uarrowLong,image('img/database.png').scale(0.15))),
+			blank(t>0,centeredOverlay(uarrowLong,circle(u(0.25)).color(white).fill,ground(Time.mktime(2012,6,5)))),
 		],
 		[
-			pt=lastFriday_13.scale(0.75),
-			pf=flightsToBoston.scale(0.75),
+			blank(l>=0,flightsToBoston({:color => colorLogic}).scale(0.75)),
+			blank(t>=0,lastFriday_13(colorTime).scale(0.75)),
 		],
 	nil).cmargin(u(0.5)).rmargin(u(0.25)).cjustify('cc')
 end
