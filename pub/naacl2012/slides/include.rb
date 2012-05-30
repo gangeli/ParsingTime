@@ -412,23 +412,23 @@ def kbest(probs=nil,correct=false)
 	end
 	table(
 		[
-			p(choose(probs,-2.43,'\red{0.48}'),
+			p(choose(probs,0.008,'\red{0.57}'),
 				ambiguous(0,['next','Tuesday'],false).scale(0.5)),
-			p(choose(probs,-2.82,'\red{0.29}'),
+			p(choose(probs,0.005,'\red{0.36}'),
 				ambiguous(1,['next','Tuesday'],false).scale(0.5)),
-			p(choose(probs,soft(!correct,-2.96),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,0.004),'\grey{0.00}'),
 				soft(!correct,ambiguous(3,['next','Tuesday'],false).scale(0.5))),
-			p(choose(probs,-3.17,'\red{0.23}'),
+			p(choose(probs,0.001,'\red{0.07}'),
 				ambiguous(2,['next','Tuesday'],false).scale(0.5)),
 		nil],
 		[
-			p(choose(probs,soft(!correct,-3.75),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,0.0007),'\grey{0.00}'),
 				soft(!correct,ambiguous(4,['next','Tuesday'],false).scale(0.5))),
-			p(choose(probs,soft(!correct,-3.82),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,0.0004),'\grey{0.00}'),
 				soft(!correct,ambiguous(5,['next','Tuesday'],false).scale(0.5))),
-			p(choose(probs,soft(!correct,-3.90),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,0.0003),'\grey{0.00}'),
 				soft(!correct,ambiguous(6,['next','Tuesday'],false).scale(0.5))),
-			p(choose(probs,soft(!correct,-4.52),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,0.0001),'\grey{0.00}'),
 				soft(!correct,ambiguous(7,['next','Tuesday'],false).scale(0.5))),
 		nil],
 	nil).cmargin(u(0.25)).rmargin(u(0.5)).cjustify('c')

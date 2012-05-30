@@ -238,7 +238,7 @@ slide!('Latent Parse',
 	pause,
 	ind('\textbf{Solution:} Group nonterminals based on \textit{types}'),
 	pause,
-	'','',
+	'',
 	#(type parse)
 	center,
 	staggeredOverlay(true,
@@ -251,10 +251,10 @@ slide!('Latent Parse',
 		last2days(:days=>0, :two=>0, :twodays=>0, :last=>0, :lasttwodays=>0, :change=>true),
 	nil),
 	left,
-	'','',
+	'',
 	pause,
 	'What are these nonterminals, and how do they combine?',
-nil){ |slide| slide.label('motivation_parse2').signature(11) }
+nil){ |slide| slide.label('motivation_parse2').signature(13) }
 
 ################################################################################
 # REPRESENTATION
@@ -309,16 +309,17 @@ slide!('Grammar Of Time',
 	ind('A sequence of Ranges (not necessarily at regular intervals)'),
 	'',
 	pause,
-	ind('44 lexical categories, e.g.: \te{Friday}, \te{Saturday}, \te{January},'),
+	ind('44 lexical categories, e.g.:'),
 	ind(ind('\te{DayOfMonth}, \te{DayOfWeek}, \te{WeekOfYear},')),
-	ind(ind('\te{EveryDay}, \te{EveryWeek}, \te{year$(n)$}, \te{century$(n)$}')),
+	ind(ind('\textit{shorthand}: \te{Friday}, \te{Saturday}, \te{January},')),
+	ind(ind('\textit{dense}: \te{EveryDay}, \te{EveryWeek},')),
 	'',
 	pause,
 	ind('Also, e.g., \tp{June 5}, \tp{next Saturday}, \tp{third quarter}'),
 	'',
 	pause,
 	ind('\red{Still stuck:} which element are we referring to?'),
-nil){ |slide| slide.label('representation_sequence').signature(7) }
+nil){ |slide| slide.label('representation_sequence').signature(8) }
 
 ################################################################################
 # SEQUENCE AMBIGUITY
@@ -342,15 +343,14 @@ slide!('Grammar Of Time',
 		nextFridayDistribution([1,2,3,4],[],true),
 	nil),
 	left,
-	#(characterize gaussian)
+	#(characterize Gaussian)
 	'',
 	pause,
-	ind('Construct a Gaussian over possible groundings'),
+	ind('Construct a distribution over possible groundings'),
+	ind(ind('Appealing to model as a Gaussian')),
 	pause,
-	ind('Learn Gaussian parameters $\mu,\sigma$'),
-
-
-nil){ |slide| slide.label('representation_sequence_ambiguity').signature(19) }
+	ind(ind('Learn Gaussian parameters $\mu,\sigma$')),
+nil){ |slide| slide.label('representation_sequence_ambiguity').signature(21) }
 
 ################################################################################
 # DURATION
@@ -477,7 +477,7 @@ slide!('Training: TimEM',
 	nil),
 	left,
 
-nil){ |slide| slide.label('learn_timem_kbest').signature(23) }
+nil){ |slide| slide.label('learn_timem_kbest').signature(24) }
 
 ################################################################################
 # TIMEM FILTER
@@ -494,7 +494,7 @@ slide!('Training: TimEM',
 		kbest(0,true),
 		kbest(1,true),
 	nil),
-nil){ |slide| slide.label('learn_timem_filter').signature(23) }
+nil){ |slide| slide.label('learn_timem_filter').signature(24) }
 
 ################################################################################
 # TIMEM UPDATE
@@ -507,7 +507,7 @@ slide!('Training: TimEM',
 	staggeredOverlay(true,
 		kbest(1,true),
 	nil),
-nil){ |slide| slide.label('learn_timem_update').signature(6) }
+nil){ |slide| slide.label('learn_timem_update').signature(7) }
 
 ################################################################################
 # TIMEM UPDATE2
@@ -536,7 +536,7 @@ slide!('Training: TimEM',
 		ctable(tuesday, '$+ 0$').rjustify('c'),',',
 		ctable(tuesday, '$+ 1$').rjustify('c'),
 	nil).cmargin(u(0.1)).rjustify('c'),
-nil){ |slide| slide.label('learn_timem_update2').signature(22) }
+nil){ |slide| slide.label('learn_timem_update2').signature(23) }
 
 ################################################################################
 # RESULTS
@@ -549,18 +549,18 @@ nil){ |slide| slide.label('learn_timem_update2').signature(22) }
 # CORPUS
 ################################################################################
 slide!('Dataset',
-	#(corpus)
+	#(--corpus)
 	h1('TempEval2'),
 	ind('Newswire annotated for temporal expressions'),
 	pause,
-	ind('Train: 1052 expressions'),
-	ind('Test: 156 expressions'),
+	ind('1052 training / 156 test expressions'),
 	pause,
 	'','',
-	#(evaluation)
+	#(--evaluation)
 	h1('Evaluation'),
 	ind(ctable('Most likely grounding (e.g., \te{June 5} $\rightarrow$ ', time(Time.mktime(2012,6,5)),')')),
 	pause,
+	#(examples)
 	ind('\textbf{Type}: Accuracy over result\'s temporal type'),
 	ind(ind(ctable(
 		range('June 5, 2012'), ' $=$ ', range('June 12, 2012'),
@@ -571,7 +571,10 @@ slide!('Dataset',
 	ind(ind(ctable(
 		range('June 5, 2012'), ' $\ne$ ', range('June 12, 2012'),
 	nil).cmargin(u(0.2)))),
-nil){ |slide| slide.label('results_results').signature(7) }
+	pause,
+	#(detail)
+	ind('\darkred{Constrained to guess on each example; no contextual cues}'),
+nil){ |slide| slide.label('results_results').signature(10) }
 
 ################################################################################
 # NUMBERS
@@ -612,7 +615,7 @@ slide!('Conclusion',
 	ind('Parse over \textit{types}'),
 	ind('EM-like algorithm for learning'),
 	pause,
-	ind('State-of-the-art results'),
+	ind('Results comparable to State-of-the-art'),
 	pause,
 	'',
 	h1('Capture ambiguity elegantly'),
@@ -622,11 +625,10 @@ slide!('Conclusion',
 	'',
 	h1('Future directions'),
 	ind('Multilingual support'),
-	pause,
 	ind('Incorporate contextual information'),
 	pause,
 	ind('Similar approach for spatial descriptions?'),
-nil){ |slide| slide.label('conclusion').signature(2) }
+nil){ |slide| slide.label('conclusion').signature(3) }
 
 ################################################################################
 # THANKS
