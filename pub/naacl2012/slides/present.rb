@@ -75,33 +75,73 @@ slide!('Example',
 	ind('But, often incomplete information').level(3),
 	ind('Incorporate a \ground{reference time}').level(4),
 	ind('Sneak Peek: ambiguity in \tp{next week}').level(5),
-nil){ |slide| slide.label('motivation_example').signature(178) }
+nil){ |slide| slide.label('motivation_example').signature(180) }
 
 ################################################################################
-# MOTIVATION
+# EXAMPLE -- PRACTICAL
+################################################################################
+slide!('Time In Information Extraction',
+	h1('News'),
+	ind(w('Beginning more than \\textbf{seven hours earlier}, the space station\'s')),
+	ind(ind(w('robotic arm detached the 14-foot long Dragon [spacecraft]'))),
+	ind(w('Benjamin Franklin Federal Savings amp Loan Association said it')),
+	ind(ind(w('plans to restructure in the wake of a \textbf{third-quarter} loss'))),
+	'','',
+	pause,
+
+	h1('Communication'),
+	ind(w('Actually I am on vacation the \textbf{last three weeks of November}')),
+	ind(w('I have some time available at the \textbf{end of next week}')),
+nil){ |slide| slide.label('motivation_example_practical').signature(7) }
+
+################################################################################
+# MOTIVATION -- PREVIOUS
 ################################################################################
 slide!('Motivation',
 	h1('Current approaches'),
 	ind('Collection of hand-coded rules'),
+	'',
 	pause,
-	ind('Very effective, but rigid'),
-	ind(ind('\textit{\darkred{the past} \darkorange{few weeks}}')),
+	h1('Downsides'),
+	ind('Rigid syntax: \tp{last Friday the \th{13}}'),
+	'',
 	pause,
-	ind(ind(w('next Thursday?'))),
-	'','',
+	ind('Rigid pragmatics: when is \tp{last Sunday}?'),
+	'',
 	pause,
+	ind('Always more rules: \tp{7 days \textbf{prior}}, \tp{the \textbf{previous} 7 days}'),
+	'',
+	pause,
+	ind('Rule engineering challenge'),
+	ind(ind('\verb~/the/ /past|last/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
+	ind(ind('\verb~/the/ /next|following/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
+	ind(ind('\verb~/another/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
+	ind(ind('$\dots$')),
+nil){ |slide| slide.label('motivation_motiv').signature(21).footnote(
+	'\darkblue{Mani \& Wilson 2000; Str\"{o}tgen and Gertz 2010; Chang and Manning (2012)}'
+)}
 
-	h1('Two Goals:'),
+################################################################################
+# MOTIVATION -- US
+################################################################################
+slide!('Motivation',
+	h1('Probabilistic Model'),
 	ind('Handle \textit{syntactic} ambiguity'),
-	ind(ind('\tp{[last Friday] [the \th{13}]} or \tp{[last] [Friday the \th{13}]}')),
+	ind(ind('\tp{[Last Friday] [the \th{13}]} and \tp{[last] [Friday the \th{13}]}')),
 	'',
 	pause,
 	ind('Handle \textit{pragmatic} ambiguity'),
-	ind(ind('\tp{last Sunday} as \te{June 3, 2012} or \te{May 27, 2012}')),
+	ind(ind('\tp{Could we meet on Tuesday?}')),
 	'',
-nil){ |slide| slide.label('motivation_motiv').signature(5).footnote(
-	'\darkblue{Mani \& Wilson 2000; Str\"{o}tgen and Gertz 2010; Chang and Manning (2012)}'
-)}
+	pause,
+	ind('\textit{Language/domain flexible}'),
+	ind(ind('\tp{\textbf{Last} Friday} and \tp{viernes \textbf{pasado}}')),
+	'',
+	pause,
+	ind('Plays nice in larger systems'),
+	ind(ind('Confidence and guess for any expression')),
+	ind(ind('Learn any structure seen in training')),
+nil){ |slide| slide.label('motivation_motiv2').signature(5) }
 
 ################################################################################
 # MOTIVATION -- COMPARISON
@@ -114,7 +154,6 @@ slide!('Inspiration',
 		pause,
 		_('\textbf{Option 1}: bootstrap from parse').color(darkred),
 		pause,
-		_('One more layer: grounding').color(darkred),
 		_('\textbf{Option 2}: bootstrap from grounded interpretation').color(darkred),
 	nil).pivot(0,0),
 	'',
@@ -129,7 +168,7 @@ slide!('Inspiration',
 		pause,
 	nil),
 	left,
-nil){ |slide| slide.label('motivation_compare').signature(95).footnote(
+nil){ |slide| slide.label('motivation_compare').signature(96).footnote(
 	_('\darkblue{Zettlemoyer \& Collins 2005/2007; Liang et al. 2011}')
 )}
 
@@ -234,7 +273,7 @@ slide!('Latent Parse',
 	#(intro)
 	h1('Nonterminals become very sparse'),
 	pause,
-	ind(ctable('Consider: ',phrase('last 3 days'),', ',phrase('last 2 months'),', etc.')),
+	ind(ctable('Consider: ',phrase('last 7 days'),', ',phrase('last 3 months'),', etc.')),
 	pause,
 	ind('\textbf{Solution:} Group nonterminals based on \textit{types}'),
 	pause,
@@ -254,7 +293,7 @@ slide!('Latent Parse',
 	'',
 	pause,
 	'What are these nonterminals, and how do they combine?',
-nil){ |slide| slide.label('motivation_parse2').signature(13) }
+nil){ |slide| slide.label('motivation_parse2').signature(14) }
 
 ################################################################################
 # REPRESENTATION
@@ -287,13 +326,13 @@ nil){ |slide| slide.label('representation_type_overview').signature(12) }
 slide!('Grammar Of Time',
 	h1(range),
 	ind('A period between two dates (or times)'),
+#	'',
+#	pause,
+#	ind('8 lexical categories: \te{yesterday}, \te{tomorrow}, \te{today}, \te{reference},'),
+#	ind(ind('\te{past}, \te{future}, \te{year$(n)$}, \te{century$(n)$}')),
 	'',
 	pause,
-	ind('8 lexical categories: \te{yesterday}, \te{tomorrow}, \te{today}, \te{reference},'),
-	ind(ind('\te{past}, \te{future}, \te{year$(n)$}, \te{century$(n)$}')),
-	'',
-	pause,
-	ind('Also, e.g., \tp{June 5, 2012}, \tp{November 1987}, \tp{day before yesterday}'),
+	ind('\tp{June 5, 2012}, \tp{November 1987}, \tp{day before yesterday}'),
 	'',
 	pause,
 	ind('Interval-based theory of time: instants are ranges'),
@@ -307,19 +346,23 @@ slide!('Grammar Of Time',
 	h1Grey(range),
 	h1(sequence),
 	ind('A sequence of Ranges (not necessarily at regular intervals)'),
+#	'',
+#	pause,
+#	ind('44 lexical categories, e.g.:'),
+#	ind(ind('\te{DayOfMonth}, \te{DayOfWeek}, \te{WeekOfYear},')),
+#	ind(ind('\textit{shorthand}: \te{Friday}, \te{Saturday}, \te{January},')),
+#	ind(ind('\textit{dense}: \te{EveryDay}, \te{EveryWeek},')),
 	'',
 	pause,
-	ind('44 lexical categories, e.g.:'),
-	ind(ind('\te{DayOfMonth}, \te{DayOfWeek}, \te{WeekOfYear},')),
-	ind(ind('\textit{shorthand}: \te{Friday}, \te{Saturday}, \te{January},')),
-	ind(ind('\textit{dense}: \te{EveryDay}, \te{EveryWeek},')),
-	'',
-	pause,
-	ind('Also, e.g., \tp{June 5}, \tp{next Saturday}, \tp{third quarter}'),
+	ind('\tp{June 5}, \tp{next Saturday}, \tp{third quarter}'),
 	'',
 	pause,
 	ind('\red{Still stuck:} which element are we referring to?'),
-nil){ |slide| slide.label('representation_sequence').signature(8) }
+	pause,
+	#(answer)
+	'',
+	ind('\green{Answer:} We\'re referring to all of them! (Kind of$\dots$)'),
+nil){ |slide| slide.label('representation_sequence').signature(11) }
 
 ################################################################################
 # SEQUENCE AMBIGUITY
@@ -327,11 +370,8 @@ nil){ |slide| slide.label('representation_sequence').signature(8) }
 slide!('Grammar Of Time',
 	h1Grey(range),
 	h1(sequence),
-	#(answer)
-	ind('\green{Answer:} We\'re referring to all of them! (Kind of$\dots$)'),
 	#(distribution)
 	'',
-	pause,
 	ind(ctable('Today is',ground(Time.mktime(2012,6,5)),', what is \tp{next Saturday}?')),
 	'',
 	pause,
@@ -350,7 +390,7 @@ slide!('Grammar Of Time',
 	ind(ind('Appealing to model as a Gaussian')),
 	pause,
 	ind(ind('Learn Gaussian parameters $\mu,\sigma$')),
-nil){ |slide| slide.label('representation_sequence_ambiguity').signature(21) }
+nil){ |slide| slide.label('representation_sequence_ambiguity').signature(24) }
 
 ################################################################################
 # DURATION
@@ -359,16 +399,12 @@ slide!('Grammar Of Time',
 	h1Grey(range),
 	h1Grey(sequence),
 	h1(duration),
-	ind('A period of time'),
-	'',
-	pause,
-	ind('10 lexical categories: \te{second}, \te{minute}, \te{hour}, \te{day}, \te{week}, \te{month},'),
-	ind(ind('\te{quarter}, \te{year}, \te{decade}, \te{century}')),
-	'',
-	pause,
-	ind('Also, e.g., \tp{2 weeks}, \tp{10 years}'),
-
-nil){ |slide| slide.label('representation_duration').signature(10) }
+	ind('A period of time: \tp{day}, \tp{2 weeks}, \tp{10 years}'),
+#	'',
+#	pause,
+#	ind('10 lexical categories: \te{second}, \te{minute}, \te{hour}, \te{day}, \te{week}, \te{month},'),
+#	ind(ind('\te{quarter}, \te{year}, \te{decade}, \te{century}')),
+nil){ |slide| slide.label('representation_duration').signature(12) }
 
 ################################################################################
 # FUNCTION
@@ -381,12 +417,12 @@ slide!('Grammar Of Time',
 	ind('General sequence and interval operations'),
 	'',
 	pause,
-	ind('10 lexical categories'),
-	ind(ind('Shift a range/sequence by a duration')),
-	ind(ind('Move the origin of a sequence')),
-	ind(ind('Take the \th{$n$} element of a sequence')),
+	ind('Examples:'),
+	ind(ind('Shift a range/sequence by a duration [\tp{3 days ago}]')),
+	ind(ind('Move the origin of a sequence [\tp{last week}]')),
+	ind(ind('Take the \th{$n$} element of a sequence [\tp{second week of June}]')),
 	ind(ind('$\dots$')),
-nil){ |slide| slide.label('representation_function').signature(2) }
+nil){ |slide| slide.label('representation_function').signature(5) }
 
 ################################################################################
 # NUMBER
@@ -431,33 +467,34 @@ nil){ |slide| slide.label('representation_nil').signature(3) }
 slide!('Training Setup',
 	#(training)
 	staggeredOverlay(true,
-			ctable('Given ', '$\left\{\right.($','$x$',',',time('$y$'), '$)\left.\right\}$'),
-			ctable('Given ',
+			ctable(h1('Given '), '$\left\{\right.($','$x$',',',time('$y$'), '$)\left.\right\}$'),
+			ctable(h1('Given '),
 				'$\left\{\right.($',ctable('(',phrase('Phrase'),',',ground('Reference'),')'),
 				',',time('Time'),'$)\left.\right\}$'),
 		nil),
 	pause,
-	'\textbf{Not} given latent parse',
-	'\textbf{Not} given lexical cues',
+	ind('Not given latent parse'),
+	ind('Not given lexical cues'),
 
 	#(ambiguity)
+	'',
 	pause,
-	'Therefore, in general, latent parse is ambiguous',
-	ind(ctable('( (',phrase('w$_1$ w$_2$'),',',ground(Time.mktime(2012,6,5)),') , ',time(Time.mktime(2012,6,12)), ')')),
+	h1('Therefore, in general, latent parse is ambiguous'),
+	pause,
+	center,
+	ctable('( (',phrase('w$_1$ w$_2$'),',',ground(Time.mktime(2012,6,5)),') , ',time(Time.mktime(2012,6,12)), ')'),
+	left,
+	pause,
 	#(ambiguity figure)
 	center,
 	'','',
-	pause,
 	staggeredOverlay(true,
 		ambiguousWithText(0),
 		ambiguousWithText(1),
 		ambiguousWithText(2),
 	nil),
 	left,
-	#(conclusion)
-	pause,
-	'Usually, only one of these parses is correct',
-nil){ |slide| slide.label('learn_setup').signature(30) }
+nil){ |slide| slide.label('learn_setup').signature(34) }
 
 ################################################################################
 # TIMEM K-BEST
@@ -589,11 +626,7 @@ slide!('Results',
 	pause,
 	
 	#(results)
-	overlay(
-		h1('Test').level(1),
-		h1('Test').color(white).level(5),
-		h1('Training').level(5),
-	nil),
+	h1('Test (all expressions)').level(1),
 	center,
 	staggeredOverlay(true,
 		#(test)
@@ -601,34 +634,38 @@ slide!('Results',
 		results(true,['gutime','sutime']),
 		results(true,['gutime','sutime','heideltime']),
 		results(true,['gutime','sutime','heideltime','parsingtime']),
-		#(training)
-		results(false,['gutime','sutime','heideltime','parsingtime']),
+#		#(training)
+#		results(false,['gutime','sutime','heideltime','parsingtime']),
 	nil),
 	left,
-nil){ |slide| slide.label('results_numbers').signature(33) }
+nil){ |slide| slide.label('results_numbers').signature(38) }
 
 ################################################################################
 # CONCLUSION
 ################################################################################
 slide!('Conclusion',
-	h1('Learn latent parses for temporal expressions'),
-	ind('Parse over \textit{types}'),
+	h1('Probabilistic, compositional temporal parsing'),
+	ind('Share parameters over temporal types'),
 	ind('EM-like algorithm for learning'),
 	pause,
-	ind('Results comparable to State-of-the-art'),
+	ind('Results competitive with state-of-the-art'),
 	pause,
 	'',
-	h1('Capture ambiguity elegantly'),
-	ind('\textbf{Syntactic}: \tp{last Friday the \th{13}}'),
-	ind('\textbf{Pragmatic}: \tp{next Friday}'),
+	h1('Takeaway points'),
+	ind('Capture \textbf{syntactic} ambiguity: \tp{last Friday the \th{13}}'),
+	ind('Capture \textbf{Pragmatic} ambiguity: \tp{next Friday}'),
 	pause,
-	'',
-	h1('Future directions'),
-	ind('Multilingual support'),
-	ind('Incorporate contextual information'),
+	ind('\textbf{Robust} guess and confidence for any expression'),
 	pause,
-	ind('Similar approach for spatial descriptions?'),
-nil){ |slide| slide.label('conclusion').signature(3) }
+	ind('\textbf{Language/domain independent} approach'),
+#	pause,
+#	'',
+#	h1('Future directions'),
+#	ind('Multilingual support'),
+#	ind('Incorporate contextual information'),
+#	pause,
+#	ind('Similar approach for spatial descriptions?'),
+nil){ |slide| slide.label('conclusion').signature(8) }
 
 ################################################################################
 # THANKS

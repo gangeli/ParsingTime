@@ -520,9 +520,8 @@ def example(detected=false, interpreted=nil, grounded=false, ambiguity=false)
 		yes('June 5', '6/5', '6/05/12'),
 		no('is'),
 		yes('next week','6/3-6/9', '6/03/12-6/09/12', ambiguity ? '6/10/12-6/16/12' : false),
-		no('-- still'),
-		yes('days','$\sim$1D', '$\sim$1D'),
-		no('away')
+		no('-- there\'s still'),
+		yes('a few days','$\sim$1D', '$\sim$1D'),
 	]
 	#--Figure
 	#(stationary)
