@@ -289,8 +289,8 @@ def lastFriday_13(color=false)
 				intersect(friday.color(color ? darkorange : darkred), dom(13,'th').color(color ? purple : darkred)),
 				')'),
 			[_('\texttt{moveLeft1$(-)$}').color(color ? blue : darkred),'\darkgreen{last}'],
-			[intersect(friday.color(color ? darkorange : darkred), dom(13,'th')),
-				[friday,'\darkgreen{Friday}'],
+			[intersect(friday, dom(13,'th')),
+				[friday.color(color ? darkorange : darkred),'\darkgreen{Friday}'],
 				[dom(13,'th'),
 					['\textsf{Nil$_\textsf{the}$}','\darkgreen{the}'],
 					[dom(13,'th').color(color ? purple : darkred),'\darkgreen{13$^{\textrm{th}}$}'],
@@ -492,7 +492,7 @@ def example(detected=false, interpreted=nil, grounded=false, ambiguity=false)
 	@interpreted = interpreted
 	#--Static Info
 	def no(txt)
-		[_("\\textit{#{txt}}")]
+		[w("\\textit{#{txt}}")]
 	end
 	def yes(txt, value, ground, ambiguity=false)
 		text = @detected ? 
@@ -519,7 +519,7 @@ def example(detected=false, interpreted=nil, grounded=false, ambiguity=false)
 		no('Don\'t worry,'),
 		yes('June 5', '6/5', '6/05/12'),
 		no('is'),
-		yes('next week','6/3-6/9', '6/03/12-6/09/12', ambiguity ? '6/10/12-6/16/12' : false),
+		yes('next week','WXX', '6/03/12-6/09/12', ambiguity ? '6/10/12-6/16/12' : false),
 		no('-- there\'s still'),
 		yes('a few days','$\sim$1D', '$\sim$1D'),
 	]
@@ -643,31 +643,31 @@ end
 
 def nextFridayDistribution(show=[],hilight=[],probs=false)
 	table(
-		[blank(probs,_('0.04').color(heat(0.08))), blank(show.member?(1), time(hilight.member?(1) ? '\textbf{June 02, 2012?}' : 'June 02, 2012' ))],
-		[blank(probs,_('0.24').color(heat(0.48))), blank(show.member?(2), time(hilight.member?(2) ? '\textbf{June 08, 2012?}' : 'June 08, 2012' ))],
-		[blank(probs,_('0.43').color(heat(0.86))), blank(show.member?(3), time(hilight.member?(3) ? '\textbf{June 15, 2012?}' : 'June 15, 2012'))],
-		[blank(probs,_('0.17').color(heat(0.34))), blank(show.member?(4), time(hilight.member?(4) ? '\textbf{June 22, 2012?}' : 'June 22, 2012'))],
+		[blank(probs,_('0.04').color(heat(0.08))), blank(show.member?(1), time(hilight.member?(1) ? '\textbf{May  20, 2012?}' : 'May  20, 2012' ))],
+		[blank(probs,_('0.24').color(heat(0.48))), blank(show.member?(2), time(hilight.member?(2) ? '\textbf{May  27, 2012?}' : 'May  27, 2012' ))],
+		[blank(probs,_('0.43').color(heat(0.86))), blank(show.member?(3), time(hilight.member?(3) ? '\textbf{June 3,  2012?}' : 'June 3,  2012'))],
+		[blank(probs,_('0.17').color(heat(0.34))), blank(show.member?(4), time(hilight.member?(4) ? '\textbf{June 10, 2012?}' : 'June 10, 2012'))],
 	nil).cmargin(u(0.3))
 end
 
 def emHeaders(headerNum)
 	rtable(
 		(if(headerNum == 0) then
-			h1('Step 1: Get $k$-best parses for phrase')
+			h1('E1 Step: Get $k$-best parses for phrase')
 		elsif(headerNum > 0)
-			h1Grey('Step 1: Get $k$-best parses for phrase')
+			h1Grey('E1 Step: Get $k$-best parses for phrase')
 		end),
 		(if(headerNum == 1) then
-			h1('Step 2: Filter and reweight correct parses')
+			h1('E2 Step: Filter and re-weight correct parses')
 		elsif(headerNum > 1)
-			h1Grey('Step 2: Filter and reweight correct parses')
+			h1Grey('E2 Step: Filter and re-weight correct parses')
 		else
 			h1('')
 		end),
 		(if(headerNum == 2) then
-			h1('Step 3: Update expected sufficient statistics')
+			h1('M Step: Update expected sufficient statistics')
 		elsif(headerNum > 2)
-			h1Grey('Step 3: Update expected sufficient statistics')
+			h1Grey('M Step: Update expected sufficient statistics')
 		else
 			h1('')
 		end),
@@ -681,7 +681,7 @@ def results(trn=true,sys=[])
 		 blank(sys.member?('gutime'),      ['\sys{GUTime}'     ,nums[0],nums[1]]),
 		 blank(sys.member?('sutime'),      ['\sys{SUTime}'     ,nums[2],nums[3]]),
 		 blank(sys.member?('heideltime'),  ['\sys{HeidelTime}' ,nums[4],nums[5]]),
-		 blank(sys.member?('parsingtime'), ['\sys{ParsingTime}',nums[6],nums[7]]),
+		 blank(sys.member?('parsingtime'), ['\sys{\darkblue{ParsingTime}}',"\\darkblue{#{nums[6]}}","\\darkblue{#{nums[7]}}"]),
 		nil).rmargin(u(0.2)).cmargin(u(0.5)).cjustify('lcc')
 	end
 	train = mktable(sys,['0.80','0.42','\textbf{0.94}','0.71','0.85','0.71','0.88','\textbf{0.72}'])

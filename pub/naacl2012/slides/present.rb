@@ -75,7 +75,7 @@ slide!('Example',
 	ind('But, often incomplete information').level(3),
 	ind('Incorporate a \ground{reference time}').level(4),
 	ind('Sneak Peek: ambiguity in \tp{next week}').level(5),
-nil){ |slide| slide.label('motivation_example').signature(180) }
+nil){ |slide| slide.label('motivation_example').signature(182) }
 
 ################################################################################
 # EXAMPLE -- PRACTICAL
@@ -84,15 +84,17 @@ slide!('Time In Information Extraction',
 	h1('News'),
 	ind(w('Beginning more than \\textbf{seven hours earlier}, the space station\'s')),
 	ind(ind(w('robotic arm detached the 14-foot long Dragon [spacecraft]'))),
-	ind(w('Benjamin Franklin Federal Savings amp Loan Association said it')),
+	'',
+	ind(w('Benjamin Franklin Federal Savings and Loan Association said it')),
 	ind(ind(w('plans to restructure in the wake of a \textbf{third-quarter} loss'))),
 	'','',
 	pause,
 
 	h1('Communication'),
 	ind(w('Actually I am on vacation the \textbf{last three weeks of November}')),
+	'',
 	ind(w('I have some time available at the \textbf{end of next week}')),
-nil){ |slide| slide.label('motivation_example_practical').signature(7) }
+nil){ |slide| slide.label('motivation_example_practical').signature(8) }
 
 ################################################################################
 # MOTIVATION -- PREVIOUS
@@ -103,74 +105,65 @@ slide!('Motivation',
 	'',
 	pause,
 	h1('Downsides'),
-	ind('Rigid syntax: \tp{last Friday the \th{13}}'),
+	ind('\textbf{Rigid}'),
+	ind(ind('Syntax: \tp{last Friday the \th{13}}')),
+	pause,
+	ind(ind('Pragmatics: when is \tp{last Sunday}?')),
 	'',
 	pause,
-	ind('Rigid pragmatics: when is \tp{last Sunday}?'),
-	'',
-	pause,
-	ind('Always more rules: \tp{7 days \textbf{prior}}, \tp{the \textbf{previous} 7 days}'),
-	'',
-	pause,
-	ind('Rule engineering challenge'),
+	ind('\textbf{Rule engineering challenge}'),
+	ind(ind('Always more rules: \tp{7 days \textbf{prior}}, \tp{the \textbf{previous} 7 days}')),
 	ind(ind('\verb~/the/ /past|last/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
 	ind(ind('\verb~/the/ /next|following/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
 	ind(ind('\verb~/another/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
 	ind(ind('$\dots$')),
-nil){ |slide| slide.label('motivation_motiv').signature(21).footnote(
+nil){ |slide| slide.label('motivation_motiv').signature(26).footnote(
 	'\darkblue{Mani \& Wilson 2000; Str\"{o}tgen and Gertz 2010; Chang and Manning (2012)}'
 )}
+
+################################################################################
+# SYSTEM
+################################################################################
+slide!('System',
+	'',
+	center,
+	staggeredOverlay(true,
+		sys(0),
+		sys(1),
+		sys(1,0),
+		sys(1,1),
+		sys(1,1,true),
+		sys(1,1,true,true),
+	nil),
+	left,
+nil){ |slide| slide.label('motivation_system').signature(16) }
 
 ################################################################################
 # MOTIVATION -- US
 ################################################################################
 slide!('Motivation',
-	h1('Probabilistic Model'),
-	ind('Handle \textit{syntactic} ambiguity'),
-	ind(ind('\tp{[Last Friday] [the \th{13}]} and \tp{[last] [Friday the \th{13}]}')),
+	h1('Our Model'),
+	ind('\textbf{Gives informative probability}'),
+	pause,
+	ind(ind('Handle \textit{syntactic} ambiguity')),
+	ind(ind(ind('\tp{[Last Friday] [the \th{13}]} and \tp{[last] [Friday the \th{13}]}'))),
+	pause,
+	ind(ind('Handle \textit{pragmatic} ambiguity')),
+	ind(ind(ind('\tp{Could we meet on Tuesday?}'))),
+	pause,
+	ind(ind('Plays nice in larger systems')),
+	
 	'',
 	pause,
-	ind('Handle \textit{pragmatic} ambiguity'),
-	ind(ind('\tp{Could we meet on Tuesday?}')),
-	'',
-	pause,
-	ind('\textit{Language/domain flexible}'),
-	ind(ind('\tp{\textbf{Last} Friday} and \tp{viernes \textbf{pasado}}')),
-	'',
-	pause,
-	ind('Plays nice in larger systems'),
-	ind(ind('Confidence and guess for any expression')),
-	ind(ind('Learn any structure seen in training')),
-nil){ |slide| slide.label('motivation_motiv2').signature(5) }
+	ind('\textbf{Elegant representation of time}'),
 
-################################################################################
-# MOTIVATION -- COMPARISON
-################################################################################
-slide!('Inspiration',
-	center,
-	plet(:startlevel, tstartlevel),
-	staggeredOverlay(true,
-		_('Parallels to semantic parsing').color(darkred),
-		pause,
-		_('\textbf{Option 1}: bootstrap from parse').color(darkred),
-		pause,
-		_('\textbf{Option 2}: bootstrap from grounded interpretation').color(darkred),
-	nil).pivot(0,0),
 	'',
-	plevel(:startlevel),
-	staggeredOverlay(true,
-		comparison(0,-1,false,false),
-		comparison(0, 0,false,false),
-		comparison(0, 0,true ,false),
-		comparison(0, 0,true ,true),
-#		comparison(1, 1,false,false),
-		comparison(2, 2,false,false),
-		pause,
-	nil),
-	left,
-nil){ |slide| slide.label('motivation_compare').signature(96).footnote(
-	_('\darkblue{Zettlemoyer \& Collins 2005/2007; Liang et al. 2011}')
-)}
+	pause,
+	ind('\textbf{Language/domain flexible}'),
+	ind(ind('Learn any structure seen in training')),
+	pause,
+	ind(ind('\tp{\textbf{Last} Sunday} and \tp{domingo \textbf{pasado}}')),
+nil){ |slide| slide.label('motivation_motiv2').signature(9) }
 
 
 ################################################################################
@@ -222,21 +215,33 @@ nil){ |slide| slide.label('motivation_compare').signature(96).footnote(
 #nil){ |slide| slide.label('motivation_related').signature(9) }
 
 ################################################################################
-# SYSTEM
+# MOTIVATION -- COMPARISON
 ################################################################################
-slide!('System',
-	'',
+slide!('Comparison To Lambda Calculus',
 	center,
+	plet(:startlevel, tstartlevel),
 	staggeredOverlay(true,
-		sys(0),
-		sys(1),
-		sys(1,0),
-		sys(1,1),
-		sys(1,1,true),
-		sys(1,1,true,true),
+		_('Parallels to semantic parsing').color(darkred),
+		pause,
+		_('\textbf{Option 1}: bootstrap from parse').color(darkred),
+		pause,
+		_('\textbf{Option 2}: bootstrap from grounded interpretation').color(darkred),
+	nil).pivot(0,0),
+	'',
+	plevel(:startlevel),
+	staggeredOverlay(true,
+		comparison(0,-1,false,false),
+		comparison(0, 0,false,false),
+		comparison(0, 0,true ,false),
+		comparison(0, 0,true ,true),
+#		comparison(1, 1,false,false),
+		comparison(2, 2,false,false),
+		pause,
 	nil),
 	left,
-nil){ |slide| slide.label('motivation_system').signature(14) }
+nil){ |slide| slide.label('motivation_compare').signature(99).footnote(
+	_('\darkblue{Zettlemoyer \& Collins 2005/2007; Liang et al. 2011}')
+)}
 
 ################################################################################
 # PARSE -- VALUES
@@ -332,12 +337,12 @@ slide!('Grammar Of Time',
 #	ind(ind('\te{past}, \te{future}, \te{year$(n)$}, \te{century$(n)$}')),
 	'',
 	pause,
-	ind('\tp{June 5, 2012}, \tp{November 1987}, \tp{day before yesterday}'),
+	ind('\tp{Today}, \tp{June 5 2012}, \tp{day before yesterday}'),
 	'',
 	pause,
 	ind('Interval-based theory of time: instants are ranges'),
 	ind(ind('\te{Today} and \te{Reference} both ranges, but former has duration')),
-nil){ |slide| slide.label('representation_range').signature(3) }
+nil){ |slide| slide.label('representation_range').signature(5) }
 
 ################################################################################
 # SEQUENCE
@@ -354,7 +359,7 @@ slide!('Grammar Of Time',
 #	ind(ind('\textit{dense}: \te{EveryDay}, \te{EveryWeek},')),
 	'',
 	pause,
-	ind('\tp{June 5}, \tp{next Saturday}, \tp{third quarter}'),
+	ind('\tp{June 5}, \tp{last Sunday}, \tp{third quarter}'),
 	'',
 	pause,
 	ind('\red{Still stuck:} which element are we referring to?'),
@@ -372,7 +377,7 @@ slide!('Grammar Of Time',
 	h1(sequence),
 	#(distribution)
 	'',
-	ind(ctable('Today is',ground(Time.mktime(2012,6,5)),', what is \tp{next Saturday}?')),
+	ind(ctable('Today is',ground(Time.mktime(2012,6,5)),', what is \tp{last Sunday}?')),
 	'',
 	pause,
 	center,
@@ -385,12 +390,12 @@ slide!('Grammar Of Time',
 	left,
 	#(characterize Gaussian)
 	'',
+	ind(h1('Construct a distribution over possible groundings')),
 	pause,
-	ind('Construct a distribution over possible groundings'),
 	ind(ind('Appealing to model as a Gaussian')),
 	pause,
 	ind(ind('Learn Gaussian parameters $\mu,\sigma$')),
-nil){ |slide| slide.label('representation_sequence_ambiguity').signature(24) }
+nil){ |slide| slide.label('representation_sequence_ambiguity').signature(28) }
 
 ################################################################################
 # DURATION
@@ -449,10 +454,24 @@ slide!('Grammar Of Time',
 	ind('A word without direct temporal meaning'),
 	pause,
 	ind('Lexicalized: e.g., \te{Nil-the}, \te{Nil-a}'),
-	pause,
 	ind(ind(phrase('a week'))),
 	ind(ind(phrase('the week'))),
-nil){ |slide| slide.label('representation_nil').signature(3) }
+nil){ |slide| slide.label('representation_nil').signature(4) }
+
+################################################################################
+# COMBINATION
+################################################################################
+slide!('Grammar Of Time',
+	h1Grey(range),
+	h1Grey(sequence),
+	h1Grey(duration),
+	h1Grey(time('Functions')),
+	h1Grey(time('Number')),
+	h1Grey(time('Nil')),
+	h1('Combination Rules'),
+	ind('Predefined combination rules'),
+	ind('Type checking function application'),
+nil){ |slide| slide.label('representation_combination').signature(1) }
 
 ################################################################################
 # LEARNING
@@ -576,6 +595,26 @@ slide!('Training: TimEM',
 nil){ |slide| slide.label('learn_timem_update2').signature(23) }
 
 ################################################################################
+# TIMEM DETAILS
+################################################################################
+slide!('TimEM Discussion',
+	h1('Intuition'),
+	ind('\textit{Bootstrap} from short examples'),
+	pause,
+	ind('\tp{week}, then \tp{next week}, $\dots$'),
+
+	'','',
+	pause,
+	h1('Smoothing'),
+	ind('Dirichlet prior on grammar parameters $\theta$'),
+	ind('Gaussian prior on $\mu$ given MLE $\sigma$'),
+
+	'','',
+	pause,
+	h1('Uniform initialization $\rightarrow$ deterministic'),
+nil){ |slide| slide.label('learn_timem_details').signature(3) }
+
+################################################################################
 # RESULTS
 ################################################################################
 #slide!('Outline',
@@ -626,7 +665,8 @@ slide!('Results',
 	pause,
 	
 	#(results)
-	h1('Test (all expressions)').level(1),
+	h1('Test (all expressions; gold detection)').level(1),
+	'',
 	center,
 	staggeredOverlay(true,
 		#(test)
@@ -638,14 +678,14 @@ slide!('Results',
 #		results(false,['gutime','sutime','heideltime','parsingtime']),
 	nil),
 	left,
-nil){ |slide| slide.label('results_numbers').signature(38) }
+nil){ |slide| slide.label('results_numbers').signature(43) }
 
 ################################################################################
 # CONCLUSION
 ################################################################################
 slide!('Conclusion',
 	h1('Probabilistic, compositional temporal parsing'),
-	ind('Share parameters over temporal types'),
+	ind('Elegant compositional representation of time'),
 	ind('EM-like algorithm for learning'),
 	pause,
 	ind('Results competitive with state-of-the-art'),
@@ -653,7 +693,7 @@ slide!('Conclusion',
 	'',
 	h1('Takeaway points'),
 	ind('Capture \textbf{syntactic} ambiguity: \tp{last Friday the \th{13}}'),
-	ind('Capture \textbf{Pragmatic} ambiguity: \tp{next Friday}'),
+	ind('Capture \textbf{pragmatic} ambiguity: \tp{last Sunday}'),
 	pause,
 	ind('\textbf{Robust} guess and confidence for any expression'),
 	pause,
@@ -665,7 +705,7 @@ slide!('Conclusion',
 #	ind('Incorporate contextual information'),
 #	pause,
 #	ind('Similar approach for spatial descriptions?'),
-nil){ |slide| slide.label('conclusion').signature(8) }
+nil){ |slide| slide.label('conclusion').signature(11) }
 
 ################################################################################
 # THANKS
