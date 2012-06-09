@@ -424,10 +424,10 @@ slide!('Grammar Of Time',
 	pause,
 	ind('Examples:'),
 	ind(ind('Shift a range/sequence by a duration [\tp{3 days ago}]')),
-	ind(ind('Move the origin of a sequence [\tp{last week}]')),
+	ind(ind('Move the origin of a sequence [\tp{last Sunday}]')),
 	ind(ind('Take the \th{$n$} element of a sequence [\tp{second week of June}]')),
 	ind(ind('$\dots$')),
-nil){ |slide| slide.label('representation_function').signature(5) }
+nil){ |slide| slide.label('representation_function').signature(6) }
 
 ################################################################################
 # NUMBER
