@@ -18,19 +18,20 @@ env!(
 	o('Xrunhprof:cpu=samples,depth=16'),
 #	o('Xrunhprof:cpu=samples,heap=sites'),
 	o('server'),
-	o('mx20g'),
+	o('mx4g'),
 #	o('ea'),
 	'time.Entry',
 
 	run(
 		# -- RUN MODE --
 		o('runInterpretModel'),
-		o('interpretModel', 'aux/interpret.ser.gz'),
-		selo(1, 'mode', 
+		o('interpretModel', 'dist/interpretModel.ser.gz'),
+		selo(4, 'mode', 
 			'detect',
 			'interpret',
 			'system',
 			'console',
+			'REPL',
 			nil),
 
 		# -- LEARNING --

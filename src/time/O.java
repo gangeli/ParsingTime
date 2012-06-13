@@ -12,7 +12,7 @@ import org.goobs.util.Decodable;
 public class O {
 	public static enum Distribution{ Point, Multinomial, Gaussian }
 	public static enum Scope{ Global, Hybrid, Local }
-	public static enum RunMode{ Interpret, Detect, Console, System }
+	public static enum RunMode{ Interpret, Detect, Console, System, REPL }
 
 	//--Data Info
 	private static Pattern DATA 

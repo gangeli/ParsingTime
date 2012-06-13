@@ -655,7 +655,7 @@ case class TreeTime(
 		new TreeTime(parser,grammar,lex,Some(detector),Some(detectorIndex))
 	}
 
-	private def parse(sent:TimeSent,ground:Time):(Temporal,Temporal,Double) = {
+	def parse(sent:TimeSent,ground:Time):(Temporal,Temporal,Double) = {
 		//(run parser)
 		var time:Temporal = new NoTime
 		var originalTime:Temporal = new NoTime
@@ -676,6 +676,7 @@ case class TreeTime(
 					val timeDist = rawTime.distribution(Range(ground,ground))
 					if(timeDist.hasNext){
 						val (evaluated,timeProb,offset) = timeDist.next
+						log("parse: " + parse.asParseString(index.w2str(_),grammar.r2str(_)) )
 						(evaluated, rawTime, parse.logProb + math.log(timeProb)) //<--found a parse
 					} else {
 						(soFar,orig,lProb) //<--evaluated to NoTime

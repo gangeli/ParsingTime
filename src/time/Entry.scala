@@ -351,7 +351,11 @@ case class TimeSent(words:Array[Int],pos:Array[Int],
 		= words
 			.zipWithIndex
 			.map{ case (w:Int,i:Int) =>
-				if(w == index.NUM) nums(i) else index.w2str(w) 
+				if(w == index.NUM){
+					nums(i) + {if(ordinality(i) == NumberType.ORDINAL) "^th" else ""}
+				} else {
+					index.w2str(w) 
+				}
 			}.mkString(" ")
 }
 
@@ -850,6 +854,60 @@ object Entry {
 		(official,angel)
 	}
 
+	def repl:Unit = {
+		//--Load Data
+		startTrack("Initialization")
+		val sys:TreeTime = 
+			try {
+				log("Loading model at: " + O.interpretModel)
+				IOUtils.readObjectFromFile(O.interpretModel)
+				.asInstanceOf[TreeTime]
+			} catch {
+				case (e:Throwable) => throw new RuntimeException(e)
+			}
+		endTrack("Initialization")
+		//--Run Loop
+		//(start loop)
+		startTrack("REPL")
+		val console = new org.goobs.io.TextConsole().show
+		var str = console.readLine("phrase> ")
+		while(str.toLowerCase != "exit"){
+			//(process raw sentence)
+			val words = str.split("""\s+""").map{ (raw:String) => 
+				val (str,typ) = 
+					if(raw.length > 2 && (raw.endsWith("st") || raw.endsWith("th") || raw.endsWith("nd") || raw.endsWith("rd")) &&
+							(raw.substring(0,raw.length-2) matches G.CanInt)){
+						(raw.substring(0,raw.length-2),NumberType.ORDINAL)
+					} else if(raw matches G.CanInt){
+						(raw,NumberType.NUMBER)
+					} else {
+						(raw, NumberType.NONE)
+					}
+				(sys.index.str2wTest(str),typ,str)
+			}
+			//(create sentence data structure)
+			val sent = TimeSent(
+				words.map{ _._1 }, 
+				words.map{ x => sys.index.str2posTest("UNK") },
+				words.map{ case (w:Int,t:NumberType.Value,str:String) =>
+					if(t != NumberType.NONE){ str.toInt } else { Int.MinValue }
+				},
+				words.map{ _._2 },
+				sys.index
+				)
+			log(sent)
+			//(parse)
+			val (normalized, original, score) = sys.parse(sent, Lex.todaysDate)
+			//(print)
+			startTrack("Result")
+				log("TIME:      " + normalized)
+				log("came from: " + original)
+				log("score:     " + score)
+			endTrack("Result")
+			str = console.readLine("phrase> ")
+		}
+		endTrack("REPL")
+	}
 
 
 	def main(args:Array[String]):Unit = {
@@ -859,6 +917,8 @@ object Entry {
 				O.mode match {
 					//(case: time expression console)
 					case O.RunMode.Console => Temporal.interactive
+					//(case: time REPL)
+					case O.RunMode.REPL => repl
 					//(case: interpret)
 					case O.RunMode.Interpret => (new InterpretationTask).run
 					case O.RunMode.Detect => (new DetectionTask).run

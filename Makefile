@@ -22,7 +22,7 @@ ${BUILD}/time/JITime.class: src/time/JITime.java ${BUILD}/time/Entry.class
 	javac -d $(BUILD) -cp $(CP) src/time/O.java
 
 ${BUILD}/time/Entry.class: ${BUILD}/time/O.class $(wildcard src/time/*.scala)
-	scalac -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
+	fsc -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
 
 
 ${BUILD}/time/O.class: src/time/O.java
@@ -45,5 +45,5 @@ test: ${DIST}/test.jar
 clean:
 	rm -rf ${BUILD}
 	rm -rf ${TEST_BUILD}
-	rm -rf ${DIST}
+	rm ${DIST}/time.jar
 	rm -f java.hprof.txt
