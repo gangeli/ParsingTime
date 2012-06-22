@@ -865,6 +865,9 @@ object Entry {
 			} catch {
 				case (e:Throwable) => throw new RuntimeException(e)
 			}
+//		startTrack("Parameters")
+//		log(sys.parser.parameters( sys.index.w2str(_), sys.grammar.r2str(_) ))
+//		endTrack("Parameters")
 		endTrack("Initialization")
 		//--Run Loop
 		//(start loop)
@@ -909,7 +912,6 @@ object Entry {
 		endTrack("REPL")
 	}
 
-
 	def main(args:Array[String]):Unit = {
 		//--Exec
 		Execution.exec(new Runnable(){
@@ -925,6 +927,6 @@ object Entry {
 					case O.RunMode.System => throw fail("NOT IMPLEMENTED")
 				}
 			}
-		}, args, new StanfordExecutionLogInterface)
+		}, args)
 	}
 }

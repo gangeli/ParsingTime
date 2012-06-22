@@ -1,0 +1,567 @@
+#!/bin/bash
+exec scala -J-Xmx4g -cp "$JAVANLP_HOME/projects/core/classes/:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar:$HOME/lib/java/models.jar:$HOME/workspace/lib/dist/lib.jar:$HOME/workspace/time/dist/time.jar:$HOME/workspace/time/etc/joda-time.jar:$HOME/workspace/time/etc/joda-convert.jar:." "$0" "$@"
+!#
+
+import java.awt.Color
+import java.util.GregorianCalendar
+import java.util.Calendar
+import java.util.Properties
+import java.io.File
+
+import scala.collection.mutable.HashMap
+import scala.collection.mutable.HashSet
+import scala.collection.mutable.Set
+import scala.collection.JavaConversions._
+import scala.util.Random
+
+import edu.stanford.nlp.pipeline._
+import edu.stanford.nlp.ling._
+import edu.stanford.nlp.util._
+import edu.stanford.nlp.time.TimeAnnotations._
+import edu.stanford.nlp.time.GUTimeAnnotator
+import edu.stanford.nlp.time.TimeAnnotator
+
+import org.goobs.net._
+import org.goobs.graphics.Drawing
+
+import time._
+import time.Lex._
+
+//------------------------------------------------------------------------------
+// PARAMETERS
+//------------------------------------------------------------------------------
+// -- Drawing Params --
+val borderWidth = 4
+val gridWidth = 2
+
+val drawMonth = true
+val drawDates = false
+val showDay = false
+val canTime = false
+
+val sleepEnd = 6
+val sleepStart = 22
+
+// -- Web Params --
+val imagePath = "img"
+val monthSize = 500
+val daySize = 500
+
+// -- Static --
+val MOY = Array[String](
+	"JAN",
+	"FEB",
+	"MAR",
+	"APR",
+	"MAY",
+	"JUN",
+	"JUL",
+	"AUG",
+	"SEP",
+	"OCT",
+	"NOV",
+	"DEC"
+)
+val DOW = Array[String](
+	"MON",
+	"TUE",
+	"WED",
+	"THU",
+	"FRI",
+	"SAT",
+	"SUN"
+)
+
+// -- State --
+object State {
+	val sessionID = Random.nextInt
+	var nextID:Int = 0
+	val freedom = new HashMap[(Int,Int,Int),Freedom]
+	val duration = new HashMap[Int,Duration]
+	val guesses = new HashMap[Int,Set[String]]
+	//(CoreNLP)
+	val pipeline:AnnotationPipeline = {
+			val props = new Properties
+			props.setProperty("pos.model",
+				System.getenv("HOME") +
+					"/lib/data/bidirectional-distsim-wsj-0-18.tagger")
+			props.setProperty("annotators","tokenize, ssplit, pos")
+			val pipe = new StanfordCoreNLP(props);
+			pipe
+		}
+}
+
+def isNight(hr:Int) = {
+	hr < sleepEnd || hr >= sleepStart
+}
+
+//------------------------------------------------------------------------------
+// CALENDARS
+//------------------------------------------------------------------------------
+class Freedom(val year:Int,val mon:Int,freedom:Array[Boolean]) {
+	def export:Drawing = {
+		val cal:Calendar = new GregorianCalendar
+		if(cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH)+1 == mon){
+			export(cal.get(Calendar.DAY_OF_MONTH))
+		} else {
+			export(-1)
+		}
+	}
+	def export(today:Int):Drawing = {
+		//--Variables
+		//(create calendar)
+		val cal:Calendar = Freedom.calendar
+		cal.set(year,mon-1,1)
+		//(get statistics)
+		val numDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+		//(create frame)
+		val frame:Drawing = new Drawing()
+		//--Block Days
+		//(function)
+		def mark(frame:Drawing,x:Double,y:Double,hr:Int):Drawing = {
+			val hour = hr.asInstanceOf[Double] / 24.0
+			val x0 = x
+			val x1 = 1.0+x
+			val y0 = y-hour
+			val y1 = y-hour-(1.0/24.0)
+			if(isNight(hr)){
+				frame.fillRect(x0,y0,x1,y1,new Color(0xEAEAEA))
+			} else {
+				frame.fillRect(x0,y0,x1,y1,new Color(0x9FC6E7))
+			}
+		}
+		//(mark)
+		val freed:Drawing = freedom.zipWithIndex.foldLeft(frame){ 
+				case (frame:Drawing,(free:Boolean,hr:Int)) =>
+			//(get date)
+			val day:Int = hr / 24 + 1
+			cal.set(year,mon-1,day)
+			val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+			val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
+			//(mark date)
+			if(free){
+				frame
+			} else {
+				mark(frame,dow,7-week,(hr % 24))
+			}
+		}
+		//--Finish Calendar
+		Freedom.flourish(Freedom.frame(freed,year,mon),year,mon,today)
+	}
+	def day(day:Int):Drawing = {
+		//--Variables
+		//(create calendar)
+		val cal:Calendar = Freedom.calendar
+		cal.set(year,mon-1,day)
+		//(get freedom)
+		val freeDay:Array[Boolean] = freedom.slice((day-1)*24,(day-1+1)*24)
+		//(create frame)
+		val frame:Drawing = new Drawing()
+		//--Block Hours
+		val blocked:Drawing = freeDay.zipWithIndex.foldLeft(frame){ 
+				case (frame:Drawing,(free:Boolean,hour:Int)) =>
+			if(free){
+				frame
+			} else if(isNight(hour)){
+				frame.fillRect(3,24-hour-1,14,24-hour, new Color(0xEAEAEA))
+			} else {
+				frame.fillRect(3,24-hour-1,14,24-hour, new Color(0x9FC6E7))
+			}
+		}
+		//--Finish Calendar
+		Freedom.day(blocked,year,mon,day)
+	}
+	override def toString:String = freedom.mkString(",")
+}
+
+object Freedom {
+	def apply(year:Int,month:Int):Freedom = apply(year,month,Random.nextInt)
+	def apply(year:Int,month:Int,seed:Int):Freedom = {
+		//--Variables
+		//(create calendar)
+		val cal = new GregorianCalendar
+		cal.setFirstDayOfWeek(Calendar.SUNDAY)
+		cal.set(year,month-1,1)
+		//(get numbers)
+		val numDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+		val numHours = numDays * 24
+		//--Run Chain
+		val chain = (0 until numHours).foldLeft((List[Boolean](),true)){ 
+				case ((free:List[Boolean],freeAllDay:Boolean),hr:Int) =>
+			//(variables)
+			val hod:Int = hr % 24
+			//(transition probs)
+			val isFree = if(isNight(hod)){
+				false
+			} else if(hod == sleepEnd) {
+				Random.nextBoolean
+			} else {
+				val lastFree = if(free.isEmpty){ true } else { free.head }
+				if(freeAllDay){
+					Random.nextDouble < 0.95
+				} else if(lastFree){
+					Random.nextDouble < 0.5
+				} else {
+					Random.nextDouble < 0.3
+				}
+			}
+			//(return)
+			(isFree :: free, hod == sleepEnd-1 || (freeAllDay && isFree))
+		}._1.reverse.toArray
+		//--Return
+		new Freedom(year,month,chain)
+	}
+	def calendar:GregorianCalendar = {
+		val cal = new GregorianCalendar
+		cal.setFirstDayOfWeek(Calendar.SUNDAY)
+		cal
+	}
+	def frame(canvas:Drawing,year:Int,month:Int):Drawing = {
+		//--Functions
+		def invalid(frame:Drawing,row:Int,col:Int) = {
+			frame.fillRect(col,7-row,col+1,6-row, Color.BLACK)
+		}
+		val cal:Calendar = calendar
+		//--Make Frame
+		val emptyCal:Drawing = canvas
+			//(boundary)
+			.rect(0,0,7,7.5,Color.BLACK,borderWidth)
+			//(grid)
+			.line(1,0,1,6,Color.BLACK,gridWidth)
+			.line(2,0,2,6,Color.BLACK,gridWidth)
+			.line(3,0,3,6,Color.BLACK,gridWidth)
+			.line(4,0,4,6,Color.BLACK,gridWidth)
+			.line(5,0,5,6,Color.BLACK,gridWidth)
+			.line(6,0,6,6,Color.BLACK,gridWidth)
+			.line(0,1,7,1,Color.BLACK,gridWidth)
+			.line(0,2,7,2,Color.BLACK,gridWidth)
+			.line(0,3,7,3,Color.BLACK,gridWidth)
+			.line(0,4,7,4,Color.BLACK,gridWidth)
+			.line(0,5,7,5,Color.BLACK,gridWidth)
+			.line(0,6,7,6,Color.BLACK,gridWidth)
+			//(title)
+			.text(1.6,6.75,
+				{if(drawMonth){ MOY(month-1)+" "+year } else { "" }},
+				new Color(0x2E3542),0.75)
+			//(days of week)
+			.text(0.15,6.1,"SUN",new Color(0x2E3542),0.4)
+			.text(1.15,6.1,"MON",new Color(0x2E3542),0.4)
+			.text(2.15,6.1,"TUE",new Color(0x2E3542),0.4)
+			.text(3.15,6.1,"WED",new Color(0x2E3542),0.4)
+			.text(4.15,6.1,"THU",new Color(0x2E3542),0.4)
+			.text(5.15,6.1,"FRI",new Color(0x2E3542),0.4)
+			.text(6.15,6.1,"SAT",new Color(0x2E3542),0.4)
+		//--Bound Calendar
+		//(bound first)
+		cal.set(year,month-1,1)
+		val firstDow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+		val firstWeek:Int = cal.get(Calendar.WEEK_OF_MONTH)
+		val boundedCalLeft:Drawing = (0 until firstDow)
+				.foldLeft(emptyCal){ case (frame:Drawing,day:Int) =>
+			invalid(frame,firstWeek,day)
+		}
+		//(bound last)
+		cal.set(year,month-1,cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+		val lastDow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+		val lastWeek:Int = cal.get(Calendar.WEEK_OF_MONTH)
+		val boundedCalRightCand = (lastDow+1 until 7)
+				.foldLeft(boundedCalLeft){ case (frame:Drawing,day:Int) =>
+			invalid(frame,lastWeek,day)
+		}
+		if(lastWeek < 6){
+			(0 until 7).foldLeft(boundedCalRightCand){ case (frame:Drawing,day:Int) =>
+				invalid(frame,6,day)
+			}
+		} else {
+			boundedCalRightCand
+		}
+	}
+
+	def flourish(frame:Drawing,year:Int,month:Int,today:Int):Drawing = {
+		//--Functions
+		def number(frame:Drawing,x:Double,y:Double,num:Int):Drawing = {
+			frame.text({if(num > 9) 0.6 else 0.8}+x, 
+				0.75+y, 
+				""+num, 
+				new Color(0x2E3542),
+				0.25)
+		}
+		def mark(frame:Drawing,x:Double,y:Double):Drawing = {
+			frame.fillCircle(0.5+x, 0.4+y, 0.25, new Color(0xFF7F6E))
+		}
+		//--Draw Calendar
+		val cal:Calendar = calendar
+		cal.set(year,month-1,1)
+		val markedCal:Drawing = (1 to cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+				.foldLeft(frame){ case (frame:Drawing,day:Int) =>
+			if(drawDates || day == today || (today < 0 && day == 1)){
+				//(get date)
+				cal.set(year,month-1,day)
+				val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+				val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
+				//(label date)
+				number(frame,dow,6-week,day)
+			} else {
+				frame
+			}
+		}
+		//--Set Today
+		if(today > 0){
+			//(get date)
+			cal.set(year,month-1,today)
+			val dow:Int = cal.get(Calendar.DAY_OF_WEEK)-1
+			val week:Int = cal.get(Calendar.WEEK_OF_MONTH)
+			//(mark date)
+//			mark(markedCal,dow,6-week)
+			markedCal
+		} else {
+			markedCal
+		}
+	}
+	
+	def day(canvas:Drawing,year:Int,month:Int,day:Int):Drawing = {
+		val boundary:Drawing = canvas
+			.rect(0,0,14,26,Color.BLACK,borderWidth)
+			.line(0,24,14,24,Color.BLACK,2)
+			.line(3,0,3,24,Color.BLACK,2)
+			.text(6,24.5,
+				{if(showDay){
+					""+day
+				} else {
+					val cal:Calendar = new GregorianCalendar
+					cal.set(year,month-1,day)
+					val dow:Int = (cal.get(Calendar.DAY_OF_WEEK)+5) % 7
+					DOW(dow)
+				}},new Color(0x2E3542),1.5)
+		val emptyDay:Drawing = (0 until 24).foldLeft(boundary){
+				case (frame:Drawing, hour:Int) =>
+			val tMod12:Int = 
+				if(hour == 0 || hour == 12) 12
+				else if(hour < 12) hour
+				else hour-12
+			val time:String = ""+tMod12 +
+				{if(tMod12 < 10) "  " else " "} +
+				{if(hour >= 12) "pm" else "am"}
+			frame
+				.line(0,24-hour-1,14,24-hour-1)
+				.text(0.1, 24-hour-1+0.1, time, new Color(0x2E3542), 0.8)
+		}
+		emptyDay
+	}
+}
+
+//val freedom = Freedom(2011,12)
+//freedom.export.save("test.png",500)
+//freedom.day(5).preview(500)
+//Freedom(2011,12).export(4).preview(500)
+//Freedom(2011,12).export.preview(500)
+//Freedom.day(new Drawing(),2011,11,27).preview(500)
+//Freedom(2011,11).day(27).preview(500)
+
+
+//------------------------------------------------------------------------------
+// WEB SERVER
+//------------------------------------------------------------------------------
+
+//--New Session 
+//TODO hacky cleanup technique
+def cleanup(minId:Int):Unit = {
+	State.freedom.retain{ case ((id:Int,yr:Int,mon:Int),f:Freedom) => id > minId }
+	State.duration.retain{ case (id:Int,d:Duration) => id > minId }
+	println("(cleanup to " + minId+")")
+}
+def geom(p:Double):Int = {
+	var i:Int = 1
+	while(Random.nextDouble > p){
+		i += 1
+	}
+	i
+}
+def getID(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	//(get id)
+	State.nextID = State.nextID + 1
+	val id:Int = if(values.contains("id")){ 
+			try {
+				values("id").toInt
+			} catch {
+				case _ => State.nextID
+			}
+		} else { 
+			State.nextID
+		}
+	//(cleanup)
+//	if(State.nextID % 1000 == 0 && State.nextID >= 1000){
+//		cleanup(State.nextID-1000)
+//	}
+	//(get duration)
+	val num:Int = geom(0.5)
+	val (d:Duration,dStr:String) = Random.nextInt(if(canTime){2}else{1}) match {
+		case 0 => (ADAY*num, ""+{if(num == 1) "a" else num} + 
+			" day" + {if(num>1) "s" else ""})
+		case 1 => (AHOUR*num, ""+{if(num == 1) "an" else num} + 
+			" hour" + {if(num>1) "s" else ""})
+	}
+	State.duration(id) = d
+	//(return)
+	println("[" + id + "] init " + dStr)
+	"{id: \"" + id.toString + "\", duration: \"" + dStr + "\"}"
+}
+//--Get Month
+def getMonth(id:Int,year:Int,month:Int):String = {
+	//(error check)
+	if(id < 0){ 
+		throw new IllegalArgumentException("Bad ID: " + id) 
+	}
+	//(ensure month)
+	val filepath = imagePath+"/"+State.sessionID+"_"+id+"_"+year+"-"+month+".png"
+		if(!(new File(filepath).exists)){
+			val free = Freedom(year,month)
+			State.freedom((id,year,month)) = free
+			free.export.save(filepath,monthSize)
+		}
+	//(return)
+	println("[" + id + "] month view " + year + "-"+month)
+	filepath
+}
+def getMonth(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	getMonth(values("id").toInt,values("year").toInt,values("month").toInt)
+}
+//--Get Day
+def getDay(id:Int,year:Int,month:Int,day:Int):String = {
+	//(error check)
+	if(id < 0){ 
+		throw new IllegalArgumentException("Bad ID: " + id) 
+	}
+	//(ensure day)
+	val filepath 
+		= imagePath+"/"+State.sessionID+"_"+id+"_"+year+"-"+month+"-"+day+".png"
+	if(!(new File(filepath).exists)){
+		State.freedom(id,year,month).day(day).save(filepath,daySize)
+	}
+	//(return)
+	println("[" + id + "] day view " + year + "-"+month + "-" + day)
+	filepath
+}
+def getDay(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	getDay(
+		values("id").toInt,
+		values("year").toInt,
+		values("month").toInt,
+		values("day").toInt)
+}
+//--Validate
+def suTime(input:String):Boolean = {
+	try {
+		//(annotate)
+		val map:Annotation = new Annotation(input)
+		State.pipeline.annotate(map)
+		val sutime = new TimeAnnotator
+		sutime.annotate(map)
+		//(get timexes)
+		val timexes:java.util.List[CoreMap] = 
+			map.get[java.util.List[CoreMap],TimexAnnotations](
+			classOf[TimexAnnotations])
+		return timexes != null && !timexes.isEmpty
+	} catch {
+		case (e:Exception) => true
+	}
+}
+def validate(id:Int,input:String,begin:String,end:String):String = {
+	//(error check)
+	print("["+id+"] validate " + begin + " until " + end + ": '"+input+"'...")
+	if(id < 0){ 
+		throw new IllegalArgumentException("Bad ID: " + id) 
+	}
+	//--Ranges
+	val beginTime:Time = Time(begin)
+	val endTime:Time = Time(end)
+	val rangeCheck = endTime >= beginTime
+	//--Text
+	//(get conclusion)
+	val rtn = 
+		if(!rangeCheck){
+			"range"
+		} else if(suTime(input)){
+			"sutime"
+		} else {
+			"good"
+		}
+	//--Clean Up
+	println(rtn)
+	return rtn
+}
+def validate(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	try {
+		validate(
+			values("id").toInt,
+			values("annotation"),
+			values("begin"),
+			values("end"))
+	} catch {
+		case (r:RuntimeException) => "SERVER ERROR: " + r.getMessage
+	}
+}
+//--New Expression
+def novel(id:Int,guess:String):String = {
+	print("["+id+"] checking " + guess + "...")
+	if(!State.guesses.contains(id)){ State.guesses(id) = new HashSet[String] }
+	val alreadyGuessed = State.guesses(id)
+	if( alreadyGuessed.contains(guess.toLowerCase) ){
+		println("duplicate")
+		"false"
+	} else if(!suTime(guess)){
+		println("sutime")
+		"sutime"
+	} else {
+		println("OK")
+		alreadyGuessed.add(guess.toLowerCase)
+		"true"
+	}
+}
+def novel(values:HashMap[String,String],info:WebServer.HttpInfo):String = {
+	try {
+		novel(
+			values("id").toInt,
+			values("guess"))
+	} catch {
+		case (r:RuntimeException) => "SERVER ERROR: " + r.getMessage
+	}
+}
+//--Add Listeners
+//(implicit conversion)
+implicit def fn2handler(
+		fn:(HashMap[String,String],WebServer.HttpInfo)=>String):WebServerHandler = {
+	new JsonHandler(){
+		override def handleJSON(values:java.util.HashMap[String,String],
+				info:WebServer.HttpInfo):String = {
+			//(convert hashmap)
+			val scalaMap:HashMap[String,String] = new HashMap[String,String]
+			val iter = values.keySet.iterator
+			while(iter.hasNext){
+				val key = iter.next
+				scalaMap(key) = values.get(key)
+			}
+			//(handle)
+			try{
+				var str:String = fn(scalaMap,info)
+				if(!str.contains("{")){ str = "\""+str+"\"" }
+				"{\n  \"value\":" + str +"\n}"
+			} catch {
+				case (r:RuntimeException) => 
+					r.printStackTrace
+					"ERROR: " + r.getMessage
+			}
+		}
+	}
+}
+//--Run
+//(add handlers)
+new WebServer(3000).start
+	.register("/init",getID(_:HashMap[String,String],_:WebServer.HttpInfo))
+	.register("/month",getMonth(_:HashMap[String,String],_:WebServer.HttpInfo))
+	.register("/day",getDay(_:HashMap[String,String],_:WebServer.HttpInfo))
+	.register("/validate",validate(_:HashMap[String,String],_:WebServer.HttpInfo))
+	.register("/novel",novel(_:HashMap[String,String],_:WebServer.HttpInfo))
+//(run)
+State.pipeline
+println("Ready...")

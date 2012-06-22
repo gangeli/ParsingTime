@@ -1728,6 +1728,18 @@ object ToyData {
 	private val april = ("april",(MOY(4)))
 	private val april1776 = ("april 1776",(MOY(4) ^ THEYEAR(1776)))
 	private val april2 = ("april 2",(MOY(4) ^ DOM(2)))
+	private val jan15 = ("january 15",(MOY(1) ^ DOM(15)))
+	private val feb15 = ("february 15",(MOY(2) ^ DOM(15)))
+	private val mar15 = ("march 15",(MOY(3) ^ DOM(15)))
+	private val apr15 = ("april 15",(MOY(4) ^ DOM(15)))
+	private val may15 = ("may 15",(MOY(5) ^ DOM(15)))
+	private val jun15 = ("june 15",(MOY(6) ^ DOM(15)))
+	private val jul15 = ("july 15",(MOY(7) ^ DOM(15)))
+	private val aug15 = ("august 15",(MOY(8) ^ DOM(15)))
+	private val sep15 = ("september 15",(MOY(9) ^ DOM(15)))
+	private val oct15 = ("october 15",(MOY(10) ^ DOM(15)))
+	private val nov15 = ("november 15",(MOY(11) ^ DOM(15)))
+	private val dec15 = ("december 15",(MOY(12) ^ DOM(15)))
 	private val year = ("year",(YEAR))
 	private val ayear = ("a year",(AYEAR))
 	private val lastYear = ("last year",(YEAR move -1))
@@ -1820,6 +1832,7 @@ object ToyData {
 				//(sequences)
 				april,
 				//(intersects)
+				jan15,feb15,mar15,apr15,may15,jun15,jul15,aug15,sep15,oct15,nov15,dec15,
 				april1776,april2,
 				//(days of the week)
 				monday,tuesday,wednesday,thursday,friday,saturday,sunday,
