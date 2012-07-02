@@ -36,7 +36,7 @@ function detect {
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\
-			"out/$last/treeTime.ser.gz" \
+			"dist/detectModel.ser.gz" \
 			aux/coremap/tempeval2-english \
 			aux/tempeval2 \
 			true
@@ -52,7 +52,7 @@ function interpret {
 		-cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar\
 		time.Interpret\
 			tempeval\
-			"out/$last/interpretModel.ser.gz" \
+			"dist/interpretModel.ser.gz" \
 			aux/coremap/tempeval2-english \
 			aux/tempeval2
 }
@@ -281,5 +281,5 @@ function cmd {
 	java -cp bin:etc/math.jar:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes time.Time
 }
 function tempeval2 {
-	java -cp bin:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes time.TempEval2
+	java -Xmx6G -cp bin:etc/joda-time.jar:etc/joda-convert.jar:etc/scala-compiler.jar:etc/scala-library.jar:etc/jline.jar:etc/lib.jar:$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes time.TempEval2 $@
 }

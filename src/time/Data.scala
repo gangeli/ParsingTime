@@ -183,6 +183,10 @@ object DataLib {
 		"""^([0-9]{4})-?([0-9]{1,2})-?([0-9]{1,2})T?([0-9]{1,2})?([0-9]{1,2})?$""".r
 	val YearMonthDayTime = 
 		"""^([0-9]{4})-?([0-9]{1,2})-?([0-9]{1,2})T?(MO|AF|EV|NI)?$""".r
+	val TimeOfDay = 
+		"""^T(MO|AF|EV|NI)$""".r
+	val TimeOfDayDuration = 
+		"""^PT(MO|AF|EV|NI)$""".r
 	val YearWeekWE = """^([0-9]{4})-?W([0-9]{1,2})-?(WE)?$""".r
 	val YearQuarter = """^([0-9]{4})-?Q([1-4])$""".r
 	val YearHalf = """^([0-9]{4})-?H([1-2])$""".r
@@ -242,6 +246,14 @@ object DataLib {
 					case "AF" => new DateTime(year.toInt,month.toInt,day.toInt,12,0,0,0)
 					case "EV" => new DateTime(year.toInt,month.toInt,day.toInt,16,0,0,0)
 					case "NI" => new DateTime(year.toInt,month.toInt,day.toInt,20,0,0,0)
+				}
+				(base, base.plusHours(4))
+			case TimeOfDay(time) => 
+				val base = time match {
+					case "MO" => new DateTime(ground.getYear,ground.getMonthOfYear,ground.getDayOfMonth,8,0,0,0)
+					case "AF" => new DateTime(ground.getYear,ground.getMonthOfYear,ground.getDayOfMonth,12,0,0,0)
+					case "EV" => new DateTime(ground.getYear,ground.getMonthOfYear,ground.getDayOfMonth,16,0,0,0)
+					case "NI" => new DateTime(ground.getYear,ground.getMonthOfYear,ground.getDayOfMonth,20,0,0,0)
 				}
 				(base, base.plusHours(4))
 			case _ => null
@@ -318,6 +330,10 @@ object DataLib {
 					}
 				}
 				(period,fuzzy)
+			case TimeOfDayDuration(time) => 
+				var period:Period = new Period
+				period.plusHours(4)
+				(period, false)
 			case "PAST_REF" => ("PAST",ground)
 			case "FUTURE_REF" => (ground,"FUTURE")
 			case "PRESENT_REF" => (ground,ground)

@@ -47,7 +47,7 @@ object TempEval2 {
 	val Base = mkline(4)
 	val Attr = mkline(8)
 	val Ext = mkline(6)
-	val PubTime = """([0-9]{4})([0-9]{2})([0-9]{2})""".r
+	val PubTime = """([0-9]{4})-?([0-9]{2})-?([0-9]{2})""".r
 
 	//<<classes>
 	case class TempEval2Word(doc:String,sent:Int,word:Int) {
@@ -97,7 +97,14 @@ object TempEval2 {
 	*/
 	def documentCreationTimes(dct:String):Map[String,DateTime] = {
 		//(variables)
-		val lines = scala.io.Source.fromFile(dct).mkString.split("""\s*\n\s*""")
+		val lines = {
+			try {
+				scala.io.Source.fromFile(dct).mkString.split("""\s*\n\s*""")
+			} catch {
+				case (e:java.io.FileNotFoundException) =>
+					scala.io.Source.fromFile(dct.replaceAll(".txt",".tab")).mkString.split("""\s*\n\s*""")
+			}
+		}
 		val rtn = new HashMap[String,DateTime]
 		//(parse lines)
 		lines.foreach{ case (line:String) =>
@@ -127,7 +134,7 @@ object TempEval2 {
 			collect((TempEval2Word(doc,sent.toInt,start.toInt),'doc)) = doc
 			if(tag == "type"){
 				collect((TempEval2Word(doc,sent.toInt,start.toInt),'type)) = value
-			} else if(tag == "value"){
+			} else if(tag == "value" || tag == "val"){
 				collect((TempEval2Word(doc,sent.toInt,start.toInt),'value)) = value
 			} else {
 				throw new IllegalStateException("bad tag: " + tag)
@@ -181,7 +188,8 @@ object TempEval2 {
 			words:Map[TempEval2Word,TempEval2Word],
 			dct:Map[String,DateTime],
 			attr:Map[AttributeKey,RawTime],
-			ext:Map[TempEval2Word,Option[String]]
+			ext:Map[TempEval2Word,Option[String]],
+			lang:String
 			):Array[Annotation] = {
 		startTrack("Making CoreMaps")
 		//--Utilities
@@ -189,12 +197,18 @@ object TempEval2 {
 			var tokens = new HashMap[Int,CoreLabel]
 			var textGloss = new HashMap[Int,String]
 			var timeExpressions = List[CoreMap]()
-			def mkGloss:String
-				= (0 until textGloss.keys.size).map{ textGloss(_) }
+			def mkGloss:String = {
+				val tokenRange = if(lang.toLowerCase == "spanish") (1 to textGloss.keys.size)
+			                   else (0 until textGloss.keys.size);
+				tokenRange.map{ textGloss(_) }
 					.toArray
 					.mkString(" ")
-			def mkTokens:JList[CoreLabel]
-				= seqAsJavaList((0 until tokens.keys.size).map{ tokens(_) })
+			}
+			def mkTokens:JList[CoreLabel] = {
+				val tokenRange = if(lang.toLowerCase == "spanish") (1 to tokens.keys.size)
+			                   else (0 until tokens.keys.size);
+				seqAsJavaList(tokenRange.map{ tokens(_) })
+			}
 			def mkTimes:JList[CoreMap] = seqAsJavaList(timeExpressions)
 		}
 		//--Variables
@@ -258,7 +272,12 @@ object TempEval2 {
 				offset = 0
 			}
 			//(cycle words)
-			(0 until sentInfo.tokens.keys.size).foreach{ (wordI:Int) =>
+			val tokenRange = if(lang.toLowerCase == "spanish") (1 to sentInfo.tokens.keys.size) 
+			            else (0 until sentInfo.tokens.keys.size);
+			tokenRange.foreach{ (wordI:Int) =>
+				if (!sentInfo.tokens.contains(wordI)) {
+					throw new IllegalArgumentException("Unknown word @ " + sentInfo.doc + " sentence " + sentInfo.sent + " word index " + wordI);
+				}
 				val wordInfo = sentInfo.tokens(wordI)
 				val text:String = wordInfo.get[String,TextAnnotation](TEXT)
 				//((offset))
@@ -313,7 +332,7 @@ object TempEval2 {
 				sentMap.set(classOf[TokensAnnotation], sentInfo.mkTokens)
 				sentMap.set(classOf[TimeExpressionsAnnotation], sentInfo.mkTimes)
 				sentMap.set(classOf[CharacterOffsetBeginAnnotation], 
-					sentInfo.tokens(0).get[JInt,CharacterOffsetBeginAnnotation](
+					sentInfo.tokens(if(lang == "spanish") 1 else 0).get[JInt,CharacterOffsetBeginAnnotation](
 						classOf[CharacterOffsetBeginAnnotation]))
 				sentMap.set(classOf[CharacterOffsetEndAnnotation], 
 					sentInfo.tokens(sentInfo.tokens.keySet.size-1).get[JInt,CharacterOffsetEndAnnotation](
@@ -447,7 +466,7 @@ object TempEval2 {
 		log("extents...")
 		val ext:Map[TempEval2Word,Option[String]] = this.ext(words,extPath)
 		//--CoreMap
-		val maps:Array[Annotation] = mkCoreMaps(test,words,dct,attr,ext)
+		val maps:Array[Annotation] = mkCoreMaps(test,words,dct,attr,ext,lang)
 		//--Return
 		endTrack("Data(" + {if(test) "test" else "train"}+")")
 		maps
@@ -524,23 +543,80 @@ object TempEval2 {
 		x
 	}
 
-	def main(args:Array[String]) {
-		if(args.length > 0){
-			if(args(0) == "english"){
-				prettyLog(new SerializedCoreMapDataset(
-					"aux/coremap/tempeval2-english"))
-			} else if(args(0) == "retok"){
-				prettyLog(new SerializedCoreMapDataset(
-					"aux/coremap/tempeval2-english-retok"))
-			} else if(args(0) == "numbers"){
-				prettyLog(new SerializedCoreMapDataset(
-					"aux/coremap/tempeval2-english-retok-numbers"))
-			} else {
-				throw new IllegalArgumentException("Bad argument: " + args(0))
+	def toReadableFile(input:String, output:String):Unit = {
+		val data = new SerializedCoreMapDataset(input)
+		val contents = new StringBuilder();
+		//--Info
+		var currentId = ""
+		var words = List[String]()
+		var currentValue = ""
+		var currentType = ""
+		//--Iterate Over Data
+		data.foreach{ (datum:CoreMapDatum) =>
+			val cal = datum.get[java.util.Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
+			val format = new java.text.SimpleDateFormat("yyyy-MM-dd.hh:mm:ss")
+			val docdate = format.format(cal.getTime)
+			val sentences = datum.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
+			sentences.foreach{ (sent:CoreMap) =>
+				val tokens = sent.get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
+				//--Iterate Over Tokens
+				tokens.foreach{ (token:CoreLabel) =>
+					if (token.get[String,OriginalTimeValueAnnotation](classOf[OriginalTimeValueAnnotation]) != null) {
+						//(get info)
+						val word = token.get[String,TextAnnotation](classOf[TextAnnotation])
+						val value = token.get[String,OriginalTimeValueAnnotation](classOf[OriginalTimeValueAnnotation])
+						val typ = token.get[String,OriginalTimeTypeAnnotation](classOf[OriginalTimeTypeAnnotation])
+						val id = token.get[String,TimeIdentifierAnnotation](classOf[TimeIdentifierAnnotation])
+						//(check for change)
+						if (currentId != null && id != null && id != currentId) {
+							//(print old info)
+							if (currentId != null) {
+								contents.append(currentType).append("\t").append(currentValue).append("\t")
+									.append(docdate).append("\t")
+									.append(words.reverse.mkString(" ")).append("\n")
+							}
+							//(set new fields)
+							currentId = id
+							words = List[String](word)
+							currentValue = value
+							currentType = typ
+						} else if (id != null) {
+							words = word :: words;
+						}
+					}
+				}
 			}
-		} else {
-			prettyLog(new SerializedCoreMapDataset(
-				"aux/coremap/tempeval2-english-retok-numbers"))
 		}
+		edu.stanford.nlp.io.IOUtils.writeStringToFileNoExceptions(
+			contents.toString, output);
+	}
+
+	def main(args:Array[String]) {
+//    // Print a serialized core map
+//		if(args.length > 0){
+//			if(args(0) == "english"){
+//				prettyLog(new SerializedCoreMapDataset(
+//					"aux/coremap/tempeval2-english"))
+//			} else if(args(0) == "retok"){
+//				prettyLog(new SerializedCoreMapDataset(
+//					"aux/coremap/tempeval2-english-retok"))
+//			} else if(args(0) == "numbers"){
+//				prettyLog(new SerializedCoreMapDataset(
+//					"aux/coremap/tempeval2-english-retok-numbers"))
+//			} else {
+//				throw new IllegalArgumentException("Bad argument: " + args(0))
+//			}
+//		} else {
+//			prettyLog(new SerializedCoreMapDataset(
+//				"aux/coremap/tempeval2-english-retok-numbers"))
+//		}
+		// Dump a language's data into readable form
+		val language = args(0)
+		println("Processing " + language)
+		retok("aux/tempeval2-cleaned", language)
+		toReadableFile(
+			"aux/coremap/tempeval2-"+language+"-retok",
+			"tmp/tempeval-"+language+".dat"
+		)
 	}
 }
