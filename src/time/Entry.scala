@@ -760,7 +760,7 @@ object Entry {
 //				val pipeline = new StanfordCoreNLP(props)
 				
 				val pipeline = new AnnotationPipeline()
-      	pipeline.addAnnotator(new WhitespaceTokenizerAnnotator)
+      	pipeline.addAnnotator(new WhitespaceTokenizerAnnotator(new Properties))
 				pipeline.addAnnotator(new WordsToSentencesAnnotator(false))
     		pipeline.addAnnotator(new POSTaggerAnnotator(
 					System.getenv("HOME") +

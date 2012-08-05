@@ -198,14 +198,14 @@ object TempEval2 {
 			var textGloss = new HashMap[Int,String]
 			var timeExpressions = List[CoreMap]()
 			def mkGloss:String = {
-				val tokenRange = if(lang.toLowerCase == "spanish") (1 to textGloss.keys.size)
+				val tokenRange = if(lang.toLowerCase == "espanol") (1 to textGloss.keys.size)
 			                   else (0 until textGloss.keys.size);
 				tokenRange.map{ textGloss(_) }
 					.toArray
 					.mkString(" ")
 			}
 			def mkTokens:JList[CoreLabel] = {
-				val tokenRange = if(lang.toLowerCase == "spanish") (1 to tokens.keys.size)
+				val tokenRange = if(lang.toLowerCase == "espanol") (1 to tokens.keys.size)
 			                   else (0 until tokens.keys.size);
 				seqAsJavaList(tokenRange.map{ tokens(_) })
 			}
@@ -272,7 +272,7 @@ object TempEval2 {
 				offset = 0
 			}
 			//(cycle words)
-			val tokenRange = if(lang.toLowerCase == "spanish") (1 to sentInfo.tokens.keys.size) 
+			val tokenRange = if(lang.toLowerCase == "espanol") (1 to sentInfo.tokens.keys.size) 
 			            else (0 until sentInfo.tokens.keys.size);
 			tokenRange.foreach{ (wordI:Int) =>
 				if (!sentInfo.tokens.contains(wordI)) {
@@ -332,7 +332,7 @@ object TempEval2 {
 				sentMap.set(classOf[TokensAnnotation], sentInfo.mkTokens)
 				sentMap.set(classOf[TimeExpressionsAnnotation], sentInfo.mkTimes)
 				sentMap.set(classOf[CharacterOffsetBeginAnnotation], 
-					sentInfo.tokens(if(lang == "spanish") 1 else 0).get[JInt,CharacterOffsetBeginAnnotation](
+					sentInfo.tokens(if(lang == "espanol") 1 else 0).get[JInt,CharacterOffsetBeginAnnotation](
 						classOf[CharacterOffsetBeginAnnotation]))
 				sentMap.set(classOf[CharacterOffsetEndAnnotation], 
 					sentInfo.tokens(sentInfo.tokens.keySet.size-1).get[JInt,CharacterOffsetEndAnnotation](
@@ -364,25 +364,25 @@ object TempEval2 {
 		}
 		endTrack("Pass 4 (global timexes)")
 		//--Pipeline Annotate
-		forceTrack("Pass 5 (pipeline)")
-		//(annotators)
-		val lemma = new MorphaAnnotator(false)
-		val pos = new POSTaggerAnnotator(
-				System.getenv("HOME") +
-					"/lib/data/bidirectional-distsim-wsj-0-18.tagger", //TODO hard coded
-				false)
-		//(run pipeline)
-		threadAndRun( 
-			docs.zipWithIndex.map{ case (doc:Annotation,i:Int) => new Runnable{ 
-				override def run {
-					pos.annotate(doc)
-					lemma.annotate(doc)
-					log("("+(i+1)+"/"+docs.length+ ") Annotated " 
-						+ doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation]))
-				}
-			} }
-		)
-		endTrack("Pass 5 (pipeline)")
+//		forceTrack("Pass 5 (pipeline)")
+//		//(annotators)
+//		val lemma = new MorphaAnnotator(false)
+//		val pos = new POSTaggerAnnotator(
+//				System.getenv("HOME") +
+//					"/lib/data/bidirectional-distsim-wsj-0-18.tagger", //TODO hard coded
+//				false)
+//		//(run pipeline)
+//		threadAndRun( 
+//			docs.zipWithIndex.map{ case (doc:Annotation,i:Int) => new Runnable{ 
+//				override def run {
+//					pos.annotate(doc)
+//					lemma.annotate(doc)
+//					log("("+(i+1)+"/"+docs.length+ ") Annotated " 
+//						+ doc.get[String,DocIDAnnotation](classOf[DocIDAnnotation]))
+//				}
+//			} }
+//		)
+//		endTrack("Pass 5 (pipeline)")
 		//--Return
 		endTrack("Making CoreMaps")
 		docs.reverse.toArray
@@ -506,46 +506,51 @@ object TempEval2 {
 	}
 
 	//<<retok>>
-	def retokFromInit(init:SerializedCoreMapDataset
+	def retokFromInit(init:SerializedCoreMapDataset, lang:String
 			):SerializedCoreMapDataset = {
-		init.saveAs("aux/coremap/tempeval2-english-retok")
+		init.saveAs("aux/coremap/tempeval2-"+lang+"-retok")
 		(new TempEval2RetokTask).perform(init)
 		init.save
 		init
 	}
-	def retokFromInit(source:String):SerializedCoreMapDataset = {
-		retokFromInit( new SerializedCoreMapDataset(source) )
+	def retokFromInit(source:String, lang:String):SerializedCoreMapDataset = {
+		retokFromInit( new SerializedCoreMapDataset(source), lang )
 	}
 	def retok(dir:String,lang:String):SerializedCoreMapDataset = {
-		retokFromInit( apply(dir,lang) )
+		retokFromInit( apply(dir,lang), lang )
 	}
 
 	//<<normalize>>
-	def normalizeFromRetok(retok:SerializedCoreMapDataset
+	def normalizeFromRetok(retok:SerializedCoreMapDataset, lang:String
 			):SerializedCoreMapDataset = {
-		retok.saveAs("aux/coremap/tempeval2-english-retok-numbers")
+		retok.saveAs("aux/coremap/tempeval2-"+lang+"-retok-numbers")
 		(new TempEval2NumberNormalizeTask).perform(retok)
 		retok.save
 		retok
 	}
-	def normalizeFromRetok(source:String):SerializedCoreMapDataset = {
-		normalizeFromRetok( new SerializedCoreMapDataset(source) )
+	def normalizeFromRetok(source:String, lang:String):SerializedCoreMapDataset = {
+		normalizeFromRetok( new SerializedCoreMapDataset(source), lang )
 	}
-	def normalizeFromInit(source:String):SerializedCoreMapDataset = {
-		normalizeFromRetok( retokFromInit(source) )
+	def normalizeFromInit(source:String, lang:String):SerializedCoreMapDataset = {
+		normalizeFromRetok( retokFromInit(source, lang), lang )
 	}
-	def normalizeFromInit(init:SerializedCoreMapDataset
+	def normalizeFromInit(init:SerializedCoreMapDataset, lang:String
 			):SerializedCoreMapDataset = {
-		normalizeFromRetok( retokFromInit(init) )
+		normalizeFromRetok( retokFromInit(init, lang), lang )
 	}
 	def normalize(dir:String,lang:String):SerializedCoreMapDataset = {
-		val x = normalizeFromInit( apply(dir,lang) )
+		val x = normalizeFromInit( apply(dir, lang), lang )
 		x
 	}
 
 	def toReadableFile(input:String, output:String):Unit = {
 		val data = new SerializedCoreMapDataset(input)
 		val contents = new StringBuilder();
+    def write(typ:String, value:String, date:String, text:String) = {
+		  contents.append(typ).append("\t").append(value).append("\t")
+		  	.append(date).append("\t")
+		  	.append(text).append("\n")
+    }
 		//--Info
 		var currentId = ""
 		var words = List[String]()
@@ -554,7 +559,7 @@ object TempEval2 {
 		//--Iterate Over Data
 		data.foreach{ (datum:CoreMapDatum) =>
 			val cal = datum.get[java.util.Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
-			val format = new java.text.SimpleDateFormat("yyyy-MM-dd.hh:mm:ss")
+			val format = new java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
 			val docdate = format.format(cal.getTime)
 			val sentences = datum.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation])
 			sentences.foreach{ (sent:CoreMap) =>
@@ -567,22 +572,30 @@ object TempEval2 {
 						val value = token.get[String,OriginalTimeValueAnnotation](classOf[OriginalTimeValueAnnotation])
 						val typ = token.get[String,OriginalTimeTypeAnnotation](classOf[OriginalTimeTypeAnnotation])
 						val id = token.get[String,TimeIdentifierAnnotation](classOf[TimeIdentifierAnnotation])
-						//(check for change)
-						if (currentId != null && id != null && id != currentId) {
-							//(print old info)
-							if (currentId != null) {
-								contents.append(currentType).append("\t").append(currentValue).append("\t")
-									.append(docdate).append("\t")
-									.append(words.reverse.mkString(" ")).append("\n")
-							}
-							//(set new fields)
-							currentId = id
-							words = List[String](word)
+            if (id != null && currentId != null && id == currentId) {
+              //(case: still in a time)
+              words = word :: words
+            }
+            if (id == null && currentId != "") {
+              //(case: left a time)
+              write(currentType, currentValue, docdate, words.reverse.mkString(" "))
+              currentId = ""
+            }
+            if (currentId == "" && id != null) {
+              //(case: entered a time)
+              words = List[String](word)
+              currentId = id;
 							currentValue = value
 							currentType = typ
-						} else if (id != null) {
-							words = word :: words;
-						}
+            }
+            if (id != null && currentId != "" && id != currentId) {
+              //(case: switching times)
+              write(currentType, currentValue, docdate, words.reverse.mkString(" "))
+              words = List[String](word)
+              currentId = id;
+							currentValue = value
+							currentType = typ
+            }
 					}
 				}
 			}
@@ -613,9 +626,9 @@ object TempEval2 {
 		// Dump a language's data into readable form
 		val language = args(0)
 		println("Processing " + language)
-		retok("aux/tempeval2-cleaned", language)
+		apply("aux/tempeval2-cleaned", language)
 		toReadableFile(
-			"aux/coremap/tempeval2-"+language+"-retok",
+			"aux/coremap/tempeval2-"+language,
 			"tmp/tempeval-"+language+".dat"
 		)
 	}
