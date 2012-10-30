@@ -1,0 +1,81 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>wsj_0032</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>Italian chemical giant Montedison S.p.A . , through its Montedison Acquisition N.V. indirect unit , <etag>[began]</etag><sup>e1</sup> its $37-a-share tender <etag>[offer]</etag><sup>e2</sup> for all the common shares outstanding of Erbamont N.V. , a maker of pharmaceuticals incorporated in the Netherlands .</p></table>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:ASPECTUAL }</p>
+<p/>
+<p class=relation>Task D: e2 OVERLAP t0</p>
+<p class=relation>Task D: e1 BEFORE t0</p>
+<p class=relation>Task E: e1 BEFORE e5</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>The <etag>[offer]</etag><sup>e3</sup> , <etag>[advertised]</etag><sup>e4</sup> in <ttag>[today]</ttag><sup>t19</sup> 's editions of The Wall Street Journal , is <etag>[scheduled]</etag><sup>e5</sup> to <etag>[expire]</etag><sup>e6</sup> at the <ttag>[the end of November]<sup>t18</sup></ttag> .</p></table>
+<p class=attributes>e5 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_ACTION }</p>
+<p class=attributes>t18 { value:1989-11 type:TIME }</p>
+<p class=attributes>e6 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e4 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t19 { value:1989-11-02 type:DATE }</p>
+<p/>
+<p class=relation>Task C: e3 OVERLAP t19</p>
+<p class=relation>Task D: e3 OVERLAP t0</p>
+<p class=relation>Task E: e5 OVERLAP e7</p>
+<p class=relation>Task F: e5 BEFORE e6</p>
+<p class=relation>Task F: e4 OVERLAP e3</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>Montedison <ttag>[currently]</ttag><sup>t17</sup> <etag>[owns]</etag><sup>e7</sup> about 72% of Erbamont 's common shares outstanding .</p></table>
+<p class=attributes>t17 { value:PRESENT_REF type:DATE }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:STATE }</p>
+<p/>
+<p class=relation>Task E: e7 OVERLAP e9</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>The <etag>[offer]</etag><sup>e8</sup> is being <etag>[launched]</etag><sup>e9</sup> pursuant to a <ttag>[previously]</ttag><sup>t21</sup> <etag>[announced]</etag><sup>e10</sup> <etag>[agreement]</etag><sup>e11</sup> between the companies .</p></table>
+<p class=attributes>e8 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e10 { polarity:POS modality:NONE pos:ADJECTIVE tense:NONE aspect:NONE class:REPORTING }</p>
+<p class=attributes>t21 { value:PAST_REF type:TIME }</p>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PROGRESSIVE class:I_ACTION }</p>
+<p class=attributes>e11 { polarity:POS modality:NONE pos:NOUN tense:NONE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e8 AFTER t21</p>
+<p class=relation>Task C: e11 OVERLAP t21</p>
+<p class=relation>Task D: e8 OVERLAP t0</p>
+<p class=relation>Task D: e11 BEFORE t0</p>
+<p class=relation>Task F: e10 OVERLAP e11</p>
+<p class=relation>Task F: e9 BEFORE-OR-OVERLAP e8</p>
+</div>
+</body>
+</html>

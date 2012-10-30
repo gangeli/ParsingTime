@@ -1,0 +1,93 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>cs.morph011</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line><ttag>[07/08/95]</ttag><sup>t1</sup> CORRUZIONE .</p></table>
+<p class=attributes>t1 { type:DATE val:1995-08-07 }</p>
+<p/>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>L' inchiesta Tapie arriva a Forli' .</p></table>
+<p/>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>FORLI' ­ L' <etag>[inchiesta]</etag><sup>e1</sup> che <etag>[coinvolge]</etag><sup>e2</sup> Bernard Tapie , l' ex <etag>[presidente]</etag><sup>e3</sup> del Marsiglia Calcio , <etag>[condannato]</etag><sup>e4</sup> <ttag>[lo scorso 15 maggio]<sup>t2</sup></ttag> a <ttag>[un anno]<sup>t3</sup></ttag> di carcere per <etag>[corruzione]</etag><sup>e5</sup> , si <etag>[allarga]</etag><sup>e6</sup> fino a Forli' .</p></table>
+<p class=attributes>e1 { aspect:NONE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p class=attributes>t2 { type:DATE val:1995-05-15 }</p>
+<p class=attributes>e2 { aspect:IMPERFECTIVE modality: mood:NONE polarity:POS tense:PRESENT }</p>
+<p class=attributes>e3 { aspect:NONE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p class=attributes>t3 { type:DURATION val:P1Y }</p>
+<p class=attributes>e5 { aspect:NONE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p class=attributes>e4 { aspect:PERFECTIVE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p class=attributes>e6 { aspect:IMPERFECTIVE modality: mood:NONE polarity:POS tense:PRESENT }</p>
+<p/>
+<p class=relation>Task C: e4 overlap t2</p>
+<p class=relation>Task D: e1 vague t0</p>
+<p class=relation>Task D: e2 overlap t0</p>
+<p class=relation>Task D: e3 before t0</p>
+<p class=relation>Task D: e5 vague t0</p>
+<p class=relation>Task D: e4 before t0</p>
+<p class=relation>Task D: e6 overlap t0</p>
+<p class=relation>Task E: e6 after e2</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>La gendarmeria francese , <etag>[impegnata]</etag><sup>e7</sup> in <etag>[indagini]</etag><sup>e8</sup> sul patrimonio di Tapie , ha <etag>[identificato]</etag><sup>e9</sup> una ditta " fantasma " , la International Public Sport , con sede legale a Forli' , che avrebbe <etag>[emesso]</etag><sup>e10</sup> fatture false a favore della societa' sportiva Marsiglia Calcio per circa 2 miliardi di lire .</p></table>
+<p class=attributes>e10 { aspect:PERFECTIVE modality: mood:CONDITIONAL polarity:POS tense:NONE }</p>
+<p class=attributes>e9 { aspect:PERFECTIVE modality: mood:NONE polarity:POS tense:PRESENT }</p>
+<p class=attributes>e8 { aspect:NONE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p class=attributes>e7 { aspect:PERFECTIVE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p/>
+<p class=relation>Task D: e10 before t0</p>
+<p class=relation>Task D: e9 before t0</p>
+<p class=relation>Task D: e8 vague t0</p>
+<p class=relation>Task D: e7 overlap t0</p>
+<p class=relation>Task E: e9 after e3</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>Parte di questo denaro sarebbe stato <etag>[utilizzato]</etag><sup>e11</sup> da Bernard Tapie per " <etag>[comperare]</etag><sup>e12</sup> " alcune <etag>[partite]</etag><sup>e13</sup> del <etag>[campionato]</etag><sup>e14</sup> di calcio transalpino .</p></table>
+<p class=attributes>e11 { aspect:PERFECTIVE modality: mood:CONDITIONAL polarity:POS tense:NONE }</p>
+<p class=attributes>e14 { aspect:NONE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p class=attributes>e13 { aspect:NONE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p class=attributes>e12 { aspect:NONE modality: mood:NONE polarity:POS tense:NONE }</p>
+<p/>
+<p class=relation>Task D: e11 before t0</p>
+<p class=relation>Task D: e14 vague t0</p>
+<p class=relation>Task D: e13 vague t0</p>
+<p class=relation>Task D: e12 vague t0</p>
+</div>
+</body>
+</html>

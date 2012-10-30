@@ -1,0 +1,105 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>wsj_0073</h2>
+
+<div id=s0 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>0
+  <td><p class=line>Integra-A Hotel amp Restaurant Co. <etag>[said]</etag><sup>e1</sup> its planned rights offering to <etag>[raise]</etag><sup>e2</sup> about $9 million was <etag>[declared]</etag><sup>e3</sup> effective and the company will <etag>[begin]</etag><sup>e5</sup> <etag>[mailing]</etag><sup>e6</sup> materials to shareholders at <ttag>[the end of this week]<sup>t23</sup></ttag> .</p></table>
+<p class=attributes>e2 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>t23 { value:1989-W44 type:DATE }</p>
+<p class=attributes>e5 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:ASPECTUAL }</p>
+<p class=attributes>e6 { polarity:POS modality:NONE pos:VERB tense:PRESPART aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e3 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:I_ACTION }</p>
+<p class=attributes>e1 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p/>
+<p class=relation>Task C: e5 OVERLAP t23</p>
+<p class=relation>Task C: e1 BEFORE t23</p>
+<p class=relation>Task D: e5 AFTER t0</p>
+<p class=relation>Task D: e1 BEFORE t0</p>
+<p class=relation>Task E: e1 BEFORE e7</p>
+<p class=relation>Task F: e1 AFTER e3</p>
+</div>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Under the offer , shareholders will <etag>[receive]</etag><sup>e7</sup> one right for each 105 common shares <etag>[owned]</etag><sup>e8</sup> .</p></table>
+<p class=attributes>e8 { polarity:POS modality:NONE pos:VERB tense:PASTPART aspect:NONE class:STATE }</p>
+<p class=attributes>e7 { polarity:POS modality:NONE pos:VERB tense:FUTURE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e7 AFTER e9</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line>Each right <etag>[entitles]</etag><sup>e9</sup> the shareholder to <etag>[buy]</etag><sup>e10</sup> $100 face amount of 13.5% bonds due <ttag>[1993]</ttag><sup>t24</sup> and warrants to <etag>[buy]</etag><sup>e11</sup> 23.5 common shares at 30 cents a share .</p></table>
+<p class=attributes>e11 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p class=attributes>e9 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:I_STATE }</p>
+<p class=attributes>t24 { type:DATE value:1993 }</p>
+<p class=attributes>e10 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task C: e11 BEFORE t24</p>
+<p class=relation>Task C: e10 BEFORE t24</p>
+<p class=relation>Task D: e11 AFTER t0</p>
+<p class=relation>Task D: e10 AFTER t0</p>
+<p class=relation>Task E: e9 BEFORE e12</p>
+<p class=relation>Task F: e9 BEFORE-OR-OVERLAP e10</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>The rights , which <etag>[expire]</etag><sup>e12</sup> <ttag>[Nov. 21]<sup>t25</sup></ttag> , can be exercised for $100 each .</p></table>
+<p class=attributes>t25 { value:1989-11-21 type:DATE }</p>
+<p class=attributes>e12 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task E: e12 AFTER e16</p>
+</div>
+
+<div id=s4 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>4
+  <td><p class=line>Integra , which owns and operates hotels , <etag>[said]</etag><sup>e16</sup> that Hallwood Group Inc. has <etag>[agreed]</etag><sup>e17</sup> to <etag>[exercise]</etag><sup>e18</sup> any rights that are n 't <etag>[exercised]</etag><sup>e19</sup> by other shareholders .</p></table>
+<p class=attributes>e16 { polarity:POS modality:NONE pos:VERB tense:PAST aspect:NONE class:REPORTING }</p>
+<p class=attributes>e19 { polarity:NEG modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:OCCURRENCE }</p>
+<p class=attributes>e17 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:PERFECTIVE class:I_ACTION }</p>
+<p class=attributes>e18 { polarity:POS modality:NONE pos:VERB tense:INFINITIVE aspect:NONE class:OCCURRENCE }</p>
+<p/>
+<p class=relation>Task D: e16 BEFORE t0</p>
+<p class=relation>Task D: e17 BEFORE t0</p>
+<p class=relation>Task E: e16 OVERLAP e20</p>
+<p class=relation>Task F: e16 AFTER e17</p>
+<p class=relation>Task F: e17 BEFORE e18</p>
+</div>
+
+<div id=s5 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>5
+  <td><p class=line>Hallwood , a Cleveland merchant bank , <etag>[owns]</etag><sup>e20</sup> about 11% of Integra .</p></table>
+<p class=attributes>e20 { polarity:POS modality:NONE pos:VERB tense:PRESENT aspect:NONE class:STATE }</p>
+<p/>
+</div>
+</body>
+</html>

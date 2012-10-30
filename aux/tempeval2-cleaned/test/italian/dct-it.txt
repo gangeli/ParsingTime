@@ -1,0 +1,13 @@
+cs.morph001 19950807 
+cs.morph008 19950807 
+cs.morph011 19950807 
+sole.morph002 19950525 
+sole.morph003 19950525 
+sole.morph016 19950525 
+sole.morph017 19950525 
+sole.morph041 19950525 
+sole.morph042 19950525 
+sole.morph043 19950525 
+els.morph015 19860328 
+els.morph019 19861003 
+els.morph020 19861003 

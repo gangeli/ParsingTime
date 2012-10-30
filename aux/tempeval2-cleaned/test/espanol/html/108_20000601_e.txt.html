@@ -1,0 +1,66 @@
+<html>
+<head>
+<style>
+.header { padding-top:10pt; color:darkblue; }
+.sentence { margin: 5pt; margin-top: 10pt; border: thin dotted darkgray; padding: 6px; }
+.line { margin: 5pt; margin-bottom: 10pt; }
+.attributes { margin: 5pt; margin-left: 20pt; color:darkgreen; }
+.relation { margin: 5pt; margin-left: 20pt; color:darkred; }
+etag { color:red; }
+ttag { color:blue; }
+</style>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+
+<h2>108_20000601_e.txt</h2>
+
+<div id=s1 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>1
+  <td><p class=line>Los <etag>[precios]</etag><sup>e1</sup> industriales <etag>[aumentaron]</etag><sup>e2</sup> un 0,2% en <ttag>[abril]</ttag><sup>t1</sup> .</p></table>
+<p class=attributes>t1 { type:DATE val:2000-04 }</p>
+<p class=attributes>e1 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e2 { aspect:PERFECTIVE class:STATE mood:INDICATIVE polarity:POS tense:PAST vform:NONE }</p>
+<p/>
+<p class=relation>Task C: e2 overlap t1</p>
+<p class=relation>Task D: e1 overlap t0</p>
+<p class=relation>Task D: e2 before t0</p>
+</div>
+
+<div id=s2 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>2
+  <td><p class=line><etag>[Según]</etag><sup>e3</sup> el Instituto Nacional de Estadística ( INE ) , el <etag>[índice]</etag><sup>e4</sup> de precios industriales <etag>[acumula]</etag><sup>e5</sup> un <etag>[crecimiento]</etag><sup>e6</sup> del 2,5% en <ttag>[los cuatro primeros meses]<sup>t2</sup></ttag> <ttag>[del año]<sup>t3</sup></ttag> .</p></table>
+<p class=attributes>t2 { type:DURATION val:P4M }</p>
+<p class=attributes>t3 { type:DATE val:2000 }</p>
+<p class=attributes>e4 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e6 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e5 { aspect:IMPERFECTIVE class:I_STATE mood:INDICATIVE polarity:POS tense:PRESENT vform:NONE }</p>
+<p class=attributes>e3 { aspect:NONE class:REPORTING mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p/>
+<p class=relation>Task C: e5 overlap t2</p>
+<p class=relation>Task D: e4 overlap t0</p>
+<p class=relation>Task D: e6 overlap t0</p>
+<p class=relation>Task D: e5 overlap t0</p>
+<p class=relation>Task D: e3 overlap t0</p>
+</div>
+
+<div id=s3 class=sentence>
+<table>
+<tr>
+  <td width=20 valign=top class=line>3
+  <td><p class=line>La industria química , con un 1,4% , <etag>[registró]</etag><sup>e7</sup> el <etag>[alza]</etag><sup>e8</sup> más importante , mientras los productos alimenticios , bebidas y tabaco , con un 0,2% , <etag>[fueron]</etag><sup>e9</sup> los menos inflacionistas .</p></table>
+<p class=attributes>e7 { aspect:PERFECTIVE class:I_STATE mood:INDICATIVE polarity:POS tense:PAST vform:NONE }</p>
+<p class=attributes>e8 { aspect:NONE class:STATE mood:NONE polarity:POS tense:NONE vform:NONE }</p>
+<p class=attributes>e9 { aspect:PERFECTIVE class:STATE mood:INDICATIVE polarity:POS tense:PAST vform:NONE }</p>
+<p/>
+<p class=relation>Task D: e7 before t0</p>
+<p class=relation>Task D: e8 before t0</p>
+<p class=relation>Task D: e9 before t0</p>
+</div>
+</body>
+</html>
