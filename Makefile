@@ -9,8 +9,8 @@ DIST=dist
 TMP=tmp
 # (classpath)
 #JAVANLP=${JAVANLP_HOME}/projects/core/classes:${JAVANLP_HOME}/projects/research/classes
-CP=${LIB}/lib.jar:${LIB}/scala-compiler.jar:${LIB}/scala-library.jar:${LIB}/postgresql.jar:${JAVANLP}:${LIB}/xom.jar:${LIB}/joda-time.jar:${LIB}/joda-convert.jar
 JAVANLP=${LIB}/stanford-corenlp-2012-07-09.jar
+CP=${LIB}/lib.jar:${LIB}/scala-compiler.jar:${LIB}/scala-library.jar:${LIB}/postgresql.jar:${JAVANLP}:${LIB}/xom.jar:${LIB}/joda-time.jar:${LIB}/joda-convert.jar
 
 
 # -- PROGRAM --
@@ -23,7 +23,7 @@ ${BUILD}/time/JITime.class: src/time/JITime.java ${BUILD}/time/Entry.class
 	javac -d $(BUILD) -cp $(CP) src/time/O.java
 
 ${BUILD}/time/Entry.class: ${BUILD}/time/O.class $(wildcard src/time/*.scala)
-	fsc -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
+	scalac -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
 
 
 ${BUILD}/time/O.class: src/time/O.java
