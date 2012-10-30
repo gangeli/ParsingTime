@@ -8,8 +8,9 @@ TEST_BUILD=test/bin
 DIST=dist
 TMP=tmp
 # (classpath)
-JAVANLP=${JAVANLP_HOME}/projects/core/classes:${JAVANLP_HOME}/projects/research/classes
+#JAVANLP=${JAVANLP_HOME}/projects/core/classes:${JAVANLP_HOME}/projects/research/classes
 CP=${LIB}/lib.jar:${LIB}/scala-compiler.jar:${LIB}/scala-library.jar:${LIB}/postgresql.jar:${JAVANLP}:${LIB}/xom.jar:${LIB}/joda-time.jar:${LIB}/joda-convert.jar
+JAVANLP=${LIB}/stanford-corenlp-2012-07-09.jar
 
 
 # -- PROGRAM --

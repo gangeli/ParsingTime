@@ -190,6 +190,7 @@ object DataLib {
 	val YearWeekWE = """^([0-9]{4})-?W([0-9]{1,2})-?(WE)?$""".r
 	val YearQuarter = """^([0-9]{4})-?Q([1-4])$""".r
 	val YearHalf = """^([0-9]{4})-?H([1-2])$""".r
+	val YearSixth = """^([0-9]{4})-?B([1-6])$""".r
 	val YearSeason = """^([0-9]{4})-?(SP|SU|FA|WI)$""".r
 	val Period = """^P(([0-9]*|X)(D|W|M|Q|Y|E|C|L|H|S|T))+$""".r
 	val periodPattern = java.util.regex.Pattern.compile(
@@ -224,7 +225,8 @@ object DataLib {
 				val base = new DateTime(yr.toInt,1,1,0,0,0,0) 
 				(base, base.plusYears(dur))
 			case YearMonth(year,month) => 
-				val base = new DateTime( year.toInt, month.toInt,1,0,0,0,0)
+				val base = new DateTime(year.toInt, math.max(month.toInt,1), 1,
+                                0,0,0,0)
 				(base, base.plusMonths(1))
 			case YearMonthDayHourMin(year,month,day,hour,min) => 
 				val hr = if(hour == null || hour.equals("")){ 0 }else{ hour.toInt-1 }
@@ -286,6 +288,9 @@ object DataLib {
 			case YearHalf(year,half) =>
 				val base = new DateTime(year.toInt,(half.toInt-1)*6+1,1,0,0,0,0)
 				(base,base.plusMonths(6))
+			case YearSixth(year,sixth) =>
+				val base = new DateTime(year.toInt,(sixth.toInt-1)*2+1,1,0,0,0,0)
+				(base,base.plusMonths(6))
 			case YearSeason(year,season) =>
 				val quarter = season match {
 					case "WI" => 4
@@ -338,6 +343,7 @@ object DataLib {
 			case "FUTURE_REF" => (ground,"FUTURE")
 			case "PRESENT_REF" => (ground,ground)
 			case Unk(x) => str
+      case "undef" => str
 			case _ => 
 				val base = new DateTime(str)
 				(base,base)
@@ -462,7 +468,7 @@ object DataLib {
 		= lbl.get[String,TimeIdentifierAnnotation](
 				classOf[TimeIdentifierAnnotation]) != null
 	
-	def relinkTimexes(sent:CoreMap):Unit = {
+	def relinkTimexes(sent:CoreMap):Int = {
 		//--Variables
 		val origTokens:Seq[CoreLabel] 
 			= sent.get[JList[CoreLabel],OriginalTokensAnnotation](
@@ -484,27 +490,35 @@ object DataLib {
 			rtn
 		}
 		//--Relink
-		val (revTimexes,endedOnTimex)
-			= tokens.zipWithIndex.foldLeft(List[CoreMap](),false){ 
-				case ((timexes:List[CoreMap],lastTimex:Boolean),
+		val (revTimexes,endedOnTimex,lastTid)
+			= tokens.zipWithIndex.foldLeft(List[CoreMap](),false,""){ 
+				case ((timexes:List[CoreMap],lastTimex:Boolean,lastTid:String),
 				      (tok:CoreLabel,index:Int)) =>
+      val thisTid:String = 
+        if(isTimex(tok)) tok.get[String,TimeIdentifierAnnotation](classOf[TimeIdentifierAnnotation])
+        else ""
 			if(!lastTimex && isTimex(tok)){
 				//(case: start timex)
-				(copyTime(tok,index) :: timexes, true)
-			} else if(lastTimex && isTimex(tok)){
+				(copyTime(tok,index) :: timexes, true, thisTid)
+			} else if(lastTimex && isTimex(tok) && lastTid == thisTid){
 				//(case: in timex)
-				(timexes, true)
+				(timexes, true, thisTid)
 			} else if(!lastTimex && !isTimex(tok)){
 				//(case: not in timex)
-				(timexes, false)
-			} else if(lastTimex && !isTimex(tok)){
+				(timexes, false, thisTid)
+			} else if(lastTimex && (!isTimex(tok) || lastTid != thisTid)){
 				//(case: ended timex)
 				timexes.head.set(classOf[EndIndexAnnotation],
 					new java.lang.Integer(index))
 				timexes.head.set(classOf[OriginalEndIndexAnnotation],
 					tokens.get(index-1).get[java.lang.Integer,TokenEndAnnotation]
 						(classOf[TokenEndAnnotation]))
-				(timexes, false)
+        if (isTimex(tok)) {
+          //(case: immediately started a new one)
+				  (copyTime(tok,index) :: timexes, true, thisTid)
+        } else {
+				  (timexes, false, thisTid)
+        }
 			} else {
 				throw new IllegalStateException("impossible")
 			}
@@ -532,7 +546,7 @@ object DataLib {
 				timexes(i-1).set(classOf[OriginalEndIndexAnnotation],
 					timexes(i).get[java.lang.Integer,OriginalEndIndexAnnotation]
 						(classOf[OriginalEndIndexAnnotation]))
-				log("collapsed a timex")
+				log("collapsed a timex: " + timexes(i))
 				None
 			} else {
 				Some(timexes(i))
@@ -551,6 +565,7 @@ object DataLib {
 		//(set)
 		sent.set(classOf[TimeExpressionsAnnotation],
 			seqAsJavaList(rtn))
+    rtn.length
 	}
 
 	private lazy val tokenFact = 

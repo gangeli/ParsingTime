@@ -48,23 +48,36 @@ object TempEval2 {
 	val Attr = mkline(8)
 	val Ext = mkline(6)
 	val PubTime = """([0-9]{4})-?([0-9]{2})-?([0-9]{2})""".r
+	val DctChinese = """^([^:]+)\.fid:<DATE>([^<]+)</DATE>$""".r
 
 	//<<classes>
-	case class TempEval2Word(doc:String,sent:Int,word:Int) {
+  // wordLookup is whatever indexing scheme the particular language is using
+  // to find the word with
+	case class TempEval2Word(doc:String,sent:Int,word:Int,wordLookup:Int) {
 		var gloss:Option[String] = None
 		def fill(g:String):TempEval2Word = {
-			val rtn = TempEval2Word(doc,sent,word)
+			val rtn = TempEval2Word(doc,sent,word,wordLookup)
 			rtn.gloss = Some(g)
 			rtn.index = index
 			rtn
 		}
 		var index:Option[Int] = None
 		def index(i:Int):TempEval2Word = {
-			val rtn = TempEval2Word(doc,sent,word)
+			val rtn = TempEval2Word(doc,sent,word,wordLookup)
 			rtn.gloss = gloss
 			rtn.index = Some(i)
 			rtn
 		}
+    override def equals(o:Any):Boolean = {
+      o match {
+        case (w:TempEval2Word) =>
+          return w.doc == doc && w.sent == sent && w.wordLookup == wordLookup
+        case _ => return false
+      }
+    }
+    override def hashCode:Int = {
+      return doc.hashCode ^ sent.hashCode ^ wordLookup.hashCode
+    }
 	}
 	case class RawTime(tid:String,timexType:String,timexValue:String)
 	case class AttributeKey(doc:String,sent:Int,tid:String)
@@ -75,18 +88,30 @@ object TempEval2 {
 	/**
 		Word to word with gloss
 	*/
-	def words(base:String):Map[TempEval2Word,TempEval2Word] = {
+	def words(base:String, lang:String):Map[TempEval2Word,TempEval2Word] = {
 		//(variables)
-		val lines = scala.io.Source.fromFile(base).mkString.split("""\s*\n\s*""")
+		val lines = 
+      if (lang == "chinese") scala.io.Source.fromFile(base, "GB18030").mkString.split("""\s*\n\s*""")
+      else scala.io.Source.fromFile(base, "utf-8").mkString.split("""\s*\n\s*""")
 		val rtn = new HashMap[TempEval2Word,TempEval2Word]
 		//(parse lines)
+    var wordOfSent:Int = 0
+    var sentI:Int      = -1
 		lines.zipWithIndex.foreach{ case (line:String,i:Int) =>
 			val Base(doc,sent,word,gloss) = line
-			val te2Word = TempEval2Word(doc,sent.toInt,word.toInt)
+      if (sent.toInt != sentI) {
+        wordOfSent = 0
+        sentI = sent.toInt
+      }
+//      if (lang != "italian") assert(wordOfSent == word.toInt)
+			val te2Word = TempEval2Word(doc, sent.toInt,
+                                  if(lang == "italian") wordOfSent else word.toInt,
+                                  word.toInt)
 				.fill(gloss)
 				.index(i)
 			assert(!rtn.contains(te2Word), "Duplicate word: " + te2Word)
 			rtn(te2Word) = te2Word
+      wordOfSent += 1
 		}
 		//(return)
 		rtn
@@ -95,7 +120,7 @@ object TempEval2 {
 	/**
 		Document name to creation time
 	*/
-	def documentCreationTimes(dct:String):Map[String,DateTime] = {
+	def documentCreationTimes(dct:String, lang:String):Map[String,DateTime] = {
 		//(variables)
 		val lines = {
 			try {
@@ -108,9 +133,20 @@ object TempEval2 {
 		val rtn = new HashMap[String,DateTime]
 		//(parse lines)
 		lines.foreach{ case (line:String) =>
-			val Dct(doc,dateStr) = line
+      var doc = "";
+      var dateStr = ""
+      if (lang == "chinese") {
+			  var DctChinese(docX,dateStrX) = line
+        doc = docX; dateStr = dateStrX
+      } else {
+			  var Dct(docX,dateStrX) = line
+        doc = docX; dateStr = dateStrX
+      }
 			val PubTime(year,month,day) = dateStr
-			val date:DateTime = new DateTime(year.toInt,month.toInt,day.toInt,0,0,0,0)
+			val date:DateTime = new DateTime(year.toInt,
+                                       math.max(month.toInt, 1),
+                                       math.max(day.toInt, 1),
+                                       0,0,0,0)
 			rtn(doc) = date
 		}
 		//(return)
@@ -130,12 +166,12 @@ object TempEval2 {
 			//(variables)
 			val Attr(doc,sent,start,timex3,tid,junk,tag,value) = line
 			//(set attributes)
-			collect((TempEval2Word(doc,sent.toInt,start.toInt),'tid)) = tid
-			collect((TempEval2Word(doc,sent.toInt,start.toInt),'doc)) = doc
+			collect((TempEval2Word(doc,sent.toInt,start.toInt,start.toInt),'tid)) = tid
+			collect((TempEval2Word(doc,sent.toInt,start.toInt,start.toInt),'doc)) = doc
 			if(tag == "type"){
-				collect((TempEval2Word(doc,sent.toInt,start.toInt),'type)) = value
+				collect((TempEval2Word(doc,sent.toInt,start.toInt,start.toInt),'type)) = value
 			} else if(tag == "value" || tag == "val"){
-				collect((TempEval2Word(doc,sent.toInt,start.toInt),'value)) = value
+				collect((TempEval2Word(doc,sent.toInt,start.toInt,start.toInt),'value)) = value
 			} else {
 				throw new IllegalStateException("bad tag: " + tag)
 			}
@@ -154,6 +190,7 @@ object TempEval2 {
 					= RawTime(tid,timexTyp,timexVal)
 			}
 		//--Return
+    log("Should collect " + rtn.size + " timexes")
 		rtn
 	}
 
@@ -172,12 +209,11 @@ object TempEval2 {
 		//(parse lines)
 		lines.foreach{ case (line:String) =>
 			val Ext(doc,sent,word,timex3,tid,one) = line
-			val teWord = TempEval2Word(doc,sent.toInt,word.toInt)
+			val teWord = TempEval2Word(doc,sent.toInt,-1,word.toInt)
 			rtn(teWord) = Some(tid)
 		}
 		//(return)
 		rtn
-		
 	}
 	
 	//----------
@@ -241,21 +277,25 @@ object TempEval2 {
 			//(update local timex)
 			ext(word) match {
 				case Some(tid) =>
-					val raw = attr(AttributeKey(word.doc,word.sent,tid))
-					wordInfo.set(classOf[OriginalTimeMetaAnnotation],
-						TimexMetaInfo(word.doc,word.sent,word.word,raw.tid))
-					wordInfo.set(classOf[OriginalTimeTypeAnnotation],
-						raw.timexType)
-					wordInfo.set(classOf[OriginalTimeValueAnnotation],
-						raw.timexValue)
-					wordInfo.set(classOf[TimeIdentifierAnnotation],
-						raw.tid)
-					wordInfo.set(classOf[TimeValueAnnotation],
-						DataLib.jodaTime2Array(
-							DataLib.timex2JodaTime(raw.timexValue,ground),
-							raw.timexValue)
-						)
-				case _ => //do nothing
+          if (attr.contains(AttributeKey(word.doc,word.sent,tid))) {
+					  val raw = attr(AttributeKey(word.doc,word.sent,tid))
+					  wordInfo.set(classOf[OriginalTimeMetaAnnotation],
+					  	TimexMetaInfo(word.doc,word.sent,word.word,raw.tid))
+					  wordInfo.set(classOf[OriginalTimeTypeAnnotation],
+					  	raw.timexType)
+					  wordInfo.set(classOf[OriginalTimeValueAnnotation],
+					  	raw.timexValue)
+					  wordInfo.set(classOf[TimeIdentifierAnnotation],
+					  	raw.tid)
+					  wordInfo.set(classOf[TimeValueAnnotation],
+					  	DataLib.jodaTime2Array(
+					  		DataLib.timex2JodaTime(raw.timexValue,ground),
+					  		raw.timexValue)
+					  	)
+          } else {
+            log("Could not find key: " + AttributeKey(word.doc,word.sent,tid))
+          }
+				case _ => // do nothing
 			}
 		}
 		endTrack("Pass 1 (collect info)")
@@ -356,12 +396,20 @@ object TempEval2 {
 		endTrack("Pass 3 (make coremaps)")
 		//--Relink
 		forceTrack("Pass 4 (global timexes)")
+    var timexes_added = 0
 		docs.foreach{ (doc:Annotation) =>
+      // Annotate
+      var timexes_added_to_doc = 0
+      var sentI:Int = 0
 			doc.get[java.util.List[CoreMap],SentencesAnnotation](SENTENCES)
 					.foreach{ (sent:CoreMap) =>
-				DataLib.relinkTimexes(sent)
+				val added = DataLib.relinkTimexes(sent)
+        timexes_added_to_doc += added
+        sentI += 1;
 			}
+      timexes_added += timexes_added_to_doc
 		}
+    log("" + timexes_added + " timexes registered")
 		endTrack("Pass 4 (global timexes)")
 		//--Pipeline Annotate
 //		forceTrack("Pass 5 (pipeline)")
@@ -458,9 +506,9 @@ object TempEval2 {
 		startTrack("Data(" + {if(test) "test" else "train"}+")")
 		//--Data
 		log("words...")
-		val words:Map[TempEval2Word,TempEval2Word] = this.words(basePath)
+		val words:Map[TempEval2Word,TempEval2Word] = this.words(basePath, lang)
 		log("document creation times...")
-		val dct:Map[String,DateTime] = this.documentCreationTimes(dctPath)
+		val dct:Map[String,DateTime] = this.documentCreationTimes(dctPath, lang)
 		log("attributes...")
 		val attr:Map[AttributeKey,RawTime] = this.attr(attrPath)
 		log("extents...")
@@ -552,12 +600,12 @@ object TempEval2 {
 		  	.append(text).append("\n")
     }
 		//--Info
-		var currentId = ""
 		var words = List[String]()
 		var currentValue = ""
 		var currentType = ""
 		//--Iterate Over Data
 		data.foreach{ (datum:CoreMapDatum) =>
+		  var currentId = ""
 			val cal = datum.get[java.util.Calendar,CalendarAnnotation](classOf[CalendarAnnotation])
 			val format = new java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
 			val docdate = format.format(cal.getTime)
@@ -599,9 +647,14 @@ object TempEval2 {
 					}
 				}
 			}
+      if (currentId != "") {
+        //(case: left a time)
+        write(currentType, currentValue, docdate, words.reverse.mkString(" "))
+        currentId = ""
+      }
 		}
 		edu.stanford.nlp.io.IOUtils.writeStringToFileNoExceptions(
-			contents.toString, output);
+			contents.toString, output, "UTF-8");
 	}
 
 	def main(args:Array[String]) {
