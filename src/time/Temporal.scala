@@ -1,5 +1,6 @@
 package time
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Map
 import scala.collection.mutable.ListMap
@@ -12,7 +13,6 @@ import org.joda.time._
 
 import edu.stanford.nlp.stats.ClassicCounter
 import edu.stanford.nlp.stats.Counter
-import edu.stanford.nlp.stats.Counters
 import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.time.JodaTimeUtils
 
@@ -1614,7 +1614,10 @@ object Sequence {
 					}
 				}
 				//(normalize)
-				Counters.normalize(data)
+        val totalCount = data.totalCount
+        for ( key <- data.keySet ) {
+          data.setCount(key, data.getCount(key) / totalCount)
+        }
 				val counts:Counter[Long] = data
 				data = new ClassicCounter[Long]()
 				//(debug)

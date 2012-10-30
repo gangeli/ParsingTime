@@ -14,7 +14,6 @@ import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.util.logging.StanfordRedwoodConfiguration;
 import edu.stanford.nlp.util.CoreMap
 import edu.stanford.nlp.util.ArrayCoreMap
-import edu.stanford.nlp.util.CoreMaps
 import edu.stanford.nlp.ling.CoreLabel
 import edu.stanford.nlp.ling.CoreAnnotation
 import edu.stanford.nlp.ling.CoreAnnotations._

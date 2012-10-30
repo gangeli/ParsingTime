@@ -20,15 +20,15 @@ ${DIST}/time.jar: ${BUILD}/time/Entry.class
 	jar uf ${DIST}/time.jar -C $(SRC) .
 
 ${BUILD}/time/JITime.class: src/time/JITime.java ${BUILD}/time/Entry.class
-	javac -d $(BUILD) -cp $(CP) src/time/O.java
+	javac -d $(BUILD) -cp $(CP) src/time/O.java src/time/CoreMaps.java
 
 ${BUILD}/time/Entry.class: ${BUILD}/time/O.class $(wildcard src/time/*.scala)
 	scalac -deprecation -d ${BUILD} -cp ${CP} `find ${SRC} -name "*.scala"` `find ${SRC} -name "*.java"`
 
 
-${BUILD}/time/O.class: src/time/O.java
+${BUILD}/time/O.class: src/time/O.java src/time/CoreMaps.java
 	mkdir -p ${BUILD}
-	javac -d $(BUILD) -cp $(CP) src/time/O.java
+	javac -d $(BUILD) -cp $(CP) src/time/O.java src/time/CoreMaps.java
 
 # -- TESTING --
 ${DIST}/test.jar: $(wildcard test/src/time/*.java) $(wildcard test/src/time/*.scala) ${DIST}/time.jar
