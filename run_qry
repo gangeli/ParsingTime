@@ -1,0 +1,115 @@
+#!/bin/bash
+exec scala -cp qry.jar "$0" "$@"
+!#
+
+import Qry._
+
+val JAVANLP_HOME = System.getenv("JAVANLP_HOME")
+var JAVANLP = JAVANLP_HOME + "/projects/core/classes:" +
+              JAVANLP_HOME + "/projects/more/classes:" + 
+              JAVANLP_HOME + "/projects/research/classes:" +
+              JAVANLP_HOME + "/projects/core/lib/xom-1.2.7.jar"
+JAVANLP="etc/stanford-corenlp-2012-07-09.jar"
+
+submit("java"
+  -("cp", "dist/time.jar:" +
+          "etc/lib.jar:" +
+          "etc/scala-library.jar:" +
+          "etc/scala-compiler.jar:" +
+          "etc/jline.jar:" +
+          "etc/postgresql.jar:" +
+          JAVANLP + ":" +
+          "etc/joda-time.jar")
+	-"Xrunhprof:cpu=samples,depth=16"
+	-'server
+	-'mx4g
+	-'ea
+	->"time.Entry"
+// -- RUN MODE --
+  -'runInterpretModel
+  -('interpretModel,
+    0 ?: "dist/interpretModel.ser.gz" |
+         "dist/toyModel.ser.gz")
+  -('mode,
+    1 ?: 'detect | 'interpret | 'system | 'console | 'REPL) // TODO broken
+// -- LEARNING --
+  -('parser, 0 ?: 'CKYParser | 'SearchParser | 'PrimitivesOnly | 'ItsAlwaysFriday)
+  -('kbestCKYAlgorithm, 3 ?:
+    0 | // naive
+    1 | // better mult
+    2 | // combined mult/merge (special case of 3)
+    3)  // lazy evaluation <-- fastest
+  -('rulePrior, 0.001)
+  -('lexPrior, 0.00001)
+  -('nilPrior, 0 ?: 'lex | 'uniform | 'free)
+  -('ckyCountType, 0 ?:
+  	'all |
+  	'bestAll |
+  	'bestRandom |
+  	'offsetZero |
+  	'shortWithOffsetZero |
+  	'mostNilsWithOffsetZero)
+  -('CkyCountNormalization, 2 ?:
+  	'none |
+  	'uniform |
+  	'distribution)
+  -('timeDistribution, 1 ?:
+  	'Point |
+  	'Multinomial |
+  	'Gaussian)
+  -('timeDistributionParams, 1 ?:
+  	"[]" |
+  	"[1.0,1.0]" |
+  	"[0.0,1.0]")
+  -('gaussianSigma, 1.0)
+  -('gaussianMuPrior, "N[0.0,1.0]")
+  -('timeDistributionScope, 1 ?: 'Global | 'Hybrid | 'Local)
+  -('initMethod, 0 ?: 'uniform | 'random)
+  -'lexNils
+//  -'uniformFirstIteration
+  -('beam, 5000) // 1500 works well
+  -('iters, 20)
+  -('scoreBeam, 3)
+  -('maxSearchTime, 10000)
+  -('crfFeatureFactory, "time.TRIPSFeatures")
+  -'useTime
+  -('pruneTime, 10000)
+  -('pruneMinIndex,100)
+  -'includeTimeProb
+//  -'functionalUnboundedRange
+  -'functionalApproximate
+//  -'cannonicalShifts
+  -('sortTimeProbInScore, 1 ?: false | true)
+// -- EVALUATION --
+  -('exactMatchThreshold, 1)
+  -('scoreGranularity, 60*60*24)
+  -('c_overconstraining, 1.0)
+  -('c_vagueness, 1.0)
+  -('tempevalHome,"aux/tempeval2")
+// -- DATA
+  -('train, "NYT[0,100]")      -('dev,   "NYT[1000,1100]")
+  -('train, "English[0,162]")  -('dev,   "English[142,162]")
+  -('train, "English[0,142]")  -('dev,   "English[142,162]")
+  -('train, "English[0,10]")   -('dev,   "English[10,20]")
+  -('train, "TOY")             -('dev, "TOY")
+  -('test,  "English[162,182]")
+  -'devTest
+  -'retokenize
+  -'collapseNumbers
+  -'bucketNumbers
+// -- DEBUG --
+//  -'paranoid
+  -'useSeed
+  -('seed, "42")
+  -('goldTagFile, "aux/sentences-100-tagged")
+  -'todoHacks
+  -('reportK, 5)
+  -'ignoreTimeSequences
+  -('numThreads, 4)
+//  -- BOOTSTRAPING --
+  -'logDebug
+  -('execDir, "out")
+  -('execOutput, "\"psql://research@goobs.org:time<what?why42?\"")
+//  -('ignoreClasspath,
+//    """"[""" + JAVANLP_HOME + """/.*,etc/scala-.*.jar,etc/postgres.jar,etc/jdom.jar,etc/joda-time.jar]"""")
+)
