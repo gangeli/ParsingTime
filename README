@@ -106,3 +106,11 @@ Temporal.scala: The temporal representation
   *object Time: MAIN for running an interactive shell for evaluating temporal
     expressions. This is actually kind of a nifty domain specific language.
   object Lex: the definitions of times used in the grammar
+
+----------
+Notes
+----------
+
+  - The clases in etc/ are licensed under various licenses -- they're included
+    here to make compilation easier, but care should be taken when using this
+    code in any commerical setting to respect their respective licenses.
