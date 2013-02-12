@@ -1,1 +1,190 @@
 \Section{learn}{Learning}
+The system is trained using a discrminative $k$-best parser, which is able to
+  incorporate arbitrary features over partial derivations.
+We describe the parser below, followed by the features implemented.
+
+% -----
+% PARSER
+% -----
+\Subsection{parser}{Parser}
+\paragraph{Inference}
+% -- Overview
+A discriminative $k$-best parser was used to allow for arbitrary features
+  in the parse tree.
+In the first stage, spans of the input sentence are tagged as either text
+  or numbers.
+A rule-based number recognizer was used for each language to recognize and
+  ground numeric expressions, including information on whether the number was
+  an ordinal (e.g., \tp{two} versus \tp{second}).
+Note that unlike conventional parsing, a tag can span multiple words;
+  numeric expressions are treated as if the numeric value replaced the
+  expression and multi-word spans in turn are featurized as such
+  (see \refsec{features}).
+
+Each rule of the parse derivation was assigned a score according to a log-linear
+  factor.
+Specifically, each rule $R = (v_i \rightarrow v_j v_k, f$
+  with features $\phi(R)$ subject to parameters
+  $\theta$ is given a probability:
+
+\begin{equation}
+P(v_i \mid v_j, v_k, f; \theta) \propto e^{ \theta^T \phi(R) }
+\end{equation}
+
+Na\"{\i}vely, this parsing algorithm gives us a complexity of $O(n^3 k^2)$,
+  where $n$ is the length of the sentence, and $k$ is the size of the beam.
+However, we can approximate the algorithm in $O(n^3 k \log k)$ time by using
+  cube pruning\needcite.
+Note that with features which are not context-free, we are not
+  guaranteed an optimal beam with this approach; however, empirically
+  the approximation yields a significant efficiency improvement without
+  noticable loss in performance.
+
+\paragraph{Training}
+We adopt an EM-style bootstrapping approach similar to \me\ in order to handle
+  the task of parsing the temporal expression without supervised parse data.
+Each training instance is a tuple consisting of the words in the temporal
+	phrase, the annotated grounded time $\tau^*$, and the reference time.
+Given an input sentence, our parser will output $k$ possible parses; when
+  grounded to the reference time these correspond to $k$ candidate times:
+  $\tau_1 \dots \tau_k$, each with a parse score $f(\tau_i)$.
+
+This corresponds to an approximate E step in the EM algorithm, where the
+  distribution over latent parses is approximated by a bean of size $k$.
+Although for long sentences the number of parses is far greater than the
+  beam size, as the parameters improve, increasingly longer sentences will
+  have correct derivations in the beam.
+In this way, a progressively larger percentage of the data is available to be
+	learned from at each iteration.
+
+To approximate the M step, 
+  we define a multi-class hinge loss over the beam, which we can optimize
+  using Online Stochastic Gradient Descent:
+
+\begin{equation}
+\max_{0 \leq i < k} \left(
+  \1[\tau_i = \tau^*] + f(\tau_i) - f(\tau^*)
+\right)
+\end{equation}
+
+We proceed to describe the features used in the parser.
+
+% -----
+% FEATURES
+% -----
+\Subsection{features}{Features}
+Our framework allows us to define arbitrary features over partial derivations.
+Importantly, this allows us to condition not only on the PCFG probabilities
+  over \textit{types} described in \me\ but also the partial semantics of the
+  derivation.
+We describe the features used below; a summary of these features
+  for a short parse is illustrated in \needfig.
+
+\paragraph{Bracketing Features}
+% -- Introduction
+% (definition)
+A feature is defined over every nonterminal combination,
+  consisting of the pair of children being combined in that rule.
+In particular, let us consider a rule
+  $R = (v_i \rightarrow v_j v_k, f$ corresponding to a CFG rule
+  $v_i \rightarrow v_j v_k$ over \textit{types} and a function $f$ over the
+  semantic values corresponding to $v_j$ and $v_k$: $\tau_j$ and $\tau_k$.
+% (two classes)
+Two classes of bracketing features are extracted:
+  features are extracted over the types of nonterminals being combined
+    ($v_j$ and $v_k$),
+  and over the top-level semantic derivation of the nonterminals
+    ($f$, $\tau_j$, and $\tau_k$).
+
+% -- Type Bracketing
+Unlike syntactic parsing, in both our domains the child types of a parse tree
+  uniquely define the parent type of the rule; this is a direct consequence
+  of our combination rules being functions, and therefore necessarily projecting
+  their inputs into a single output space.
+As a consequence of this, the first class of bracketing features -- over
+  types -- reduce to have the exact same
+  expressive power as the nonterminal CFG rules of \me.
+
+% -- Value Bracketing
+However, we now also have the flexibility to extract features from the
+  semantics of the derivation.
+We define a feature bracketing the most recent semantic function
+  applied to each of the two child derivations; along with the function being
+  applied in the rule application.
+If the child is a preterminal, the entire semantics of the preterminal are used;
+  otherwise, the outermost (most recent) function to be applied to the
+  derivation is used.
+% (example)
+To illustrate, a tree fragment combining \te{August} and \te{2013} into
+  \te{August 2013} would yield the feature \feat{$<$intersect, August, 2013$>$}.
+This can be read as a feature for the rule applying the intersect function
+  to August and 2013.
+Furthermore, intersecting \te{August 2013} with the \th{12} of the month would
+  yield a feature \feat{$<$intersect, intersect, \th{12}$>$}.
+This can be read as applying the intersect function, to a subtree which is
+  the intersection of two terms, and to the \th{12} of the month.
+
+
+\paragraph{Lexical Features}
+% -- Two classes
+The second significant class of features extracted are lexicalized features.
+These are significant most naturally when tagging phrases; however, they are
+  also relevant in incorporating cues from the yield of \ty{Nil} spans.
+To illustrate, \tp{a week} and \tp{the week} have very different meanings,
+  despite differing by only their \ty{Nil} tagged tokens.
+
+% -- Preterminals
+% (explanation)
+In the first case, a feature is extracted over the \textit{value} of the
+  preterminal being extracted, and the phrase it is subsuming.
+As the type of the preterminal is deterministic from the value, encoding
+  a feature on the type would be redundant.
+% (ngrams)
+Since a multi-word expression can parse to a single nonterminal, a feature
+  is extracted for the entire n-gram, in addition to features for each of the
+  individual words.
+% (example)
+For example, the phrase \tp{this coming} -- of type \ty{Nil} -- would have
+  features extracted:
+  \feat{$<$\ty{Nil}, this$>$},
+  \feat{$<$\ty{Nil}, coming$>$}, and
+  \feat{$<$\ty{Nil}, this coming$>$}
+
+% -- Nil
+In the second case, we would like to capture a notion of the text underneath
+  a \ty{Nil}-tagged span when we are combining it with another derivation.
+Here, we extract features over the words under the \ty{Nil} span and the
+  type of the other derivation; as above, features are extracted for both
+  n-grams and for each word in the phrase.
+
+In both cases, numbers are featurized according to their order of magnitude,
+  and whether they are ordinal.
+Thus, the number tagged from \tp{thirty-first} would be featurized as an
+  ordinal number of magnitude 2.
+
+\paragraph{Semantic Validity}
+% -- Top level is not null
+Although some constraints can be imposed to help ensure that a top-level parse
+  will be valid, absolute guarantees are difficult.
+For instance, February 30 is never a valid date; but, it would be difficult
+  to disallow any local rule in its derivation.
+To mediate this, an indicator feature is extracted at the top level of the
+  derivation denoting whether the grounded semantics of the derivation is
+  valid.
+
+\paragraph{Nil Bias}
+% -- Nil Bias
+An indicator feature is extracted for each \ty{Nil} span tagged.
+In part, this discourages over-generation of the type; in another part,
+  it encourages \ty{Nil} spans to absorb as many adjacent words as possible.
+
+\paragraph{Distance To Landmark} \textit{[spatial only]}
+% -- Distance to landmark
+A single feature was added in the spatial domain, encoding the distance between
+  the spatial indicator word and the landmark in words.
+This feature was introduced primarily to mitigate the problem of multiple
+  spatial indicators appearing in the same sentence for different landmarks.
+
+
+% -- Segway
+We proceed to describe our experimental setup and results.

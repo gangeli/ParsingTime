@@ -1,0 +1,39 @@
+% -- Representations
+% A time phrase
+\def\tp#1{\textit{#1}}
+% A time expression
+\def\te#1{\texttt{#1}}
+% A time expression's type
+\def\ty#1{\textsf{\small{#1}}}
+% A dataset type
+\def\dataset#1{#1}
+% A system
+\def\sys#1{#1}
+% -- Shortenings
+% n^th of the month
+\def\th#1{#1$^\textit{\small{th}}$}
+% n^rd of the month
+\def\rd#1{#1$^\textit{\small{rd}}$}
+% n^nd of the month
+\def\nd#1{#1$^\textit{\small{nd}}$}
+% -- Math Entities
+\def\range{\ensuremath{r}}
+\def\seq{\ensuremath{s}}
+\def\seqelem{\ensuremath{r_s}}
+\def\seqelemX#1{\ensuremath{r_{\te{\scriptsize{#1}}}}}
+\def\seqjump{\ensuremath{\Delta_s}}
+\def\seqjumpX#1{\ensuremath{\Delta_{\te{\scriptsize{#1}}}}}
+\def\seqcanon{\ensuremath{\rho_s}}
+\def\seqcanonX#1{\ensuremath{\rho_{\te{\scriptsize{#1}}}}}
+\def\dur{\ensuremath{d}}
+\def\phrase{\ensuremath{w}}
+\def\latent{\ensuremath{R}}
+\def\grounded{\ensuremath{\tau^*}}
+\def\feat#1{\hbox{\textsc{#1}}}
+% -- Entities
+\def\timex{\texttt{TIMEX3}}
+\def\tempeval{\dataset{TempEval-2}}
+% -- Citations
+\def\me{\newcite{key:2012angeli-temporal}}
+\def\citeme{\cite{key:2012angeli-temporal}}
+
