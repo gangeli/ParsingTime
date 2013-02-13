@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+version="1.0"
+width="720" height="920"
+>
+<!--
+This is meant as a general-purpose icon for representing a calendar date;
+specifically, for things like holidays.
+-->
+<defs>
+<style type="text/css">
+.bg { fill: white; }
+.monthbg { fill: #E0E0FF; }
+.line {
+	fill: none;
+	stroke: #8080C0;
+	stroke-width: 20;
+	stroke-linecap: square;
+}
+.mark { fill: red; opacity: 0.75; }
+.dates {
+	font-family: "Helvetica", sans-serif; /* doesn't really matter */
+	font-size: 30px;
+	fill: black;
+	text-anchor: start;
+}
+.month {
+	font-family: "Helvetica", sans-serif;
+	font-weight: bold;
+	font-size: 100px;
+	fill: black;
+	text-anchor: middle;
+}
+</style>
+</defs>
+
+<rect class="monthbg" x="10" y="10" width="700" height="150"/>
+<rect class="bg" x="10" y="160" width="700" height="600"/>
+<rect class="bg" x="10" y="760" width="300" height="150"/>
+<path class="line" d="
+	M 10 10    h 700
+	m -700 150 h 700
+	m -700 150 h 700
+	m -700 150 h 700
+	m -700 150 h 700
+	m -700 150 h 700
+	m -700 150 h 300
+
+	M 10 10    v 900
+	m 100 -750 v 750
+	m 100 -750 v 750
+	m 100 -750 v 750
+	m 100 -750 v 600
+	m 100 -600 v 600
+	m 100 -600 v 600
+	m 100 -750 v 750
+"/>
+<g class="dates" transform="translate(25,50)">
+	<text x="  0" y="150">1</text>
+	<text x="100" y="150">2</text>
+	<text x="200" y="150">3</text>
+	<text x="300" y="150">4</text>
+	<text x="400" y="150">5</text>
+	<text x="500" y="150">6</text>
+	<text x="600" y="150">7</text>
+	<text x="  0" y="300">8</text>
+	<text x="100" y="300">9</text>
+	<text x="200" y="300">10</text>
+	<text x="300" y="300">11</text>
+	<text x="400" y="300">12</text>
+	<text x="500" y="300">13</text>
+	<text x="600" y="300">14</text>
+	<text x="  0" y="450">15</text>
+	<text x="100" y="450">16</text>
+	<text x="200" y="450">17</text>
+	<text x="300" y="450">18</text>
+	<text x="400" y="450">19</text>
+	<text x="500" y="450">20</text>
+	<text x="600" y="450">21</text>
+	<text x="  0" y="600">22</text>
+	<text x="100" y="600">23</text>
+	<text x="200" y="600">24</text>
+	<text x="300" y="600">25</text>
+	<text x="400" y="600">26</text>
+	<text x="500" y="600">27</text>
+	<text x="600" y="600">28</text>
+	<text x="  0" y="750">29</text>
+	<text x="100" y="750">30</text>
+	<text x="200" y="750">31</text>
+</g>
+<text class="month" x="360" y="120">July 2007</text>
+<g class="mark" transform="translate(-200,0)">
+<rect x="440" y="270" width="40" height="250"
+	transform="rotate(-30,460,395)"
+/>
+<rect x="440" y="270" width="40" height="250"
+	transform="rotate( 30,460,395)"
+/>
+</g>
+</svg>

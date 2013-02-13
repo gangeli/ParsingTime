@@ -1,1 +1,66 @@
 \Section{related}{Related Work}
+Our approach takes inspiration from \me, both in the bootstrapping training
+  methodology and the temporal grammar.
+Our foremost contributions over this prior work are:
+  (i) the development of a discriminative parser trained with rich features;
+  (ii) simplifications to the temporal grammar which maintain high accuracy;
+  and
+  (iii) experimental results on 6 different languages with state-of-the-art
+        results on both datasets with prior work.
+
+% -- Semantic Parsing Comparison
+As \me, our approach draws inspiration from work on semantic parsing.
+The latent parse parallels the formal semantics in previous work,
+	e.g., Montague semantics.
+Supervised approaches to semantic parsing prominently include
+	\newcite{key:1996zelle-semantics},
+	\newcite{key:2005zettlemoyer-semantics},
+	\newcite{key:2005kate-semantics}, 
+	\newcite{key:2007zettlemoyer-semantics}, 
+	\textit{inter alia}.
+For example, \newcite{key:2007zettlemoyer-semantics} learn a mapping from
+	textual queries to a logical form.
+Importantly, the logical form of these parses contain all of the predicates
+  and entities used in the parse -- unlike the annotation provided in our case,
+  where a grounded time can correspond to any of a number of parses.
+
+%(distantly supervised)
+Recent work by \newcite{key:2010clarke-semantics} and 
+	\newcite{key:2011liang-semantics} similarly relax supervision 
+	to require only annotated answers rather than full logical forms.
+For example, \newcite{key:2011liang-semantics} constructs a latent parse
+	similar in structure to a dependency grammar, but representing a logical
+	form.
+
+% -- Rule-Based Temporal Comparison
+%(rule based)
+Related work on interpreting temporal expressions has focused on constructing
+	hand-crafted interpretation rules
+	% Random, TERESO, Marta's Friend, Edinburgh
+	\cite{key:2000mani-temporal,key:2003saquete-temporal,key:2004puscasu-temporal,key:2010grover-temporal}.  
+Of these, \sys{HeidelTime} \cite{key:2010strotgen-temporal} and
+	\sys{SUTime} \cite{key:2012chang-temporal} provide particularly strong
+	competition in English.
+
+%(probabilistic)
+Recent probabilistic approaches to temporal resolution include
+	\newcite{key:2010uzzaman-temporal},    %TRIPS/TRIOS - probabilistic
+	who employ a parser to produce deep logical forms, in conjunction with
+	a CRF classifier.
+In a similar vein,
+	\newcite{key:2010kolomiyets-temporal} %KUL - partly probabilistic
+	employ a maximum entropy classifier to detect the location and temporal
+	type of expressions; the grounding is then done via deterministic rules.
+	
+%(spanish)
+In addition, there has been work on parsing Spanish expressions;
+  UC3M \cite{2010vicente-uc3m} produce the strongest results on the
+  \tempeval\ corpus.
+%(multilingual)
+Of the systems entered in the original task,
+  TIPSem \cite{key:2010llorens-tipsem} was the only system to perform bilingual
+  interpretation for English and Spanish.
+Both of these systems rely primarily on hand-build rules.
+
+
+

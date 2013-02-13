@@ -1,2 +1,46 @@
 \Section{intro}{Introduction}
+% -- Intro
+Temporal resolution is the task of mapping from a textual phrase describing
+	a potentially complex time, date, or duration to a normalized
+	(\textit{grounded}) temporal representation.
+For example, possibly complex phrases such as \tp{the week before last} are
+	often more useful in their grounded form -- e.g., \te{January 1 - January 7}.
+
+% -- Why Parsing
+%(intro to systems)
+Many approaches to this problem make use of rule-based methods, combining
+  regular-expression matching and hand-written interpretation functions.
+%(motivation)
+In general, it is appealing to learn the interpretation of temporal expressions,
+	rather than hand-building systems.
+Probabilistic systems furthermore allow propagation of uncertainty
+	to higher-level components.
+Importantly, a probabilistic system could back-off to a rule-based alternative
+  for uncertain parses, and visa versa.
+
+% -- Why Language Independent
+Many languages have a consistent formalization of time as
+  analogous to a one dimensional line.
+By structuring a latent parse to reflect these semantics, we can define a single
+  model which performs well on multiple languages.
+Training data of the distantly-supervised form required to train the system
+  is generally easier to collect than manually creating potentially complex
+  interpretation rules.
+
+% -- Why Discriminative
+A discriminative parsing model allows us to capture sparse features over
+  the semantics of the parse, as well as features capturing richer lexical cues.
+For example, it allows us to learn that we are much more likely to
+  express \tp{March \th{14}} than \tp{2pm in March} -- despite the fact that
+  both interpretations are composed of similar types of components.
+Furthermore, it allows us to define both sparse n-gram and denser but less
+  informative bag-of-words features over multi-word phrases.
+
+%(table of contents)
+We briefly review our temporal representation,
+	followed by a description of the learning algorithm; 
+	we conclude with experimental results on the languages of the
+  \tempeval\ A task.
+
+
 

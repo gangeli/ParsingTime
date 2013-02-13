@@ -34,7 +34,7 @@ P(v_i \mid v_j, v_k, f; \theta) \propto e^{ \theta^T \phi(R) }
 Na\"{\i}vely, this parsing algorithm gives us a complexity of $O(n^3 k^2)$,
   where $n$ is the length of the sentence, and $k$ is the size of the beam.
 However, we can approximate the algorithm in $O(n^3 k \log k)$ time by using
-  cube pruning\needcite.
+  cube pruning \cite{key:2007chiang-cubepruning}.
 Note that with features which are not context-free, we are not
   guaranteed an optimal beam with this approach; however, empirically
   the approximation yields a significant efficiency improvement without
@@ -72,13 +72,17 @@ We proceed to describe the features used in the parser.
 % -----
 % FEATURES
 % -----
+\FigStar{fig/system.pdf}{0.40}{features}{
+  Caption
+}
+
 \Subsection{features}{Features}
 Our framework allows us to define arbitrary features over partial derivations.
 Importantly, this allows us to condition not only on the PCFG probabilities
   over \textit{types} described in \me\ but also the partial semantics of the
   derivation.
 We describe the features used below; a summary of these features
-  for a short parse is illustrated in \needfig.
+  for a short parse is illustrated in \reffig{features}.
 
 \paragraph{Bracketing Features}
 % -- Introduction
@@ -144,11 +148,11 @@ Since a multi-word expression can parse to a single nonterminal, a feature
   is extracted for the entire n-gram, in addition to features for each of the
   individual words.
 % (example)
-For example, the phrase \tp{this coming} -- of type \ty{Nil} -- would have
+For example, the phrase \tp{of this} -- of type \ty{Nil} -- would have
   features extracted:
-  \feat{$<$\ty{Nil}, this$>$},
-  \feat{$<$\ty{Nil}, coming$>$}, and
-  \feat{$<$\ty{Nil}, this coming$>$}
+  \feat{$<$\ty{Nil}, of$>$},
+  \feat{$<$\ty{Nil}, this$>$}, and
+  \feat{$<$\ty{Nil}, of this$>$}
 
 % -- Nil
 In the second case, we would like to capture a notion of the text underneath
