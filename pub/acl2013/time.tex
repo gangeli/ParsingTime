@@ -1,1 +1,340 @@
 \Section{time}{Temporal Representation}
+% -- Overview
+We define a compositional representation of time, similar to \me, but with
+  a greater focus on efficiency and simplicity.
+The representation makes use of a notion of temporal \textit{types} and
+  semantic \textit{values};
+  a grammar is constructed making use of both of these.
+
+% -- Outline
+A summary of the temporal type system is provided in \refsec{types-review};
+  the grammar is described in \refsec{grammar-review};
+  key modifications from previous work are outlined in \refsec{differences};
+
+% -----
+% TYPES
+% -----
+\Subsection{types-review}{Temporal Types}
+% -- Intro to Types
+Temporal expressions are represented either as a \ty{Range}, \ty{Sequence},
+	or \ty{Duration}.
+In addition, phrases can be tagged as a \ty{Function}, or as a \ty{Nil} type
+  without a direct temporal interpretation.
+We describe each of these briefly below:
+
+% -- Range
+\paragraph{Range [and Instant]}
+%(definition)
+A period between two dates (or times), as per an interval-based theory of
+  time\cite{key:1981allen-temporal}.
+%(examples)
+This includes entities such as \te{Today}, \te{1987}, or
+	\te{Now}.
+
+% -- Sequence 
+\paragraph{Sequence}
+%(definition)
+A sequence of \ty{Range}s, occuring at regular but not necessarily constant
+  intervals.
+%(examples)
+This includes entities such as \te{Friday}, \te{November \th{27}}, or
+	\te{last Friday}.
+%(anatomy)
+A \ty{Sequence} is defined as a partial completion of calendar fields.
+For example, \te{November \th{27}} would define the month to be November
+  and the day to be the \th{27}, but leave the year, hour, minute, etc.
+  unspecified.
+This implicitly selects an infinite number of possible grounded Ranges.
+
+%(definition of reference time)
+To select a particular grounded time for a sequence, we appeal to a notion of a
+  \textit{reference time}\cite{key:1947reichenback-temporal}.
+For the \tempeval\ corpus, we approximate this as the
+	publication time of the article.
+While this is conflating Reichenbach's reference time with speech time, 
+  and is empirically occasionally a mistaken approximation,
+	it is a nonetheless generally correct.
+
+%(grounding)
+To a first approximation, grounding a sequence given a reference time
+  corresponds to filling in the unspecified fields of the sequence with the
+  fully-specified fields of the reference time.
+Due to the irregular nature of time, this process has a number of special
+  cases\footnote{
+    Some of these special cases are caused by variable days of the month,
+      daylight savings time, etc.
+    Another class arises from pragmatically peculiar utterances; e.g.,
+      \tp{the next Monday in August} uttered in the last week of August
+      should ground to August of next year (rather than the reference time's
+      year).
+  },
+  but the process nonetheless remains efficient.
+	
+% -- Duration
+\paragraph{Duration}
+%(definition)
+A period of time.
+%(examples)
+This includes entities like \te{Week}, \te{Month}, and \te{7 days}.
+%(fuzzy)
+A special case of the \ty{Duration} type is defined to represent 
+	\textit{approximate} durations.
+These are used to represent expressions such as \tp{a few years} or
+	\tp{some days}.
+
+% -- Functions
+\paragraph{Function}
+%(definition)
+A function of arity less than or equal to two representing some
+	general modification to one of the above types.
+%(examples)
+This captures semantic entities such as those implied in
+	\tp{last $x$}, 
+	\tp{the third $x$ [of $y$]}, or \tp{$x$ days ago}.
+%(etc.)
+The particular functions and their application are enumerated in 
+	\reftab{grammar-review}.
+
+% -- Nil
+\paragraph{Nil}
+Lastly, a special \ty{Nil} type denotes terms which are not
+	directly contributing to the semantic meaning of the expression.
+This is intended for words such as \tp{a} or \tp{the}, which serve as cues
+	without bearing temporal content themselves.
+
+
+% -----
+% GRAMMAR
+% -----
+\Subsection{grammar-review}{Temporal Grammar}
+% -- Time is compositional
+% (compositional)
+Our approach assumes that natural language descriptions
+	of time are compositional in nature; that is,
+  each word attached to a temporal phrase is 
+	compositionally modifying the meaning of the phrase.
+% (pcfg)
+We define a grammar jointly over temporal \textit{types} and
+  \textit{values}.
+At the root of a parse tree, we recursively apply the functions in the tree
+	to obtain a final temporal value.
+% (compare)
+This approach has been presented as a rule-to-rule translation
+	\cite[p.~263]{key:1976bach-semantics,key:1995allen-semantics},
+	or a constrained Synchronous PCFG
+	\cite{key:2001yamada-syntaxmt}.
+However, in the discriminative setting we can also cast it as an infinite
+  grammar over temporal values with type-checking enforced.
+
+
+% -- Formal definition
+Formally, we define our  grammar as
+	\mbox{$G=\left(\Sigma,S,\sV,\sW,\sR\right)$}.
+The alphabet $\Sigma$ and start symbol $S$ retain their usual interpretations.
+% (nonterminals)
+We define a set $\sV$ to be the set of types, as described in
+	\refsec{types-review} -- these act as our nonterminals.
+For each $v \in \sV$ we define an (infinite) set $W_v$ corresponding to the 
+	possible instances of type $v$.
+Each node in the tree defines a pair $(v,w)$ such that $w \in W_v$,
+	with combination rules defined over $v$ and function applications performed
+	on $w$.
+% (rules)
+A rule \mbox{$R \in \sR$} is defined as a pair 
+	\mbox{$R = \left(v_i \rightarrow v_jv_k, 
+		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$}.
+Note that this definition is trivially adapted for the case of unary rules.
+
+% -- Static Lexicon
+\begin{table}[tb]
+	\begin{center}
+	\begin{tabular}{|l|l|}
+		\hline
+		\textbf{Type} & \textbf{Example Instances} \\
+		\hline
+		\hline
+		% -- Ranges
+		\ty{Range} &
+			\te{Past}, \te{Future}, \te{Yesterday}, \\
+			& \te{Tomorrow}, \te{Today}, \te{Reference}, \\
+			& \te{Year($n$)}, \te{Century($n$)} \\
+		\hline
+		% -- Sequences
+		\ty{Sequence} 
+			%(named sequences)
+			& \te{Friday}, \te{January}, $\dots$ \\
+			& \te{DayOfMonth}, \te{DayOfWeek}, $\dots$ \\
+			& \te{EveryDay}, \te{EveryWeek}, $\dots$ \\
+		\hline
+		% -- Durations
+		\ty{Duration}
+			& \te{Second}, \te{Minute}, \te{Hour}, \\
+			& \te{Day}, \te{Week}, \te{Month}, \te{Quarter}, \\
+			& \te{Year}, \te{Decade}, \te{Century} \\
+		\hline
+	\end{tabular}
+	\caption{
+		The content-bearing preterminals of the grammar, arranged by their
+			types.
+		Note that the \ty{Sequence} type contains more elements
+			than enumerated here; however, only a few of each characteristic type
+			are shown here for brevity.
+	}
+	\label{tab:content}
+	\end{center}
+\end{table}
+
+% -- Function Lexicon
+\begin{table}[t]
+	\begin{center}
+	\begin{tabular}{|l|l|}
+		\hline
+		\textbf{Function} & \textbf{Description} \\
+		\hline
+		\hline
+		% -- Arity 2
+		%(shift left)
+		{shiftLeft}
+			& Shift a \ty{Range} left by a \ty{Duration} \\
+		{shiftRight}
+			& Shift a \ty{Range} right by a \ty{Duration} \\
+		\hline
+		%(shrink begin)
+		{shrinkBegin} 
+			& Take the first \ty{Duration} of a \ty{Range} \\
+		{shrinkEnd}
+			& Take the last \ty{Duration} of a \ty{Range} \\
+		\hline
+		{catLeft}
+			& Take the \ty{Duration} after a \ty{Range} \\
+		{catRight}
+			& Take the \ty{Duration} before a \ty{Range} \\
+		\hline
+		% -- Arity 1
+		%(seq move)
+		{moveLeft1}
+			& Shift a \ty{Sequence} left by 1 \\
+		{moveRight1}
+			& Shift a \ty{Sequence} right by 1 \\
+		\hline
+		%(n^th element)
+		{\th{$n$} $x$ of $y$}
+			& Take the \th{$n$} element in $y$ \\
+		\hline
+		%(fuzzify)
+		{approximate}
+			& Make a \ty{Duration} approximate \\
+		\hline
+	\end{tabular}
+	\caption{
+		The functional preterminals of the grammar.
+		The name and a brief description of the function are given;
+		  the functions are most
+			easily interpreted as operations on either an interval or sequence.
+    All operations on \ty{Range}s can equivalently be applied
+      to \ty{Sequence}s.
+	}
+	\label{tab:function}
+	\end{center}
+\end{table}
+
+% -- Preterminals
+We keep the preterminals identical to those in \me.
+Each preterminal consists of a \textit{type} and a \textit{value};
+  note that neither of these are lexically informed.
+That is, the word \tp{week} and preterminal $(\te{Week}, \ty{Duration})$
+  are not tied in any way.
+A total of 62 preterminals are defined corresponding to instances of
+  \ty{Range}s, \ty{Sequence}s, and \ty{Duration}s; these are summarized
+  in \reftab{content}.
+
+In addition, 10 functions are defined for manipulating temporal expressions.
+These are summarized in \reftab{function}
+The majority of these mirror generic operations on intervals on a timeline,
+	or manipulations of a sequence.
+Notably, like intervals, times can be moved (\tp{3 weeks ago}) or
+	their size changed (\tp{the first two days of the month}), or
+	a new interval can be started from one of the endpoints
+	(\tp{the last 2 days}).
+Additionally, a sequence can be modified by shifting its origin
+	(\tp{last Friday}), 
+	or taking the \th{$n$} element of the sequence within some bound
+	(\tp{fourth Sunday in November}).
+
+% -- Combination
+Combination rules in the grammar derive from type-checked
+  curried function application.
+For instance, the function \te{moveLeft1} applied
+  to \te{week} (as in \tp{last week}) yields a grammar rule:
+\begin{align*}
+&  (\ty{Sequence}, \te{moveLeft1$($week$)$}) \rightarrow \\
+&~~~(f:\ty{Sequence$\rightarrow$Sequence}, \te{moveLeft1}) \\
+&~~~(\ty{Sequence}, \te{week})
+\end{align*}
+In more generality, we create grammar rules for applying a function
+  on either the left or the right: $f(x,y) \odot x$ or $x \odot f(x,y)$.
+
+% -- Combination
+Additionally, a grammar rule is created for intersecting two \ty{Range}s or
+  \ty{Sequence}s; for multiplying a duration by a number; and for absorbing
+  a \ty{Nil} span.
+The first two rules can be though of as an implicit function application.
+Absorbing \ty{Nil} spans is in turn the application of the identity function.
+
+% -----
+% DIFFERENCES
+% -----
+\Subsection{differences}{Differences From Previous Work}
+While the grammar formalism is strongly inspired by \me, a number of changes
+  have been made to both simplify the framework, and make inference more
+  efficient.
+
+\paragraph{Sequence Grounding}
+% -- Time consuming
+% (overview)
+The most time-consuming and conceptually nuanced aspect of temporal inference
+  in \me\ was intersecting \ty{Sequence}s.
+In particular, our calendar has two modes of expressing
+  dates which resist intersection: a day-of-month-based mode and a
+  week-based mode.
+Properly grounding a sequence which defines both a day of the month and
+  a day of the week (or, week of the month; week of the year) requires backing
+  off to an expensive search problem.
+
+% (example)
+To illustrate, consider the example: \tp{Friday the \th{13}}.
+Although both a Friday and a \th{13} of the month are easily found, the
+  intersection of the two requires iterating through Fridays until one lands
+  on the \th{13} of the month.
+This requires time proportional to the log of the distance to the next match,
+  measured in the smallest interval between sequences being intersected.
+
+% (efficiency hit)
+When considering that elements in the beam of possible groundings can become
+  both complex and pragmatically unreasonable this can result in a noticable
+  efficiency hit; e.g., a sentence could have an
+  [incorrect] candidate interpretation of:
+  \tp{one hundred \th{5} second of Mondays from now}
+In this implementation such intersections are disallowed, in the same fashion
+  as February \th{30} would be.
+
+\paragraph{Sequence Pragmatics}
+% -- Pragmatic Distribution
+In addition, for the sake of simplicity the pragmatic distribution over
+  possible groundings of a sequence is replaced with the single most likely
+  grounding, as trained by \me\ on the English \tempeval\ corpus.
+
+% -- Numbers
+\paragraph{Numbers}
+The \ty{Number} type no longer appears explicitly, but is rather folded
+  into the features of the parse (see \refsec{features}).
+
+% -- Parameters
+\paragraph{Grammar Parameters}
+Naturally, as this model is discriminative rather than generative, the grammar
+  parameters $\theta$ are defined over features, rather than over the
+  probabilities of rules.
+
+
+% -- Segway
+We proceed to describe learning in our system.
