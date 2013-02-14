@@ -1,23 +1,22 @@
 \Section{results}{Evaluation}
 % -- Intro
-We compare against previous work parsing English and Spanish temporal
+We compare against previous work normalizing English and Spanish temporal
   expressions in the \tempeval\ corpus; in addition, we report results on
   the four other languages in the corpus.
 We evaluate our model on all six languages in the \tempeval\ Task A dataset
   \cite{key:2010verhagen-tempeval}, comparing against state-of-the-art
   systems for English and Spanish.
-Initial results are reported on data from the four other languages,
-  which are significantly smaller and on which we do not know of any prior
-  results.
+Initial results are reported on smaller data from the four other languages.
+To our knowledge, there has not been any prior work on these corpora.
 
 % -- Outline
-We describe the \tempeval\ dataset in \refsec{tempeval} and experimental
+We describe the \tempeval\ datasets in \refsec{tempeval} and experimental
   results in \refsec{scores}.
 
 % -----
 % DATASET
 % -----
-\Subsection{tempeval}{Tempeval Datasets}
+\Subsection{tempeval}{\tempeval\ Datasets}
 % -- Intro
 \tempeval, from SemEval 2010, focused on retrieving and reasoning
   about temporal information from newswire.
@@ -28,7 +27,7 @@ Since we perform only the second of these, we evaluate our system
 
 Furthermore, the dataset annotates six languages:
   English, Spanish, Italian, French, Chinese, and Korean;
-  of these, English and Spanish were the most mature.
+  of these, English and Spanish are the most mature.
 We describe each of these languages, along with their relevant quirks, below:
 
 \paragraph{English}
@@ -37,9 +36,9 @@ We describe each of these languages, along with their relevant quirks, below:
 The English dataset consists of 1052 training examples, and 156 test examples.
 % (evaluation)
 Evaluation was done using the official evaluation script, which checks for
-  exact matches between \timex\ tags.
-Note that this is a restrictive metric; for instance, \tp{three months} and
-  \tp{ninety days} have the same interpretation, but
+  exact match between \timex\ tags.
+Note that this is a restrictive metric; for instance, \tp{24 hours} and
+  \tp{a days} have the same interpretation, but
   have different \timex\ strings.
 System output was heuristically converted to the \timex\ format; where
   ambiguities arose, the convention which maximized training accuracy was
@@ -66,7 +65,8 @@ Otherwise, evaluation was identical to English and Spanish.
 % (general)
 The Chinese dataset consists of 744 training examples, and 190 test examples.
 Of these, only 659 training and 143 test examples had a temporal value marked;
-  the remaining examples had a type but no value annotated.
+  the remaining examples had a type but no value annotated and are therefore
+  impossible to predict.
 Results are reported on both corpora, though the accuracy of the full corpus
   is correspondingly lower.
 
@@ -77,8 +77,8 @@ However, the Chinese, Korean, and French corpora had significantly more severe
   inconsistencies in the \timex\ annotation.
 Thus, evaluations are reported according to the training objective: if two
   \timex\ values ground to the same grounded time, they are considered equal.
-For example, in the example above, \textit{three months} and \textit{ninety
-  days} would be marked identical despite having different \timex\ strings.
+For example, in the example above, \textit{24 hours} and \textit{a day}
+  would be marked identical despite having different \timex\ strings.
 
 % (conversion subtlety)
 Most \timex\ values convert naturally to a grounded representation; values
@@ -96,7 +96,6 @@ The Korean dataset consists of 287 training examples, and 91 test examples.
   19:51.
 These were removed from the training set, yielding 247 examples; however,
   all three such examples were left in the test set.
-
 % (evaluation)
 Evaluation was done identically to the Chinese data.
 
@@ -106,8 +105,8 @@ Evaluation was done identically to the Chinese data.
 Lastly, a dataset for French temporal expressions was compiled from the
   \tempeval\ data.
 % (scraping)
-Unlike the other 5 languages, the French dataset included only the raw newswire
-  documents, encoded as xml.
+Unlike the other 5 languages, the French dataset included only the raw 
+  timex annotated newswire documents, encoded as xml.
 These documents were scraped to recover 206 training examples and 83 test
   examples.
 % (evaluation)
@@ -160,7 +159,7 @@ The systems compared against are:
 		\sys{HeidelTime}  & 0.80          & 0.67          & 0.85           & 0.71 \\
 		\sys{ParsingTime} & 0.90          & 0.72          & 0.88           & 0.72 \\
 		\hline                                           
-		\sys{OurSystem}   & \textbf{0.93} & \textbf{0.82} & 0.91           & \textbf{0.76} \\
+		\sys{OurSystem}   & \textbf{0.94} & \textbf{0.81} & 0.91           & \textbf{0.76} \\
 		\hline
 	\end{tabular}
 	%(caption)
@@ -185,7 +184,7 @@ The systems compared against are:
 		\hline
 		\sys{UC3M}        & ---           & ---           & 0.79           & 0.72 \\
 		\hline                                           
-		\sys{OurSystem}   & 0.89          & 0.84          & \textbf{0.93}  & \textbf{0.77} \\
+		\sys{OurSystem}   & 0.90          & 0.84          & \textbf{0.92}  & \textbf{0.76} \\
 		\hline
 	\end{tabular}
 	%(caption)
@@ -208,12 +207,12 @@ The systems compared against are:
 		Language & \# examples & Type & Value  & \# examples & Type & Value \\
 		\hline
 		\hline
-		English          & 1052 & 0.93 & 0.82  & 156 & 0.91 & 0.76 \\
-		Spanish          & 1092 & 0.89 & 0.84  & 198 & 0.93 & 0.77 \\
-		Italian          & 523  & 0.88 & 0.85  & 126 & 0.83 & 0.46 \\
-		Chinese          & 744  & 0.94 & 0.65  & 190 & 0.87 & 0.45 \\
-		Chinese (clean)  & 659  & 0.94 & 0.73  & 143 & 0.97 & 0.60 \\
-		Korean           & 247  & 0.83 & 0.66  & 91  & 0.79 & 0.39 \\
+		English          & 1052 & 0.94 & 0.81  & 156 & 0.91 & 0.76 \\
+		Spanish          & 1092 & 0.90 & 0.84  & 198 & 0.92 & 0.76 \\
+		Italian          & 523  & 0.89 & 0.85  & 126 & 0.84 & 0.38 \\
+		Chinese          & 744  & 0.95 & 0.65  & 190 & 0.87 & 0.48 \\
+		Chinese (clean)  & 659  & 0.97 & 0.73  & 143 & 0.97 & 0.60 \\
+		Korean           & 247  & 0.83 & 0.67  & 91  & 0.82 & 0.42 \\
 		French           & 206  & 0.78 & 0.76  & 83  & 0.78 & 0.35 \\
 		\hline
 	\end{tabular}
@@ -248,6 +247,6 @@ In particular, for French and Korean, the number of examples is within a
 % (can fit more?)
 On the other hand, a noticable gap between training and test accuracy exists
   even in the English and Spanish corpora; a gap which is not present in any
-  of the systems evaluated.
+  of the other systems.
 This suggests the possiblility for improving accuracy further by making use of
   more data during training.

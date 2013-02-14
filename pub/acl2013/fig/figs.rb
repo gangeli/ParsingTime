@@ -139,6 +139,25 @@ def next2days
   ]).constituency
 end
 
+def sequenceFields(fields)
+  def cell(header, contents)
+    rtable(
+      _(header).bold.color(darkblue),
+      contents ? _(contents) : "---",
+    nil).center
+  end
+  table(
+    [cell('year', fields[:year]),
+     table(
+      [cell('mon', fields[:month]), cell('day', fields[:day])],
+      [cell('week', fields[:weekOfYear]), cell('weekday', fields[:dayOfWeek])],
+     nil).center.margin(u(0.3), u(0.3)),
+     cell('hour', fields[:hour]),
+     cell('min',  fields[:minute]),
+     cell('sec',  fields[:second])],
+  nil).center.margin(u(0.3), u(0.3))
+end
+
 ################################################################################
 # FIGURES
 ################################################################################
@@ -147,7 +166,38 @@ initFigureSet(
                   IO.readlines("#{ENV['HOME']}/workspace/time/pub/acl2013/macros.tex")
 )
 
-  
+
+################################################################################
+# SEQUENCE GROUNDING
+################################################################################
+def sequenceGrounding
+  def label(txt)
+    _(txt + ":").bold
+  end
+  ctable(
+    rtable(
+      ctable(
+        label('Sequence'),
+        sequenceFields(:month=>'Nov', :day=>'\th{27} -- \th{28}',
+                       :hour=>'00', :minute=>'00', :second=>'00'),
+      nil).center.cmargin(u(0.4)),
+      ctable(
+        label('Reference Time'),
+        sequenceFields(:year=>'2013', :month=>'Aug', :day=>'\th{06}',
+                       :hour=>'03', :minute=>'25', :second=>'00'),
+      nil).center.cmargin(u(0.4)),
+    nil).center.rmargin(u(0.5)),
+    rarrow,
+    sequenceFields(:year=>_('2013').bold, :month=>'Nov', :day=>'\th{27} -- \th{28}',
+                   :hour=>'00', :minute=>'00', :second=>'00'),
+  nil).center.cmargin(u(0.5))
+end
+
+printObj(
+  :obj => sequenceGrounding.signature(23),
+  :outPrefix => 'sequence'
+)
+
 ################################################################################
 # SYSTEM
 ################################################################################
@@ -163,15 +213,15 @@ def features
   rtable(
     _('Features').color(darkblue),
     feat(friday, phrase('Friday')),
-    feat("Nil",  phrase('of')),
-    feat("Nil",  phrase('this')),
-    feat("Nil",  phrase('of this')),
-    feat("Nil",  '\texttt{Sequence}'),
-    feat("Nil",  everyweek),
-    feat('\texttt{Sequence}', '\texttt{Sequence}'),
-    feat('intersect', friday, everyweek),
-    feat('nil\\_bias'),
-    feat('root\\_valid'),
+    feat('\textsc{Nil}',  phrase('of')),
+    feat('\textsc{Nil}',  phrase('this')),
+    feat('\textsc{Nil}',  phrase('of this')),
+    feat('\textsc{Nil}',  '\textsc{Sequence}'),
+    feat('\textsc{Nil}',  everyweek),
+    feat('\textsc{Sequence}', '\textsc{Sequence}'),
+    feat('\textsc{Intersect}', friday, everyweek),
+    feat('\textsc{nil\\_bias}'),
+    feat('\textsc{root\\_valid}'),
   nil)
 end
 
@@ -211,7 +261,7 @@ def sysAndFeatures
 end
 
 printObj(
-  :obj => sysAndFeatures.signature(25),
+  :obj => sysAndFeatures.signature(30),
   :outPrefix => 'system'
 )
 

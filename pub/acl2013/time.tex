@@ -3,13 +3,14 @@
 We define a compositional representation of time, similar to \me, but with
   a greater focus on efficiency and simplicity.
 The representation makes use of a notion of temporal \textit{types} and
-  semantic \textit{values};
-  a grammar is constructed making use of both of these.
+  their associated semantic \textit{values};
+  a grammar is constructed over these types, and is grounded by appealing
+  to the associated values.
 
 % -- Outline
 A summary of the temporal type system is provided in \refsec{types-review};
   the grammar is described in \refsec{grammar-review};
-  key modifications from previous work are outlined in \refsec{differences};
+  key modifications from previous work are highlighted in \refsec{differences}.
 
 % -----
 % TYPES
@@ -18,18 +19,28 @@ A summary of the temporal type system is provided in \refsec{types-review};
 % -- Intro to Types
 Temporal expressions are represented either as a \ty{Range}, \ty{Sequence},
 	or \ty{Duration}.
-In addition, phrases can be tagged as a \ty{Function}, or as a \ty{Nil} type
+In addition, phrases can be tagged as a \ty{Function}; or, as a
+  special \ty{Nil} type corresponding to segments 
   without a direct temporal interpretation.
-We describe each of these briefly below:
+We describe each of these briefly below.
 
 % -- Range
 \paragraph{Range [and Instant]}
 %(definition)
 A period between two dates (or times), as per an interval-based theory of
-  time\cite{key:1981allen-temporal}.
+  time \cite{key:1981allen-temporal}.
 %(examples)
 This includes entities such as \te{Today}, \te{1987}, or
 	\te{Now}.
+
+% -- Sequence Grounding
+\FigStar{fig/sequence.pdf}{0.35}{sequence-grounding}{
+  An illustration of grounding a \ty{Sequence}.
+  When grounding the \ty{Sequence} \te{November \th{27}} with a reference time
+    \te{2013-08-06 03:25:00}, we complete the missing fields in the
+    \ty{Sequence} (the year) with the corresponding field in the reference
+    time (2013).
+}
 
 % -- Sequence 
 \paragraph{Sequence}
@@ -40,35 +51,39 @@ A sequence of \ty{Range}s, occuring at regular but not necessarily constant
 This includes entities such as \te{Friday}, \te{November \th{27}}, or
 	\te{last Friday}.
 %(anatomy)
-A \ty{Sequence} is defined as a partial completion of calendar fields.
-For example, \te{November \th{27}} would define the month to be November
-  and the day to be the \th{27}, but leave the year, hour, minute, etc.
-  unspecified.
-This implicitly selects an infinite number of possible grounded Ranges.
+A \ty{Sequence} is defined in terms of a partial completion of calendar fields.
+For example, \te{November \th{27}} would define a \ty{Sequence} whose
+  year is unspecified,
+  month is November, and day is the \th{27}; spanning the entire range of the
+  lower order fields (hour, minute, second).
+This example is illustrated in \reffig{sequence-grounding}.
+Note that a \ty{Sequence} implicitly selects an infinite number of possible 
+  grounded \ty{Range}s.
 
 %(definition of reference time)
-To select a particular grounded time for a sequence, we appeal to a notion of a
-  \textit{reference time}\cite{key:1947reichenback-temporal}.
+To select a particular grounded time for a \ty{Sequence}, 
+  we appeal to a notion of a
+  \textit{reference time} \cite{key:1947reichenback-temporal}.
 For the \tempeval\ corpus, we approximate this as the
 	publication time of the article.
 While this is conflating Reichenbach's reference time with speech time, 
-  and is empirically occasionally a mistaken approximation,
-	it is a nonetheless generally correct.
+  and comes at the expense of certain mistakes,
+	it is a nonetheless useful in practice.
 
 %(grounding)
 To a first approximation, grounding a sequence given a reference time
   corresponds to filling in the unspecified fields of the sequence with the
   fully-specified fields of the reference time.
 Due to the irregular nature of time, this process has a number of special
-  cases\footnote{
+  cases not enumerated here,\footnote{
     Some of these special cases are caused by variable days of the month,
       daylight savings time, etc.
     Another class arises from pragmatically peculiar utterances; e.g.,
       \tp{the next Monday in August} uttered in the last week of August
       should ground to August of next year (rather than the reference time's
       year).
-  },
-  but the process nonetheless remains efficient.
+  }
+  but the process remains feasible in constant time.
 	
 % -- Duration
 \paragraph{Duration}
@@ -93,7 +108,7 @@ This captures semantic entities such as those implied in
 	\tp{the third $x$ [of $y$]}, or \tp{$x$ days ago}.
 %(etc.)
 The particular functions and their application are enumerated in 
-	\reftab{grammar-review}.
+	\reftab{function}.
 
 % -- Nil
 \paragraph{Nil}
@@ -116,10 +131,15 @@ Our approach assumes that natural language descriptions
 % (pcfg)
 We define a grammar jointly over temporal \textit{types} and
   \textit{values}.
+The types serve to constrain the parse and allow for coarse features over the
+  parse;
+  the values encode the specific semantics of the parse, and allow for finer
+  features.
 At the root of a parse tree, we recursively apply the functions in the tree
 	to obtain a final temporal value.
+
 % (compare)
-This approach has been presented as a rule-to-rule translation
+This approach can been presented as a rule-to-rule translation
 	\cite[p.~263]{key:1976bach-semantics,key:1995allen-semantics},
 	or a constrained Synchronous PCFG
 	\cite{key:2001yamada-syntaxmt}.
@@ -241,7 +261,7 @@ Note that this definition is trivially adapted for the case of unary rules.
 % -- Preterminals
 We keep the preterminals identical to those in \me.
 Each preterminal consists of a \textit{type} and a \textit{value};
-  note that neither of these are lexically informed.
+  neither which are lexically informed.
 That is, the word \tp{week} and preterminal $(\te{Week}, \ty{Duration})$
   are not tied in any way.
 A total of 62 preterminals are defined corresponding to instances of
@@ -249,7 +269,7 @@ A total of 62 preterminals are defined corresponding to instances of
   in \reftab{content}.
 
 In addition, 10 functions are defined for manipulating temporal expressions.
-These are summarized in \reftab{function}
+These are summarized in \reftab{function}.
 The majority of these mirror generic operations on intervals on a timeline,
 	or manipulations of a sequence.
 Notably, like intervals, times can be moved (\tp{3 weeks ago}) or
@@ -298,29 +318,29 @@ In particular, our calendar has two modes of expressing
   dates which resist intersection: a day-of-month-based mode and a
   week-based mode.
 Properly grounding a sequence which defines both a day of the month and
-  a day of the week (or, week of the month; week of the year) requires backing
+  a day of the week (or week of the year) requires backing
   off to an expensive search problem.
 
 % (example)
 To illustrate, consider the example: \tp{Friday the \th{13}}.
 Although both a Friday and a \th{13} of the month are easily found, the
-  intersection of the two requires iterating through Fridays until one lands
-  on the \th{13} of the month.
+  intersection of the two requires iterating through elements of one until
+  it overlaps with an element of the other.
 This requires time proportional to the log of the distance to the next match,
   measured in the smallest interval between sequences being intersected.
 
 % (efficiency hit)
 When considering that elements in the beam of possible groundings can become
   both complex and pragmatically unreasonable this can result in a noticable
-  efficiency hit; e.g., a sentence could have an
-  [incorrect] candidate interpretation of:
-  \tp{one hundred \th{5} second of Mondays from now}
+  efficiency hit; e.g., a sentence could have a
+  [likey incorrect] candidate interpretation of:
+  \tp{nineteen ninety-six Monday the \th{5} from now}.
 In this implementation such intersections are disallowed, in the same fashion
   as February \th{30} would be.
 
 \paragraph{Sequence Pragmatics}
 % -- Pragmatic Distribution
-In addition, for the sake of simplicity the pragmatic distribution over
+For the sake of simplicity the pragmatic distribution over
   possible groundings of a sequence is replaced with the single most likely
   grounding, as trained by \me\ on the English \tempeval\ corpus.
 
@@ -331,8 +351,8 @@ The \ty{Number} type no longer appears explicitly, but is rather folded
 
 % -- Parameters
 \paragraph{Grammar Parameters}
-Naturally, as this model is discriminative rather than generative, the grammar
-  parameters $\theta$ are defined over features, rather than over the
+As this model is discriminative rather than generative, the grammar
+  parameters $\theta$ are defined over features rather than over the
   probabilities of rules.
 
 

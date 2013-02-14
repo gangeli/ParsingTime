@@ -19,13 +19,20 @@ Importantly, a probabilistic system could back-off to a rule-based alternative
   for uncertain parses, and visa versa.
 
 % -- Why Language Independent
-Many languages have a consistent formalization of time as
-  analogous to a one dimensional line.
+A large number of languages conceptualize time as lying on a one dimensional
+  line.
+Although the surface form of temporal expressions differ, the basic operations
+  the language expresses are operations on this time line (see \refsec{time}).
+Furthermore, many common languages share common units (hours, weekdays, etc.).
 By structuring a latent parse to reflect these semantics, we can define a single
   model which performs well on multiple languages.
-Training data of the distantly-supervised form required to train the system
-  is generally easier to collect than manually creating potentially complex
-  interpretation rules.
+
+% -- Training Data
+Our system requires annotated data consisting only of an input phrase and
+  an associated \textit{grounded} time, relative to some reference time.
+Training data of this distantly-supervised form
+  is generally easier to collect than the alternative of
+  manually creating and tuning potentially complex interpretation rules.
 
 % -- Why Discriminative
 A discriminative parsing model allows us to capture sparse features over
@@ -34,7 +41,8 @@ For example, it allows us to learn that we are much more likely to
   express \tp{March \th{14}} than \tp{2pm in March} -- despite the fact that
   both interpretations are composed of similar types of components.
 Furthermore, it allows us to define both sparse n-gram and denser but less
-  informative bag-of-words features over multi-word phrases.
+  informative bag-of-words features over multi-word phrases, and allows us
+  to handle numbers in a more flexible way.
 
 %(table of contents)
 We briefly review our temporal representation,

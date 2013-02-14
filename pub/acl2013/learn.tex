@@ -16,14 +16,14 @@ In the first stage, spans of the input sentence are tagged as either text
 A rule-based number recognizer was used for each language to recognize and
   ground numeric expressions, including information on whether the number was
   an ordinal (e.g., \tp{two} versus \tp{second}).
-Note that unlike conventional parsing, a tag can span multiple words;
-  numeric expressions are treated as if the numeric value replaced the
-  expression and multi-word spans in turn are featurized as such
+Note that unlike conventional parsing, a tag can span multiple words.
+Numeric expressions are treated as if the numeric value replaced the
+  expression; multi-word spans, in turn, are featurized as such
   (see \refsec{features}).
 
 Each rule of the parse derivation was assigned a score according to a log-linear
   factor.
-Specifically, each rule $R = (v_i \rightarrow v_j v_k, f$
+Specifically, each rule $R = (v_i \rightarrow v_j v_k, f)$
   with features $\phi(R)$ subject to parameters
   $\theta$ is given a probability:
 
@@ -42,7 +42,8 @@ Note that with features which are not context-free, we are not
 
 \paragraph{Training}
 We adopt an EM-style bootstrapping approach similar to \me\ in order to handle
-  the task of parsing the temporal expression without supervised parse data.
+  the task of parsing the temporal expression without 
+  annotations for the latent parses.
 Each training instance is a tuple consisting of the words in the temporal
 	phrase, the annotated grounded time $\tau^*$, and the reference time.
 Given an input sentence, our parser will output $k$ possible parses; when
@@ -50,7 +51,7 @@ Given an input sentence, our parser will output $k$ possible parses; when
   $\tau_1 \dots \tau_k$, each with a parse score $f(\tau_i)$.
 
 This corresponds to an approximate E step in the EM algorithm, where the
-  distribution over latent parses is approximated by a bean of size $k$.
+  distribution over latent parses is approximated by a beam of size $k$.
 Although for long sentences the number of parses is far greater than the
   beam size, as the parameters improve, increasingly longer sentences will
   have correct derivations in the beam.
@@ -90,9 +91,10 @@ We describe the features used below; a summary of these features
 A feature is defined over every nonterminal combination,
   consisting of the pair of children being combined in that rule.
 In particular, let us consider a rule
-  $R = (v_i \rightarrow v_j v_k, f$ corresponding to a CFG rule
-  $v_i \rightarrow v_j v_k$ over \textit{types} and a function $f$ over the
-  semantic values corresponding to $v_j$ and $v_k$: $\tau_j$ and $\tau_k$.
+  \mbox{$R = (v_i \rightarrow v_j v_k, f)$} corresponding to a CFG rule
+  \mbox{$v_i \rightarrow v_j v_k$} over \textit{types} and a function $f$
+  over the semantic values corresponding to 
+  $v_j$ and $v_k$: $\tau_j$ and $\tau_k$.
 % (two classes)
 Two classes of bracketing features are extracted:
   features are extracted over the types of nonterminals being combined
@@ -103,8 +105,9 @@ Two classes of bracketing features are extracted:
 % -- Type Bracketing
 Unlike syntactic parsing, in both our domains the child types of a parse tree
   uniquely define the parent type of the rule; this is a direct consequence
-  of our combination rules being functions, and therefore necessarily projecting
-  their inputs into a single output space.
+  of our combination rules being functions with domains defined in terms of the
+  temporal types, and therefore necessarily projecting
+  their inputs into a single output type.
 As a consequence of this, the first class of bracketing features -- over
   types -- reduce to have the exact same
   expressive power as the nonterminal CFG rules of \me.
@@ -131,9 +134,10 @@ This can be read as applying the intersect function, to a subtree which is
 
 \paragraph{Lexical Features}
 % -- Two classes
-The second significant class of features extracted are lexicalized features.
-These are significant most naturally when tagging phrases; however, they are
-  also relevant in incorporating cues from the yield of \ty{Nil} spans.
+The second large class of features extracted are lexicalized features.
+These are defined to discriminate the tagging of phrases with preterminals;
+  however, they are also relevant in incorporating cues from the yield
+  of \ty{Nil} spans.
 To illustrate, \tp{a week} and \tp{the week} have very different meanings,
   despite differing by only their \ty{Nil} tagged tokens.
 
@@ -142,7 +146,8 @@ To illustrate, \tp{a week} and \tp{the week} have very different meanings,
 In the first case, a feature is extracted over the \textit{value} of the
   preterminal being extracted, and the phrase it is subsuming.
 As the type of the preterminal is deterministic from the value, encoding
-  a feature on the type would be redundant.
+  a feature on the type of the preterminal would be a coarser encoding of
+  the same information, which is empirically not useful in this case.
 % (ngrams)
 Since a multi-word expression can parse to a single nonterminal, a feature
   is extracted for the entire n-gram, in addition to features for each of the
@@ -150,16 +155,22 @@ Since a multi-word expression can parse to a single nonterminal, a feature
 % (example)
 For example, the phrase \tp{of this} -- of type \ty{Nil} -- would have
   features extracted:
-  \feat{$<$\ty{Nil}, of$>$},
-  \feat{$<$\ty{Nil}, this$>$}, and
-  \feat{$<$\ty{Nil}, of this$>$}
+  \feat{$<$\ty{Nil}, \tp{of}$>$},
+  \feat{$<$\ty{Nil}, \tp{this}$>$}, and
+  \feat{$<$\ty{Nil}, \tp{of this}$>$}.
 
 % -- Nil
-In the second case, we would like to capture a notion of the text underneath
-  a \ty{Nil}-tagged span when we are combining it with another derivation.
-Here, we extract features over the words under the \ty{Nil} span and the
-  type of the other derivation; as above, features are extracted for both
-  n-grams and for each word in the phrase.
+In the second case -- absorbing \ty{Nil}-tagged spans -- 
+  we would like to capture a notion of the text underneath
+  the subtree.
+Here, we extract features over the words under the \ty{Nil} span joined with
+  the type or value of the other derivation;
+  as above, features are extracted for both n-grams and for each word in
+  the phrase.
+For example, combinging \tp{of this} and \tp{week} would yield features
+  \feat{$<$\tp{of}, EveryWeek$>$},
+  \feat{$<$\tp{this}, EveryWeek$>$}, and
+  \feat{$<$\tp{of this}, EveryWeek$>$}.
 
 In both cases, numbers are featurized according to their order of magnitude,
   and whether they are ordinal.

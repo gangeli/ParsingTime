@@ -1,5 +1,5 @@
 
-angeli_time.pdf: $(wildcard *.tex) $(wildcard fig/*.eps) ref.bib Makefile
+angeli_time.pdf: $(wildcard *.tex) $(wildcard fig/*.eps) fig/figs.rb fig/lib.rb ref.bib Makefile
 	@cd fig && make
 	@pdflatex angeli_time
 	@bibtex angeli_time
