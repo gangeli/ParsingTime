@@ -1,5 +1,5 @@
 \Section{learn}{Learning}
-The system is trained using a discrminative $k$-best parser, which is able to
+The system is trained using a discriminative $k$-best parser, which is able to
   incorporate arbitrary features over partial derivations.
 We describe the parser below, followed by the features implemented.
 
@@ -38,7 +38,7 @@ However, we can approximate the algorithm in $O(n^3 k \log k)$ time by using
 Note that with features which are not context-free, we are not
   guaranteed an optimal beam with this approach; however, empirically
   the approximation yields a significant efficiency improvement without
-  noticable loss in performance.
+  noticeable loss in performance.
 
 \paragraph{Training}
 We adopt an EM-style bootstrapping approach similar to \me\ in order to handle
@@ -171,7 +171,7 @@ Here, we extract features over the words under the \ty{Nil} span joined with
   the type or value of the other derivation;
   as above, features are extracted for both n-grams and for each word in
   the phrase.
-For example, combinging \tp{of this} and \tp{week} would yield features
+For example, combining \tp{of this} and \tp{week} would yield features
   \feat{$<$\tp{of}, EveryWeek$>$},
   \feat{$<$\tp{this}, EveryWeek$>$}, and
   \feat{$<$\tp{of this}, EveryWeek$>$}.
