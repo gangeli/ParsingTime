@@ -1,4 +1,58 @@
 \Section{results}{Evaluation}
+
+% -- Result English
+\begin{table}
+	\begin{center}
+	\begin{tabular}{|l|c|c|c|c|}
+		\hline
+		       & \multicolumn{2}{c|}{Train} & \multicolumn{2}{c|}{Test} \\
+		System & Type & Value  & Type & Value \\
+		\hline
+		\hline
+		\sys{GUTime}      & 0.72          & 0.46          & 0.80           & 0.42 \\
+		\sys{SUTime}      & 0.85          & 0.69          & \textbf{0.94}  & 0.71 \\
+		\sys{HeidelTime}  & 0.80          & 0.67          & 0.85           & 0.71 \\
+		\sys{ParsingTime} & 0.90          & 0.72          & 0.88           & 0.72 \\
+		\hline                                           
+		\sys{OurSystem}   & \textbf{0.94} & \textbf{0.81} & 0.91           & \textbf{0.76} \\
+		\hline
+	\end{tabular}
+	%(caption)
+	\caption{
+		English results for \tempeval\ attribute scores for our system and
+      four previous systems.
+		The scores are calculated using gold extents, forcing a guessed
+		interpretation for each parse.
+		\label{tab:results-english}
+	}
+	\end{center}
+\end{table}
+
+% -- Result Spanish
+\begin{table}
+	\begin{center}
+	\begin{tabular}{|l|c|c|c|c|}
+		\hline
+		       & \multicolumn{2}{c|}{Train} & \multicolumn{2}{c|}{Test} \\
+		System & Type & Value  & Type & Value \\
+		\hline
+		\hline
+		\sys{UC3M}        & ---           & ---           & 0.79           & 0.72 \\
+		\hline                                           
+		\sys{OurSystem}   & 0.90          & 0.84          & \textbf{0.92}  & \textbf{0.76} \\
+		\hline
+	\end{tabular}
+	%(caption)
+	\caption{
+		Spanish results for \tempeval\ attribute scores for our system and
+      the best known previous system.
+		The scores are calculated using gold extents, forcing a guessed
+		interpretation for each parse.
+		\label{tab:results-spanish}
+	}
+	\end{center}
+\end{table}
+
 % -- Intro
 We compare against previous work normalizing English and Spanish temporal
   expressions in the \tempeval\ corpus; in addition, we report results on
@@ -17,6 +71,35 @@ We describe the \tempeval\ datasets in \refsec{tempeval} and experimental
 % DATASET
 % -----
 \Subsection{tempeval}{\tempeval\ Datasets}
+
+% -- Result All
+\begin{table*}[ht]
+	\begin{center}
+	\begin{tabular}{|l|c|c|c|c|c|c|}
+		\hline
+		       & \multicolumn{3}{c|}{Train} & \multicolumn{3}{c|}{Test} \\
+		Language & \# examples & Type & Value  & \# examples & Type & Value \\
+		\hline
+		\hline
+		English          & 1052 & 0.94 & 0.81  & 156 & 0.91 & 0.76 \\
+		Spanish          & 1092 & 0.90 & 0.84  & 198 & 0.92 & 0.76 \\
+		Italian          & 523  & 0.89 & 0.85  & 126 & 0.84 & 0.38 \\
+		Chinese          & 744  & 0.95 & 0.65  & 190 & 0.87 & 0.48 \\
+		Chinese (clean)  & 659  & 0.97 & 0.73  & 143 & 0.97 & 0.60 \\
+		Korean           & 247  & 0.83 & 0.67  & 91  & 0.82 & 0.42 \\
+		French           & 206  & 0.78 & 0.76  & 83  & 0.78 & 0.35 \\
+		\hline
+	\end{tabular}
+	%(caption)
+	\caption{
+    Our system's accuracy on all 6 languages of the \tempeval\ corpus.
+    Chinese is divided into two results: one for the entire corpus, and one
+      which considers only examples for which a temporal value is annotated.
+		\label{tab:results-all}
+	}
+	\end{center}
+\end{table*}
+
 % -- Intro
 \tempeval, from SemEval 2010, focused on retrieving and reasoning
   about temporal information from newswire.
@@ -115,6 +198,9 @@ Evaluation was done identically to the Chinese and Korean data.
 % -- Segway
 We proceed to describe our experimental results on these datasets.
 
+% -----
+% SCORES
+% -----
 \Subsection{scores}{Results}
 % -- Other Systems
 We compare our system with state-of-the-art systems for both English and
@@ -144,88 +230,6 @@ The systems compared against are:
 \item UC3M \cite{2010vicente-uc3m}, a rule-based system for
              Spanish.
 \end{itemize}
-
-% -- Result English
-\begin{table}
-	\begin{center}
-	\begin{tabular}{|l|c|c|c|c|}
-		\hline
-		       & \multicolumn{2}{c|}{Train} & \multicolumn{2}{c|}{Test} \\
-		System & Type & Value  & Type & Value \\
-		\hline
-		\hline
-		\sys{GUTime}      & 0.72          & 0.46          & 0.80           & 0.42 \\
-		\sys{SUTime}      & 0.85          & 0.69          & \textbf{0.94}  & 0.71 \\
-		\sys{HeidelTime}  & 0.80          & 0.67          & 0.85           & 0.71 \\
-		\sys{ParsingTime} & 0.90          & 0.72          & 0.88           & 0.72 \\
-		\hline                                           
-		\sys{OurSystem}   & \textbf{0.94} & \textbf{0.81} & 0.91           & \textbf{0.76} \\
-		\hline
-	\end{tabular}
-	%(caption)
-	\caption{
-		English results for \tempeval\ attribute scores for our system and
-      four previous systems.
-		The scores are calculated using gold extents, forcing a guessed
-		interpretation for each parse.
-		\label{tab:results-english}
-	}
-	\end{center}
-\end{table}
-
-% -- Result Spanish
-\begin{table}
-	\begin{center}
-	\begin{tabular}{|l|c|c|c|c|}
-		\hline
-		       & \multicolumn{2}{c|}{Train} & \multicolumn{2}{c|}{Test} \\
-		System & Type & Value  & Type & Value \\
-		\hline
-		\hline
-		\sys{UC3M}        & ---           & ---           & 0.79           & 0.72 \\
-		\hline                                           
-		\sys{OurSystem}   & 0.90          & 0.84          & \textbf{0.92}  & \textbf{0.76} \\
-		\hline
-	\end{tabular}
-	%(caption)
-	\caption{
-		Spanish results for \tempeval\ attribute scores for our system and
-      the best known previous system.
-		The scores are calculated using gold extents, forcing a guessed
-		interpretation for each parse.
-		\label{tab:results-spanish}
-	}
-	\end{center}
-\end{table}
-
-% -- Result All
-\begin{table*}
-	\begin{center}
-	\begin{tabular}{|l|c|c|c|c|c|c|}
-		\hline
-		       & \multicolumn{3}{c|}{Train} & \multicolumn{3}{c|}{Test} \\
-		Language & \# examples & Type & Value  & \# examples & Type & Value \\
-		\hline
-		\hline
-		English          & 1052 & 0.94 & 0.81  & 156 & 0.91 & 0.76 \\
-		Spanish          & 1092 & 0.90 & 0.84  & 198 & 0.92 & 0.76 \\
-		Italian          & 523  & 0.89 & 0.85  & 126 & 0.84 & 0.38 \\
-		Chinese          & 744  & 0.95 & 0.65  & 190 & 0.87 & 0.48 \\
-		Chinese (clean)  & 659  & 0.97 & 0.73  & 143 & 0.97 & 0.60 \\
-		Korean           & 247  & 0.83 & 0.67  & 91  & 0.82 & 0.42 \\
-		French           & 206  & 0.78 & 0.76  & 83  & 0.78 & 0.35 \\
-		\hline
-	\end{tabular}
-	%(caption)
-	\caption{
-		Spanish results for \tempeval\ attribute scores for our system and
-      the best known previous system.
-		The scores are calculated using gold extents, forcing a guessed
-		interpretation for each parse.
-		\label{tab:results-all}
-	}
-	\end{center}
-\end{table*}
 
 % -- Results
 Results for the English corpus are shown in \reftab{results-english}.

@@ -177,7 +177,7 @@ def nov; calendar('NOV','img/months.png'); end
 def sec; clock('SEC','img/times.png'); end
 def hour; clock('HOUR','img/times.png'); end
 def century; calendar('CENTURY','img/months.png'); end
-def everyweek; calendar('every\\_week','img/months.png'); end
+def everyweek; calendar('EveryWeek','img/months.png'); end
 	
 def darrow; image('img/darrow.jpg').scale(0.05); end
 def uarrow; image('img/uarrow.jpg').scale(0.05); end

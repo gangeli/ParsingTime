@@ -194,7 +194,7 @@ def sequenceGrounding
 end
 
 printObj(
-  :obj => sequenceGrounding.signature(23),
+  :obj => sequenceGrounding.signature(24),
   :outPrefix => 'sequence'
 )
 
@@ -210,19 +210,55 @@ def feat(*args)
 end
 
 def features
-  rtable(
-    _('Features').color(darkblue),
-    feat(friday, phrase('Friday')),
-    feat('\textsc{Nil}',  phrase('of')),
-    feat('\textsc{Nil}',  phrase('this')),
-    feat('\textsc{Nil}',  phrase('of this')),
-    feat('\textsc{Nil}',  '\textsc{Sequence}'),
-    feat('\textsc{Nil}',  everyweek),
-    feat('\textsc{Sequence}', '\textsc{Sequence}'),
-    feat('\textsc{Intersect}', friday, everyweek),
-    feat('\textsc{nil\\_bias}'),
-    feat('\textsc{root\\_valid}'),
-  nil)
+  def fridayTag
+    [Parse.new([friday, '\darkgreen{Friday}']).constituency.scale(0.75),
+      rtable(
+        feat(friday, phrase('Friday')),
+      nil)]
+  end
+  def nilTag
+    [Parse.new(['\textsf{Nil}', '\darkgreen{of this}']).constituency.scale(0.75),
+      rtable(
+        feat('\textsc{Nil}',  phrase('of')),
+        feat('\textsc{Nil}',  phrase('this')),
+        feat('\textsc{Nil}',  phrase('of this')),
+        feat('\textsc{nil\\_bias}'),
+      nil)]
+  end
+  def weekTag
+    [Parse.new([everyweek,'\darkgreen{week}']).constituency.scale(0.75),
+      rtable(
+        feat('\textsc{Nil}',  '\textsc{Sequence}'),
+        feat('\textsc{Nil}',  everyweek),
+      nil)]
+  end
+  def nilWeek
+    [Parse.new(
+      [everyweek, _('\textsf{Nil}'), everyweek]).constituency.scale(0.75),
+      rtable(
+        feat(ctable('\textsc{Nil}\_', phrase('of')),       everyweek),
+        feat(ctable('\textsc{Nil}\_', phrase('this')),     everyweek),
+        feat(ctable('\textsc{Nil}\_', phrase('of this')),  everyweek),
+        feat('\textsc{Nil}', '\textsc{Sequence}'),
+        feat('\textsc{Nil}', everyweek),
+      nil)]
+  end
+  def root
+    [Parse.new(
+      [intersect( friday, everyweek ),
+        friday, everyweek]).constituency.scale(0.75),
+      rtable(
+        feat('\textsc{Sequence}', '\textsc{Sequence}'),
+        feat('\textsc{Intersect}', friday, everyweek),
+        feat('\textsc{root\\_valid}'),
+      nil)]
+  end
+  table(
+    fridayTag,
+    nilTag,
+    nilWeek,
+    root,
+  nil).rjustify('c').cjustify('cl').cmargin(u(0.25)).rmargin(u(0.25))
 end
 
 def sys
@@ -251,17 +287,20 @@ def sys
     #(output)
     [
       _('Output \grounded').color(darkblue),
-      time('May 13 2011'),
+      time('August 9 2013'),
     nil],
-  nil).cjustify('c').rjustify('c').rmargin(u(0.3))
+  nil).cjustify('c').rjustify('c').rmargin(u(0.70))
 end
 
 def sysAndFeatures
-  ctable(sys, features).cmargin(u(0.5))
+  table(
+    [sys, features],
+    ['(a)', '(b)'],
+  nil).cmargin(u(0.1)).rmargin(u(0.5)).center
 end
 
 printObj(
-  :obj => sysAndFeatures.signature(30),
+  :obj => sysAndFeatures.signature(58),
   :outPrefix => 'system'
 )
 
