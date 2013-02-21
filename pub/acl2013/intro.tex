@@ -11,16 +11,19 @@ For example, possibly complex phrases such as \tp{the week before last} are
 Many approaches to this problem make use of rule-based methods, combining
   regular-expression matching and hand-written interpretation functions.
 %(motivation)
-In general, we would like to learn the interpretation of temporal expressions,
-	rather than hand-building systems.
-Probabilistic systems furthermore allow propagation of uncertainty
-	to higher-level components.
-Importantly, a probabilistic system could back-off to a rule-based alternative
-  for uncertain parses, and vice versa.
+In contrast, we would like to learn the interpretation of a
+  temporal expression probabilistically.
+This allows propagation of uncertainty
+	to higher-level components, and the potential to dynamically back off to
+  a rule-based system in the case of low confidence parses.
+In addition, we would like to learn using a representation of time which is
+  broadly applicable to multiple languages, without the need for
+  language-specific rules or manually tuned parameters.
 
 % -- Training Data
 Our system requires annotated data consisting only of an input phrase and
-  an associated \textit{grounded} time, relative to some reference time.
+  an associated \textit{grounded} time, relative to some reference time;
+  the language-flexible parse is entirely latent.
 Training data of this weakly-supervised form
   is generally easier to collect than the alternative of
   manually creating and tuning potentially complex interpretation rules.
@@ -48,7 +51,7 @@ Furthermore, it allows us to define both sparse n-gram and denser but less
   to handle numbers in a flexible way.
 
 %(table of contents)
-We briefly describe our temporal representation,
+We briefly describe our temporal representation and grammar,
 	followed by a description of the learning algorithm; 
 	we conclude with experimental results on the languages of the
   \tempeval\ A task.
