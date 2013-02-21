@@ -155,7 +155,7 @@ def calendar(txt,img)
 	ctable(
 		image(img).scale(0.025),
 		time(txt),
-	nil)
+	nil).center
 end
 def clock(txt,img)
 	ctable(
@@ -178,7 +178,7 @@ def sec; clock('SEC','img/times.png'); end
 def hour; clock('HOUR','img/times.png'); end
 def century; calendar('CENTURY','img/months.png'); end
 def everyweek; calendar('EveryWeek','img/months.png'); end
-	
+
 def darrow; image('img/darrow.jpg').scale(0.05); end
 def uarrow; image('img/uarrow.jpg').scale(0.05); end
 def larrow; image('img/larrow.jpg').scale(0.05); end

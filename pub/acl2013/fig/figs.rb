@@ -184,6 +184,7 @@ def sequenceGrounding
       ctable(
         label('Reference Time'),
         sequenceFields(:year=>'2013', :month=>'Aug', :day=>'\th{06}',
+                       :weekOfYear=>'32', :dayOfWeek=>'Tue',
                        :hour=>'03', :minute=>'25', :second=>'00'),
       nil).center.cmargin(u(0.4)),
     nil).center.rmargin(u(0.5)),
@@ -194,7 +195,7 @@ def sequenceGrounding
 end
 
 printObj(
-  :obj => sequenceGrounding.signature(24),
+  :obj => sequenceGrounding.signature(25),
   :outPrefix => 'sequence'
 )
 
@@ -302,6 +303,28 @@ end
 printObj(
   :obj => sysAndFeatures.signature(58),
   :outPrefix => 'system'
+)
+
+################################################################################
+# Grammar Rule
+################################################################################
+
+
+
+def singleRule
+  Parse.new(
+    [ctable(ctable('(', everyweek, time('-1')).center, ',', '\ty{Seq.}', ')').center,
+     [ctable('(', time('moveLeft1'), ',', 'Seq.$\rightarrow$Seq.', ')'),
+      '\darkgreen{last}'],
+     [ctable('(', everyweek, ',', 'Seq.',')').center,
+      '\darkgreen{week}'],
+    ]
+  ).constituency
+end
+
+printObj(
+  :obj => singleRule.signature(15),
+  :outPrefix => 'singleRule'
 )
 
 finishFigureSet

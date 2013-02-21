@@ -18,8 +18,7 @@ A rule-based number recognizer was used for each language to recognize and
   an ordinal (e.g., \tp{two} versus \tp{second}).
 Note that unlike conventional parsing, a tag can span multiple words.
 Numeric expressions are treated as if the numeric value replaced the
-  expression; multi-word spans, in turn, are featurized as such
-  (see \refsec{features}).
+  expression.
 
 Each rule of the parse derivation was assigned a score according to a log-linear
   factor.
@@ -33,9 +32,9 @@ P(v_i \mid v_j, v_k, f; \theta) \propto e^{ \theta^T \phi(R) }
 
 Na\"{\i}vely, this parsing algorithm gives us a complexity of $O(n^3 k^2)$,
   where $n$ is the length of the sentence, and $k$ is the size of the beam.
-However, we can approximate the algorithm in $O(n^3 k \log k)$ time by using
+However, we can approximate the algorithm in $O(n^3 k \log k)$ time with
   cube pruning \cite{key:2007chiang-cubepruning}.
-Note that with features which are not context-free, we are not
+With features which are not context-free, we are not
   guaranteed an optimal beam with this approach; however, empirically
   the approximation yields a significant efficiency improvement without
   noticeable loss in performance.
@@ -48,7 +47,7 @@ Each training instance is a tuple consisting of the words in the temporal
 	phrase, the annotated grounded time $\tau^*$, and the reference time.
 Given an input sentence, our parser will output $k$ possible parses; when
   grounded to the reference time these correspond to $k$ candidate times:
-  $\tau_1 \dots \tau_k$, each with a parse score $f(\tau_i)$.
+  $\tau_1 \dots \tau_k$, each with a normalized probability $P(\tau_i)$.
 
 This corresponds to an approximate E step in the EM algorithm, where the
   distribution over latent parses is approximated by a beam of size $k$.
@@ -59,13 +58,14 @@ In this way, a progressively larger percentage of the data is available to be
 	learned from at each iteration.
 
 To approximate the M step, 
-  we define a multi-class hinge loss over the beam, which we can optimize
-  using Online Stochastic Gradient Descent:
+  we define a multi-class hinge loss $l(\theta)$ over the beam, and
+  optimize using Stochastic Gradient Descent with AdaGrad
+  \cite{key:2010duchi-adagrad}:
 
 \begin{equation}
-\max_{0 \leq i < k} \left(
-  \1[\tau_i = \tau^*] + f(\tau_i) - f(\tau^*)
-\right)
+l(\theta) = 
+  \max_{0 \leq i < k} \1[\tau_i = \tau^*] + P_\theta(\tau_i)
+                                                 - P_\theta(\tau^*)
 \end{equation}
 
 We proceed to describe the features used in the parser.
@@ -84,10 +84,10 @@ We proceed to describe the features used in the parser.
 \Subsection{features}{Features}
 Our framework allows us to define arbitrary features over partial derivations.
 Importantly, this allows us to condition not only on the PCFG probabilities
-  over \textit{types} described in \me\ but also the partial semantics of the
+  over \textit{types} but also the partial semantics of the
   derivation.
 We describe the features used below; a summary of these features
-  for a short parse is illustrated in \reffig{features}.
+  for a short phrase is illustrated in \reffig{features}.
 
 \paragraph{Bracketing Features}
 % -- Introduction
@@ -107,22 +107,22 @@ Two classes of bracketing features are extracted:
     ($f$, $\tau_j$, and $\tau_k$).
 
 % -- Type Bracketing
-Unlike syntactic parsing, in both our domains the child types of a parse tree
+Unlike syntactic parsing, child types of a parse tree
   uniquely define the parent type of the rule; this is a direct consequence
   of our combination rules being functions with domains defined in terms of the
   temporal types, and therefore necessarily projecting
   their inputs into a single output type.
-As a consequence of this, the first class of bracketing features -- over
+Therefore, the first class of bracketing features -- over
   types -- reduce to have the exact same
   expressive power as the nonterminal CFG rules of \me.
 
 % -- Value Bracketing
-However, we now also have the flexibility to extract features from the
-  semantics of the derivation.
+However, we now also have the flexibility to extract a second class of features
+  from the semantics of the derivation.
 We define a feature bracketing the most recent semantic function
   applied to each of the two child derivations; along with the function being
   applied in the rule application.
-If the child is a preterminal, the entire semantics of the preterminal are used;
+If the child is a preterminal, the semantics of the preterminal are used;
   otherwise, the outermost (most recent) function to be applied to the
   derivation is used.
 % (example)
@@ -132,14 +132,14 @@ This can be read as a feature for the rule applying the intersect function
   to August and 2013.
 Furthermore, intersecting \te{August 2013} with the \th{12} of the month would
   yield a feature \feat{$<$intersect, intersect, \th{12}$>$}.
-This can be read as applying the intersect function, to a subtree which is
+This can be read as applying the intersect function to a subtree which is
   the intersection of two terms, and to the \th{12} of the month.
 
 
 \paragraph{Lexical Features}
 % -- Two classes
 The second large class of features extracted are lexicalized features.
-These are defined to discriminate the tagging of phrases with preterminals;
+These are primarily used for tagging phrases with preterminals;
   however, they are also relevant in incorporating cues from the yield
   of \ty{Nil} spans.
 To illustrate, \tp{a week} and \tp{the week} have very different meanings,
@@ -151,10 +151,10 @@ In the first case, a feature is extracted over the \textit{value} of the
   preterminal being extracted, and the phrase it is subsuming.
 As the type of the preterminal is deterministic from the value, encoding
   a feature on the type of the preterminal would be a coarser encoding of
-  the same information, which is empirically not useful in this case.
+  the same information, and is empirically not useful in this case.
 % (ngrams)
 Since a multi-word expression can parse to a single nonterminal, a feature
-  is extracted for the entire n-gram, in addition to features for each of the
+  is extracted for the entire $n$-gram in addition to features for each of the
   individual words.
 % (example)
 For example, the phrase \tp{of this} -- of type \ty{Nil} -- would have
@@ -164,12 +164,10 @@ For example, the phrase \tp{of this} -- of type \ty{Nil} -- would have
   \feat{$<$\ty{Nil}, \tp{of this}$>$}.
 
 % -- Nil
-In the second case -- absorbing \ty{Nil}-tagged spans -- 
-  we would like to capture a notion of the text underneath
-  the subtree.
-Here, we extract features over the words under the \ty{Nil} span joined with
-  the type or value of the other derivation;
-  as above, features are extracted for both n-grams and for each word in
+In the second case -- absorbing \ty{Nil}-tagged spans --
+  we extract features over the words under the \ty{Nil} span joined with
+  the type or value of the other derivation.
+As above, features are extracted for both n-grams and for each word in
   the phrase.
 For example, combining \tp{of this} and \tp{week} would yield features
   \feat{$<$\tp{of}, EveryWeek$>$},
@@ -187,8 +185,8 @@ Although some constraints can be imposed to help ensure that a top-level parse
   will be valid, absolute guarantees are difficult.
 For instance, February 30 is never a valid date; but, it would be difficult
   to disallow any local rule in its derivation.
-To mediate this, an indicator feature is extracted at the top level of the
-  derivation denoting whether the grounded semantics of the derivation is
+To mediate this, an indicator feature is extracted
+  denoting whether the grounded semantics of the derivation is
   valid.
 
 \paragraph{Nil Bias}

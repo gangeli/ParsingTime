@@ -21,7 +21,7 @@
 	\caption{
 		English results for \tempeval\ attribute scores for our system and
       four previous systems.
-		The scores are calculated using gold extents, forcing a guessed
+		The scores are calculated using gold extents, forcing an
 		interpretation for each parse.
 		\label{tab:results-english}
 	}
@@ -46,7 +46,7 @@
 	\caption{
 		Spanish results for \tempeval\ attribute scores for our system and
       the best known previous system.
-		The scores are calculated using gold extents, forcing a guessed
+		The scores are calculated using gold extents, forcing an
 		interpretation for each parse.
 		\label{tab:results-spanish}
 	}
@@ -54,14 +54,11 @@
 \end{table}
 
 % -- Intro
-We compare against previous work normalizing English and Spanish temporal
-  expressions in the \tempeval\ corpus; in addition, we report results on
-  the four other languages in the corpus.
 We evaluate our model on all six languages in the \tempeval\ Task A dataset
   \cite{key:2010verhagen-tempeval}, comparing against state-of-the-art
   systems for English and Spanish.
-Initial results are reported on smaller data from the four other languages.
-To our knowledge, there has not been any prior work on these corpora.
+New results are reported on smaller data from the four other languages.
+To our knowledge, there has not been any prior work on these new corpora.
 
 % -- Outline
 We describe the \tempeval\ datasets in \refsec{tempeval} and experimental
@@ -81,13 +78,13 @@ We describe the \tempeval\ datasets in \refsec{tempeval} and experimental
 		Language & \# examples & Type & Value  & \# examples & Type & Value \\
 		\hline
 		\hline
-		English          & 1052 & 0.94 & 0.81  & 156 & 0.91 & 0.76 \\
-		Spanish          & 1092 & 0.90 & 0.84  & 198 & 0.92 & 0.76 \\
-		Italian          & 523  & 0.89 & 0.85  & 126 & 0.84 & 0.38 \\
-		Chinese          & 744  & 0.95 & 0.65  & 190 & 0.87 & 0.48 \\
-		Chinese (clean)  & 659  & 0.97 & 0.73  & 143 & 0.97 & 0.60 \\
-		Korean           & 247  & 0.83 & 0.67  & 91  & 0.82 & 0.42 \\
-		French           & 206  & 0.78 & 0.76  & 83  & 0.78 & 0.35 \\
+		English                        & 1052 & 0.94 & 0.81  & 156 & 0.91 & 0.76 \\
+		Spanish                        & 1092 & 0.90 & 0.84  & 198 & 0.92 & 0.76 \\
+		Italian                        & 523  & 0.89 & 0.85  & 126 & 0.84 & 0.38 \\
+		Chinese$^\dagger$              & 744  & 0.95 & 0.65  & 190 & 0.87 & 0.48 \\
+		Chinese (clean)$^\dagger$      & 659  & 0.97 & 0.73  & 143 & 0.97 & 0.60 \\
+		Korean$^\dagger$               & 247  & 0.83 & 0.67  & 91  & 0.82 & 0.42 \\
+		French$^\dagger$               & 206  & 0.78 & 0.76  & 83  & 0.78 & 0.35 \\
 		\hline
 	\end{tabular}
 	%(caption)
@@ -95,6 +92,8 @@ We describe the \tempeval\ datasets in \refsec{tempeval} and experimental
     Our system's accuracy on all 6 languages of the \tempeval\ corpus.
     Chinese is divided into two results: one for the entire corpus, and one
       which considers only examples for which a temporal value is annotated.
+    Languages with a dagger ($^\dagger$) were evaluated based on semantic
+      rather than string-match correctness.
 		\label{tab:results-all}
 	}
 	\end{center}
@@ -108,10 +107,10 @@ Our system evaluates against Task A -- detecting and resolving temporal
 Since we perform only the second of these, we evaluate our system
 	assuming gold detection.
 
-Furthermore, the dataset annotates six languages:
+The dataset annotates six languages:
   English, Spanish, Italian, French, Chinese, and Korean;
   of these, English and Spanish are the most mature.
-We describe each of these languages, along with their relevant quirks, below:
+We describe each of these languages, along with relevant quirks, below:
 
 \paragraph{English}
 % -- English
@@ -126,7 +125,7 @@ Note that this is a restrictive metric; for instance, \tp{24 hours} and
 System output was heuristically converted to the \timex\ format; where
   ambiguities arose, the convention which maximized training accuracy was
   chosen.
-Empirically, the error introduced in this conversion was around 1\%.
+Empirically, the error introduced in this conversion was less than 1\%.
 
 \paragraph{Spanish}
 % -- Spanish
@@ -138,25 +137,20 @@ Evaluation was identical to the English, with the heuristic \timex\ conversion
 % -- Italian
 % (general)
 The Italian dataset consists of 523 training examples, and 126 test examples.
-Minor syntactic formatting changes were introduced in the data to remove invalid
-  characters, and ensure the formatting is consistent with the
-  \tempeval\ format guidelines.
-Otherwise, evaluation was identical to English and Spanish.
+Evaluation was identical to English and Spanish.
 
 \paragraph{Chinese}
 % -- Chinese
 % (general)
 The Chinese dataset consists of 744 training examples, and 190 test examples.
 Of these, only 659 training and 143 test examples had a temporal value marked;
-  the remaining examples had a type but no value annotated and are therefore
+  the remaining examples had a type but no value, and are therefore
   impossible to predict.
-Results are reported on both corpora, though the accuracy of the full corpus
-  is correspondingly lower.
+Results are also reported on a clean corpus with these impossible examples
+  omitted.
 
 % (evaluation)
-As with Italian, minor syntactic formatting changes were introduced in the data
-  to ensure that it is consistent with the formatting guidelines.
-However, the Chinese, Korean, and French corpora had significantly more severe
+The Chinese, Korean, and French corpora had significantly more severe
   inconsistencies in the \timex\ annotation.
 Thus, evaluations are reported according to the training objective: if two
   \timex\ values ground to the same grounded time, they are considered equal.
@@ -166,7 +160,7 @@ For example, in the example above, \textit{24 hours} and \textit{a day}
 % (conversion subtlety)
 Most \timex\ values convert naturally to a grounded representation; values
   with wildcards representing Sequences (e.g., \te{1998-QX} or \te{1998-XX-12})
-  ground to the same value as the correct Sequence encoding that value would.
+  ground to the same value as the \ty{Sequence} encoding that value would.
 For instance, \te{1998-QX} would be parsed as \tp{every quarter in 1998}.
 
 \paragraph{Korean}
@@ -174,8 +168,8 @@ For instance, \te{1998-QX} would be parsed as \tp{every quarter in 1998}.
 % (general)
 The Korean dataset consists of 287 training examples, and 91 test examples.
 % (garbage in)
-40 of the training examples encoded dates as a long integer -- for
-  example: 003000000200001131951006 grounds to January 13, 2000 at the time
+40 of the training examples encoded dates as a long integer
+For example: 003000000200001131951006 grounds to January 13, 2000 at the time
   19:51.
 These were removed from the training set, yielding 247 examples; however,
   all three such examples were left in the test set.
@@ -188,8 +182,8 @@ Evaluation was done identically to the Chinese data.
 Lastly, a dataset for French temporal expressions was compiled from the
   \tempeval\ data.
 % (scraping)
-Unlike the other 5 languages, the French dataset included only the raw 
-  Timex annotated newswire documents, encoded as XML.
+Unlike the other 5 languages, the French data included only the raw 
+  \timex\ annotated newswire documents, encoded as XML.
 These documents were scraped to recover 206 training examples and 83 test
   examples.
 % (evaluation)
@@ -219,10 +213,11 @@ This in general yields lower results for those systems,
 % -- Comparisons
 The systems compared against are:
 \begin{itemize}
-\item GUTime \cite{key:2010strotgen-temporal}, a widely used, older rule-based
+\setlength{\itemsep}{0cm}
+\item GUTime \cite{key:2000mani-temporal}, a widely used, older rule-based
               system.
-\item HeidelTime \cite{key:2010strotgen-temporal}, the state-of-the-art
-                 system on the \tempeval\ task for English.
+\item HeidelTime \cite{key:2010strotgen-temporal}, the top
+                 system at the \tempeval\ task for English.
 \item SUTime \cite{key:2012chang-temporal}, a more recent rule-based
              system for English.
 \item ParsingTime \mec, a semantic parser for temporal expressions, similar to
@@ -243,14 +238,9 @@ A salient trend emerges from the results -- while training accuracy is
   consistently high, test accuracy drops sharply for the data-impoverished
   languages.
 This is consistent with what would be expected from a discriminatively trained
-  model.
-In particular, for French and Korean, the number of examples is within a
-  few factors of the minimum number of examples needed to see every
-  lexical entry.
-
+  model in data-impoverished settings; however, the consistent training accuracy
+  suggests that the model nonetheless captures the phenomena it sees
+  in training well.
 % (can fit more?)
-On the other hand, a noticeable gap between training and test accuracy exists
-  even in the English and Spanish corpora; a gap which is not present in any
-  of the other systems.
 This suggests the possibility for improving accuracy further by making use of
   more data during training.

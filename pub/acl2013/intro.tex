@@ -4,48 +4,51 @@ Temporal resolution is the task of mapping from a textual phrase describing
 	a potentially complex time, date, or duration to a normalized
 	(\textit{grounded}) temporal representation.
 For example, possibly complex phrases such as \tp{the week before last} are
-	often more useful in their grounded form -- e.g., \te{January 1 - January 7}.
+	often more useful in their grounded form -- e.g., \te{August 4 - August 11}.
 
 % -- Why Parsing
 %(intro to systems)
 Many approaches to this problem make use of rule-based methods, combining
   regular-expression matching and hand-written interpretation functions.
 %(motivation)
-In general, it is appealing to learn the interpretation of temporal expressions,
+In general, we would like to learn the interpretation of temporal expressions,
 	rather than hand-building systems.
 Probabilistic systems furthermore allow propagation of uncertainty
 	to higher-level components.
 Importantly, a probabilistic system could back-off to a rule-based alternative
-  for uncertain parses, and visa versa.
+  for uncertain parses, and vice versa.
+
+% -- Training Data
+Our system requires annotated data consisting only of an input phrase and
+  an associated \textit{grounded} time, relative to some reference time.
+Training data of this weakly-supervised form
+  is generally easier to collect than the alternative of
+  manually creating and tuning potentially complex interpretation rules.
 
 % -- Why Language Independent
 A large number of languages conceptualize time as lying on a one dimensional
   line.
 Although the surface form of temporal expressions differ, the basic operations
-  the language expresses are operations on this time line (see \refsec{time}).
-Furthermore, many common languages share common units (hours, weekdays, etc.).
+  the language expresses can be mapped to  operations on this
+  time line (see \refsec{time}).
+Furthermore, many common languages share temporal units (hours, weekdays, etc.).
 By structuring a latent parse to reflect these semantics, we can define a single
   model which performs well on multiple languages.
 
-% -- Training Data
-Our system requires annotated data consisting only of an input phrase and
-  an associated \textit{grounded} time, relative to some reference time.
-Training data of this distantly-supervised form
-  is generally easier to collect than the alternative of
-  manually creating and tuning potentially complex interpretation rules.
-
 % -- Why Discriminative
-A discriminative parsing model allows us to capture sparse features over
-  the semantics of the parse, as well as features capturing richer lexical cues.
+%A discriminative parsing model allows us to capture sparse features over
+%  the semantics of the parse, as well as features capturing richer lexical cues.
+A discriminative parsing model allows us to define sparse features
+  over not only lexical cues but also the temporal value of our prediction.
 For example, it allows us to learn that we are much more likely to
   express \tp{March \th{14}} than \tp{2pm in March} -- despite the fact that
   both interpretations are composed of similar types of components.
 Furthermore, it allows us to define both sparse n-gram and denser but less
   informative bag-of-words features over multi-word phrases, and allows us
-  to handle numbers in a more flexible way.
+  to handle numbers in a flexible way.
 
 %(table of contents)
-We briefly review our temporal representation,
+We briefly describe our temporal representation,
 	followed by a description of the learning algorithm; 
 	we conclude with experimental results on the languages of the
   \tempeval\ A task.

@@ -1,15 +1,17 @@
 \begin{abstract}
-We present a discriminative, language independent semantic parser
+Temporal resolution systems are traditionally tuned to a particular language,
+  requiring significant human effort to translate them to new languages.
+We present a language independent semantic parser
   for learning the interpretation of temporal phrases
 	given only a corpus of utterances and the times they reference.
-We employ a latent parse encoding a language-flexible representation of
-  time, and learn parameters on features of the parse and associated temporal
-  value.
-The parameters of the model are learned using a loosely supervised bootstrapping
-  approach using a $k$-best discriminative parser, without lexical cues or
+We make use of a latent parse that encodes a language-flexible representation of
+  time, and extract rich features over both the parse and associated temporal
+  semantics.
+The parameters of the model are learned using a weakly supervised bootstrapping
+  approach, without lexical cues or
   language-specific tuning.
 We achieve state-of-the-art accuracy on all languages in the
   \tempeval\ temporal normalization task, reporting a $4\%$ improvement in
-  both English and Spanish accuracy, and novel
+  both English and Spanish accuracy, and to our knowledge the first
   results for four other languages.
 \end{abstract}

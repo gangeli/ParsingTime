@@ -58,7 +58,7 @@ For example, \te{November \th{27}} would define a \ty{Sequence} whose
   lower order fields (hour, minute, second).
 This example is illustrated in \reffig{sequence-grounding}.
 Note that a \ty{Sequence} implicitly selects an infinite number of possible 
-  grounded \ty{Range}s.
+  \ty{Range}s.
 
 %(definition of reference time)
 To select a particular grounded time for a \ty{Sequence}, 
@@ -68,13 +68,13 @@ For the \tempeval\ corpus, we approximate this as the
 	publication time of the article.
 While this is conflating Reichenbach's reference time with speech time, 
   and comes at the expense of certain mistakes,
-	it is a nonetheless useful in practice.
+	it is nonetheless useful in practice.
 
 %(grounding)
 To a first approximation, grounding a sequence given a reference time
   corresponds to filling in the unspecified fields of the sequence with the
   fully-specified fields of the reference time.
-Due to the irregular nature of time, this process has a number of special
+This process has a number of special
   cases not enumerated here,\footnote{
     Some of these special cases are caused by variable days of the month,
       daylight savings time, etc.
@@ -83,7 +83,7 @@ Due to the irregular nature of time, this process has a number of special
       should ground to August of next year (rather than the reference time's
       year).
   }
-  but the process remains feasible in constant time.
+  but the complexity remains constant time.
 	
 % -- Duration
 \paragraph{Duration}
@@ -93,8 +93,7 @@ A period of time.
 This includes entities like \te{Week}, \te{Month}, and \te{7 days}.
 %(fuzzy)
 A special case of the \ty{Duration} type is defined to represent 
-	\textit{approximate} durations.
-These are used to represent expressions such as \tp{a few years} or
+	\textit{approximate} durations, such as \tp{a few years} or
 	\tp{some days}.
 
 % -- Functions
@@ -107,8 +106,12 @@ This captures semantic entities such as those implied in
 	\tp{last $x$}, 
 	\tp{the third $x$ [of $y$]}, or \tp{$x$ days ago}.
 %(etc.)
-The particular functions and their application are enumerated in 
+The particular functions are enumerated in 
 	\reftab{function}.
+
+% -- Number
+\paragraph{Number}
+A special \ty{Number} type is defined for tagging numeric expressions.
 
 % -- Nil
 \paragraph{Nil}
@@ -131,9 +134,8 @@ Our approach assumes that natural language descriptions
 % (pcfg)
 We define a grammar jointly over temporal \textit{types} and
   \textit{values}.
-The types serve to constrain the parse and allow for coarse features over the
-  parse;
-  the values encode the specific semantics of the parse, and allow for finer
+The types serve to constrain the parse and allow for coarse features;
+  the values encode specific semantics, and allow for finer
   features.
 At the root of a parse tree, we recursively apply the functions in the tree
 	to obtain a final temporal value.
@@ -143,27 +145,34 @@ This approach can been presented as a rule-to-rule translation
 	\cite[p.~263]{key:1976bach-semantics,key:1995allen-semantics},
 	or a constrained Synchronous PCFG
 	\cite{key:2001yamada-syntaxmt}.
-However, in the discriminative setting we can also cast it as an infinite
-  grammar over temporal values with type-checking enforced.
 
 
 % -- Formal definition
 Formally, we define our  grammar as
-	\mbox{$G=\left(\Sigma,S,\sV,\sW,\sR\right)$}.
+	\mbox{$G=\left(\Sigma,S,\sV,T,\sR\right)$}.
 The alphabet $\Sigma$ and start symbol $S$ retain their usual interpretations.
 % (nonterminals)
 We define a set $\sV$ to be the set of types, as described in
-	\refsec{types-review} -- these act as our nonterminals.
-For each $v \in \sV$ we define an (infinite) set $W_v$ corresponding to the 
+	\refsec{types-review}.
+For each $v \in \sV$ we define an (infinite) set $T_v$ corresponding to the 
 	possible instances of type $v$.
-Each node in the tree defines a pair $(v,w)$ such that $w \in W_v$,
-	with combination rules defined over $v$ and function applications performed
-	on $w$.
+Each node in the tree defines a pair $(v, \tau)$ such that $\tau \in T_v$.
 % (rules)
 A rule \mbox{$R \in \sR$} is defined as a pair 
 	\mbox{$R = \left(v_i \rightarrow v_jv_k, 
-		f : (W_{v_j},W_{v_k}) \rightarrow W_{v_i}\right)$}.
-Note that this definition is trivially adapted for the case of unary rules.
+		f : (T_{v_j},T_{v_k}) \rightarrow T_{v_i}\right)$}.\footnote{
+      This definition is trivially adapted for the case of unary
+      rules.
+    }
+
+The form of our rules reveals the synchronous aspect of our grammar.
+The structure of the tree is bound by the first part over types $v$ --
+  these types are used to populate the chart and limit the beam, and allow
+  for efficient inference.
+The second part over values evaluates the semantics of the parse, $\tau$,
+  and allows
+  partial derivations to be discriminated based on richer information than the
+  coarse types.
 
 % -- Static Lexicon
 \begin{table}[tb]
@@ -259,7 +268,7 @@ Note that this definition is trivially adapted for the case of unary rules.
 \end{table}
 
 % -- Preterminals
-We keep the preterminals identical to those in \me.
+We adopt the preterminals of \me.
 Each preterminal consists of a \textit{type} and a \textit{value};
   neither which are lexically informed.
 That is, the word \tp{week} and preterminal $(\te{Week}, \ty{Duration})$
@@ -268,8 +277,8 @@ A total of 62 preterminals are defined corresponding to instances of
   \ty{Range}s, \ty{Sequence}s, and \ty{Duration}s; these are summarized
   in \reftab{content}.
 
-In addition, 10 functions are defined for manipulating temporal expressions.
-These are summarized in \reftab{function}.
+In addition, 10 functions are defined for manipulating temporal expressions
+  (see \reftab{function}).
 The majority of these mirror generic operations on intervals on a timeline,
 	or manipulations of a sequence.
 Notably, like intervals, times can be moved (\tp{3 weeks ago}) or
@@ -286,35 +295,35 @@ Combination rules in the grammar derive from type-checked
   curried function application.
 For instance, the function \te{moveLeft1} applied
   to \te{week} (as in \tp{last week}) yields a grammar rule:
-\begin{align*}
-&  (\ty{Sequence}, \te{moveLeft1$($week$)$}) \rightarrow \\
-&~~~(f:\ty{Sequence$\rightarrow$Sequence}, \te{moveLeft1}) \\
-&~~~(\ty{Sequence}, \te{week})
-\end{align*}
+
+
+\begin{center}
+\includegraphics[scale=0.37]{fig/singleRule.pdf}
+\end{center}
+
 In more generality, we create grammar rules for applying a function
   on either the left or the right: $f(x,y) \odot x$ or $x \odot f(x,y)$.
 
 % -- Combination
 Additionally, a grammar rule is created for intersecting two \ty{Range}s or
-  \ty{Sequence}s; for multiplying a duration by a number; and for absorbing
+  \ty{Sequence}s, for multiplying a duration by a number, and for absorbing
   a \ty{Nil} span.
-The first two rules can be though of as an implicit function application.
-Absorbing \ty{Nil} spans is in turn the application of the identity function.
+Each of these can be though of as an implicit function application.
 
 % -----
 % DIFFERENCES
 % -----
 \Subsection{differences}{Differences From Previous Work}
-While the grammar formalism is strongly inspired by \me, a number of changes
-  have been made to both simplify the framework, and make inference more
-  efficient.
+While the grammar formalism is strongly inspired by \me, a number of key
+  differences are implemented to both simplify the framework, and make
+  inference more efficient.
 
 \paragraph{Sequence Grounding}
 % -- Time consuming
 % (overview)
 The most time-consuming and conceptually nuanced aspect of temporal inference
-  in \me\ was intersecting \ty{Sequence}s.
-In particular, our calendar has two modes of expressing
+  in \me\ is intersecting \ty{Sequence}s.
+In particular, there are two modes of expressing
   dates which resist intersection: a day-of-month-based mode and a
   week-based mode.
 Properly grounding a sequence which defines both a day of the month and
@@ -326,35 +335,31 @@ To illustrate, consider the example: \tp{Friday the \th{13}}.
 Although both a Friday and a \th{13} of the month are easily found, the
   intersection of the two requires iterating through elements of one until
   it overlaps with an element of the other.
-This requires time proportional to the log of the distance to the next match,
-  measured in the smallest interval between sequences being intersected.
-
 % (efficiency hit)
 When considering that elements in the beam of possible groundings can become
-  both complex and pragmatically unreasonable this can result in a noticeable
+  both complex and pragmatically unreasonable, this can result in a noticeable
   efficiency hit; e.g., a sentence could have a
   [likely incorrect] candidate interpretation of:
   \tp{nineteen ninety-six Monday the \th{5} from now}.
-In this implementation such intersections are disallowed, in the same fashion
+
+In our \ty{Sequence} representation,
+  such intersections are disallowed, in the same fashion
   as February \th{30} would be.
 
 \paragraph{Sequence Pragmatics}
 % -- Pragmatic Distribution
 For the sake of simplicity the pragmatic distribution over
   possible groundings of a sequence is replaced with the single most likely
-  grounding, as trained by \me\ on the English \tempeval\ corpus.
+  offset, as tuned empirically on the English \tempeval\ corpus.
 
-% -- Numbers
-\paragraph{Numbers}
-The \ty{Number} type no longer appears explicitly, but is rather folded
-  into the features of the parse (see \refsec{features}).
+% -- Tag Splitting
+\paragraph{No Tag Splitting}
+The \ty{Number} and \ty{Nil} types are no longer split according to their
+  ordinality/magnitude and subsumed phrase, respectively.
+This information is encoded more elegantly as features.
 
 % -- Parameters
 \paragraph{Grammar Parameters}
 As this model is discriminative rather than generative, the grammar
   parameters $\theta$ are defined over features rather than over the
   probabilities of rules.
-
-
-% -- Segway
-We proceed to describe learning in our system.

@@ -2,7 +2,7 @@
 Our approach takes inspiration from \me, both in the bootstrapping training
   methodology and the temporal grammar.
 Our foremost contributions over this prior work are:
-  (i) the development of a discriminative parser trained with rich features;
+  (i) the utilization of a discriminative parser trained with rich features;
   (ii) simplifications to the temporal grammar which nonetheless maintain
        high accuracy;
   and
@@ -25,14 +25,10 @@ For example, \newcite{key:2007zettlemoyer-semantics} learn a mapping from
 Importantly, the logical form of these parses contain all of the predicates
   and entities used in the parse -- unlike the annotation provided in our case,
   where a grounded time can correspond to any of a number of parses.
-
 %(distantly supervised)
-Recent work by \newcite{key:2010clarke-semantics} and 
-	\newcite{key:2011liang-semantics} similarly relax supervision 
+Along this line, recent work by \newcite{key:2010clarke-semantics} and 
+	\newcite{key:2011liang-semantics} relax supervision 
 	to require only annotated answers rather than full logical forms.
-For example, \newcite{key:2011liang-semantics} constructs a latent parse
-	similar in structure to a dependency grammar, but representing a logical
-	form.
 
 % -- Rule-Based Temporal Comparison
 %(rule based)
@@ -62,7 +58,7 @@ In addition, there has been work on parsing Spanish expressions;
 Of the systems entered in the original task,
   TIPSem \cite{key:2010llorens-tipsem} was the only system to perform bilingual
   interpretation for English and Spanish.
-Both of the above systems rely primarily on hand-build rules.
+Both of the above systems rely primarily on hand-built rules.
 
 
 
