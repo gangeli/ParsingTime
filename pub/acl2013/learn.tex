@@ -78,7 +78,8 @@ We proceed to describe the features used in the parser.
     extracted from the parse.
   A summary of the input, latent parse, and output for a particular example
     is given in (a).
-  The features extracted for each fragment of the parse are given in (b).
+  The features extracted for each fragment of the parse are given in (b),
+    and described in detail in \refsec{features}.
 }
 
 \Subsection{features}{Features}
@@ -91,9 +92,9 @@ We describe the features used below; a summary of these features
 
 \paragraph{Bracketing Features}
 % -- Introduction
-% (definition)
 A feature is defined over every nonterminal combination,
   consisting of the pair of children being combined in that rule.
+% (definition)
 In particular, let us consider a rule
   \mbox{$R = (v_i \rightarrow v_j v_k, f)$} corresponding to a CFG rule
   \mbox{$v_i \rightarrow v_j v_k$} over \textit{types} and a function $f$
@@ -115,6 +116,8 @@ Unlike syntactic parsing, child types of a parse tree
 Therefore, the first class of bracketing features -- over
   types -- reduce to have the exact same
   expressive power as the nonterminal CFG rules of \me.
+Examples of features in this class are features 10 and 12
+  in \reffig{features} (b).
 
 % -- Value Bracketing
 However, we now also have the flexibility to extract a second class of features
@@ -134,6 +137,7 @@ Furthermore, intersecting \te{August 2013} with the \th{12} of the month would
   yield a feature \feat{$<$intersect, intersect, \th{12}$>$}.
 This can be read as applying the intersect function to a subtree which is
   the intersection of two terms, and to the \th{12} of the month.
+Features 11 and 13 in \reffig{features} (b) are examples of such features.
 
 
 \paragraph{Lexical Features}
@@ -148,7 +152,8 @@ To illustrate, \tp{a week} and \tp{the week} have very different meanings,
 % -- Preterminals
 % (explanation)
 In the first case, a feature is extracted over the \textit{value} of the
-  preterminal being extracted, and the phrase it is subsuming.
+  preterminal being extracted, and the phrase it is subsuming
+  (e.g., features 1--4 and 6 in \reffig{features} (b)).
 As the type of the preterminal is deterministic from the value, encoding
   a feature on the type of the preterminal would be a coarser encoding of
   the same information, and is empirically not useful in this case.
@@ -166,7 +171,8 @@ For example, the phrase \tp{of this} -- of type \ty{Nil} -- would have
 % -- Nil
 In the second case -- absorbing \ty{Nil}-tagged spans --
   we extract features over the words under the \ty{Nil} span joined with
-  the type or value of the other derivation.
+  the type or value of the other derivation
+  (e.g., features 7--9 in \reffig{features} (b)).
 As above, features are extracted for both n-grams and for each word in
   the phrase.
 For example, combining \tp{of this} and \tp{week} would yield features
@@ -188,10 +194,12 @@ For instance, February 30 is never a valid date; but, it would be difficult
 To mediate this, an indicator feature is extracted
   denoting whether the grounded semantics of the derivation is
   valid.
+This is illustrated in \reffig{features} (b) by feature 14.
 
 \paragraph{Nil Bias}
 % -- Nil Bias
-An indicator feature is extracted for each \ty{Nil} span tagged.
+Lastly, an indicator feature is extracted for each \ty{Nil} span tagged
+  (feature 5 in \reffig{features} (b)).
 In part, this discourages over-generation of the type; in another part,
   it encourages \ty{Nil} spans to absorb as many adjacent words as possible.
 

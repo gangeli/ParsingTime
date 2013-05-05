@@ -181,7 +181,6 @@ The second part over values evaluates the semantics of the parse, $\tau$,
 		\hline
 		\textbf{Type} & \textbf{Example Instances} \\
 		\hline
-		\hline
 		% -- Ranges
 		\ty{Range} &
 			\te{Past}, \te{Future}, \te{Yesterday}, \\
@@ -219,7 +218,6 @@ The second part over values evaluates the semantics of the parse, $\tau$,
 	\begin{tabular}{|l|l|}
 		\hline
 		\textbf{Function} & \textbf{Description} \\
-		\hline
 		\hline
 		% -- Arity 2
 		%(shift left)
@@ -356,10 +354,13 @@ For the sake of simplicity the pragmatic distribution over
 \paragraph{No Tag Splitting}
 The \ty{Number} and \ty{Nil} types are no longer split according to their
   ordinality/magnitude and subsumed phrase, respectively.
+More precisely, there is a single nonterminal (\ty{Nil}), rather than
+  a nonterminal symbol characterizing the phrase it is subsuming
+  (\ty{Nil-\textit{the}}, \ty{Nil-\textit{a}}, etc.).
 This information is encoded more elegantly as features.
 
-% -- Parameters
-\paragraph{Grammar Parameters}
-As this model is discriminative rather than generative, the grammar
-  parameters $\theta$ are defined over features rather than over the
-  probabilities of rules.
+%% -- Parameters
+%\paragraph{Grammar Parameters}
+%As this model is discriminative rather than generative, the grammar
+%  parameters $\theta$ are defined over features rather than over the
+%  probabilities of rules.

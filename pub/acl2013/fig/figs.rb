@@ -202,8 +202,8 @@ printObj(
 ################################################################################
 # SYSTEM
 ################################################################################
-def feat(*args)
-  ctable('$<$', 
+def feat(featNum, *args)
+  ctable("\\textit{#{featNum}}.", '$<$', 
          ctable(*args.map{ |x| 
            [_(x).scale(0.75), ','] }.flatten.reverse.drop(1).reverse
          ).center, 
@@ -214,34 +214,33 @@ def features
   def fridayTag
     [Parse.new([friday, '\darkgreen{Friday}']).constituency.scale(0.75),
       rtable(
-        feat(friday, phrase('Friday')),
+        feat(1, friday, phrase('Friday')),
       nil)]
   end
   def nilTag
     [Parse.new(['\textsf{Nil}', '\darkgreen{of this}']).constituency.scale(0.75),
       rtable(
-        feat('\textsc{Nil}',  phrase('of')),
-        feat('\textsc{Nil}',  phrase('this')),
-        feat('\textsc{Nil}',  phrase('of this')),
-        feat('\textsc{nil\\_bias}'),
+        feat(2, '\textsc{Nil}',  phrase('of')),
+        feat(3, '\textsc{Nil}',  phrase('this')),
+        feat(4, '\textsc{Nil}',  phrase('of this')),
+        feat(5, '\textsc{nil\\_bias}'),
       nil)]
   end
   def weekTag
     [Parse.new([everyweek,'\darkgreen{week}']).constituency.scale(0.75),
       rtable(
-        feat('\textsc{Nil}',  '\textsc{Sequence}'),
-        feat('\textsc{Nil}',  everyweek),
+        feat(6, everyweek,  phrase('week')),
       nil)]
   end
   def nilWeek
     [Parse.new(
       [everyweek, _('\textsf{Nil}'), everyweek]).constituency.scale(0.75),
       rtable(
-        feat(ctable('\textsc{Nil}\_', phrase('of')),       everyweek),
-        feat(ctable('\textsc{Nil}\_', phrase('this')),     everyweek),
-        feat(ctable('\textsc{Nil}\_', phrase('of this')),  everyweek),
-        feat('\textsc{Nil}', '\textsc{Sequence}'),
-        feat('\textsc{Nil}', everyweek),
+        feat(7, ctable('\textsc{Nil}\_', phrase('of')),       everyweek),
+        feat(8, ctable('\textsc{Nil}\_', phrase('this')),     everyweek),
+        feat(9, ctable('\textsc{Nil}\_', phrase('of this')),  everyweek),
+        feat(10, '\textsc{Nil}', '\textsc{Sequence}'),
+        feat(11, '\textsc{Nil}', everyweek),
       nil)]
   end
   def root
@@ -249,14 +248,15 @@ def features
       [intersect( friday, everyweek ),
         friday, everyweek]).constituency.scale(0.75),
       rtable(
-        feat('\textsc{Sequence}', '\textsc{Sequence}'),
-        feat('\textsc{Intersect}', friday, everyweek),
-        feat('\textsc{root\\_valid}'),
+        feat(12, '\textsc{Sequence}', '\textsc{Sequence}'),
+        feat(13, '\textsc{Intersect}', friday, everyweek),
+        feat(14, '\textsc{root\\_valid}'),
       nil)]
   end
   table(
     fridayTag,
     nilTag,
+    weekTag,
     nilWeek,
     root,
   nil).rjustify('c').cjustify('cl').cmargin(u(0.25)).rmargin(u(0.25))
@@ -301,7 +301,7 @@ def sysAndFeatures
 end
 
 printObj(
-  :obj => sysAndFeatures.signature(58),
+  :obj => sysAndFeatures.signature(67),
   :outPrefix => 'system'
 )
 
