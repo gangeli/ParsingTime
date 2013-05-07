@@ -19,9 +19,11 @@ A summary of the temporal type system is provided in \refsec{types-review};
 % -- Intro to Types
 Temporal expressions are represented either as a \ty{Range}, \ty{Sequence},
 	or \ty{Duration}.
+The root of a parse tree should be one of these types.
 In addition, phrases can be tagged as a \ty{Function}; or, as a
   special \ty{Nil} type corresponding to segments 
   without a direct temporal interpretation.
+Lastly, a type is allocated for numbers.
 We describe each of these briefly below.
 
 % -- Range
@@ -55,10 +57,10 @@ A \ty{Sequence} is defined in terms of a partial completion of calendar fields.
 For example, \te{November \th{27}} would define a \ty{Sequence} whose
   year is unspecified,
   month is November, and day is the \th{27}; spanning the entire range of the
-  lower order fields (hour, minute, second).
+  lower order fields (in this case, a day).
 This example is illustrated in \reffig{sequence-grounding}.
-Note that a \ty{Sequence} implicitly selects an infinite number of possible 
-  \ty{Range}s.
+Note that a \ty{Sequence} implicitly selects a possibly
+  infinite number of possible \ty{Range}s.
 
 %(definition of reference time)
 To select a particular grounded time for a \ty{Sequence}, 
@@ -67,7 +69,7 @@ To select a particular grounded time for a \ty{Sequence},
 For the \tempeval\ corpus, we approximate this as the
 	publication time of the article.
 While this is conflating Reichenbach's reference time with speech time, 
-  and comes at the expense of certain mistakes,
+  and comes at the expense of certain mistakes (see \refsec{discuss}),
 	it is nonetheless useful in practice.
 
 %(grounding)
@@ -109,16 +111,16 @@ This captures semantic entities such as those implied in
 The particular functions are enumerated in 
 	\reftab{function}.
 
-% -- Number
-\paragraph{Number}
-A special \ty{Number} type is defined for tagging numeric expressions.
-
 % -- Nil
 \paragraph{Nil}
-Lastly, a special \ty{Nil} type denotes terms which are not
+A special \ty{Nil} type denotes terms which are not
 	directly contributing to the semantic meaning of the expression.
 This is intended for words such as \tp{a} or \tp{the}, which serve as cues
 	without bearing temporal content themselves.
+
+% -- Number
+\paragraph{Number}
+Lastly, a special \ty{Number} type is defined for tagging numeric expressions.
 
 
 % -----
@@ -141,7 +143,7 @@ At the root of a parse tree, we recursively apply the functions in the tree
 	to obtain a final temporal value.
 
 % (compare)
-This approach can been presented as a rule-to-rule translation
+This approach can be presented as a rule-to-rule translation
 	\cite[p.~263]{key:1976bach-semantics,key:1995allen-semantics},
 	or a constrained Synchronous PCFG
 	\cite{key:2001yamada-syntaxmt}.
@@ -160,17 +162,15 @@ Each node in the tree defines a pair $(v, \tau)$ such that $\tau \in T_v$.
 % (rules)
 A rule \mbox{$R \in \sR$} is defined as a pair 
 	\mbox{$R = \left(v_i \rightarrow v_jv_k, 
-		f : (T_{v_j},T_{v_k}) \rightarrow T_{v_i}\right)$}.\footnote{
-      This definition is trivially adapted for the case of unary
-      rules.
-    }
+		f : (T_{v_j},T_{v_k}) \rightarrow T_{v_i}\right)$}.
+This definition is trivially adapted for the case of unary rules.
 
 The form of our rules reveals the synchronous aspect of our grammar.
 The structure of the tree is bound by the first part over types $v$ --
-  these types are used to populate the chart and limit the beam, and allow
+  these types are used to populate the chart, and allow
   for efficient inference.
-The second part over values evaluates the semantics of the parse, $\tau$,
-  and allows
+The second part is used to evaluate the semantics of the parse,
+  $\tau \in T_{v_i}$, and allows
   partial derivations to be discriminated based on richer information than the
   coarse types.
 
@@ -289,24 +289,26 @@ Additionally, a sequence can be modified by shifting its origin
 	(\tp{fourth Sunday in November}).
 
 % -- Combination
-Combination rules in the grammar derive from type-checked
+Combination rules in the grammar mirror type-checked
   curried function application.
 For instance, the function \te{moveLeft1} applied
   to \te{week} (as in \tp{last week}) yields a grammar rule:
-
 
 \begin{center}
 \includegraphics[scale=0.37]{fig/singleRule.pdf}
 \end{center}
 
 In more generality, we create grammar rules for applying a function
-  on either the left or the right: $f(x,y) \odot x$ or $x \odot f(x,y)$.
+  on either the left or the right,
+  for all possible type signatures of $f$:
+  $f(x,y) \odot x$ or $x \odot f(x,y)$.
 
 % -- Combination
 Additionally, a grammar rule is created for intersecting two \ty{Range}s or
   \ty{Sequence}s, for multiplying a duration by a number, and for absorbing
   a \ty{Nil} span.
-Each of these can be though of as an implicit function application.
+Each of these can be though of as an implicit function application (in the
+  last case, the identity function).
 
 % -----
 % DIFFERENCES
@@ -334,9 +336,10 @@ Although both a Friday and a \th{13} of the month are easily found, the
   intersection of the two requires iterating through elements of one until
   it overlaps with an element of the other.
 % (efficiency hit)
-When considering that elements in the beam of possible groundings can become
+At training time, a number of candidate parses are generated for each phrase.
+When considering that these parses can become
   both complex and pragmatically unreasonable, this can result in a noticeable
-  efficiency hit; e.g., a sentence could have a
+  efficiency hit; e.g., during training a sentence could have a
   [likely incorrect] candidate interpretation of:
   \tp{nineteen ninety-six Friday the \th{13}s from now}.
 
@@ -348,7 +351,7 @@ In our \ty{Sequence} representation,
 % -- Pragmatic Distribution
 For the sake of simplicity the pragmatic distribution over
   possible groundings of a sequence is replaced with the single most likely
-  offset, as tuned empirically on the English \tempeval\ corpus.
+  offset, as learned empirically from the English \tempeval\ corpus by \me.
 
 % -- Tag Splitting
 \paragraph{No Tag Splitting}

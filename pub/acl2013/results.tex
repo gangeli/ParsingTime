@@ -55,12 +55,13 @@
 We evaluate our model on all six languages in the \tempeval\ Task A dataset
   \cite{key:2010verhagen-tempeval}, comparing against state-of-the-art
   systems for English and Spanish.
-New results are reported on smaller data from the four other languages.
-To our knowledge, there has not been any prior work on these new corpora.
+New results are reported on smaller datasets from the four other languages.
+To our knowledge, there has not been any prior work on these corpora.
 
 % -- Outline
-We describe the \tempeval\ datasets in \refsec{tempeval} and experimental
-  results in \refsec{scores}.
+We describe the \tempeval\ datasets in \refsec{tempeval},
+  present experimental results in \refsec{scores},
+  and discuss system errors in \refsec{discuss}.
 
 % -----
 % DATASET
@@ -116,13 +117,13 @@ The English dataset consists of 1052 training examples, and 156 test examples.
 % (evaluation)
 Evaluation was done using the official evaluation script, which checks for
   exact match between \timex\ tags.
-Note that this is a restrictive metric; for instance, \tp{24 hours} and
-  \tp{a days} have the same interpretation, but
+Note that this is stricter than our training objective;
+  for instance, \tp{24 hours} and \tp{a day} have the same interpretation, but
   have different \timex\ strings.
 System output was heuristically converted to the \timex\ format; where
   ambiguities arose, the convention which maximized training accuracy was
   chosen.
-Empirically, the error introduced in this conversion was less than 1\%.
+%Empirically, the error introduced in this conversion was less than 1\%.
 
 \paragraph{Spanish}
 % -- Spanish
@@ -147,7 +148,7 @@ Results are also reported on a clean corpus with these impossible examples
   omitted.
 
 % (evaluation)
-The Chinese, Korean, and French corpora had significantly more severe
+The Chinese, Korean, and French corpora had noticeable
   inconsistencies in the \timex\ annotation.
 Thus, evaluations are reported according to the training objective: if two
   \timex\ values ground to the same grounded time, they are considered equal.
@@ -158,7 +159,7 @@ For example, in the example above, \textit{24 hours} and \textit{a day}
 Most \timex\ values convert naturally to a grounded representation; values
   with wildcards representing Sequences (e.g., \te{1998-QX} or \te{1998-XX-12})
   ground to the same value as the \ty{Sequence} encoding that value would.
-For instance, \te{1998-QX} would be parsed as \tp{every quarter in 1998}.
+For instance, \te{1998-QX} is parsed as \tp{every quarter in 1998}.
 
 \paragraph{Korean}
 % -- Korean
@@ -237,7 +238,7 @@ A salient trend emerges from the results -- while training accuracy is
 This is consistent with what would be expected from a discriminatively trained
   model in data-impoverished settings; however, the consistent training accuracy
   suggests that the model nonetheless captures the phenomena it sees
-  in training well.
+  in training.
 % (can fit more?)
 This suggests the possibility for improving accuracy further by making use of
   more data during training.
@@ -251,7 +252,7 @@ We characterize the examples our system parses incorrectly
   on the English and Spanish datasets in
   \reftab{mistakes}, expanding on each class of error below.
 
-\begin{table}[ht]
+\begin{table}[t]
 	\begin{center}
 	\begin{tabular}{|l|c|c|}
   \hline
@@ -263,7 +264,7 @@ We characterize the examples our system parses incorrectly
   Relative \ty{Range}   & $7\%$  & $2\%$ \\
   Incorrect parse       & $19\%$ & $36\%$ \\
   \hline
-  Missing context       & $16\%$  & $23\%$ \\
+  Missing context       & $16\%$ & $23\%$ \\
   Bad reference time    & $3\%$  & $6\%$ \\
   \hline
 	\end{tabular}
@@ -271,9 +272,9 @@ We characterize the examples our system parses incorrectly
 	\caption{
     A summary of errors of our system, by percentage of incorrect examples
       for the English and Spanish datasets.
-    The top section describes errors which we could be fixed in our framework,
+    The top section describes errors which could be handled in our framework,
       while the bottom section describes examples which are either ambiguous
-      (missing context), or appear incorrect in isolation relative to the
+      (missing context), or are annotated inconsistently relative the
       reference time.
 		\label{tab:mistakes}
 	}
@@ -297,14 +298,15 @@ For instance, the system may mistake a day on the calendar (a \ty{Range}),
   with a day, the period of time.
 
 \paragraph{Incorrect number}
-A class of mistakes arise from either omitting numbers from the parse,
+A class of mistakes arises from either omitting numbers from the parse,
   or incorrectly parsing numbers -- the second case is particularly prevalent
   for written years, such as \tp{seventeen seventy-six}.
 
 \paragraph{Relative \ty{Range}}
 These errors arise from attempting to parse a grounded \ty{Range} by applying
   functions to the reference time.
-For example, from a reference time of August \th{8}, you could ``correctly''
+For example, from a reference time of August \th{8}, it is possible to
+  ``correctly''
   parse the phrase \tp{August 1} as a week ago; but, naturally, this parse does
   not generalize well.
 This class of errors, although relatively small, merits special designation
@@ -319,15 +321,16 @@ Errors in this class are a result of failing to find the correct parse,
   for a number of reasons not individually identified.
 A small but notable subset of these errors ($6\%$ on the Spanish dataset)
   are a result of the grammar
-  being insufficiently expressive (e.g., we cannot capture fractional
-  units -- \tp{half an hour}).
+  being insufficiently expressive; e.g., we cannot capture fractional
+  units -- \tp{half an hour}.
 
 \paragraph{Missing context}
 A fairly large percentage of our errors arise from failing to classify inputs
   which express ambiguous or poorly defined times.
 For example, \tp{from time to time} (annotated as the future), or \tp{that time}
   (annotated as 5 years).
-Many of these require a broader understanding of the context in which the
+Many of these require either some sort of inference or
+  a broader understanding of the context in which the
   temporal phrase is uttered, which our system does not attempt to capture.
 
 \paragraph{Bad reference time}

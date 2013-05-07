@@ -215,7 +215,7 @@ def features
     [Parse.new([friday, '\darkgreen{Friday}']).constituency.scale(0.75),
       rtable(
         feat(1, friday, phrase('Friday')),
-      nil)]
+      nil).scale(0.90)]
   end
   def nilTag
     [Parse.new(['\textsf{Nil}', '\darkgreen{of this}']).constituency.scale(0.75),
@@ -224,13 +224,13 @@ def features
         feat(3, '\textsc{Nil}',  phrase('this')),
         feat(4, '\textsc{Nil}',  phrase('of this')),
         feat(5, '\textsc{nil\\_bias}'),
-      nil)]
+      nil).scale(0.90)]
   end
   def weekTag
     [Parse.new([everyweek,'\darkgreen{week}']).constituency.scale(0.75),
       rtable(
         feat(6, everyweek,  phrase('week')),
-      nil)]
+      nil).scale(0.90)]
   end
   def nilWeek
     [Parse.new(
@@ -239,19 +239,22 @@ def features
         feat(7, ctable('\textsc{Nil}\_', phrase('of')),       everyweek),
         feat(8, ctable('\textsc{Nil}\_', phrase('this')),     everyweek),
         feat(9, ctable('\textsc{Nil}\_', phrase('of this')),  everyweek),
-        feat(10, '\textsc{Nil}', '\textsc{Sequence}'),
-        feat(11, '\textsc{Nil}', everyweek),
-      nil)]
+        feat(10, ctable('\textsc{Nil}\_', phrase('of')),      '\textsc{Sequence}'),
+        feat(11, ctable('\textsc{Nil}\_', phrase('this')),    '\textsc{Sequence}'),
+        feat(12, ctable('\textsc{Nil}\_', phrase('of this')), '\textsc{Sequence}'),
+        feat(13, '\textsc{Nil}', '\textsc{Sequence}'),
+        feat(14, '\textsc{Nil}', everyweek),
+      nil).scale(0.90)]
   end
   def root
     [Parse.new(
       [intersect( friday, everyweek ),
         friday, everyweek]).constituency.scale(0.75),
       rtable(
-        feat(12, '\textsc{Sequence}', '\textsc{Sequence}'),
-        feat(13, '\textsc{Intersect}', friday, everyweek),
-        feat(14, '\textsc{root\\_valid}'),
-      nil)]
+        feat(15, '\textsc{Sequence}', '\textsc{Sequence}'),
+        feat(16, '\textsc{Intersect}', friday, everyweek),
+        feat(17, '\textsc{root\\_valid}'),
+      nil).scale(0.90)]
   end
   table(
     fridayTag,
@@ -301,7 +304,7 @@ def sysAndFeatures
 end
 
 printObj(
-  :obj => sysAndFeatures.signature(67),
+  :obj => sysAndFeatures.signature(75),
   :outPrefix => 'system'
 )
 
@@ -314,16 +317,16 @@ printObj(
 def singleRule
   Parse.new(
     [ctable(ctable('(', everyweek, time('-1')).center, ',', '\ty{Seq.}', ')').center,
-     [ctable('(', time('moveLeft1'), ',', 'Seq.$\rightarrow$Seq.', ')'),
-      '\darkgreen{last}'],
-     [ctable('(', everyweek, ',', 'Seq.',')').center,
-      '\darkgreen{week}'],
+     ctable('(', time('moveLeft1'), ',', 'Seq.$\rightarrow$Seq.', ')'),
+#      '\darkgreen{last}'],
+     ctable('(', everyweek, ',', 'Seq.',')').center,
+#      '\darkgreen{week}'],
     ]
   ).constituency
 end
 
 printObj(
-  :obj => singleRule.signature(15),
+  :obj => singleRule.signature(16),
   :outPrefix => 'singleRule'
 )
 

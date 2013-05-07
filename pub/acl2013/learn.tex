@@ -23,8 +23,9 @@ Numeric expressions are treated as if the numeric value replaced the
 Each rule of the parse derivation was assigned a score according to a log-linear
   factor.
 Specifically, each rule $R = (v_i \rightarrow v_j v_k, f)$
-  with features $\phi(R)$ subject to parameters
-  $\theta$ is given a probability:
+  with features over the rule and derivation so far
+  $\phi(R)$, subject to parameters
+  $\theta$, is given a probability:
 
 \begin{equation}
 P(v_i \mid v_j, v_k, f; \theta) \propto e^{ \theta^T \phi(R) }
@@ -40,15 +41,15 @@ With features which are not context-free, we are not
   noticeable loss in performance.
 
 \paragraph{Training}
-We adopt an EM-style bootstrapping approach similar to \me\ in order to handle
+We adopt an EM-style bootstrapping approach similar to \me, in order to handle
   the task of parsing the temporal expression without 
   annotations for the latent parses.
 Each training instance is a tuple consisting of the words in the temporal
 	phrase, the annotated grounded time $\tau^*$, and the reference time.
+
 Given an input sentence, our parser will output $k$ possible parses; when
   grounded to the reference time these correspond to $k$ candidate times:
   $\tau_1 \dots \tau_k$, each with a normalized probability $P(\tau_i)$.
-
 This corresponds to an approximate E step in the EM algorithm, where the
   distribution over latent parses is approximated by a beam of size $k$.
 Although for long sentences the number of parses is far greater than the
@@ -64,11 +65,11 @@ To approximate the M step,
 
 \begin{equation}
 l(\theta) = 
-  \max_{0 \leq i < k} \1[\tau_i = \tau^*] + P_\theta(\tau_i)
+  \max_{0 \leq i < k} \1[\tau_i \neq \tau^*] + P_\theta(\tau_i)
                                                  - P_\theta(\tau^*)
 \end{equation}
 
-We proceed to describe the features used in the parser.
+We proceed to describe our features.
 
 % -----
 % FEATURES
@@ -97,7 +98,7 @@ A feature is defined over every nonterminal combination,
 % (definition)
 In particular, let us consider a rule
   \mbox{$R = (v_i \rightarrow v_j v_k, f)$} corresponding to a CFG rule
-  \mbox{$v_i \rightarrow v_j v_k$} over \textit{types} and a function $f$
+  \mbox{$v_i \rightarrow v_j v_k$} over \textit{types}, and a function $f$
   over the semantic values corresponding to 
   $v_j$ and $v_k$: $\tau_j$ and $\tau_k$.
 % (two classes)
@@ -116,11 +117,11 @@ Unlike syntactic parsing, child types of a parse tree
 Therefore, the first class of bracketing features -- over
   types -- reduce to have the exact same
   expressive power as the nonterminal CFG rules of \me.
-Examples of features in this class are features 10 and 12
+Examples of features in this class are features 13 and 15
   in \reffig{features} (b).
 
 % -- Value Bracketing
-However, we now also have the flexibility to extract a second class of features
+We now also have the flexibility to extract a second class of features
   from the semantics of the derivation.
 We define a feature bracketing the most recent semantic function
   applied to each of the two child derivations; along with the function being
@@ -137,7 +138,7 @@ Furthermore, intersecting \te{August 2013} with the \th{12} of the month would
   yield a feature \feat{$<$intersect, intersect, \th{12}$>$}.
 This can be read as applying the intersect function to a subtree which is
   the intersection of two terms, and to the \th{12} of the month.
-Features 11 and 13 in \reffig{features} (b) are examples of such features.
+Features 14 and 16 in \reffig{features} (b) are examples of such features.
 
 
 \paragraph{Lexical Features}
@@ -171,8 +172,8 @@ For example, the phrase \tp{of this} -- of type \ty{Nil} -- would have
 % -- Nil
 In the second case -- absorbing \ty{Nil}-tagged spans --
   we extract features over the words under the \ty{Nil} span joined with
-  the type or value of the other derivation
-  (e.g., features 7--9 in \reffig{features} (b)).
+  the type and value of the other derivation
+  (e.g., features 7--12 in \reffig{features} (b)).
 As above, features are extracted for both n-grams and for each word in
   the phrase.
 For example, combining \tp{of this} and \tp{week} would yield features
@@ -194,7 +195,7 @@ For instance, February 30 is never a valid date; but, it would be difficult
 To mediate this, an indicator feature is extracted
   denoting whether the grounded semantics of the derivation is
   valid.
-This is illustrated in \reffig{features} (b) by feature 14.
+This is illustrated in \reffig{features} (b) by feature 17.
 
 \paragraph{Nil Bias}
 % -- Nil Bias

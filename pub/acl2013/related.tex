@@ -1,13 +1,13 @@
 \Section{related}{Related Work}
-Our approach takes inspiration from \me, both in the bootstrapping training
+Our approach follows the work of \me, both in the bootstrapping training
   methodology and the temporal grammar.
 Our foremost contributions over this prior work are:
   (i) the utilization of a discriminative parser trained with rich features;
   (ii) simplifications to the temporal grammar which nonetheless maintain
        high accuracy;
   and
-  (iii) experimental results on 6 different languages with state-of-the-art
-        performance on both datasets on which prior work exists.
+  (iii) experimental results on 6 different languages, with state-of-the-art
+        performance on both datasets on which we know of prior work.
 
 % -- Semantic Parsing Comparison
 As in this previous work,
@@ -22,8 +22,8 @@ Supervised approaches to semantic parsing prominently include
 For example, \newcite{key:2007zettlemoyer-semantics} learn a mapping from
 	textual queries to a logical form.
 Importantly, the logical form of these parses contain all of the predicates
-  and entities used in the parse -- unlike the annotation provided in our case,
-  where a grounded time can correspond to any of a number of parses.
+  and entities used in the parse -- unlike the label provided in our case,
+  where a grounded time can correspond to any of a number of latent parses.
 %(distantly supervised)
 Along this line, recent work by \newcite{key:2010clarke-semantics} and 
 	\newcite{key:2011liang-semantics} relax supervision 

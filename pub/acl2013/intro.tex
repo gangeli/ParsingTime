@@ -3,8 +3,12 @@
 Temporal resolution is the task of mapping from a textual phrase describing
 	a potentially complex time, date, or duration to a normalized
 	(\textit{grounded}) temporal representation.
-For example, possibly complex phrases such as \tp{the week before last} are
-	often more useful in their grounded form -- e.g., \te{August 4 - August 11}.
+For example, possibly complex phrases such as
+  \tp{the week before last}\footnote{
+    Spoken on, for instance, August 20.
+  } are
+	often more useful in their grounded form
+  -- e.g., \te{August 4 - August 11}.
 
 % -- Why Parsing
 %(intro to systems)
@@ -16,7 +20,7 @@ In contrast, we would like to learn the interpretation of a
 This allows propagation of uncertainty
 	to higher-level components, and the potential to dynamically back off to
   a rule-based system in the case of low confidence parses.
-In addition, we would like to learn using a representation of time which is
+In addition, we would like to use a representation of time which is
   broadly applicable to multiple languages, without the need for
   language-specific rules or manually tuned parameters.
 
@@ -31,8 +35,8 @@ Training data of this weakly-supervised form
 % -- Why Language Independent
 A large number of languages conceptualize time as lying on a one dimensional
   line.
-Although the surface form of temporal expressions differ, the basic operations
-  the language expresses can be mapped to  operations on this
+Although the surface forms of temporal expressions differ, the basic operations
+  many languages use can be mapped to operations on this
   time line (see \refsec{time}).
 Furthermore, many common languages share temporal units (hours, weekdays, etc.).
 By structuring a latent parse to reflect these semantics, we can define a single
@@ -53,7 +57,7 @@ Furthermore, it allows us to define both sparse n-gram and denser but less
 %(table of contents)
 We briefly describe our temporal representation and grammar,
 	followed by a description of the learning algorithm; 
-	we conclude with experimental results on the languages of the
+	we conclude with experimental results on the six languages of the
   \tempeval\ A task.
 
 
