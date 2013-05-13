@@ -45,6 +45,7 @@ object NumberType extends Enumeration {
 }
 
 // -- AUX CLASSES --
+@SerialVersionUID(-7775965489080356070L)
 case class TimexMetaInfo(doc:String,sentence:Int,word:Int,tid:String)
 
 // -- ANNOTATIONS --

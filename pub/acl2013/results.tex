@@ -319,10 +319,11 @@ Future work could explore mitigating these errors for domains
 \paragraph{Incorrect parse}
 Errors in this class are a result of failing to find the correct parse,
   for a number of reasons not individually identified.
-A small but notable subset of these errors ($6\%$ on the Spanish dataset)
-  are a result of the grammar
-  being insufficiently expressive; e.g., we cannot capture fractional
-  units -- \tp{half an hour}.
+A small subset of these errors (notably, $6\%$ on the Spanish dataset)
+  are a result of the grammar being insufficiently expressive with the
+  preterminals we defined.
+For instance, we cannot capture fractional units,
+  such as in \tp{half an hour}.
 
 \paragraph{Missing context}
 A fairly large percentage of our errors arise from failing to classify inputs

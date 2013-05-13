@@ -67,7 +67,7 @@ class TimeBinary(lambda:Option[(Any,Any)=>Any],_parent:NodeType,
 }
 @SerialVersionUID(1L)
 class TimeLex(lambda:((Option[Sentence],Int)=>Any), parent:NodeType) 
-		extends CKYLex(lambda,parent) {
+		extends CKYLex(lambda,parent,NodeType.defaultFactory) {
 	override def equals(o:Any) = o match {
 		case (a:AnyRef) => this eq a
 		case _ => false
