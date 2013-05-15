@@ -3,8 +3,6 @@
 require 'execrunner'
 
 # -- DEPENDENCIES --
-#JAVANLP = "#{ENV['JAVANLP_HOME']}/projects/core/classes:#{ENV['JAVANLP_HOME']}/projects/more/classes:#{ENV['JAVANLP_HOME']}/projects/research/classes:#{ENV['JAVANLP_HOME']}/projects/core/lib/xom-1.2.7.jar"
-JAVANLP = "etc/stanford-corenlp-2012-07-09.jar"
 JAR='time-release'
 
 @timeDistribution = 2
@@ -21,7 +19,7 @@ env!(
 	o('server'),
 	o('Xss32m'),
   o('XX:MaxPermSize=256M'),
-	o('mx4g'),
+	o('mx20g'),
 #	o('ea'),
 	'time.Entry',
 
@@ -107,8 +105,8 @@ env!(
 
 		# -- DATA --
 #		o('train', 'NYT[0,100]'),       o('dev',   'NYT[1000,1100]'),
-#		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
-		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
+		o('train', 'English[0,162]'),   o('dev',   'English[142,162]'),
+#		o('train', 'English[0,142]'),   o('dev',   'English[142,162]'),
 #		o('train', 'English[0,10]'),   o('dev',   'English[10,20]'),
 #		o('train', 'TOY'),              o('dev', 'TOY'),
 		o('test',  'English[162,182]'), #real test data
@@ -140,7 +138,7 @@ env!(
 		o('todoHacks'),
 		o('reportK', 5),
 		o('ignoreTimeSequences'),
-		o('numThreads','4'),
+		o('numThreads','32'),
 
 		# -- BOOTSTRAPING --
 		#(exec options)
