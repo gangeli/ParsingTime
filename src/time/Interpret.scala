@@ -1260,6 +1260,9 @@ class InterpretationTask extends TemporalTask {
 				if(bestGuess.offset != 0){
 					log(FORCE,"then: " + scores(1))
 				}
+        if (scores.length > 1) {
+          log(FORCE, "second best guess: " + scores(1))
+        }
 				log(FORCE,RED,"WRONG")
 			}
 			score.enter(bestGuess.exact,bestGuess.diff, 
