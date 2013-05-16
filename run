@@ -25,7 +25,7 @@ env!(
 
 	run(
 		# -- RUN MODE --
-#		o('runInterpretModel'),
+		o('runInterpretModel'),
 		selo(0,'interpretModel', 'dist/interpretModel.ser.gz', 'dist/toyModel.ser.gz'),
 		selo(1, 'mode', 
 			'detect',
