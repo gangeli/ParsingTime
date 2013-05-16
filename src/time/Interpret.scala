@@ -8,6 +8,7 @@ import java.util.Calendar
 import scala.collection.JavaConversions._
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
+import scala.collection.mutable.Buffer
 import scala.collection.immutable.Map
 //(jodatime)
 import org.joda.time.DateTimeZone
@@ -35,6 +36,8 @@ import edu.stanford.nlp.util.logging.Redwood.Util._
 import edu.stanford.nlp.io.IOUtils
 import edu.stanford.nlp.time.TimeAnnotations._
 import edu.stanford.nlp.time.{Timex => StanfordTimex}
+import edu.stanford.nlp.process._
+import edu.stanford.nlp.pipeline._
 
 //------------------------------------------------------------------------------
 // GRAMMAR
@@ -654,6 +657,25 @@ case class TreeTime(
 	def addDetector(detector:CRFDetector,detectorIndex:Indexing):TreeTime = {
 		new TreeTime(parser,grammar,lex,Some(detector),Some(detectorIndex))
 	}
+
+  lazy val pipeline:StanfordCoreNLP = {
+    val props = new java.util.Properties
+    props.setProperty("annotators", "tokenize, ssplit, pos")
+    new StanfordCoreNLP(props)
+  }
+
+  def parseTimex(sent:String, groundTimeAsMillis:Long):String = {
+    val ann = new Annotation(sent)
+    pipeline.annotate(ann)
+    val tokens:Buffer[CoreLabel] = ann.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation]).get(0).get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
+    val timeSent:TimeSent = DataLib.mkTimeSent(tokens, index, false)
+    parseTimex(timeSent, Time(new DateTime(groundTimeAsMillis)))
+  }
+
+  def parseTimex(sent:TimeSent, ground:Time):String = {
+		val (time,original,logProb) = parse(sent,ground)
+    toStanfordTimex(time, original).value
+  }
 
 	def parse(sent:TimeSent,ground:Time):(Temporal,Temporal,Double) = {
 		//(run parser)
