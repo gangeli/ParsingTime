@@ -30,7 +30,6 @@ import org.joda.time.DateTimeZone
 import org.goobs.database._
 import org.goobs.stanford.CoreMapDatum
 import org.goobs.testing.Dataset
-import org.goobs.stanford.SerializedCoreMapDataset
 import org.goobs.stanford.JavaNLP._
 
 //------------------------------------------------------------------------------

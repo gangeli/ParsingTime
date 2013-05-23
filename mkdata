@@ -1,9 +1,12 @@
 #!/bin/bash
 
-JAR="time"
+# e.g., "./mkdata tempeval2 aux/tempeval2/ english"
 
-JAVANLP="$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar:etc/models.jar"
-CP="dist/$JAR.jar:etc/lib.jar:etc/scala-library.jar:etc/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:$JAVANLP:etc/jdom.jar:etc/joda-time.jar"
+JAR="time-release"
+JAVANLP="etc/stanford-corenlp-2012-07-09.jar"
+#JAVANLP="$JAVANLP_HOME/projects/core/classes:$JAVANLP_HOME/projects/more/classes:$JAVANLP_HOME/projects/research/classes:$JAVANLP_HOME/projects/core/lib/xom-1.2.7.jar:etc/models.jar"
+
+CP="dist/$JAR.jar:etc/lib.jar:${SCALA_HOME}/lib/scala-library.jar:${SCALA_HOME}/lib/scala-compiler.jar:etc/jline.jar:etc/postgresql.jar:$JAVANLP:etc/jdom.jar:etc/joda-time.jar"
 	
 java -ea -Xrunhprof:cpu=samples -cp $CP -server -Xmx4000M -ea time.Data $@
 

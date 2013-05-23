@@ -44,7 +44,6 @@ import org.goobs.util.Def
 import org.goobs.util.Static._
 import org.goobs.stanford.SerializedCoreMapDataset
 import org.goobs.stanford.CoreMapDatum
-import org.goobs.stanford.StanfordExecutionLogInterface
 import org.goobs.stats.CountStore
 import org.goobs.nlp._
 

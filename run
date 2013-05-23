@@ -138,7 +138,7 @@ env!(
 		o('todoHacks'),
 		o('reportK', 5),
 		o('ignoreTimeSequences'),
-		o('numThreads','32'),
+#		o('numThreads','32'), # With this commented, default to numProcessors
 
 		# -- BOOTSTRAPING --
 		#(exec options)

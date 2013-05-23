@@ -10,7 +10,7 @@ TMP=tmp
 # (classpath)
 #JAVANLP=${JAVANLP_HOME}/projects/core/classes:${JAVANLP_HOME}/projects/research/classes
 JAVANLP=${LIB}/stanford-corenlp-2012-07-09.jar
-CP=${LIB}/lib.jar:${LIB}/scala-compiler.jar:${LIB}/scala-library.jar:${LIB}/postgresql.jar:${JAVANLP}:${LIB}/xom.jar:${LIB}/joda-time.jar:${LIB}/joda-convert.jar
+CP=${SCALA_HOME}/lib/scala-library.jar:${LIB}/lib.jar:${LIB}/postgresql.jar:${JAVANLP}:${LIB}/xom.jar:${LIB}/joda-time.jar:${LIB}/joda-convert.jar
 
 # -- TARGETS --
 default: ${DIST}/time.jar 
