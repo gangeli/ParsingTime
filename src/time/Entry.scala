@@ -762,8 +762,7 @@ object Entry {
       	pipeline.addAnnotator(new WhitespaceTokenizerAnnotator(new Properties))
 				pipeline.addAnnotator(new WordsToSentencesAnnotator(false))
     		pipeline.addAnnotator(new POSTaggerAnnotator(
-					System.getenv("HOME") +
-						"/lib/data/bidirectional-distsim-wsj-0-18.tagger", //TODO hard coded
+					System.getProperty("pos.model", DefaultPaths.DEFAULT_POS_MODEL),
 					false))
 
 
