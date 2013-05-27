@@ -19,7 +19,7 @@ env!(
 	o('server'),
 	o('Xss32m'),
   o('XX:MaxPermSize=256M'),
-	o('mx20g'),
+	o('mx5g'),
 #	o('ea'),
 	'time.Entry',
 
