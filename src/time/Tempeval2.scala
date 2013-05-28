@@ -679,7 +679,9 @@ object TempEval2 {
 		// Dump a language's data into readable form
 		val language = args(0)
 		println("Processing " + language)
-		apply("aux/tempeval2-cleaned", language)
+		val init = apply("aux/tempeval2-cleaned", language)
+                val retok = retokFromInit(init, language)
+                normalizeFromRetok(retok, language)
 		toReadableFile(
 			"aux/coremap/tempeval2-"+language,
 			"tmp/tempeval-"+language+".dat"
