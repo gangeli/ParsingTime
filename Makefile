@@ -33,6 +33,18 @@ ${DIST}/time-release.jar:
 	rm -r ${TMP}/scala-compiler/META-INF
 	jar uf ${DIST}/time-release.jar -C ${TMP}/scala-compiler/ .
 	rm -rf ${TMP}/scala-compiler
+	#((scala-reflect))
+	rm -rf ${TMP}/scala-reflect
+	unzip ${SCALA_HOME}/lib/scala-reflect.jar -d ${TMP}/scala-reflect > /dev/null
+	rm -r ${TMP}/scala-reflect/META-INF
+	jar uf ${DIST}/time-release.jar -C ${TMP}/scala-reflect/ .
+	rm -rf ${TMP}/scala-reflect
+	#((jline))
+	rm -rf ${TMP}/jline
+	unzip ${SCALA_HOME}/lib/jline.jar -d ${TMP}/jline > /dev/null
+	rm -r ${TMP}/jline/META-INF
+	jar uf ${DIST}/time-release.jar -C ${TMP}/jline/ .
+	rm -rf ${TMP}/jline
 	#((joda-time))
 	rm -rf ${TMP}/joda-time
 	unzip ${LIB}/joda-time.jar -d ${TMP}/joda-time > /dev/null
