@@ -874,7 +874,8 @@ class InterpretationTask extends TemporalTask {
 	val (data,index) = {
 		//(raw dataset)
 		val rawDataset = new TimeDataset(new SerializedCoreMapDataset(
-			"aux/coremap/tempeval2-english-retok-numbers"
+      System.getProperty("user.dir") +
+			"/aux/coremap/tempeval2-english-retok-numbers"
 			))
 		val eval = if(O.devTest) O.dev else O.test
 		//(create data)
