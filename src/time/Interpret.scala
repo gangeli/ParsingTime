@@ -665,15 +665,20 @@ case class TreeTime(
   }
 
   def parseTimex(sent:String, groundTimeAsMillis:Long):String = {
+	  DateTimeZone.setDefault(DateTimeZone.UTC);
     val ann = new Annotation(sent)
     pipeline.annotate(ann)
     val tokens:Buffer[CoreLabel] = ann.get[JList[CoreMap],SentencesAnnotation](classOf[SentencesAnnotation]).get(0).get[JList[CoreLabel],TokensAnnotation](classOf[TokensAnnotation])
     val timeSent:TimeSent = DataLib.mkTimeSent(tokens, index, false)
-    parseTimex(timeSent, Time(new DateTime(groundTimeAsMillis)))
+    parseTimex(timeSent, Time(new DateTime(
+      groundTimeAsMillis
+    )))
   }
 
   def parseTimex(sent:TimeSent, ground:Time):String = {
+	  DateTimeZone.setDefault(DateTimeZone.UTC);
 		val (time,original,logProb) = parse(sent,ground)
+    log("timex: " + toStanfordTimex(time, original))
     toStanfordTimex(time, original).value
   }
 
@@ -722,23 +727,29 @@ case class TreeTime(
 		import JodaTimeUtils._
 		val (typ,value) = time match {
 			case (n:NoTime) => 
+        println("grounding: unknown time: " + n)
 				("MISS","?")
 			case (gr:GroundedRange) => 
+        println("grounding: range: " + gr)
 				if(original.isInstanceOf[UngroundedRange] &&
 						original.asInstanceOf[UngroundedRange].isRef){
 					("DATE","PRESENT_REF")
 				} else {
 					val opts = new JodaTimeUtils.ConversionOptions
 					opts.forceDate = false
-					("DATE",timexDateValue(gr.begin.base,gr.end.base,opts))
+          // TODO(gabor) this is a quick fix!
+          val grn = (gr ! Lex.ADAY).asInstanceOf[GroundedRange]
+					("DATE",timexDateValue(grn.begin.base, grn.end.base,opts))
 				}
 			case (d:GroundedDuration) => 
+        println("grounding: duration: " + d)
 				val opts = new JodaTimeUtils.ConversionOptions
 				opts.approximate = false
 //				opts.forceUnits = d.timexUnits
 				opts.forceUnits = Array[String]("L","C","Y","M")
 				("DURATION",timexDurationValue(d.base,opts))
 			case (d:FuzzyDuration) => 
+        log("grounding: fuzzy duration: " + d)
 				val opts = new JodaTimeUtils.ConversionOptions
 //				opts.forceUnits = d.timexUnits
 				opts.forceUnits = Array[String]("L","C","Y","M")

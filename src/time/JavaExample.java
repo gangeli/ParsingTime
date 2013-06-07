@@ -2,6 +2,7 @@ package time;
 
 import java.io.File;
 import edu.stanford.nlp.io.IOUtils;
+import org.joda.time.DateTimeZone;
 
 /**
  * A simple example of how to use run the system on an arbitrary String expression.
@@ -15,11 +16,14 @@ import edu.stanford.nlp.io.IOUtils;
  */
 class JavaExample {
   public static void main(String[] args) {
+	  DateTimeZone.setDefault(DateTimeZone.UTC);
     System.out.println("Hello World!");
     TreeTime model = IOUtils.readObjectFromFileNoExceptions(new File("dist/interpretModel.ser.gz"));
 
-    System.out.println("Last week was " + model.parseTimex("last week", System.currentTimeMillis()));
-    System.out.println("Next week will be " + model.parseTimex("next week", System.currentTimeMillis()));
-    System.out.println("Last quarter was " + model.parseTimex("last quarter", System.currentTimeMillis()));
+    System.out.println("Today is " + model.parseTimex("today", System.currentTimeMillis()) + "\n");
+    System.out.println("A day ago is " + model.parseTimex("the past friday", System.currentTimeMillis()) + "\n");
+    System.out.println("Last week was " + model.parseTimex("last week", System.currentTimeMillis()) + "\n");
+    System.out.println("Next week will be " + model.parseTimex("next week", System.currentTimeMillis()) + "\n");
+    System.out.println("Last quarter was " + model.parseTimex("last quarter", System.currentTimeMillis()) + "\n");
   }
 }

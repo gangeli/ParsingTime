@@ -2078,7 +2078,7 @@ class Lex extends Serializable {
 			AYEAR,
 			AYEAR,updater('year)).name("everyYear")
 	//--Misc
-	val TODAY:Range = Range(DAY)
+	val TODAY:Range = (Range(ADAY) ! ADAY)
 	val REF:Range = Range(Duration.ZERO)
 	val ALL_TIME:GroundedRange = new GroundedRange(Time.DAWN_OF,Time.END_OF)
 	val PM:Range=>Range = _ >> HOUR*12
@@ -2219,8 +2219,8 @@ class Lex extends Serializable {
 	def DECADE(i:Int) = Range(Time(i*10),Time((i+1)*10))
 	def CENTURY(i:Int) = Range(Time(i*100),Time((i+1)*100))
 
-	val YESTERDAY:Range = new UngroundedRange(ADAY,-ADAY)
-	val TOMORROW:Range = new UngroundedRange(ADAY,ADAY)
+	val YESTERDAY:Range = Range(ADAY) <<! ADAY
+	val TOMORROW:Range = Range(ADAY) >>! ADAY
 	val FUTURE:UngroundedRange
 		= new UngroundedRange(Duration.INFINITE,Duration.ZERO)
 	val PAST:UngroundedRange
