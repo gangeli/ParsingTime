@@ -8,7 +8,7 @@ import edu.stanford.nlp.io.IOUtils;
  *
  * The command to run this example, from the root of the git tree, is the following:
  *
- * javac -d bin -cp dist/time-release.jar src/time/JavaExample.java && java -mx4g -cp bin:dist/time-release.jar:/u/nlp/data/StanfordCoreNLPModels/stanford-corenlp-2012-04-09-models.jar time.JavaExample
+ * javac -d bin -cp dist/time-release.jar src/time/JavaExample.java && java -Xss32m -mx4g -cp bin:dist/time-release.jar:/u/nlp/data/StanfordCoreNLPModels/stanford-corenlp-2012-04-09-models.jar time.JavaExample
  *
  * Note that the models must be from 2012-04-09 (version 1.3.1 @ http://www-nlp.stanford.edu/software/stanford-corenlp-2012-04-09.tgz)
  *
