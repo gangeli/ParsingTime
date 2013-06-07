@@ -623,6 +623,7 @@ object CoreMapDetectionStore {
 	def apply(train:O.DataInfo,eval:O.DataInfo,index:Indexing,
 			treeTime:TreeTime
 			):TimeData[DetectionDatum] = {
+    throw new IllegalStateException("Fix local paths")
 		//--Data Source
 		val file:String = 
 			System.getenv("HOME") + 

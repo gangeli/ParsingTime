@@ -83,6 +83,7 @@ object Gigaword {
 		pipeline.annotate(doc)
 		log("(JavaNLP annotated)")
 		//(gutime annotation)
+    throw new IllegalStateException("Fix local paths")
 		val gutime = new GUTimeAnnotator(new File(
 			System.getenv("HOME")+"/workspace/time/etc/"))
 		gutime.annotate(doc)
