@@ -737,9 +737,7 @@ case class TreeTime(
 				} else {
 					val opts = new JodaTimeUtils.ConversionOptions
 					opts.forceDate = false
-          // TODO(gabor) this is a quick fix!
-          val grn = (gr ! Lex.ADAY).asInstanceOf[GroundedRange]
-					("DATE",timexDateValue(grn.begin.base, grn.end.base,opts))
+					("DATE",timexDateValue(gr.begin.base, gr.end.base,opts))
 				}
 			case (d:GroundedDuration) => 
         println("grounding: duration: " + d)
