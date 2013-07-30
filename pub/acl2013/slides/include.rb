@@ -320,6 +320,7 @@ def last2days(args={})
 	twodays = args[:twodays]
 	lasttwodays = args[:lasttwodays]
 	change = args[:change]
+  spanish = args[:spanish]
 	#(objects)
 	objLastTwoDays = nil
   objTwoDays     = nil 
@@ -330,12 +331,12 @@ def last2days(args={})
 	parse = Parse.new(
 		[objLastTwoDays = choose(lasttwodays, type('Range'), value('\texttt{takeLeft}$($', 2, '$\times$', day, '$)$')),
 			[objLast = choose(last, type('$f:$ Duration$\rightarrow$Range'), value('\texttt{takeLeft}$($--$)$')), 
-				phrase('last')],
-			[objTwoDays = choose(twodays, type('Duration'), value(2,'$\times$',day)),
+				phrase(spanish ? '\\\'ultimos' : 'last')],
+			[objTwoDays = choose(twodays, type('Duration'), value('2','$\times$',day)),
 				[objTwo = choose(two, type('Number'), value('2')), 
-					change ? phrase('\textbf{3}') : phrase('2')],
+					change ? phrase('\textbf{3}') : phrase(spanish ? 'dos' : '2')],
 				[objDays = choose(days, type('Duration'), day), 
-					change ? phrase('\textbf{months}') : phrase('days')]
+					change ? phrase('\textbf{months}') : phrase(spanish ? 'dias' : 'days')]
 			]
 		]
 	)
@@ -614,7 +615,7 @@ def comparison(l=0,t=-1,colorLogic=false,colorTime=false)
 	table(
 		[
 			blank(l>1,flight('Delta 3871').color(black).bold),
-			blank(t>1,time(Time.mktime(2012, 1, 13)).bold),
+			blank(t>1,time(Time.mktime(2012, 7, 13)).bold),
 		],
 		[
 			blank(l>0,overlay(uarrowLong,image('img/database.png').scale(0.15)).center),

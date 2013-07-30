@@ -12,8 +12,8 @@ slideStylePlain = SlideStyle.new.
 slideStyle = SlideStyle.new.
 	border(1).
 	borderColor(black).
-	titleSpacing(u(0.2)).
-	leftHeader(image('img/logo.jpg').scale(0.20))
+	titleSpacing(u(0.2))
+#	leftHeader(image('img/logo.jpg').scale(0.20))
 
 #--Init Presentation
 initPresentation(
@@ -33,13 +33,15 @@ initPresentation(
 slide!('',
 	center,
 	rtable(
-		image('img/logo.jpg').scale(0.25),
-		_('Parsing Time').scale(2.0).color(darkred),
-		author(_('Gabor Angeli').color(darkblue)),
-	nil).rmargin(u(0.75)).cjustify('c'),
-	'\small{\textit{with Chris Manning and Dan Jurafsky}}',
+#		image('img/logo.jpg').scale(0.25),
+		_('Multilingual Temporal Parsing').scale(2.0).color(darkred),
+		ctable(
+      author(_('Gabor Angeli').color(darkblue)),
+	    author('Jakob Uszkoreit'),
+    nil).cmargin(u(1.0)),
+	nil).rmargin(u(2.75)).cjustify('c'),
 	left,
-nil){ |slide| slide.label('intro_title').slideStyle(SlideStyle.new.leftHeader(nil)).signature(53) }
+nil){ |slide| slide.label('intro_title').slideStyle(SlideStyle.new.leftHeader(nil)).signature(56) }
 
 ################################################################################
 # OUTLINE
@@ -107,7 +109,7 @@ slide!('Motivation',
   pause,
   staggeredOverlay(true,
 	  ind(ind('Domain pragmatics: \tp{A year ago}')),
-	  ind(ind('Domain pragmatics: \tp{Sales are down compared to \textbf{a year ago}}')),
+	  ind(ind('Domain pragmatics: \tp{Sales are down from \textbf{a year ago}}')),
 	  ind(ind('Domain pragmatics: \tp{Remember? We got married \textbf{a year ago}}')),
   nil),
 	'',
@@ -259,7 +261,7 @@ nil){ |slide| slide.label('motivation_compare').signature(100).footnote(
 slide!('Latent Parse',
 	#(main point)
 	h1('Expressions parse compositionally'),
-	'','',
+	h1(''),
 	pause,
 	#(parse)
 	center,
@@ -279,7 +281,26 @@ slide!('Latent Parse',
 	#(value)
 	ctable('[',ground(Time.mktime(2013,8,5)),']', '$\rightarrow$', time([Time.mktime(2012,8,3),'$-$',Time.mktime(2012,8,5)])),
 	left,
-nil){ |slide| slide.label('motivation_parse').signature(65) }
+nil){ |slide| slide.label('motivation_parse').signature(68) }
+
+################################################################################
+# PARSE -- Multilingual
+################################################################################
+slide!('Latent Parse',
+	#(main point)
+	h1('Expressions parse compositionally'),
+	h1('Nothing language-specific'),
+	#(parse)
+	center,
+	phrase('\\\'ultimos dos dias'),
+	'','',
+	last2days(:days=>1, :two=>1, :twodays=>1, :last=>1, :lasttwodays=>1, :spanish => true),
+	'',
+	'',
+	#(value)
+	ctable('[',ground(Time.mktime(2013,8,5)),']', '$\rightarrow$', time([Time.mktime(2012,8,3),'$-$',Time.mktime(2012,8,5)])),
+	left,
+nil){ |slide| slide.label('motivation_parse_multilingual').signature(3) }
 
 ################################################################################
 # PARSE -- TYPES
@@ -543,7 +564,7 @@ nil){ |slide| slide.label('representation_combination').signature(2) }
 ################################################################################
 slide!('Features',
   h1('TODO'),
-nil){ |slide| slide.label('representation_combination').signature(0) }
+nil){ |slide| slide.label('features_intro').signature(1) }
 
 ################################################################################
 # LEARNING

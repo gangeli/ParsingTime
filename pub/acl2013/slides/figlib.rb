@@ -26,6 +26,8 @@ def stdemail(name)
 		'manning@stanford.edu'
 	elsif(name.to_s == "Dan Jurafsky") then
 		'jurafsky@stanford.edu'
+	elsif(name.to_s == "Jakob Uszkoreit") then
+		'uszkoreit@google.com'
 	end
 end
 def author(name, email=stdemail(name))
