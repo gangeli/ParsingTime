@@ -1958,6 +1958,7 @@ object Lex {
 
 	def todaysDate = impl.todaysDate
 }
+@SerialVersionUID(1L)
 class Lex extends Serializable {
 	import DateTimeFieldType._
 	import edu.stanford.nlp.time.JodaTimeUtils._

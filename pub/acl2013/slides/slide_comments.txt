@@ -1,0 +1,100 @@
+  Roadmap between sections
+x combination mechanism is well-defined
+x vspace in slide 3 between examples
+x emphasize model / representation
+x test -- emphasize that we're using gold mentions
+
+
+
+
+x take out training accuracy
+x  2 uses (conclusion):
+x  	guesses on everything 
+x  	gives a distribution at end
+  Emphasize language independence
+  make sexier
+  	conceptual reasons to prefer:
+  		more being learned
+  	looking for cool types of combinations
+x  Don't give the whole grammar
+  	e.g., rules that are tedious that get tedious
+  Have a complicated running example
+x Days away rather than days
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+x Motivation with more of an outline (e.g., note that it's probabilistic)
+x More motivation examples
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+x  2 lines for title
+x  no outline
+   
+?  temporal motivation use only IE
+?  	When an event happened
+?  	Meetings / correspondence
+   
+x  motivation for particular approach
+x  	"how is it done now and why is it not sufficient"
+x  	compare to how things are done now
+x  	usefulness of recursive structure
+x  sprinkle related work around the slide
+   
+x   less animation on the types figure
+   
+x   lexical values -> lexical categories
+x   explain sequences spawning from numbers versus words (e.g., March vs. DOM(3))
+x   	difference between converting march to NUM-march
+   
+x   Mention that gaussian is an easy choice
+x   	sufficient, easy to learn approximation
+   
+x   Write grounded times (versus phrases) in ISO-ish format
+   
+x   Training-EM
+x   	write with regular probabilities rather than switching from log probs
+   
+x   Results: systems are not given additional context, which hurts previous systems
+x   	especially, that we force parsing everything
+   
+x   Spacial -> spatial
+   
+x   Motivate relative to GeoQueries etc
+x   	for us, less direct mapping between language and grounding
+x   	other half of previous work can go here
+x   	put up a geoqueries example and a time example in parallel
