@@ -563,8 +563,84 @@ nil){ |slide| slide.label('representation_combination').signature(2) }
 # FEATURES
 ################################################################################
 slide!('Features',
-  h1('TODO'),
-nil){ |slide| slide.label('features_intro').signature(1) }
+  #(tree)
+  center,
+  overlay(
+    fridayThisWeek.level(0,1), 
+    fridayThisWeek(:friday => true).level(1,2), 
+    fridayThisWeek(:friday => true, :ofthis => true).level(2,5),
+    fridayThisWeek(:friday => true, :ofthis => true, :week => true).level(5,6), 
+    fridayThisWeek(:friday => true, :ofthis => true, :week => true, :ofthisweek => true).level(6,10), 
+    fridayThisWeek(:friday => true, :ofthis => true, :week => true, :ofthisweek => true, :root => true).level(10), 
+  nil),
+  left,
+  '','',
+
+  #(features)
+  ind(overlay(
+    table(
+      ['\texttt{lex}', feat(friday, phrase('Friday'))],
+      ['', '\textit{Parallel PCFG rules}'],
+      ['\texttt{bracket}', feat('')].color(nocolor),
+    nil).cmargin(u(1.0)).level(1,2),
+    table(
+      ['\texttt{lex}', feat('\textsc{Nil}', phrase('of this'))],
+      ['', '\textit{Parallel PCFG rules}'],
+      ['\texttt{bracket}', feat('')].color(nocolor),
+    nil).cmargin(u(1.0)).level(2,3),
+    table(
+      ['\texttt{lex}', feat('\textsc{Nil}', phrase('of this'))],
+      ['\texttt{lex}', feat('\textsc{Nil}', phrase('of'))],
+      ['\texttt{lex}', feat('\textsc{Nil}', phrase('this'))],
+      ['\texttt{bracket}', feat('')].color(nocolor),
+    nil).cmargin(u(1.0)).level(3,4),
+    table(
+      ['\texttt{lex}', feat('\textsc{Nil}', phrase('of this'))],
+      ['\texttt{lex}', feat('\textsc{Nil}', phrase('of'))],
+      ['\texttt{lex}', feat('\textsc{Nil}', phrase('this'))],
+      ['\texttt{bias}', feat('\textsc{Nil\_Bias}')],
+      ['\texttt{bracket}', feat('')].color(nocolor),
+    nil).cmargin(u(1.0)).level(4,5),
+    table(
+      ['\texttt{lex}', feat(everyweek, phrase('week'))],
+      ['\texttt{bracket}', feat('')].color(nocolor),
+    nil).cmargin(u(1.0)).level(5,6),
+    table(
+      ['\texttt{bracket}', feat('\textsc{Nil}', '\textsc{Sequence}')],
+      ['', '\textit{Parallel PCFG rules}'],
+      ['\texttt{bracket}', feat('')].color(nocolor),
+    nil).cmargin(u(1.0)).level(6,7),
+    table(
+      ['\texttt{bracket}', feat('\textsc{Nil}', '\textsc{Sequence}')],
+      ['\texttt{bracket}', feat('\textsc{Nil}', everyweek)],
+    nil).cmargin(u(1.0)).level(7,8),
+    table(
+      ['\texttt{bracket}', feat('\textsc{Nil}', '\textsc{Sequence}')],
+      ['\texttt{bracket}', feat('\textsc{Nil}', everyweek)],
+      ['\texttt{lex}', feat('\textsc{Nil}\_\tp{of this}', '\textsc{Sequence}')],
+      ['\texttt{lex}', feat('\textsc{Nil}\_\tp{of}', '\textsc{Sequence}')],
+      ['\texttt{lex}', feat('\textsc{Nil}\_\tp{this}', '\textsc{Sequence}')],
+    nil).cmargin(u(1.0)).level(8,9),
+    table(
+      ['\texttt{bracket}', feat('\textsc{Nil}', '\textsc{Sequence}')],
+      ['\texttt{bracket}', feat('\textsc{Nil}', everyweek)],
+      ['\texttt{lex}', feat('\textsc{Nil}\_\tp{of this}', everyweek)],
+      ['\texttt{lex}', feat('\textsc{Nil}\_\tp{of}', everyweek)],
+      ['\texttt{lex}', feat('\textsc{Nil}\_\tp{this}', everyweek)],
+    nil).cmargin(u(1.0)).level(9,10),
+    table(
+      ['\texttt{bracket}', feat('\textsc{Sequence}', '\textsc{Sequence}')],
+      ['\texttt{bracket}', feat('\textsc{Intersect}', friday, everyweek)],
+    nil).cmargin(u(1.0)).level(10,11),
+    table(
+      ['\texttt{bracket}', feat('\textsc{Sequence}', '\textsc{Sequence}')],
+      ['\texttt{bracket}', feat('\textsc{Intersect}', friday, everyweek)],
+      ['\texttt{valid}', feat('\textsc{is\_valid}')],
+      ['', '\textit{(e.g., filter \tp{Febuary \th{30}})}'],
+    nil).cmargin(u(1.0)).level(11),
+  nil)),
+
+nil){ |slide| slide.label('features_intro').signature(40) }
 
 ################################################################################
 # LEARNING
@@ -611,7 +687,7 @@ nil){ |slide| slide.label('learn_setup').signature(39) }
 ################################################################################
 # TIMEM K-BEST
 ################################################################################
-slide!('Training: TimEM',
+slide!('Training',
 	emHeaders(0),
 	#(input)
 	pause,
@@ -626,12 +702,12 @@ slide!('Training: TimEM',
 	nil),
 	left,
 
-nil){ |slide| slide.label('learn_timem_kbest').signature(25) }
+nil){ |slide| slide.label('learn_timem_kbest').signature(29) }
 
 ################################################################################
 # TIMEM FILTER
 ################################################################################
-slide!('Training: TimEM',
+slide!('Training',
 	emHeaders(1),
 	#(input)
 	center,
@@ -643,12 +719,12 @@ slide!('Training: TimEM',
 		kbest(0,true),
 		kbest(1,true),
 	nil),
-nil){ |slide| slide.label('learn_timem_filter').signature(25) }
+nil){ |slide| slide.label('learn_timem_filter').signature(28) }
 
 ################################################################################
 # TIMEM UPDATE
 ################################################################################
-slide!('Training: TimEM',
+slide!('Training',
 	emHeaders(2),
 	center,
 	ctable('',phrase(''),ground(''),time('')),
@@ -656,56 +732,56 @@ slide!('Training: TimEM',
 	staggeredOverlay(true,
 		kbest(1,true),
 	nil),
-nil){ |slide| slide.label('learn_timem_update').signature(7) }
+nil){ |slide| slide.label('learn_timem_update').signature(8) }
 
 ################################################################################
 # TIMEM UPDATE2
 ################################################################################
-slide!('Training: TimEM',
-	emHeaders(2),
-	'','',
-	#(lex)
-	ctable(
-		'\textbf{$\theta_{\textrm{Lex}}$}', larrow, 
-		ambiguiousLex[0], ',', ambiguiousLex[2], ',', ambiguiousLex[4], ',', ambiguiousLex[5],
-		', $\dots$',
-	nil).cmargin(u(0.1)).rjustify('c'),
-	pause,
-	'',
-	#(grammar)
-	ctable(
-		'\textbf{$\theta_{\textrm{Grammar}}$}', larrow, 
-		ambiguiousGrammar[0], ',', ambiguiousGrammar[1], ',', ambiguiousGrammar[2],
-	nil).cmargin(u(0.1)).rjustify('c'),
-	pause,
-	'',
-	#(time)
-	ctable(
-		'\textbf{$\mu_{\textrm{sequence}},\sigma_{\textrm{sequence}}$}', larrow, 
-		ctable(tuesday, '$+ 0$').rjustify('c'),',',
-		ctable(tuesday, '$+ 1$').rjustify('c'),
-	nil).cmargin(u(0.1)).rjustify('c'),
-nil){ |slide| slide.label('learn_timem_update2').signature(23) }
+#slide!('Training',
+#	emHeaders(2),
+#	'','',
+#	#(lex)
+#	ctable(
+#		'\textbf{$\theta_{\textrm{Lex}}$}', larrow, 
+#		ambiguiousLex[0], ',', ambiguiousLex[2], ',', ambiguiousLex[4], ',', ambiguiousLex[5],
+#		', $\dots$',
+#	nil).cmargin(u(0.1)).rjustify('c'),
+#	pause,
+#	'',
+#	#(grammar)
+#	ctable(
+#		'\textbf{$\theta_{\textrm{Grammar}}$}', larrow, 
+#		ambiguiousGrammar[0], ',', ambiguiousGrammar[1], ',', ambiguiousGrammar[2],
+#	nil).cmargin(u(0.1)).rjustify('c'),
+#	pause,
+#	'',
+#	#(time)
+#	ctable(
+#		'\textbf{$\mu_{\textrm{sequence}},\sigma_{\textrm{sequence}}$}', larrow, 
+#		ctable(tuesday, '$+ 0$').rjustify('c'),',',
+#		ctable(tuesday, '$+ 1$').rjustify('c'),
+#	nil).cmargin(u(0.1)).rjustify('c'),
+#nil){ |slide| slide.label('learn_timem_update2').signature(23) }
 
 ################################################################################
 # TIMEM DETAILS
 ################################################################################
-slide!('TimEM Discussion',
-	h1('Intuition'),
-	ind('\textit{Bootstrap} from short examples'),
-	pause,
-	ind('\tp{week}, then \tp{next week}, $\dots$'),
-
-	'','',
-	pause,
-	h1('Smoothing'),
-	ind('Dirichlet prior on grammar parameters $\theta$'),
-	ind('Gaussian prior on $\mu$ given MLE $\sigma$'),
-
-	'','',
-	pause,
-	h1('Uniform initialization $\rightarrow$ deterministic'),
-nil){ |slide| slide.label('learn_timem_details').signature(3) }
+#slide!('TimEM Discussion',
+#	h1('Intuition'),
+#	ind('\textit{Bootstrap} from short examples'),
+#	pause,
+#	ind('\tp{week}, then \tp{next week}, $\dots$'),
+#
+#	'','',
+#	pause,
+#	h1('Smoothing'),
+#	ind('Dirichlet prior on grammar parameters $\theta$'),
+#	ind('Gaussian prior on $\mu$ given MLE $\sigma$'),
+#
+#	'','',
+#	pause,
+#	h1('Uniform initialization $\rightarrow$ deterministic'),
+#nil){ |slide| slide.label('learn_timem_details').signature(3) }
 
 ################################################################################
 # RESULTS
@@ -721,10 +797,14 @@ slide!('Dataset',
 	#(--corpus)
 	h1('TempEval2'),
 	ind('Newswire annotated for temporal expressions'),
+  overlay(
+	  ind('6 languages: English, Spanish, Italian, Chinese, Korean, French').level(1,2),
+	  ind('6 languages: \textbf{English}, \textbf{Spanish}, Italian, Chinese, Korean, French').level(2),
+  nil),
+	pause,pause,
+  ind('Various sizes: \textbf{1052}, \textbf{1092}, 523, 659, 247, 206'),
 	pause,
-	ind('1052 training / 156 test expressions'),
-	pause,
-	'','',
+	'',
 	#(--evaluation)
 	h1('Evaluation'),
 	ind(ctable('Most likely grounding (e.g., \te{June 5} $\rightarrow$ ', time(Time.mktime(2012,6,5)),')')),
@@ -743,75 +823,176 @@ slide!('Dataset',
 	pause,
 	#(detail)
 	ind('\darkred{Constrained to guess on each example; no contextual cues}'),
-nil){ |slide| slide.label('results_results').signature(10) }
+nil){ |slide| slide.label('results_results').signature(16) }
 
 ################################################################################
 # NUMBERS
 ################################################################################
 slide!('Results',
 	#(other systems)
-	h1('Comparisons'),
+	h1('English (all expressions; gold detection)'),
 	ind('\textbf{\sys{GUTime}} (Mani and Wilson, 2000)'),
 	ind('\textbf{\sys{SUTime}} (Chang and Manning, 2012)'),
 	ind('\textbf{\sys{HeidelTime}} (Str\"{o}tgen and Gertz, 2010)'),
-	'','',
-	pause,
-	
-	#(results)
-	h1('Test (all expressions; gold detection)').level(1),
-	'',
+	ind('\textbf{\sys{Parsing Time 1}} (Angeli \textit{et al.}, 2012)'),
+  pause,
+  '','',
+	h1('Spanish'),
+	ind('\textbf{\sys{UC3M}} (Vincente-D\\\'iez \textit{et al.} 2010)'),
+nil){ |slide| slide.label('results_numbers').signature(47) }
+
+################################################################################
+# NUMBERS
+################################################################################
+slide!('Results',
+	#(other systems)
+	h1('English (all expressions; gold detection)'),
 	center,
 	staggeredOverlay(true,
 		#(test)
-		results(true,['gutime']),
-		results(true,['gutime','sutime']),
-		results(true,['gutime','sutime','heideltime']),
-		results(true,['gutime','sutime','heideltime','parsingtime']),
-#		#(training)
-#		results(false,['gutime','sutime','heideltime','parsingtime']),
+		results(['gutime']),
+		results(['gutime','sutime']),
+		results(['gutime','sutime','heideltime']),
+		results(['gutime','sutime','heideltime','parsingtime']),
+		results(['gutime','sutime','heideltime','parsingtime', 'us']),
 	nil),
 	left,
-nil){ |slide| slide.label('results_numbers').signature(43) }
+  pause,
+  '',
+  h1('Spanish'),
+	center,
+	staggeredOverlay(true,
+		#(test)
+		resultsSpanish(['UC3M']),
+		resultsSpanish(['UC3M', 'us']),
+	nil),
+	left,
+nil){ |slide| slide.label('results_english').signature(18) }
+
+################################################################################
+# NUMBERS
+################################################################################
+slide!('Results',
+  h1('All Languages (value accuracy)'),
+  '',
+  center,
+	table(
+	 ['\darkred{Language}' ,'\darkred{\\# Examples}','\darkred{Train}','\darkred{Test}'],
+   ['English', '1052', '0.81', '0.76'],
+   ['Spanish', '1092', '0.84', '0.76'],
+   ['Italian', '523', '0.85', '0.38'],
+   ['Chinese', '659', '0.73', '0.60'],
+   ['Korean', '247', '0.67', '0.42'],
+   ['French', '206', '0.76', '0.35'],
+	nil).rmargin(u(0.2)).cmargin(u(0.5)).cjustify('lcc'),
+  left,
+  pause,
+  '','',
+  ind('Overfitting; more data $\rightarrow$ better performance'),
+nil){ |slide| slide.label('results_alllang').signature(4) }
+
+################################################################################
+# ANALYSIS -- PRAGMATICS
+################################################################################
+slide!('Analysis',
+  ctable('29\\%', h1('Pragmatics')).cmargin(u(0.5)),
+  ind(ctable(phrase('Next Saturday?'), '$\rightarrow$', ground(Time.mktime(2013,8,10)), 'or', ground(Time.mktime(2013,8,17)))),
+  pause,
+  ind(ctable(phrase('Last year?'), '$\rightarrow$', 'a day? a quarter? a year?')),
+  pause,
+  '',
+  ind('Double edged sword:'),
+  ind(ind('Learn the peculiarities of the training data!')),
+  ind(ind('But, learn the peculiarities of the training data!')),
+nil){ |slide| slide.label('analysis_pragmatics').signature(5) }
+
+################################################################################
+# ANALYSIS -- TYPE ERROR
+################################################################################
+slide!('Analysis',
+  ctable('29\\%', h1('Pragmatics')).cmargin(u(0.5)),
+  ctable('16\\%', h1('Type error')).cmargin(u(0.5)),
+  ind('Just given \tp{day}'),
+  ind(phrase('The past 5 days')),
+nil){ |slide| slide.label('analysis_type').signature(0) }
+
+################################################################################
+# ANALYSIS -- NUMBERS
+################################################################################
+slide!('Analysis',
+  ctable('29\\%', h1('Pragmatics')).cmargin(u(0.5)),
+  ctable('16\\%', h1('Type error')).cmargin(u(0.5)),
+  ctable('10\\%', h1('Incorrect number')).cmargin(u(0.5)),
+  ind('Drop the number'),
+  ind('Spelled out names: \tp{seventeen seventy-six} $\rightarrow$ 17 76'),
+nil){ |slide| slide.label('analysis_numbers').signature(2) }
+
+################################################################################
+# ANALYSIS -- RELATIVE RANGE
+################################################################################
+slide!('Analysis',
+  ctable('29\\%', h1('Pragmatics')).cmargin(u(0.5)),
+  ctable('16\\%', h1('Type error')).cmargin(u(0.5)),
+  ctable('10\\%', h1('Incorrect number')).cmargin(u(0.5)),
+  ctable('7\\%$~$', h1('Relative range')).cmargin(u(0.53)),
+  ind('\tp{August 4} parses ``correctly\'\' as \texttt{Sunday}'),
+  pause,
+  ind('Particularly dangerous if publication dates close'),
+nil){ |slide| slide.label('analysis_relative').signature(5) }
+
+################################################################################
+# ANALYSIS -- WRONG
+################################################################################
+slide!('Analysis',
+  ctable('29\\%', h1('Pragmatics')).cmargin(u(0.5)),
+  ctable('16\\%', h1('Type error')).cmargin(u(0.5)),
+  ctable('10\\%', h1('Incorrect number')).cmargin(u(0.5)),
+  ctable('7\\%$~$', h1('Relative range')).cmargin(u(0.53)),
+  ctable('19\\%', h1('No excuse')).cmargin(u(0.5)),
+  pause,
+  ctable('19\\%', h1('Impoverished framework')).cmargin(u(0.5)),
+  pause,
+  ind(ctable('16\\%', 'Missing context').cmargin(u(0.25))),
+  ind(ind(phrase('That time'))),
+  ind(ind(phrase('From time to time'))),
+  pause,
+  ind(ctable('3\\%$~$', 'Bad reference time').cmargin(u(0.28))),
+  ind(ind('Annotation error')),
+  ind(ind('Reference time is not publication time')),
+  
+nil){ |slide| slide.label('analysis_wrong').signature(8) }
 
 ################################################################################
 # CONCLUSION
 ################################################################################
 slide!('Conclusion',
 	h1('Probabilistic, compositional temporal parsing'),
-	ind('Elegant compositional representation of time'),
-	ind('EM-like algorithm for learning'),
-	pause,
+	ind('Compositional representation of time'),
 	ind('Results competitive with state-of-the-art'),
 	pause,
 	'',
 	h1('Takeaway points'),
-	ind('Capture \textbf{syntactic} ambiguity: \tp{last Friday the \th{13}}'),
-	ind('Capture \textbf{pragmatic} ambiguity: \tp{last Sunday}'),
+	ind('Multilingual, with no language-specific tuning'),
+	ind('Rich features over \textit{types} and \textit{values}'),
 	pause,
-	ind('\textbf{Robust} guess and confidence for any expression'),
-	pause,
-	ind('\textbf{Language/domain independent} approach'),
-#	pause,
-#	'',
-#	h1('Future directions'),
-#	ind('Multilingual support'),
-#	ind('Incorporate contextual information'),
-#	pause,
-#	ind('Similar approach for spatial descriptions?'),
-nil){ |slide| slide.label('conclusion').signature(11) }
+	ind('More data $\rightarrow$ better performance'),
+	ind('Adapt to training domain'),
+  pause,
+  ind(ind('(But, it\'ll adapt to the training domain)')),
+nil){ |slide| slide.label('conclusion').signature(14) }
 
 ################################################################################
 # THANKS
 ################################################################################
 slide!('',
 	center,
+  '','','','','','','',
 	rtable(
-		image('img/logo.jpg').scale(0.25),
 		_('Thank You!').scale(2.0).color(darkred),
-		'\textit{(We\'re out of \darkblue{time})}',
+		'\textit{(\darkblue{Time} for questions)}',
 	nil).rmargin(u(0.75)).cjustify('c'),
 	left,
-nil){ |slide| slide.label('thanks').slideStyle(SlideStyle.new.leftHeader(nil)).signature(6) }
+nil){ |slide| slide.label('thanks').slideStyle(SlideStyle.new.leftHeader(nil)).signature(9) }
 
 
 ################################################################################

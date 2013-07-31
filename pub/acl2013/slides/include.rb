@@ -40,6 +40,14 @@ def uarrowLong; image('img/uarrowLong.jpg').scale(0.05); end
 def larrow; image('img/larrow.jpg').scale(0.05); end
 def rarrow; image('img/rarrow.jpg').scale(0.05); end
 
+def feat(*args)
+  ctable('$<$', 
+         ctable(*args.map{ |x| 
+           [_(x).scale(0.75), ','] }.flatten.reverse.drop(1).reverse
+         ).center, 
+         '$>$')
+end
+
 ##########
 # Lex
 ##########
@@ -143,6 +151,9 @@ def sequence(txt='Sequence'); calendar(txt); end
 def r; mcal(''); end
 def d; hourglass(''); end
 def s; calendar(''); end
+
+#--Misc
+def everyweek; calendar('EveryWeek','img/months.png'); end
 
 ##########
 # Function Lex
@@ -352,6 +363,41 @@ def last2days(args={})
 	parse.constituency( :visibleEdges => visibleEdges )
 end
 
+def fridayThisWeek(args={})
+	#(arguments)
+	fridayShow = args[:friday]
+	ofthis = args[:ofthis]
+	week = args[:week]
+	ofthisweek = args[:ofthisweek]
+	root = args[:root]
+  #(objects)
+  objRoot       = nil
+  objOfThisWeek = nil
+  objWeek       = nil
+  objOfThis     = nil
+  objFriday     = nil
+  #(parse)
+  parse = Parse.new(
+    [objRoot = intersect( friday, everyweek ).color(root ? nil : nocolor),
+      [objFriday = friday.color(fridayShow ? nil : nocolor), '\darkgreen{Friday}'],
+      [objOfThisWeek = everyweek.color(ofthisweek ? nil : nocolor),
+        [objOfThis = _('\textsf{Nil}').color(ofthis ? nil : nocolor),'\darkgreen{of this}'],
+        [objWeek = everyweek.color(week ? nil : nocolor),'\darkgreen{week}'],
+      ],
+    ]
+  )
+  #(edges)
+	visibleEdges = {
+    objRoot       => root,
+    objOfThisWeek => ofthisweek,
+    objWeek       => week,
+    objOfThis     => ofthis,
+    objFriday     => fridayShow,
+	}
+  #(render)
+	parse.constituency( :visibleEdges => visibleEdges )
+end
+
 def ambiguous(cand,gloss=['w$_1$', 'w$_2$'],overlay=true)
 	fn = overlay ? lambda { |cand,*args| choose(cand,*args) } : lambda { |cand,*args| cand ? args[cand] : nil }
 	#(parse)
@@ -361,11 +407,11 @@ def ambiguous(cand,gloss=['w$_1$', 'w$_2$'],overlay=true)
 			value('moveRight1$($',monday,'$)$'),
 			value('moveRight$($',now,',',week,'$)$'),
 			value(monday),
-#			value('moveLeft1$($',tuesday,'$)$'),
-#			value('moveLeft1$($',friday,'$)$'),
-#			value('takeLeft$($',week,'$)$'),
-#			value('takeRight$($',month,'$)$'),
-#			value('moveRight$($',now,',',month,'$)$'),
+			value('moveLeft1$($',tuesday,'$)$'),
+			value('moveLeft1$($',friday,'$)$'),
+			value('takeLeft$($',week,'$)$'),
+			value('takeRight$($',month,'$)$'),
+			value('moveRight$($',now,',',month,'$)$'),
 			nil),
 			#(left branch)
 			[fn.call(cand,
@@ -415,23 +461,23 @@ def kbest(probs=nil,correct=false)
 	end
 	table(
 		[
-			p(choose(probs,0.008,'\red{0.57}'),
+			p(choose(probs,'$\phi_1\cdot w$','\red{0.57}'),
 				ambiguous(0,['next','Monday'],false).scale(0.5)),
-			p(choose(probs,0.005,'\red{0.36}'),
+			p(choose(probs,'$\phi_2\cdot w$','\red{0.36}'),
 				ambiguous(1,['next','Monday'],false).scale(0.5)),
-			p(choose(probs,soft(!correct,0.004),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,'$\phi_3\cdot w$'),'\grey{0.00}'),
 				soft(!correct,ambiguous(3,['next','Monday'],false).scale(0.5))),
-			p(choose(probs,0.001,'\red{0.07}'),
+			p(choose(probs,'$\phi_4\cdot w$','\red{0.07}'),
 				ambiguous(2,['next','Monday'],false).scale(0.5)),
 		nil],
 		[
-			p(choose(probs,soft(!correct,0.0007),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,'$\phi_5\cdot w$'),'\grey{0.00}'),
 				soft(!correct,ambiguous(4,['next','Monday'],false).scale(0.5))),
-			p(choose(probs,soft(!correct,0.0004),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,'$\phi_6\cdot w$'),'\grey{0.00}'),
 				soft(!correct,ambiguous(5,['next','Monday'],false).scale(0.5))),
-			p(choose(probs,soft(!correct,0.0003),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,'$\phi_7\cdot w$'),'\grey{0.00}'),
 				soft(!correct,ambiguous(6,['next','Monday'],false).scale(0.5))),
-			p(choose(probs,soft(!correct,0.0001),'\grey{0.00}'),
+			p(choose(probs,soft(!correct,'$\phi_8\cdot w$'),'\grey{0.00}'),
 				soft(!correct,ambiguous(7,['next','Monday'],false).scale(0.5))),
 		nil],
 	nil).cmargin(u(0.25)).rmargin(u(0.5)).cjustify('c')
@@ -665,41 +711,52 @@ end
 
 def emHeaders(headerNum)
 	rtable(
+    h1('For each example:'),
 		(if(headerNum == 0) then
-			h1('E1 Step: Get $k$-best parses for phrase')
+			ind(h1('Get $k$-best parses for phrase'))
 		elsif(headerNum > 0)
-			h1Grey('E1 Step: Get $k$-best parses for phrase')
+			ind(h1Grey('Get $k$-best parses for phrase'))
 		end),
 		(if(headerNum == 1) then
-			h1('E2 Step: Filter and re-weight correct parses')
+			ind(h1('Re-weight correct parses as distribution'))
 		elsif(headerNum > 1)
-			h1Grey('E2 Step: Filter and re-weight correct parses')
+			ind(h1Grey('Re-weight correct parses as distribution'))
 		else
 			h1('')
 		end),
 		(if(headerNum == 2) then
-			h1('M Step: Update expected sufficient statistics')
+			ind(h1('Gradient update on multiclass hinge loss'))
 		elsif(headerNum > 2)
-			h1Grey('M Step: Update expected sufficient statistics')
+			ind(h1Grey('Gradient update on multiclass hinge loss'))
 		else
 			h1('')
 		end),
 	nil)
 end
 
-def results(trn=true,sys=[])
+def results(sys=[])
 	def mktable(sys,nums)
 		table(
 		 ['\darkred{System}' ,'\darkred{Type}','\darkred{Value}'],
 		 blank(sys.member?('gutime'),      ['\sys{GUTime}'     ,nums[0],nums[1]]),
 		 blank(sys.member?('sutime'),      ['\sys{SUTime}'     ,nums[2],nums[3]]),
 		 blank(sys.member?('heideltime'),  ['\sys{HeidelTime}' ,nums[4],nums[5]]),
-		 blank(sys.member?('parsingtime'), ['\sys{\darkblue{ParsingTime}}',"\\darkblue{#{nums[6]}}","\\darkblue{#{nums[7]}}"]),
+		 blank(sys.member?('parsingtime'), ['\sys{ParsingTime 1}',"#{nums[6]}","#{nums[7]}"]),
+		 blank(sys.member?('us'), ['\sys{\darkblue{ParsingTime 2}}',"\\darkblue{#{nums[8]}}","\\darkblue{#{nums[9]}}"]),
 		nil).rmargin(u(0.2)).cmargin(u(0.5)).cjustify('lcc')
 	end
-	train = mktable(sys,['0.80','0.42','\textbf{0.94}','0.71','0.85','0.71','0.88','\textbf{0.72}'])
-	test = mktable(sys,['0.72','0.46','0.85','0.69','0.80','0.67','\textbf{0.90}','\textbf{0.72}'])
-	trn ? train : test
+	mktable(sys,['0.80','0.42','\textbf{0.94}','0.71','0.85','0.71','0.88','0.72','0.91','\textbf{0.76}'])
+end
+
+def resultsSpanish(sys=[])
+	def mktable(sys,nums)
+		table(
+		 ['\darkred{System}' ,'\darkred{Type}','\darkred{Value}'],
+		 blank(sys.member?('UC3M'),        ['\sys{UC3M}'       ,nums[0],nums[1]]),
+		 blank(sys.member?('us'), ['\sys{\darkblue{ParsingTime 2}}',"\\darkblue{#{nums[2]}}","\\darkblue{#{nums[3]}}"]),
+		nil).rmargin(u(0.2)).cmargin(u(0.5)).cjustify('lcc')
+	end
+	mktable(sys,['0.79','0.72','\textbf{0.92}','\textbf{0.76}'])
 end
 
 def new
