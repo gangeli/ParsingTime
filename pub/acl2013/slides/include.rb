@@ -54,25 +54,25 @@ end
 #--Functions
 def calendar(txt,img='img/months.png')
 	ctable(
-		image(img).scale(0.025),
+		image(img).scale(0.016),
 		time(txt),
 	nil).rjustify('c')
 end
 def mcal(txt,img='img/calendar.png')
 	ctable(
-		image(img).scale(0.4),
+		image(img).scale(0.33),
 		time(txt),
 	nil).rjustify('c')
 end
 def clock(txt,img='img/times.png')
 	ctable(
-		image(img).scale(0.1),
+		image(img).scale(0.06),
 		time(txt),
 	nil).rjustify('c')
 end
 def hourglass(txt,img='img/hourglass_dull.png')
 	ctable(
-		image(img).scale(0.08),
+		image(img).scale(0.05),
 		time(txt),
 	nil).rjustify('c')
 end
@@ -154,6 +154,8 @@ def s; calendar(''); end
 
 #--Misc
 def everyweek; calendar('EveryWeek','img/months.png'); end
+def everymonth; calendar('EveryMonth','img/months.png'); end
+def theyear;   mcal('YEAR'); end
 
 ##########
 # Function Lex
@@ -323,6 +325,26 @@ def lastFriday_13(color=false)
 	).constituency
 end
 
+def num(str)
+  str = str.to_s
+  if str == '1' then return _('1'); end
+  if str == '2' then return _('2'); end
+  if str == '3' then return _('3'); end
+  if str == '4' then return _('4'); end
+  if str == '5' then return _('5'); end
+  if str == 'one' then return   _('1'); end
+  if str == 'two' then return   _('2'); end
+  if str == 'three' then return _('3'); end
+  if str == 'four' then return  _('4'); end
+  if str == 'five' then return  _('5'); end
+  if str == 'One' then return   _('1'); end
+  if str == 'Two' then return   _('2'); end
+  if str == 'Three' then return _('3'); end
+  if str == 'Four' then return  _('4'); end
+  if str == 'Five' then return  _('5'); end
+  throw "Unknown number: #{str}"
+end
+
 def last2days(args={})
 	#(arguments)
 	last = args[:last]
@@ -331,7 +353,8 @@ def last2days(args={})
 	twodays = args[:twodays]
 	lasttwodays = args[:lasttwodays]
 	change = args[:change]
-  spanish = args[:spanish]
+  lang = args[:lang] ? args[:lang] : ['last', 'two', 'days']
+  switchOrder = args[:switchOrder]
 	#(objects)
 	objLastTwoDays = nil
   objTwoDays     = nil 
@@ -339,18 +362,32 @@ def last2days(args={})
   objTwo         = nil
   objDays        = nil
 	#(parse)
-	parse = Parse.new(
-		[objLastTwoDays = choose(lasttwodays, type('Range'), value('\texttt{takeLeft}$($', 2, '$\times$', day, '$)$')),
-			[objLast = choose(last, type('$f:$ Duration$\rightarrow$Range'), value('\texttt{takeLeft}$($--$)$')), 
-				phrase(spanish ? '\\\'ultimos' : 'last')],
-			[objTwoDays = choose(twodays, type('Duration'), value('2','$\times$',day)),
-				[objTwo = choose(two, type('Number'), value('2')), 
-					change ? phrase('\textbf{3}') : phrase(spanish ? 'dos' : '2')],
+	parse = nil
+  if switchOrder then
+    parse = Parse.new(
+		[objLastTwoDays = choose(lasttwodays, type('Range'), value('\texttt{takeLeft}$($', change ? num(change[0]).bold : 2, '$\times$', day, '$)$')),
+			[objTwoDays = choose(twodays, type('Duration'), value(change ? num(change[0]).bold : '2','$\times$',day)),
+				[objTwo = choose(two, type('Number'), change ? num(change[0]).bold : value('2')), 
+					change ? phrase("\\textbf{#{change[0]}}") : phrase(lang[1])],
 				[objDays = choose(days, type('Duration'), day), 
-					change ? phrase('\textbf{months}') : phrase(spanish ? 'dias' : 'days')]
+					(change && change[1] != 'days') ? phrase("\\textbf{#{change[1]}}") : phrase(lang[2])],
+			],
+			[objLast = choose(last, type('$f:$ Duration$\rightarrow$Range'), value('\texttt{takeLeft}$($--$)$')), 
+				phrase(lang[0])]
+		])
+  else
+    parse = Parse.new(
+		[objLastTwoDays = choose(lasttwodays, type('Range'), value('\texttt{takeLeft}$($', change ? num(change[0]).bold : 2, '$\times$', day, '$)$')),
+			[objLast = choose(last, type('$f:$ Duration$\rightarrow$Range'), value('\texttt{takeLeft}$($--$)$')), 
+				phrase(lang[0])],
+			[objTwoDays = choose(twodays, type('Duration'), value(change ? num(change[0]).bold : '2','$\times$',day)),
+				[objTwo = choose(two, type('Number'), value(change ? num(change[0]).bold : '2')), 
+					change ? phrase("\\textbf{#{change[0]}}") : phrase(lang[1])],
+				[objDays = choose(days, type('Duration'), day), 
+					(change && change[1] != 'days') ? phrase("\\textbf{#{change[1]}}") : phrase(lang[2])]
 			]
-		]
-	)
+		])
+  end
 	#(visible arcs)
 	visibleEdges = {
 		objLastTwoDays => lasttwodays,
@@ -522,6 +559,14 @@ def lastWeek(asYear=false)
     ]).constituency
 end
 
+def intersectImplausible(types=false, wrong=false)
+  Parse.new(
+    [types ? type('Range') : intersect(wrong ? friday : aug, theyear),
+      [types ? type('Sequence') : (wrong ? friday : aug), phrase('$w_1$')],
+      [types ? type('Range') : theyear, phrase('2013')]
+    ]).constituency.scale(0.75)
+end
+
 ################################################################################
 # STRUCTURED SLIDES
 ################################################################################
@@ -575,7 +620,7 @@ def example(detected=false, interpreted=nil, grounded=false, ambiguity=false)
 	data = [
     no('Let\'s meet for'),
     yes('a few hours', '$\sim$1H', '$\sim$1H'),
-    yes('next week', 'WXX', '2013-08-11-2013-08-17'),
+    yes('next week', 'WXX', '2013-08-11-2013-08-18'),
     no(', say'),
     yes('August 12', '08/12', '2013-08-12'),
     no('?'),
@@ -741,8 +786,8 @@ def results(sys=[])
 		 blank(sys.member?('gutime'),      ['\sys{GUTime}'     ,nums[0],nums[1]]),
 		 blank(sys.member?('sutime'),      ['\sys{SUTime}'     ,nums[2],nums[3]]),
 		 blank(sys.member?('heideltime'),  ['\sys{HeidelTime}' ,nums[4],nums[5]]),
-		 blank(sys.member?('parsingtime'), ['\sys{ParsingTime 1}',"#{nums[6]}","#{nums[7]}"]),
-		 blank(sys.member?('us'), ['\sys{\darkblue{ParsingTime 2}}',"\\darkblue{#{nums[8]}}","\\darkblue{#{nums[9]}}"]),
+		 blank(sys.member?('parsingtime'), ['\sys{ParsingTime}',"#{nums[6]}","#{nums[7]}"]),
+		 blank(sys.member?('us'), ['\sys{\darkblue{This Work}}',"\\darkblue{#{nums[8]}}","\\darkblue{#{nums[9]}}"]),
 		nil).rmargin(u(0.2)).cmargin(u(0.5)).cjustify('lcc')
 	end
 	mktable(sys,['0.80','0.42','\textbf{0.94}','0.71','0.85','0.71','0.88','0.72','0.91','\textbf{0.76}'])
@@ -753,7 +798,7 @@ def resultsSpanish(sys=[])
 		table(
 		 ['\darkred{System}' ,'\darkred{Type}','\darkred{Value}'],
 		 blank(sys.member?('UC3M'),        ['\sys{UC3M}'       ,nums[0],nums[1]]),
-		 blank(sys.member?('us'), ['\sys{\darkblue{ParsingTime 2}}',"\\darkblue{#{nums[2]}}","\\darkblue{#{nums[3]}}"]),
+		 blank(sys.member?('us'), ['\sys{\darkblue{This Work}}',"\\darkblue{#{nums[2]}}","\\darkblue{#{nums[3]}}"]),
 		nil).rmargin(u(0.2)).cmargin(u(0.5)).cjustify('lcc')
 	end
 	mktable(sys,['0.79','0.72','\textbf{0.92}','\textbf{0.76}'])
