@@ -155,7 +155,7 @@ def s; calendar(''); end
 #--Misc
 def everyweek; calendar('EveryWeek','img/months.png'); end
 def everymonth; calendar('EveryMonth','img/months.png'); end
-def theyear;   mcal('YEAR'); end
+def theyear(year);   mcal(year ? year : 'YEAR'); end
 
 ##########
 # Function Lex
@@ -561,9 +561,9 @@ end
 
 def intersectImplausible(types=false, wrong=false)
   Parse.new(
-    [types ? type('Range') : intersect(wrong ? friday : aug, theyear),
+    [types ? type('Range') : intersect(wrong ? friday : aug, theyear('2013')),
       [types ? type('Sequence') : (wrong ? friday : aug), phrase('$w_1$')],
-      [types ? type('Range') : theyear, phrase('2013')]
+      [types ? type('Range') : theyear('2013'), phrase('2013')]
     ]).constituency.scale(0.75)
 end
 

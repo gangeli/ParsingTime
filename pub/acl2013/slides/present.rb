@@ -155,7 +155,7 @@ slide!('Prior Work',
 	'',
 	pause,
 	ind('\textbf{Rule engineering challenge}'),
-	ind(ind('Always more rules: \tp{7 days \textbf{prior}}, \tp{the \textbf{previous} 7 days}')),
+	ind(ind('Always more rules: \tp{2 days \textbf{prior}}, \tp{the \textbf{previous} 2 days}')),
 	ind(ind('\verb~/the/ /past|last/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
 	ind(ind('\verb~/the/ /next|following/ (?: ($NUM) /to|-/ )? ($NUM)? ($TEUNITS)~').scale(0.75)),
 	ind(ind('$\dots$')),
@@ -163,44 +163,81 @@ slide!('Prior Work',
   pause,
   ind(h1('New set of rules for each language')),
 #  h1(ctable(new, 'Adapt to multiple languages')),
-  ind(ind('Annotating data easier than adapting rules')),
-nil){ |slide| slide.label('motivation_motiv').slideStyle(slideStyle).signature(42).footnote(
-	'\darkblue{Mani \& Wilson 2000; Str\"{o}tgen and Gertz 2010; Chang and Manning (2012)}'
+#  ind(ind('Annotating data easier than adapting rules')),
+nil){ |slide| slide.label('motivation_motiv').slideStyle(slideStyle).signature(44).footnote(
+	'\darkblue{Mani \& Wilson (2000); Str\"{o}tgen and Gertz (2010); Chang and Manning (2012)}'
 )}
 
 ################################################################################
 # MOTIVATION -- US
 ################################################################################
 slide!('Motivation',
-	h1('Our Model'),
+#	h1('Our Model'),
 #	ind('\textbf{Gives confidence}'),
 #	pause,
-	ind('\textbf{Interpretable temporal representation}'),
-	pause,
-	ind('\textbf{Domain flexible}'),
-	ind(ind('Emulates pragmatics of training domain')),
-	ind(ind('What is \tp{a year ago}?')),
-	pause,
+#	ind('\textbf{Universal temporal representation}'),
+#	pause,
+#	ind('\textbf{Domain flexible}'),
+#	ind(ind('Emulates pragmatics of training domain')),
+#	ind(ind('What is \tp{a year ago}?')),
+#	pause,
 
-	ind(h1('\textbf{Language independent}')),
-	ind(ind('Arbitrary training data: \tp{\textbf{Last} Sunday} / \tp{domingo \textbf{pasado}}')),
+	h1('\textbf{Language independent}'),
+	ind('Arbitrary training data: \tp{\textbf{Last} Sunday} / \tp{domingo \textbf{pasado}}'),
   pause,
-  '',
   staggeredOverlay(true,
     rtable(
-      ind(ind('\textbf{Hard}:')),
-      ind(ind(ind((ctable(phrase('pasado'), '$\rightarrow$', value('\texttt{last}$($--$)$')))))),
-      ind(ind(ind((ctable(phrase('domingo'), '$\rightarrow$', sunday.scale(0.75)))))),
-	    ind(ind(ind('\verb~($DOW) /pasad[oa]/~'))),
+      ind('\textbf{Hard}:'),
+      ind(ind((ctable(phrase('pasado'), '$\rightarrow$', value('\texttt{last}$($--$)$'))))),
+      ind(ind((ctable(phrase('domingo'), '$\rightarrow$', sunday.scale(0.75))))),
+	    ind(ind('\verb~($DOW) /pasad[oa]/~')),
 
     nil),
     rtable(
-      ind(ind('\textbf{Easier}: annotate training data for \tp{domingo pasado}')),
+      ind('\textbf{Easier}: annotate training data for \tp{domingo pasado}'),
 #      ind(ind(ind(
 #        ctable('Ask native speaker `when was ', phrase('domingo pasado'), '?\'')))),
     nil),
   nil),
-nil){ |slide| slide.label('motivation_motiv2').slideStyle(slideStyle).signature(31) }
+nil){ |slide| slide.label('motivation_motiv2').slideStyle(slideStyle).signature(36) }
+
+################################################################################
+# MOTIVATION -- RULES
+################################################################################
+slide!('Motivation',
+#	h1('Our Model'),
+#	ind('\textbf{Gives confidence}'),
+#	pause,
+#	ind('\textbf{Universal temporal representation}'),
+#	pause,
+#	ind('\textbf{Domain flexible}'),
+#	ind(ind('Emulates pragmatics of training domain')),
+#	ind(ind('What is \tp{a year ago}?')),
+#	pause,
+
+	h1('\textbf{Language independent}'),
+	ind('Arbitrary training data: \tp{\textbf{Last} Sunday} / \tp{domingo \textbf{pasado}}'),
+  rtable(
+    ind('\textbf{Easier}: annotate training data for \tp{domingo pasado}'),
+#    ind(ind(ind(
+#      ctable('Ask native speaker `when was ', phrase('domingo pasado'), '?\'')))),
+  nil),
+	
+#  h1('Define a single grammar'),
+	ind('$\sim 100$ grammar rules total'),
+	ind('Same learning algorithm, hyperparameters'),
+  '',
+  pause,
+  h1('HeidelTime'),
+	ind('English: $\sim 2000$ rules (185 combination rules)'),
+  pause,
+	ind('Spanish: $\sim 1200$ rules (167 combination rules)'),
+	ind('Italian: $\sim 1600$ rules (156 combination rules)'),
+  ind('$\dots$'),
+  pause,
+  h1('SUTime'),
+	ind('English: $\sim 900$ rules'),
+nil){ |slide| slide.label('motivation_numrules').slideStyle(slideStyle).signature(39) }
 
 
 ################################################################################
@@ -304,7 +341,7 @@ slide!('Language Independent',
 	'',
 	'',
 	#(value)
-	ctable('[',ground(Time.mktime(2013,8,5)),']', '$\rightarrow$', time([Time.mktime(2012,8,3),'$-$',Time.mktime(2012,8,5)])),
+	ctable('[',ground(Time.mktime(2013,8,5)),']', '$\rightarrow$', time([Time.mktime(2013,8,3),'$-$',Time.mktime(2013,8,5)])),
 	left,
 nil){ |slide| slide.label('motivation_parse').slideStyle(slideStyle).signature(72) }
 
@@ -340,30 +377,32 @@ slide!('Language Independent',
 	'',
 	'',
 	#(value)
-	ctable('[',ground(Time.mktime(2013,8,5)),']', '$\rightarrow$', time([Time.mktime(2012,8,3),'$-$',Time.mktime(2012,8,5)])),
+	ctable('[',ground(Time.mktime(2013,8,5)),']', '$\rightarrow$', time([Time.mktime(2013,8,3),'$-$',Time.mktime(2013,8,5)])),
 	left,
 nil){ |slide| slide.label('motivation_parse_multilingual').slideStyle(slideStyle).signature(20) }
 
 ################################################################################
 # LANGUAGE INDEPENDENT -- COMPARISON
 ################################################################################
-slide!('Language Independent',
-	h1('Define a single grammar'),
-	ind('$\sim 100$ grammar rules total'),
-	ind('Same learning algorithm, hyperparameters'),
-  '','',
-  pause,
-  h1('HeidelTime'),
-	ind('English: $\sim 2000$ rules (185 combination rules)'),
-  pause,
-	ind('Spanish: $\sim 1200$ rules (167 combination rules)'),
-	ind('Italian: $\sim 1600$ rules (156 combination rules)'),
-  ind('$\dots$'),
-  '','',
-  pause,
-  h1('SUTime'),
-	ind('English: $\sim 900$ rules'),
-nil){ |slide| slide.label('motivation_compare').slideStyle(slideStyle).signature(4) }
+#slide!('Language Independent',
+#	h1('Define a single grammar'),
+#	ind('$\sim 100$ grammar rules total'),
+#	ind('Same learning algorithm, hyperparameters'),
+#  '','',
+#  pause,
+#  h1('HeidelTime'),
+#	ind('English: $\sim 2000$ rules (185 combination rules)'),
+#  pause,
+#	ind('Spanish: $\sim 1200$ rules (167 combination rules)'),
+#	ind('Italian: $\sim 1600$ rules (156 combination rules)'),
+#  ind('$\dots$'),
+#  '','',
+#  pause,
+#  h1('SUTime'),
+#	ind('English: $\sim 900$ rules'),
+#nil){ |slide| slide.label('motivation_compare').slideStyle(slideStyle).signature(5).footnote(
+#	'\darkblue{Str\"{o}tgen and Gertz (2010); Chang and Manning (2012)}'
+#)}
 ################################################################################
 # PARSE -- TYPES
 ################################################################################
@@ -390,7 +429,7 @@ nil){ |slide| slide.label('learn_segway').slideStyle(slideStyle).signature(19) }
 ################################################################################
 slide!('Parsing',
 	#(intro)
-	h1('Domain of nonterminals is sparse'),
+	h1('Domain of nonterminals is large'),
 #	pause,
 	ind(ctable('Consider: ',phrase('last 7 days'),', ',phrase('last 3 months'),', etc.')),
 #	pause,
@@ -421,21 +460,23 @@ slide!('Parsing',
 
     rtable('$~$',h1('Discriminative model'),
       ind(table(
-        ['Coarse-grained features over types:', type('$f:$ Range$\rightarrow$Range')],
-        ['Fine grained features over values:', type('\texttt{moveLeft1($-$)}')],
+        ['Coarse-grained features over types:', range],
+        ['Fine grained features over values:', theyear('2013')],
       nil).cmargin(u(0.25))),
       '$~$',
 	    ctable(h1('Adapt semantic parser'), '(e.g., Liang \textit{et al.} 2011)').cmargin(u(0.2)),
     nil),
   nil),
-nil){ |slide| slide.label('motivation_parse2').slideStyle(slideStyle).signature(62) }
+nil){ |slide| slide.label('motivation_parse2').slideStyle(slideStyle).signature(69).footnote(
+	'\darkblue{Angeli \textit{et al.} 2012}'
+)}
 
 ################################################################################
 # REPRESENTATION
 ################################################################################
 #slide!('Outline',
 #	outline(1),
-#nil){ |slide| slide.label('representation_outline').slideStyle(slideStyle).signature(12) }
+#nil){ |slide| slide.label('representation_outline').slideStyle(slideStyle).signature(13) }
 
 #################################################################################
 ## NONTERMINAL TYPES
@@ -641,12 +682,12 @@ slide!('Features',
   ind(overlay(
     table(
       ['\texttt{lex}', feat(friday, phrase('Friday'))],
-      ['', '\textit{Parallel PCFG rules}'],
+      ['', '\textit{Parallel generative grammar}'],
       ['\texttt{bracket}', feat('')].color(nocolor),
     nil).cmargin(u(1.0)).level(1,2),
     table(
       ['\texttt{lex}', feat('\textsc{Nil}', phrase('of this'))],
-      ['', '\textit{Parallel PCFG rules}'],
+      ['', '\textit{Parallel generative grammar}'],
       ['\texttt{bracket}', feat('')].color(nocolor),
     nil).cmargin(u(1.0)).level(2,3),
     table(
@@ -668,7 +709,7 @@ slide!('Features',
     nil).cmargin(u(1.0)).level(4,5),
     table(
       ['\texttt{bracket}', feat('\textsc{Nil}', '\textsc{Sequence}')],
-      ['', '\textit{Parallel PCFG rules}'],
+      ['', '\textit{Parallel generative grammar}'],
       ['\texttt{bracket}', feat('')].color(nocolor),
     nil).cmargin(u(1.0)).level(5,6),
     table(
@@ -701,7 +742,7 @@ slide!('Features',
     nil).cmargin(u(1.0)).level(10),
   nil)),
 
-nil){ |slide| slide.label('features_intro').slideStyle(slideStyle).signature(42) }
+nil){ |slide| slide.label('features_intro').slideStyle(slideStyle).signature(43) }
 
 ################################################################################
 # LEARNING
@@ -723,7 +764,7 @@ slide!('Training Setup',
 		nil),
 	pause,
 	ind('Not given latent parse'),
-	ind('Not given lexical cues'),
+	ind('Not given lexical or language cues'),
 
 	#(ambiguity)
 	'',
@@ -743,7 +784,7 @@ slide!('Training Setup',
 		ambiguousWithText(2),
 	nil),
 	left,
-nil){ |slide| slide.label('learn_setup').slideStyle(slideStyle).signature(39) }
+nil){ |slide| slide.label('learn_setup').slideStyle(slideStyle).signature(40) }
 
 ################################################################################
 # TIMEM K-BEST
@@ -753,7 +794,7 @@ slide!('Training',
 	#(input)
 	pause,
 	center,
-	ctable('( (',phrase('next Monday'),',',ground(Time.mktime(2012,6,5)),') , ',time(Time.mktime(2012,6,12)), ')'),
+	ctable('( (',phrase('next Monday'),',',ground(Time.mktime(2013,8,5)),') , ',time(Time.mktime(2013,8,12)), ')'),
 	#(parses)
 	'',
 	pause,
@@ -763,7 +804,7 @@ slide!('Training',
 	nil),
 	left,
 
-nil){ |slide| slide.label('learn_timem_kbest').slideStyle(slideStyle).signature(29) }
+nil){ |slide| slide.label('learn_timem_kbest').slideStyle(slideStyle).signature(30) }
 
 ################################################################################
 # TIMEM FILTER
@@ -772,7 +813,7 @@ slide!('Training',
 	emHeaders(1),
 	#(input)
 	center,
-	ctable('( (',phrase('next Monday'),',',ground(Time.mktime(2012,6,5)),') , ',time(Time.mktime(2012,6,12)), ')'),
+	ctable('( (',phrase('next Monday'),',',ground(Time.mktime(2013,8,5)),') , ',time(Time.mktime(2013,8,12)), ')'),
 	#(parses)
 	'',
 	staggeredOverlay(true,
@@ -868,23 +909,23 @@ slide!('Dataset',
 	'',
 	#(--evaluation)
 	h1('Evaluation'),
-#	ind(ctable('Most likely grounding (e.g., \te{June 5} $\rightarrow$ ', time(Time.mktime(2012,6,5)),')')),
+#	ind(ctable('Most likely grounding (e.g., \te{August 5} $\rightarrow$ ', time(Time.mktime(2013,8,5)),')')),
 #	pause,
 	#(examples)
 	ind('\textbf{Type}: Accuracy over result\'s temporal type'),
 	ind(ind(ctable(
-		range('June 5, 2012'), ' $=$ ', range('June 12, 2012'),
+		range('August 5, 2013'), ' $=$ ', range('August 12, 2013'),
 	nil).cmargin(u(0.2)))),
 	'',
 	pause,
 	ind('\textbf{Value}: Accuracy over result\'s value, if types match'),
 	ind(ind(ctable(
-		range('June 5, 2012'), ' $\ne$ ', range('June 12, 2012'),
+		range('August 5, 2013'), ' $\ne$ ', range('August 12, 2013'),
 	nil).cmargin(u(0.2)))),
 	pause,
 	#(detail)
 	ind('\darkred{Constrained to guess on each example; no contextual cues}'),
-nil){ |slide| slide.label('results_results').slideStyle(slideStyle).signature(17) }
+nil){ |slide| slide.label('results_results').slideStyle(slideStyle).signature(18) }
 
 ################################################################################
 # NUMBERS
@@ -1041,8 +1082,8 @@ nil){ |slide| slide.label('analysis_wrong').slideStyle(slideStyle).signature(12)
 # CONCLUSION
 ################################################################################
 slide!('Conclusion',
-	h1('Probabilistic, compositional temporal parsing'),
-	ind('Compositional representation of time'),
+	h1('Multilingual temporal parsing'),
+	ind('Compositional grammar of time'),
 	ind('Results competitive with state-of-the-art'),
 	pause,
 	'','','',
@@ -1053,7 +1094,7 @@ slide!('Conclusion',
 #	ind('Adapt to training domain'),
 #  pause,
 #  ind(ind('(But, it\'ll adapt to the training domain)')),
-nil){ |slide| slide.label('conclusion').slideStyle(slideStyle).signature(17) }
+nil){ |slide| slide.label('conclusion').slideStyle(slideStyle).signature(18) }
 
 ################################################################################
 # THANKS
